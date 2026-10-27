@@ -1,6 +1,6 @@
 import { getAddress, keccak256, toBytes, type Address } from 'viem';
 
-import { canonicalJson, quoteUsableForEscrow, verifyNegotiationSignature } from '@/lib/erc8183/negotiation';
+import { canonicalJson, quoteUsableForEscrow, verifyNegotiationSignature, type ContractSignatureCheck } from '@/lib/erc8183/negotiation';
 import { decodeReferenceJobDescription } from '@/lib/erc8183/job-envelope';
 
 /**
@@ -74,6 +74,8 @@ export interface ReferenceDeliveryInput {
   escrow: { chainId: number; commerce: string; paymentToken: string | null };
   /** The funding transaction's block timestamp, in ms. Null when unreadable. */
   fundedAtMs: number | null;
+  /** ERC-1271 for a provider wallet that is a smart account; supplied by the server caller (`contractSignatureCheck`). */
+  contractSignature?: ContractSignatureCheck;
   /** Pokter's own attribution for this job. The documented source of identity here. */
   indexed: { agentChainId: number | null; agentTokenId: string | null; agentName?: string | null } | null;
   /** The ERC-8004 record for that identity, for confirmation and category. */
@@ -120,6 +122,7 @@ export async function verifyReferenceDelivery(input: ReferenceDeliveryInput): Pr
       negotiationHash: String(claimedHash),
       providerSignature: String(providerSig),
       expectedProvider: input.job.provider,
+      contractSignature: input.contractSignature,
     });
   } catch (error) {
     return refuse('signature', (error as Error).message);

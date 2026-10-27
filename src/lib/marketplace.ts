@@ -51,6 +51,7 @@ import { reviewCoordination, type Coordination } from '@/lib/proof/coordination'
 import type { WalletActivity } from '@/lib/activity/reading';
 import { assayForCategory } from '@/lib/assay/catalog';
 import type { SearchableAgent } from '@/lib/search/match';
+import { catalogueVersion } from '@/lib/catalogue-version';
 export { preferDistinctOwners };
 
 /**
@@ -824,7 +825,7 @@ type SearchableWithStatus = {
 
 /** How long one built catalogue serves every request. Its stores change when the sweep runs, about every ten minutes. */
 export const CATALOGUE_FRESH_MS = 60_000;
-const catalogueCache = new Map<string, { at: number; value: Promise<SearchableWithStatus> }>();
+const catalogueCache = new Map<string, { at: number; version: number; value: Promise<SearchableWithStatus> }>();
 
 /**
  * The catalogue, shared across requests for a minute.
@@ -844,9 +845,10 @@ export function listSearchableWithStatus(options: { chainId?: ChainId; limit?: n
   const key = `${options.chainId ?? 'all'}:${options.limit ?? 'default'}`;
   const now = Date.now();
   const hit = catalogueCache.get(key);
-  if (hit && now - hit.at < CATALOGUE_FRESH_MS) return hit.value;
+  /* Fresh, and built since the last stored price check (`catalogueChanged`). */
+  if (hit && now - hit.at < CATALOGUE_FRESH_MS && hit.version === catalogueVersion()) return hit.value;
   const value = buildSearchableWithStatus(options);
-  catalogueCache.set(key, { at: now, value });
+  catalogueCache.set(key, { at: now, version: catalogueVersion(), value });
   value.catch(() => {
     if (catalogueCache.get(key)?.value === value) catalogueCache.delete(key);
   });

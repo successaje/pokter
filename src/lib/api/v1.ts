@@ -179,6 +179,9 @@ export interface Page<T> {
   total: number;
   limit: number;
   offset: number;
+  /** When this response was built. */
+  generatedAt: string;
+  /** The same as `generatedAt`, kept for older callers: it never meant when anything in `items` was observed. */
   observedAt: string;
 }
 
@@ -186,12 +189,14 @@ export function page<T>(
   items: T[],
   { total, limit, offset }: { total: number; limit: number; offset: number },
 ): Page<T> {
+  const generatedAt = new Date().toISOString();
   return {
     version: API_VERSION,
     items,
     total,
     limit,
     offset,
-    observedAt: new Date().toISOString(),
+    generatedAt,
+    observedAt: generatedAt,
   };
 }

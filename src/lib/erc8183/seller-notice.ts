@@ -9,6 +9,7 @@ import { readJson, withPublicEndpoint } from '@/lib/proof/prober';
 import { getAgent } from '@/lib/scan/client';
 import type { ChainId } from '@/lib/scan/types';
 import { jsonRpcEndpoint } from '@/lib/a2a/card';
+import { a2aUserMessage } from '@/lib/a2a/message';
 
 export const SELLER_ANSWER_TIMEOUT_MS = 50_000;
 
@@ -49,11 +50,7 @@ async function askSeller(input: {
         id: rpcId,
         method: 'message/send',
         params: {
-          message: {
-            role: 'user',
-            messageId: crypto.randomUUID(),
-            parts: [{ kind: 'data', data: { skill: 'notify_funded', job_id: Number(input.jobId) } }],
-          },
+          message: a2aUserMessage([{ kind: 'data', data: { skill: 'notify_funded', job_id: Number(input.jobId) } }]),
           configuration: { acceptedOutputModes: ['application/json'], blocking: true },
         },
       }),

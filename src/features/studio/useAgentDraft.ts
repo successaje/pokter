@@ -37,6 +37,8 @@ export interface EndpointPreflight {
   detail: string;
   capabilities: string[];
   quoteCapability: boolean;
+  /** A skill named for pricing that Pokter does not ask (see `priceLikeSkill`). */
+  priceLikeSkill?: string | null;
   safety: {
     httpsRequired: boolean;
     credentialsRejected: boolean;

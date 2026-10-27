@@ -9,6 +9,7 @@ import { readJson, withPublicEndpoint } from '@/lib/proof/prober';
 import { getAgent } from '@/lib/scan/client';
 import type { ChainId } from '@/lib/scan/types';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
+import { a2aUserMessage } from '@/lib/a2a/message';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 25;
@@ -69,7 +70,7 @@ export async function POST(request: Request): Promise<NextResponse> {
           id: rpcId,
           method: 'message/send',
           params: {
-            message: { role: 'user', messageId: crypto.randomUUID(), parts: [{ kind: 'data', data: { skill, task_description: task } }] },
+            message: a2aUserMessage([{ kind: 'data', data: { skill, task_description: task } }]),
             configuration: { acceptedOutputModes: ['application/json', 'text/plain'], blocking: true },
           },
         }),

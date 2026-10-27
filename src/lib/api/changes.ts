@@ -30,6 +30,19 @@ export interface ApiChange {
 
 export const API_CHANGES: ApiChange[] = [
   {
+    date: null,
+    release: null,
+    kind: 'changed',
+    surfaces: ['GET /api/v1/agents/{chainId}/{tokenId}', 'GET /api/v1/agents', 'MCP get_agent'],
+    summary: 'A newer failed price check is no longer hidden by an older signed price, and responses say when they were built.',
+    details: [
+      '`hireBlocker` can now be set while `price` holds a payable signed quote: when Pokter’s scheduled price check has failed since that quote, for a reason that is not transient. It used to be null whenever a payable quote was stored.',
+      'Adds `priceCheck` to an agent: the most recent price check, `{ at, outcome, source }`. `outcome` is `signed` or the failure code; `source` is `scheduled` (Pokter’s own check) or `buyer` (a signed quote a buyer’s brief got). A buyer’s failed request is not included, because it can be about that buyer’s brief.',
+      'Adds `generatedAt`, the time the response was built, beside the top-level `observedAt`, which always meant the same and is kept. A price’s own time is `price.quotedAt`; a blocker’s is `hireBlocker.observedAt`.',
+    ],
+    migrate: 'Read `generatedAt` instead of the top-level `observedAt`. Treat `hireBlocker` as current even when `price` is set, and show `priceCheck` beside a price that is older than it.',
+  },
+  {
     date: '2026-10-27',
     release: 'v559',
     kind: 'added',

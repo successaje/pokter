@@ -7,6 +7,7 @@ import { readAgentCard } from '@/lib/agents/agent-card';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 import { jsonRpcEndpoint } from '@/lib/a2a/card';
 import { logAndPublic } from '@/lib/api/public-error';
+import { a2aUserMessage } from '@/lib/a2a/message';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 20;
@@ -117,7 +118,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     } : {
       jsonrpc: '2.0', id: crypto.randomUUID(), method: 'message/send',
       params: {
-        message: { role: 'user', messageId: crypto.randomUUID(), parts: [{ kind: 'data', data: { skill: capability, task, mode: 'dry-run' } }] },
+        message: a2aUserMessage([{ kind: 'data', data: { skill: capability, task, mode: 'dry-run' } }]),
         configuration: { acceptedOutputModes: ['application/json'], blocking: true },
       },
     };

@@ -1,4 +1,5 @@
 import { getAddress, type Address } from 'viem';
+import { PROVIDER_SIGNATURE } from './negotiation';
 
 export const POKTER_JOB_ENVELOPE_VERSION = 1 as const;
 
@@ -83,7 +84,8 @@ export interface PokterJobEnvelope {
 }
 
 const HASH = /^0x[0-9a-fA-F]{64}$/;
-const SIGNATURE = /^0x[0-9a-fA-F]{130}$/;
+/* The provider signature rule the quote check accepts (`PROVIDER_SIGNATURE`): 65 bytes, or a smart account's longer ERC-1271 signature. A narrower rule here dropped such a quote from the job's description, and the seller, re-deriving its hash from it, would refuse the job. */
+const SIGNATURE = PROVIDER_SIGNATURE;
 
 function optionalLabel(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined;

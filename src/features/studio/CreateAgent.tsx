@@ -407,7 +407,7 @@ function StepTest({ d }: { d: AgentDraft }) {
               </div>
               <div>
                 <dt className="t-label">Signed quotes</dt>
-                <dd className={cn('mt-1', p.quoteCapability ? 'text-ok' : 'text-watch')}>{p.quoteCapability ? 'Declares negotiate. A signed quote for an exact task is checked after you publish' : 'No negotiate skill: Pokter cannot get a signed price, so buyers cannot hire it yet'}</dd>
+                <dd className={cn('mt-1', p.quoteCapability ? 'text-ok' : 'text-watch')}>{p.quoteCapability ? 'Declares negotiate. A signed quote for an exact task is checked after you publish' : p.priceLikeSkill ? `Declares “${p.priceLikeSkill}”, but Pokter asks for a price only through a skill named negotiate` : 'No negotiate skill: Pokter cannot get a signed price, so buyers cannot hire it yet'}</dd>
               </div>
               <div>
                 <dt className="t-label">HTTP status</dt>

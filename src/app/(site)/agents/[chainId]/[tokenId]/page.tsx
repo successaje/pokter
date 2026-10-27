@@ -42,6 +42,7 @@ import { siteUrl } from '@/lib/site';
 import { StructuredProfile } from '@/features/agent/StructuredProfile';
 import { TradesForYouCard } from '@/features/trading/TradesForYouCard';
 import { structuredProfile } from '@/features/agent/structured';
+import { hireBlocker } from '@/lib/hire/blocker';
 
 export const dynamic = 'force-dynamic';
 
@@ -901,6 +902,16 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                   { label: 'Signed by', value: <Address address={p.quote.signer} chainExplorer={false} />, hint: 'Recovered from the signature; must match the registered agent wallet' },
                   { label: 'Signed', value: new Date(p.quote.quotedAt).toUTCString().slice(5, 22) + ' UTC' },
                   { label: 'Valid until', value: p.quote.expiresAt ? `${new Date(p.quote.expiresAt).toUTCString().slice(5, 22)} UTC${p.quote.current ? '' : ' (expired; Pokter asks for a fresh signed quote when you hire, and stops if it is above your budget)'}` : 'No expiry stated' },
+                  /* The newest check beside the price it may have overtaken: a signed price shown alone read as current after a later check failed. */
+                  ...(p.priceCheck && Date.parse(p.priceCheck.at) > Date.parse(p.quote.quotedAt)
+                    ? [
+                        {
+                          label: 'Last price check',
+                          value: `${new Date(p.priceCheck.at).toUTCString().slice(5, 22)} UTC · ${p.priceCheck.source === 'buyer' ? 'a buyer’s request' : 'Pokter’s scheduled check'} · ${p.priceCheck.outcome === 'signed' ? 'signed a price' : 'no signed price'}`,
+                          hint: p.priceCheck.outcome === 'signed' ? undefined : hireBlocker({ code: p.priceCheck.outcome })?.reason,
+                        },
+                      ]
+                    : []),
                   {
                     label: 'Payable by this escrow',
                     value: p.quote.payable === false

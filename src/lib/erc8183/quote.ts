@@ -1,4 +1,3 @@
-import { statedRefusal } from '@/lib/erc8183/refusal';
 import { readAgentCard } from '@/lib/agents/agent-card';
 import type { ScanAgentDetail } from '@/lib/scan/types';
 import { readJson, withPublicEndpoint } from '@/lib/proof/prober';
@@ -13,6 +12,10 @@ import { classifyQuoteError, quoteFailure, type QuoteFailure } from '@/lib/hire/
 import { jsonRpcEndpoint } from '@/lib/a2a/card';
 import { NO_ENDPOINT_DETAIL } from '@/lib/hire/no-endpoint';
 import { POKTER_TERMS } from './terms';
+import { a2aUserMessage } from '@/lib/a2a/message';
+import { quoteRefusal, responseData } from './quote-reply';
+import { liveAgentFields } from '@/lib/registry/live-agent';
+import { contractSignatureCheck } from './contract-signature';
 
 /**
  * A price an agent quoted for itself, and the evidence that it did.
@@ -96,11 +99,6 @@ function object(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
-function responseData(payload: unknown): Record<string, unknown> | null {
-  // Message or task alike; a failed or still-working task carries no quote.
-  const reply = readA2AReply(payload);
-  return reply.state === 'completed' || reply.state === 'input-required' ? reply.data : null;
-}
 
 export { POKTER_TERMS } from './terms';
 
@@ -177,17 +175,27 @@ export async function requestQuote(
     signal?: AbortSignal;
   } = {},
 ): Promise<AgentQuote | null> {
-  const endpoint = agent.services?.a2a?.endpoint?.replace(
-    '{agentId}',
-    agent.token_id,
-  );
   const fail = (failure: QuoteFailure) => {
     onFailure?.(failure);
     return null;
   };
-  /* Nothing was read for either: each is a fact about the registry data, said as one. */
+  let endpoint = agent.services?.a2a?.endpoint?.replace('{agentId}', agent.token_id) ?? null;
+  let agentWallet = agent.agent_wallet ?? null;
+  /*
+   * The indexer's row is a copy. When it is missing either field, read the
+   * registration itself before calling the agent unreachable
+   * (`liveAgentFields`). Only missing fields are filled: a wallet the
+   * indexer has is the one the hire routes pay, and replacing it here
+   * would let a quote and the job it funds name different wallets.
+   */
+  if (!endpoint || !agentWallet) {
+    const live = await liveAgentFields(agent.chain_id, agent.token_id);
+    endpoint ??= live.a2aEndpoint?.replace('{agentId}', agent.token_id) ?? null;
+    agentWallet ??= live.agentWallet;
+  }
+  /* Nothing was read for either, from the index or the registry: each is a fact about the registration, said as one. */
   if (!endpoint) return fail(quoteFailure('no-endpoint', { detail: NO_ENDPOINT_DETAIL.registryNoA2a }));
-  if (!agent.agent_wallet) return fail(quoteFailure('no-endpoint', { detail: NO_ENDPOINT_DETAIL.registryNoWallet }));
+  if (!agentWallet) return fail(quoteFailure('no-endpoint', { detail: NO_ENDPOINT_DETAIL.registryNoWallet }));
 
   try {
     const card = await readAgentCard(endpoint);
@@ -212,16 +220,12 @@ export async function requestQuote(
           id: rpcId,
           method: 'message/send',
           params: {
-            message: {
-              role: 'user',
-              messageId: crypto.randomUUID(),
-              parts: [
-                {
-                  kind: 'data',
-                  data: { skill: negotiateSkill, ...enquiry, ...settlementHint(agent, undefined, undefined, preferredCurrency) },
-                },
-              ],
-            },
+            message: a2aUserMessage([
+              {
+                kind: 'data',
+                data: { skill: negotiateSkill, ...enquiry, ...settlementHint(agent, undefined, undefined, preferredCurrency) },
+              },
+            ]),
             configuration: {
               acceptedOutputModes: ['application/json'],
               blocking: true,
@@ -249,10 +253,10 @@ export async function requestQuote(
       typeof currency !== 'string' ||
       !/^\d+$/.test(priceRaw)
     ) {
-      const stated = statedRefusal(data?.reason);
+      const { declined, stated } = quoteRefusal(payload, data);
       if (stated) onRefused?.(stated);
       const reply = readA2AReply(payload);
-      if (stated || data?.accepted === false || data?.status === 'rejected') return fail(quoteFailure('seller-declined', { sellerReason: stated ?? undefined }));
+      if (declined) return fail(quoteFailure('seller-declined', { sellerReason: stated ?? undefined }));
       if (reply.state === 'working' || reply.state === 'submitted') return fail(quoteFailure('seller-not-ready'));
       return fail(quoteFailure('no-quote'));
     }
@@ -266,7 +270,9 @@ export async function requestQuote(
     const signer = await verifyNegotiationSignature({
       negotiationHash: data.negotiation_hash,
       providerSignature: data.provider_sig,
-      expectedProvider: agent.agent_wallet,
+      expectedProvider: agentWallet,
+      /* A smart-account wallet, asked on the chain the quote names (else the agent's own). */
+      contractSignature: contractSignatureCheck(data.chain_id === 56 || data.chain_id === 97 ? data.chain_id : agent.chain_id, data.verifying_contract),
     }).catch((error: unknown) => {
       throw new Error(`signature check failed: ${error instanceof Error ? error.message : String(error)}`);
     });

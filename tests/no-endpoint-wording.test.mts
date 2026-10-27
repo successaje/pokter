@@ -50,7 +50,8 @@ test('the buyer is told the same, per read', () => {
 test('the quote path tells a missing endpoint from a missing wallet, and the API names the registry data as the source', () => {
   const quote = readFileSync(new URL('../src/lib/erc8183/quote.ts', import.meta.url), 'utf8');
   assert.match(quote, /if \(!endpoint\) return fail\(quoteFailure\('no-endpoint', \{ detail: NO_ENDPOINT_DETAIL\.registryNoA2a \}\)\);/);
-  assert.match(quote, /if \(!agent\.agent_wallet\) return fail\(quoteFailure\('no-endpoint', \{ detail: NO_ENDPOINT_DETAIL\.registryNoWallet \}\)\);/);
+  /* Missing from the index and from the registry itself (`liveAgentFields`). */
+  assert.match(quote, /if \(!agentWallet\) return fail\(quoteFailure\('no-endpoint', \{ detail: NO_ENDPOINT_DETAIL\.registryNoWallet \}\)\);/);
   const route = readFileSync(new URL('../src/app/api/v1/agents/[chainId]/[tokenId]/route.ts', import.meta.url), 'utf8');
   assert.match(route, /registry: 'The registry data Pokter reads for this agent .* No agent card was read/);
   assert.match(route, /provenance: blocker\.from === 'registry' \? 'declared' : 'pokter-measured'/);

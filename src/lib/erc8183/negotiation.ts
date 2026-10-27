@@ -1,11 +1,28 @@
 import {
   getAddress,
+  hashMessage,
   keccak256,
   recoverMessageAddress,
   toBytes,
   type Address,
   type Hex,
 } from 'viem';
+
+/** A wallet key's signature: 65 bytes. */
+const EOA_SIGNATURE = /^0x[0-9a-fA-F]{130}$/;
+/**
+ * Any well-formed signature an agent wallet may return: 65 bytes for a key,
+ * longer for a smart account answering ERC-1271, bounded because it is
+ * carried into a job's on-chain description.
+ */
+export const PROVIDER_SIGNATURE = /^0x(?:[0-9a-fA-F]{2}){65,1024}$/;
+
+/**
+ * Asks a smart-account wallet whether it signed one of these digests
+ * (ERC-1271 `isValidSignature`, true only for its magic value). Supplied by
+ * a server caller with a chain client, so this module stays free of one.
+ */
+export type ContractSignatureCheck = (input: { wallet: Address; digests: Hex[]; signature: Hex }) => Promise<boolean>;
 
 /**
  * Verify the BNB Agent Studio EIP-191 quote signature.
@@ -19,26 +36,45 @@ export async function verifyNegotiationSignature(input: {
   negotiationHash: string;
   providerSignature: string;
   expectedProvider: string;
+  /**
+   * For an agent wallet that is a smart account. BNB's agent SDK verifies
+   * such quotes through ERC-1271; Pokter accepted only 65-byte key
+   * signatures, so an agent whose registered wallet is a contract could
+   * never have a quote accepted, however correctly it signed. Absent, only
+   * key signatures are checked, as before.
+   */
+  contractSignature?: ContractSignatureCheck;
 }): Promise<Address> {
   if (!/^0x[0-9a-fA-F]{64}$/.test(input.negotiationHash))
     throw new Error('Agent returned an invalid negotiation hash.');
-  if (!/^0x[0-9a-fA-F]{130}$/.test(input.providerSignature))
+  if (!PROVIDER_SIGNATURE.test(input.providerSignature))
     throw new Error('Agent returned an invalid provider signature.');
 
   const hash = input.negotiationHash as Hex;
   const signature = input.providerSignature as Hex;
   const expected = getAddress(input.expectedProvider);
-  const recovered = await Promise.allSettled([
-    recoverMessageAddress({ message: { raw: hash }, signature }),
-    recoverMessageAddress({ message: hash, signature }),
-  ]);
-  const signer = recovered
+  const recovered: PromiseSettledResult<Address>[] = EOA_SIGNATURE.test(signature)
+    ? await Promise.allSettled([
+        recoverMessageAddress({ message: { raw: hash }, signature }),
+        recoverMessageAddress({ message: hash, signature }),
+      ])
+    : [];
+  let signer = recovered
     .filter(
       (result): result is PromiseFulfilledResult<Address> =>
         result.status === 'fulfilled',
     )
     .map((result) => getAddress(result.value))
     .find((address) => address === expected);
+  /*
+   * The same two EIP-191 encodings, asked of the wallet itself. Only the
+   * registered wallet is asked, and only its magic value counts: a
+   * contract cannot vouch for any address but its own.
+   */
+  if (!signer && input.contractSignature) {
+    const vouched = await input.contractSignature({ wallet: expected, digests: [hashMessage({ raw: hash }), hashMessage(hash)], signature });
+    if (vouched) signer = expected;
+  }
   if (!signer) {
     throw new Error(
       'The negotiation signature does not recover to the selected ERC-8004 provider wallet.',
