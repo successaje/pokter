@@ -13,6 +13,11 @@ import { totalsByToken, type JobAmountInput } from '@/lib/erc8183/job-amount';
  */
 export interface TotalLine {
   key: string;
+  /** The total itself, so a summary can be built over the lines (`approxUsdTotal`). */
+  chainId: number;
+  token: string | null;
+  raw: bigint;
+  decimals: number | null;
   /** "0.3 $U", "2 test USDT", "1 job, currency not yet read". */
   text: string;
   /** Testnet money, which has no value. */
@@ -27,13 +32,14 @@ export function totalLines(jobs: JobAmountInput[]): TotalLine[] {
   return totals.map((t) => {
     const test = t.chainId === 97;
     const key = `${t.chainId}:${t.token ?? 'unknown'}`;
+    const money = { chainId: t.chainId, token: t.token, raw: t.raw, decimals: t.decimals };
     if (t.token === null || t.label === null || t.symbol === null) {
       const count = `${t.jobs} job${t.jobs === 1 ? '' : 's'}, currency not yet read`;
-      return { key, test, text: test ? `${count} (testnet)` : t.chainId === 56 ? count : `${count} (chain ${t.chainId})` };
+      return { key, test, ...money, text: test ? `${count} (testnet)` : t.chainId === 56 ? count : `${count} (chain ${t.chainId})` };
     }
     const amount = t.label.slice(0, t.label.length - t.symbol.length).trim();
     const text = test ? `${amount} test ${t.symbol}` : t.chainId === 56 ? t.label : `${t.label} on chain ${t.chainId}`;
-    return { key, test, text };
+    return { key, test, ...money, text };
   });
 }
 

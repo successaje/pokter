@@ -14,6 +14,8 @@ import { jobPhase, PHASE, useInbox, useMyJobs, useNow, useSavedAlerts } from './
 import { JobRow, NeedsWallet, PageHeader, StatStrip, timeLeft } from './parts';
 import { RecoverJob } from './RecoverJob';
 import { totalLines } from './totals';
+import { MoneyTotal } from '@/ui/MoneyTotal';
+import { approxTotalView } from '@/lib/money/approx-total';
 import { CampaignProgress } from '@/features/campaign/CampaignProgress';
 import { isCampaignLive } from '@/lib/campaign/window';
 import { jobHref } from '@/lib/jobs/href';
@@ -50,6 +52,7 @@ export function WorkspaceOverview() {
   // money and testnet escrow is not, and $U and USDT are different moneys.
   // Real money leads when there is any (`totalLines` orders it first).
   const held = totalLines(phases.filter((p) => p.phase === 'working' || p.phase === 'review' || p.phase === 'reclaim').map((p) => p.job));
+  const heldTotal = approxTotalView(held);
   const agents = Array.from(new Map(jobs.map((j) => [`${j.agentChainId}:${j.agentTokenId}`, j])).values()).slice(0, 6);
   const unread = inbox.filter((n) => !n.readAt).length + alerts.filter((a) => !a.readAt).length;
 
@@ -138,9 +141,14 @@ export function WorkspaceOverview() {
                 { label: 'Completed', value: phases.filter((p) => p.phase === 'settled').length, href: '/workspace/jobs?filter=done' },
                 {
                   label: 'In escrow',
-                  value: held.length ? held[0].text : '0',
-                  note: held.length > 1 ? `plus ${held.slice(1).map((l) => l.text).join(' · ')}` : undefined,
-                  href: '/workspace/wallet',
+                  /* One figure, every amount behind it on hover or tap; the tile is not a link, so the figure can open. */
+                  value: <MoneyTotal total={heldTotal} />,
+                  note: (
+                    <>
+                      {heldTotal.caption && `${heldTotal.caption} · `}
+                      <Link href="/workspace/wallet" className="underline underline-offset-2 hover:text-ink">Wallet</Link>
+                    </>
+                  ),
                 },
               ]}
             />

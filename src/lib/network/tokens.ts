@@ -60,6 +60,13 @@ export interface PaymentToken {
    * - `test-token`: a testnet token with no value; no issuer confirms it.
    */
   identity: { kind: 'issuer' | 'bridged-peg' | 'test-token'; issuer: string; evidence: string };
+  /**
+   * The currency its issuer or peg holds it 1:1 to, when one does: what lets
+   * a total over several of these tokens be given as an approximate dollar
+   * figure ("≈ $0.65, stablecoins at $1 each"). Absent for test tokens, which
+   * have no value and are never counted, and for anything not pegged.
+   */
+  pegged?: 'USD';
   /** Shown beside the symbol where the money is named in full (review and payment screens). */
   disclosure?: string;
   /**
@@ -132,14 +139,16 @@ export const VERIFIED_AT = {
 const TOKENS: readonly PaymentToken[] = [
   /* $U — United Stables, the token both escrows default to. */
   { chainId: 56, address: getAddress('0xcE24439F2D9C6a2289F741120FE202248B666666'), symbol: 'U', decimals: 18, escrowSupported: true, offered: true, hireEligible: true,
-    identity: { kind: 'issuer', issuer: 'United Stables', evidence: 'https://www.u.tech/ecosystem/multichain/ lists this address for BNB Smart Chain' } },
+    identity: { kind: 'issuer', issuer: 'United Stables', evidence: 'https://www.u.tech/ecosystem/multichain/ lists this address for BNB Smart Chain' },
+    /* u.tech: "a US dollar-pegged stablecoin", backed 1:1. */
+    pegged: 'USD' },
   { chainId: 97, address: getAddress('0xc70B8741B8B07A6d61E54fd4B20f22Fa648E5565'), symbol: 'U', decimals: 18, escrowSupported: true, offered: true, hireEligible: true,
     identity: { kind: 'test-token', issuer: 'unconfirmed', evidence: 'The testnet escrow’s default paymentToken; United Stables lists no testnet address' } },
 
   /* USDT — Tether does not issue on BNB Chain; this is Binance-Peg BSC-USD. */
   { chainId: 56, address: getAddress('0x55d398326f99059fF775485246999027B3197955'), symbol: 'USDT', decimals: 18, escrowSupported: true, offered: false, hireEligible: true,
     identity: { kind: 'bridged-peg', issuer: 'Binance (peg)', evidence: 'Tether’s supported-protocols page lists only XAU₮ for BNB Smart Chain; this is the Binance-Peg BSC-USD contract used across BNB Chain' },
-    disclosure: 'Binance-Peg BSC-USD, not issued by Tether', name: 'Binance-Peg USDT' },
+    disclosure: 'Binance-Peg BSC-USD, not issued by Tether', name: 'Binance-Peg USDT', pegged: 'USD' },
   { chainId: 97, address: getAddress('0x337610d27c682E347C9cD60BD4b3b107C9d34dDd'), symbol: 'USDT', decimals: 18, escrowSupported: true, offered: false, hireEligible: true,
     identity: { kind: 'test-token', issuer: 'unconfirmed', evidence: 'Supported by the testnet escrow; no issuer or BNB Chain source lists the address' },
     disclosure: 'test token with no value' },
@@ -147,13 +156,14 @@ const TOKENS: readonly PaymentToken[] = [
   /* USDC — Circle does not issue on BNB Chain; this is Binance-Peg USD Coin. */
   { chainId: 56, address: getAddress('0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d'), symbol: 'USDC', decimals: 18, escrowSupported: true, offered: false, hireEligible: true,
     identity: { kind: 'bridged-peg', issuer: 'Binance (peg)', evidence: 'Circle’s USDC contract-address page lists no BNB Smart Chain deployment; this is the Binance-Peg USD Coin contract (18 decimals, unlike Circle’s 6)' },
-    disclosure: 'Binance-Peg USD Coin, not issued by Circle', name: 'Binance-Peg USDC' },
+    disclosure: 'Binance-Peg USD Coin, not issued by Circle', name: 'Binance-Peg USDC', pegged: 'USD' },
   { chainId: 97, address: getAddress('0xEC1C60D64a06896Df296438c12edD14E974FDE47'), symbol: 'USDC', decimals: 6, escrowSupported: false, offered: false, hireEligible: false,
     identity: { kind: 'test-token', issuer: 'unconfirmed', evidence: 'Unofficial test token; see UNSUPPORTED_TOKENS' } },
 
   /* USD1 — World Liberty Financial, issued natively. Mainnet only. */
   { chainId: 56, address: getAddress('0x8d0D000Ee44948FC98c9B98A4FA4921476f08B0d'), symbol: 'USD1', decimals: 18, escrowSupported: true, offered: false, hireEligible: true,
-    identity: { kind: 'issuer', issuer: 'World Liberty Financial', evidence: 'https://docs.worldlibertyfinancial.com/usd1-token/contract-addresses lists this address for BNB Smart Chain (BEP20)' } },
+    identity: { kind: 'issuer', issuer: 'World Liberty Financial', evidence: 'https://docs.worldlibertyfinancial.com/usd1-token/contract-addresses lists this address for BNB Smart Chain (BEP20)' },
+    pegged: 'USD' },
 ];
 
 const key = (chainId: number, address: string) => `${chainId}:${address.toLowerCase()}`;

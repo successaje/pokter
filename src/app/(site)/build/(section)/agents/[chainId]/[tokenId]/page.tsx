@@ -23,6 +23,8 @@ import { MaturityLabel, MaturityLadder } from '@/ui/Maturity';
 import { LaunchKit } from '@/features/studio/LaunchKit';
 import { ReadinessPanel } from '@/features/studio/ReadinessPanel';
 import { WalletRoles } from '@/features/studio/WalletRoles';
+import { approxTotalView } from '@/lib/money/approx-total';
+import { MoneyTotal } from '@/ui/MoneyTotal';
 import { CampaignGoal } from '@/features/studio/CampaignGoal';
 import { getAgent } from '@/lib/scan/client';
 import type { ChainId } from '@/lib/scan/types';
@@ -32,16 +34,17 @@ export const dynamic = 'force-dynamic';
 // Personal or step-by-step builder pages: kept out of search, as they were under Studio.
 export const metadata: Metadata = { title: 'Manage agent', robots: { index: false } };
 
-/** Money lines, one per chain and token, stacked; "0" when there are none. */
-function moneyLines(lines: TotalLine[]) {
-  if (!lines.length) return '0';
+/**
+ * Money over several chains and tokens as one figure, every exact amount
+ * behind it on hover or tap (`approxTotalView`): dollar stablecoins at $1
+ * each, test money and unread currencies listed apart and never added in.
+ */
+function moneyTotal(lines: TotalLine[]) {
+  const total = approxTotalView(lines);
   return (
     <span className="flex flex-col gap-0.5">
-      {lines.map((line) => (
-        <span key={line.key} className={lines.length > 1 ? 'text-[14px]' : undefined}>
-          {line.text}
-        </span>
-      ))}
+      <MoneyTotal total={total} />
+      {total.caption && <span className="text-[12px] font-normal tracking-normal text-ink-3">{total.caption}</span>}
     </span>
   );
 }
@@ -314,9 +317,9 @@ export default async function ManageAgent({ params }: { params: Promise<{ chainI
               Operations
             </h2>
             <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {/* One line per chain and token: real and test money, $U and USDT, are never one figure. */}
-              <Readout label="Released to you" value={moneyLines(ops.money.released)} muted={!ops.money.released.length} />
-              <Readout label="In escrow now" value={moneyLines(ops.money.escrowed)} muted={!ops.money.escrowed.length} />
+              {/* One figure each, the exact amounts behind it; test money is never added to real money. */}
+              <Readout label="Released to you" value={moneyTotal(ops.money.released)} muted={!ops.money.released.length} />
+              <Readout label="In escrow now" value={moneyTotal(ops.money.escrowed)} muted={!ops.money.escrowed.length} />
               <Readout label="Expired or refunded" value={ops.money.refundedJobs} muted={!ops.money.refundedJobs} />
               <Readout label="Disputed jobs" value={ops.money.disputedJobs} muted={!ops.money.disputedJobs} />
             </dl>
