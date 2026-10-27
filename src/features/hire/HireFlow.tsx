@@ -95,7 +95,7 @@ export interface HireFlowProps {
   /** The proposal chosen on a request, when the hire comes from one (`?proposal=`). */
   proposal?: ProposalForHire | null;
   /** The networks this agent can be hired on, and how to switch between them (`HireNetworks`). */
-  network?: { options: Array<{ chainId: number; deliveredByAgent: boolean }>; onChange: (chainId: number) => void };
+  network?: { options: Array<{ chainId: number; deliveredByAgent: boolean }>; onChange: (chainId: number) => void; /** A network being handed over to, while its page loads. */ switchingTo?: number | null };
 }
 
 /**
@@ -578,19 +578,23 @@ export function HireFlow(props: HireFlowProps) {
           */}
           <div className="flex flex-col gap-2">
             {network.options.length > 1 && (
-              <div role="radiogroup" aria-label="Network" className="grid grid-cols-2 gap-1 rounded-[10px] border border-rule bg-sunken p-1">
+              <div role="radiogroup" aria-label="Network" aria-busy={network.switchingTo != null} className="grid grid-cols-2 gap-1 rounded-[10px] border border-rule bg-sunken p-1">
                 {network.options.map((option) => {
                   const selected = option.chainId === escrowChainId;
+                  const switching = network.switchingTo === option.chainId;
                   return (
                     <button
                       key={option.chainId}
                       type="button"
                       role="radio"
                       aria-checked={selected}
+                      disabled={network.switchingTo != null}
                       onClick={() => network.onChange(option.chainId)}
-                      className={cn('h-9 rounded-[7px] text-sm font-medium transition-colors', selected ? 'bg-raised text-ink shadow-sm' : 'text-ink-3 hover:text-ink')}
+                      className={cn('h-9 rounded-[7px] text-sm font-medium transition-colors disabled:cursor-wait', selected ? 'bg-raised text-ink shadow-sm' : switching ? 'text-ink' : 'text-ink-3 hover:text-ink')}
                     >
-                      {option.chainId === 56 ? 'BNB Chain' : 'Testnet'}
+                      {switching ? (
+                        <span className="inline-flex items-center gap-1.5"><Spinner size={12} />Switching…</span>
+                      ) : option.chainId === 56 ? 'BNB Chain' : 'Testnet'}
                     </button>
                   );
                 })}
