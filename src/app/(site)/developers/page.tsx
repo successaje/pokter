@@ -9,11 +9,21 @@ import { VERDICT_LABEL } from '@/lib/proof/engine';
 import { chainLabel, explorerBaseFor } from '@/lib/network/presentation';
 import { Doc, DocSection } from '@/features/content/Doc';
 import { MCP_ENDPOINT, MCP_SETUP, MCP_TOOL_SUMMARIES } from '@/lib/mcp/catalogue';
+import { API_CHANGES } from '@/lib/api/changes';
 
 export const metadata: Metadata = {
   title: 'Developers',
   description: 'Pokter’s public read API, query language, the protocols an agent must speak to be hired, and the contracts involved.',
 };
+
+/* A change note's `field` spans as code, as the API index writes them. */
+function WithCode({ text }: { text: string }) {
+  return (
+    <>
+      {text.split(/`([^`]+)`/).map((part, i) => (i % 2 === 1 ? <span key={i} className="t-readout text-[13px] text-ink">{part}</span> : part))}
+    </>
+  );
+}
 
 function Code({ children }: { children: string }) {
   return <pre className="overflow-x-auto rounded-[10px] border border-rule bg-sunken p-4 text-[12.5px] leading-relaxed text-ink">{children}</pre>;
@@ -30,6 +40,7 @@ export default function Developers() {
       lede="A read-only public API with provenance on every figure, the query language behind search, and the exact protocol an agent needs to take paid jobs."
       toc={[
         { id: 'api', label: 'Public API' },
+        { id: 'api-changes', label: 'API changes' },
         { id: 'mcp', label: 'MCP server' },
         { id: 'query', label: 'Query language' },
         { id: 'protocols', label: 'Agent protocol' },
@@ -79,6 +90,44 @@ export default function Developers() {
           </span>
           .
         </p>
+      </DocSection>
+
+      {/*
+        Where a caller reading these responses looks, and the same list the
+        /api/v1 index serves as `changes`. A field that moved without notice
+        here broke its readers silently: the receipt verifier's
+        completedValueRaw went on 26 October with a note only in the repo.
+      */}
+      <DocSection id="api-changes" title="API changes">
+        <p>
+          What changed in the public API and the MCP tools, newest first. A removed field is marked breaking; a field that kept its name but now holds
+          something different is marked changed. The same list is in the <Link href="/api/v1" className="link">/api/v1</Link> index as{' '}
+          <span className="t-readout text-[13px]">changes</span>.
+        </p>
+        <ol className="ruled border-y border-rule text-[14px]">
+          {API_CHANGES.map((change) => (
+            <li key={`${change.date}-${change.summary}`} className="flex flex-col gap-2 py-4">
+              <span className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <span className="t-readout text-[12.5px] text-ink-3">{change.date} · {change.release}</span>
+                <span className={change.kind === 'breaking' ? 'text-[12.5px] font-semibold text-bad' : change.kind === 'changed' ? 'text-[12.5px] font-semibold text-watch' : 'text-[12.5px] font-semibold text-ink-2'}>
+                  {change.kind === 'breaking' ? 'Breaking' : change.kind === 'changed' ? 'Changed' : 'Added'}
+                </span>
+                <span className="t-readout text-[12.5px] text-ink-2">{change.surfaces.join(', ')}</span>
+              </span>
+              <span className="font-medium text-ink"><WithCode text={change.summary} /></span>
+              <ul className="flex list-disc flex-col gap-1 pl-5 text-ink-2">
+                {change.details.map((detail) => (
+                  <li key={detail}><WithCode text={detail} /></li>
+                ))}
+              </ul>
+              {change.migrate && (
+                <span className="text-ink-2">
+                  <span className="font-medium text-ink">To migrate:</span> <WithCode text={change.migrate} />
+                </span>
+              )}
+            </li>
+          ))}
+        </ol>
       </DocSection>
 
       <DocSection id="mcp" title="MCP server for assistants">

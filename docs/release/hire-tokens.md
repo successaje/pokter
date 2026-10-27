@@ -1,12 +1,12 @@
 # Hiring in verified tokens
 
-Status on 26 October 2026: **code-complete and off.** It is tested on local forks, in unit and route tests, and in a local flag-on build with a wallet that cannot sign. No hire has been funded in a token other than $U through Pokter. `NEXT_PUBLIC_HIRE_TOKENS` is unset everywhere and `fly.toml` is untouched.
+Status on 27 October 2026: **live on BNB Chain.** Binance-Peg USDT, Binance-Peg USDC and USD1 are turned on for the mainnet escrow, one at a time, each only after the previous one passed an owner-led session with real funds. Testnet stays $U only. Settlement of the six session jobs becomes possible on 2 November 2026. The jobs, results and times are in `docs/release/test-session.md` ("Outcome").
 
 | Stage | State |
 | --- | --- |
-| Code-complete | **Yes.** Everything below is built and tested as described, and an independent review's findings are resolved (section 8). |
-| Validated with real funds | **No.** That is the owner-led production test session (section 9, `docs/release/test-session.md`). |
-| Production-enabled | **No.** No currency is turned on, and nothing is funded or broadcast. |
+| Code-complete | **Yes.** Released with every new currency off in #322 (release v541, 26 October 2026). An independent review's findings are resolved (section 8). |
+| Validated with real funds | **Funding, delivery and recovery: yes**, for all three tokens, on six mainnet jobs (two per token) that passed every check against the escrow. **Settlement: pending.** It is possible from 2 November 2026, 20:39–22:22 UTC, depending on the job. |
+| Production-enabled | **Yes on BNB Chain:** Binance-Peg USDT (#323, release v542), Binance-Peg USDC (#325, v544), USD1 (#326, v545). **Testnet USDT: no.** It is supported and fork-tested but not turned on. |
 
 ## 1. Supported currencies, from evidence
 
@@ -21,9 +21,9 @@ A token can be hired in only when every check passes. There is one registry (`sr
 | Token | Chain | Address | Dec. | Identity and source | Escrow | Fork lifecycle | On |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | $U | 56 | `0xcE24…6666` | 18 | Issuer: United Stables. u.tech lists this address for BNB Smart Chain | default | 23/23 (the "$U untouched" step does not apply) | always |
-| USDT | 56 | `0x55d3…7955` | 18 | **Binance-Peg BSC-USD, not issued by Tether.** Tether's supported-protocols page lists only XAU₮ for BNB Smart Chain | yes | 24/24 | no |
-| USDC | 56 | `0x8AC7…580d` | 18 | **Binance-Peg USD Coin, not issued by Circle.** Circle lists no BNB Smart Chain deployment. Note 18 decimals, unlike Circle's 6 | yes | 24/24 | no |
-| USD1 | 56 | `0x8d0D…8B0d` | 18 | Issuer: World Liberty Financial. docs.worldlibertyfinancial.com lists this address for BNB Smart Chain | yes | 24/24 | no |
+| USDT | 56 | `0x55d3…7955` | 18 | **Binance-Peg BSC-USD, not issued by Tether.** Tether's supported-protocols page lists only XAU₮ for BNB Smart Chain | yes | 24/24 | yes, since v542 |
+| USDC | 56 | `0x8AC7…580d` | 18 | **Binance-Peg USD Coin, not issued by Circle.** Circle lists no BNB Smart Chain deployment. Note 18 decimals, unlike Circle's 6 | yes | 24/24 | yes, since v544 |
+| USD1 | 56 | `0x8d0D…8B0d` | 18 | Issuer: World Liberty Financial. docs.worldlibertyfinancial.com lists this address for BNB Smart Chain | yes | 24/24 | yes, since v545 |
 | $U | 97 | `0xc70B…5565` | 18 | Test token: the testnet escrow's default; no issuer lists it | default | 23/23 (the "$U untouched" step does not apply) | always |
 | USDT | 97 | `0x3376…4dDd` | 18 | Test token with no value; no issuer lists it | yes | 24/24 | no |
 
@@ -322,21 +322,23 @@ The separate staging plan is **dropped**. Validation is a production release wit
 
 ## 10. Blockers, consolidated
 
-| # | Blocker | Blocks |
-| --- | --- | --- |
-| 1 | GitGuardian incident 39048303: you reveal the matched value in the dashboard, confirm it is the public testnet USDT address, then close it as a false positive. Squashing is not a substitute | merging |
-| 2 | Your go-ahead to merge #322 with currencies off (a production deploy) | release |
-| 3 | Database backup, then the production currency backfill: dry run, inspection, write run, audit review (section 6) | trustworthy $U figures |
-| 4 | Your go-ahead for each currency in turn: Binance-Peg USDT first, then Binance-Peg USDC, then USD1, each only after the previous one passed (public while on) | the test session |
-| 5 | The owner-led test session passing, per currency (`docs/release/test-session.md`); recovery included | keeping that currency on |
-| 6 | Settlement, earnings and "settled" receipts | 7 days after each delivery (the mainnet review window); not shortened |
-| 7 | Publish the receipt-verifier migration note (section 11) with the release | release |
-| 8 | Atomic batch for other tokens: off, not tested | nothing (falls back); a later enhancement |
-| 9 | Agents outside Pokter must implement `preferred_currency` themselves; until then they sign in their own currency and the buyer is told | nothing (by design) |
+| # | Blocker | Blocks | Status, 27 October 2026 |
+| --- | --- | --- | --- |
+| 1 | GitGuardian incident 39048303: you reveal the matched value in the dashboard, confirm it is the public testnet USDT address, then close it as a false positive. Squashing is not a substitute | merging | **Done.** The match was a test screenshot committed with the branch, not a secret. You closed it as a false positive. Screenshots now stay out of the repository (`.gitignore`) |
+| 2 | Your go-ahead to merge #322 with currencies off (a production deploy) | release | **Done.** Merged as `d3b7ca47`, release v541, smoke checks 31/31 |
+| 3 | Database backup, then the production currency backfill: dry run, inspection, write run, audit review (section 6) | trustworthy $U figures | **Done.** Backup `pre-deploy-2026-10-26` verified. Write run `release-2026-10-26` classified all 187 rows (170 jobs), with 170 audit entries. Completed totals back to 15.88 testnet $U and 1.04 mainnet $U |
+| 4 | Your go-ahead for each currency in turn: Binance-Peg USDT first, then Binance-Peg USDC, then USD1, each only after the previous one passed (public while on) | the test session | **Done.** USDT v542, USDC v544, USD1 v545 |
+| 5 | The owner-led test session passing, per currency (`docs/release/test-session.md`); recovery included | keeping that currency on | **Passed** for all three: jobs 57097/57098, 57099/57100, 57101/57103 |
+| 6 | Settlement, earnings and "settled" receipts | 7 days after each delivery (the mainnet review window); not shortened | **Pending.** Possible from 2 November 2026; times per job in `test-session.md` |
+| 7 | Publish the receipt-verifier migration note (section 11) with the release | release | **Published** at `/developers#api-changes` and as `changes` in the `/api/v1` index, with the other API changes of 26–27 October |
+| 8 | Atomic batch for other tokens: off, not tested | nothing (falls back); a later enhancement | Unchanged |
+| 9 | Agents outside Pokter must implement `preferred_currency` themselves; until then they sign in their own currency and the buyer is told | nothing (by design) | Unchanged. Since #327, review asks the buyer to confirm, or go back, before funding a price in another currency |
 
 Nothing in this release adds card payments, new swaps or x402 changes.
 
 ## 11. Migration note: receipt verifier output
+
+Published for API callers at `/developers#api-changes` and in the `/api/v1` index (`changes`); `src/lib/api/changes.ts` is the source for both.
 
 For anyone consuming the receipt verifier's summary (`/api/v1/receipts/verifier` and `src/lib/proof/verifier.ts`):
 
