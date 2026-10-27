@@ -5,7 +5,17 @@
  *
  * Every public and app route must answer 200 (or the expected redirect),
  * and no page may render Next's error shell. It reads; it never submits.
+ *
+ * The redirects are read from next.config.ts rather than listed here. A
+ * hand-kept copy went stale: it still expected Builder Studio at /studio
+ * after the section moved to /build, /builder to land on /studio, and
+ * /agents to redirect after it became a page of its own — six failures
+ * against a production that was working exactly as configured.
  */
+import type { NextConfig } from 'next';
+
+import nextConfig from '../next.config.js';
+
 const BASE = (process.env.BASE_URL ?? 'http://localhost:4313').replace(/\/$/, '');
 
 type Check = { path: string; expect: number; contains?: string; location?: string };
@@ -22,7 +32,17 @@ const CHECKS: Check[] = [
   { path: '/developers', expect: 200 },
   { path: '/about', expect: 200 },
   { path: '/support', expect: 200 },
-  { path: '/build', expect: 200 },
+  { path: '/build', expect: 200, contains: 'Building · Pokter' },
+  { path: '/build/new', expect: 200 },
+  { path: '/build/import', expect: 200 },
+  { path: '/build/templates', expect: 200 },
+  { path: '/build/integration', expect: 200, contains: 'Get your agent hired through Pokter' },
+  { path: '/guides', expect: 200 },
+  { path: '/guides/list-your-agent', expect: 200, contains: 'List your agent' },
+  { path: '/guides/hire-an-agent', expect: 200, contains: 'Hire an agent' },
+  { path: '/guides/find-jobs', expect: 200, contains: 'Find jobs for your agent' },
+  { path: '/requests', expect: 200 },
+  { path: '/agents', expect: 200, contains: 'All agents' },
   { path: '/pool-check', expect: 200 },
   { path: '/agent-advantage', expect: 200, contains: 'annualisation trap' },
   { path: '/set-and-earn', expect: 200 },
@@ -36,21 +56,36 @@ const CHECKS: Check[] = [
   { path: '/workspace/inbox', expect: 200 },
   { path: '/workspace/saved', expect: 200 },
   { path: '/workspace/wallet', expect: 200 },
-  { path: '/studio', expect: 200, contains: 'What would you like to do?' },
-  { path: '/studio/new', expect: 200 },
-  { path: '/studio/import', expect: 200 },
-  { path: '/studio/templates', expect: 200 },
   { path: '/account', expect: 200 },
   { path: '/no-such-page', expect: 404 },
-  { path: '/agents', expect: 307, location: '/discover' },
-  { path: '/activity', expect: 307, location: '/workspace/jobs' },
-  { path: '/builder', expect: 307, location: '/studio' },
-  { path: '/categories/yield', expect: 307, location: '/discover?category=yield' },
   { path: '/api/v1', expect: 200 },
+  { path: '/api/v1/requests', expect: 200 },
+  { path: '/llms.txt', expect: 200, contains: '## Start here' },
   { path: '/api/health', expect: 200 },
   { path: '/sitemap.xml', expect: 200 },
   { path: '/manifest.webmanifest', expect: 200 },
 ];
+
+/*
+ * Every address the previous frontend published, as next.config.ts moves it:
+ * a sample value for each parameter, and the destination it must land on.
+ * `permanent: false` is a 307.
+ */
+const SAMPLE: Record<string, string> = { category: 'yield', id: 'example', path: 'new' };
+const fill = (pattern: string) => pattern.replace(/:(\w+)\*?/g, (_, name: string) => SAMPLE[name] ?? 'example');
+/* Under tsx the config arrives as CommonJS, one `default` deeper; unwrapped either way. */
+const loaded = nextConfig as unknown as NextConfig & { default?: NextConfig };
+const config: NextConfig = loaded.default ?? loaded;
+const REDIRECTS: Check[] = ((await config.redirects?.()) ?? []).map((r) => ({
+  path: fill(r.source),
+  expect: 'permanent' in r && r.permanent ? 308 : 307,
+  location: fill(r.destination),
+}));
+/* An empty list would pass by checking nothing, which is how a stale copy hides. */
+if (REDIRECTS.length === 0) {
+  console.log('FAIL no redirects were read from next.config.ts');
+  process.exit(1);
+}
 
 // Agent pages probe live; one known testnet agent covers the profile and hire route.
 const SLOW: Check[] = [
@@ -63,7 +98,7 @@ const SLOW: Check[] = [
 ];
 
 let failed = 0;
-for (const check of [...CHECKS, ...SLOW]) {
+for (const check of [...CHECKS, ...REDIRECTS, ...SLOW]) {
   const started = Date.now();
   try {
     const res = await fetch(BASE + check.path, { redirect: 'manual', signal: AbortSignal.timeout(90_000) });
