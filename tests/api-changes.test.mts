@@ -12,18 +12,26 @@ import { API_CHANGES } from '../src/lib/api/changes';
 
 const source = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 
-test('every change is dated, released, classified and newest first', () => {
+test('every change is dated and released, or unreleased with neither, classified, and newest first', () => {
   assert.ok(API_CHANGES.length > 0);
   for (const change of API_CHANGES) {
-    assert.match(change.date, /^\d{4}-\d{2}-\d{2}$/, change.summary);
-    assert.match(change.release, /^v\d+$/, change.summary);
+    if (change.release === null) {
+      /* Not deployed yet: no guessed release, and no date it has not gone live on. */
+      assert.equal(change.date, null, change.summary);
+    } else {
+      assert.match(String(change.date), /^\d{4}-\d{2}-\d{2}$/, change.summary);
+      assert.match(change.release, /^v\d+$/, change.summary);
+    }
     assert.ok(['breaking', 'changed', 'added'].includes(change.kind), change.summary);
     assert.ok(change.surfaces.length > 0 && change.details.length > 0, change.summary);
     /* A field that was removed or now means something else tells the caller what to do. */
     if (change.kind !== 'added') assert.ok(change.migrate, `${change.summary} says how to migrate`);
   }
-  const dates = API_CHANGES.map((c) => c.date);
+  const unreleased = API_CHANGES.findIndex((c) => c.release !== null);
+  assert.ok(API_CHANGES.slice(unreleased).every((c) => c.release !== null), 'unreleased changes come first');
+  const dates = API_CHANGES.slice(unreleased).map((c) => String(c.date));
   assert.deepEqual(dates, [...dates].sort().reverse(), 'newest first');
+  assert.match(source('src/app/(site)/developers/page.tsx'), /change\.release \? `\$\{change\.date\} · \$\{change\.release\}` : 'Unreleased'/);
 });
 
 test('the receipt verifier migration is published with what replaced the field', () => {

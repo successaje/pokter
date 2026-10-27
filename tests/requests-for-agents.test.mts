@@ -4,7 +4,7 @@ import test from 'node:test';
 
 import { GET_REQUEST, PREPARE_PROPOSAL, PROPOSAL_TOOL_CHAIN, REQUEST_TOOLS, SEARCH_REQUESTS } from '../src/lib/assistant/request-tools';
 import { bidMessage, type Bid, type Brief } from '../src/lib/briefs/model';
-import { DELIVERY_OPTIONS, filterRequests, proposalLink, readProposalPrefill, requestDetail, requestSummary } from '../src/lib/briefs/public-view';
+import { DELIVERY_OPTIONS, filterRequests, plainNote, PROPOSAL_LINK_MAX, proposalLink, readProposalPrefill, requestDetail, requestSummary } from '../src/lib/briefs/public-view';
 import { MCP_TOOL_SUMMARIES } from '../src/lib/mcp/catalogue';
 import { INSTRUCTIONS } from '../src/lib/mcp/server';
 
@@ -67,7 +67,8 @@ test('a request reads in its own token, with its status in the board’s words a
 
 test('a prepared proposal’s link opens the same values in the form, and a bad link fills nothing it cannot read', () => {
   const link = proposalLink('https://pokter.xyz', 'abc', { agentChainId: 56, agentTokenId: '269228', price: '0.12', deliverDays: 2, note: 'Reads Venus & returns HF.' });
-  const params = Object.fromEntries(new URL(link).searchParams);
+  assert.equal(link.noteInLink, true);
+  const params = Object.fromEntries(new URL(link.url).searchParams);
   assert.deepEqual(readProposalPrefill(params), { agentChainId: 56, agentTokenId: '269228', price: '0.12', deliverDays: 2, note: 'Reads Venus & returns HF.' });
   assert.equal(readProposalPrefill({ propose: '1:2' }), null, 'no agent, no prefill');
   const loose = readProposalPrefill({ propose: '97:5', price: '1e5', days: '4', note: 'x'.repeat(5000) });
@@ -124,4 +125,45 @@ test('the deploy check asks for the new tools, and the API index lists the endpo
   const index = code('app/api/v1/route.ts');
   assert.match(index, /path: `\/api\/\$\{API_VERSION\}\/requests`/);
   assert.match(index, /path: `\/api\/\$\{API_VERSION\}\/requests\/\{id\}`/);
+});
+
+test('a tampered link fills in only text, which renders as text, and never a reordered note', () => {
+  const tampered = readProposalPrefill({ propose: '56:1', price: '0.1', days: '2', note: '<script>alert(1)</script>\u202Eevil\u0007\nline two\ttab' });
+  assert.equal(tampered?.note, '<script>alert(1)</script>evil\nline two\ttab', 'markup kept as literal text; bidi and control characters dropped; line breaks and tabs kept');
+  assert.equal(plainNote('a\u2066b\u2069c\u0000d'), 'abcd');
+  for (const bad of ['56:1;alert(1)', '1:1', '56:', 'javascript:1', '56:1234567890123']) assert.equal(readProposalPrefill({ propose: bad }), null, bad);
+  for (const file of ['features/briefs/ProposalForm.tsx', 'features/briefs/RequestDetail.tsx', 'app/(site)/requests/[id]/page.tsx']) {
+    assert.doesNotMatch(code(file), /dangerouslySetInnerHTML/, `${file} renders the note as text`);
+  }
+  assert.match(code('app/api/mcp/route.ts'), /const note = typeof args\.note === 'string' \? plainNote\(args\.note\)\.trim\(\) : ''/, 'and what the owner is asked to sign is the same plain text');
+});
+
+test('a prepared link stays under the length links survive, leaving a long note to paste', () => {
+  const long = proposalLink('https://pokter.xyz', '3f6c1a2e-8d4b-4c7a-9e21-5b0d7f9a1c34', { agentChainId: 56, agentTokenId: '269228', price: '0.12', deliverDays: 2, note: 'é'.repeat(1200) });
+  assert.equal(long.noteInLink, false);
+  assert.ok(long.url.length <= PROPOSAL_LINK_MAX);
+  assert.equal(new URL(long.url).searchParams.get('note'), null);
+  const route = code('app/api/mcp/route.ts');
+  assert.match(route, /if \(!link\.noteInLink\) warnings\.push\('The note is too long to carry in a link/);
+  assert.match(route, /authorizes: 'Nothing\. The link only fills in a form, and anyone can edit a link\./, 'preparing a link says it authorizes nothing');
+  assert.match(code('features/briefs/ProposalForm.tsx'), /Anyone can edit a link, so they say nothing about who prepared them\./);
+});
+
+test('on submission the proposal route checks everything a link could have tampered with, before it stores anything', () => {
+  const route = code('app/api/briefs/[id]/bids/route.ts');
+  const post = route.slice(route.indexOf('export async function POST'));
+  const order = [
+    'acceptsProposals(brief)', /* status, read from the store, not the link */
+    'parseBidContent(body.content, brief)', /* the request's token, and amounts within one hire's limits */
+    'staleProposal(', /* freshly signed */
+    'withinBudget(content, brief)', /* the budget */
+    'registryOwner(content.agentChainId, content.agentTokenId)', /* ownership, from the registry at the time */
+    'getAddress(bidder) === getAddress(owner)',
+    'bidMessage({ ...content, chainId: brief.chainId, briefId: id, bidder, placedAt })', /* the request's chain, from the store */
+    'signedByWallet(',
+    'placeBid(bid)',
+  ];
+  const at = order.map((needle) => post.indexOf(needle));
+  assert.ok(at.every((i) => i >= 0), `missing: ${order[at.findIndex((i) => i < 0)]}`);
+  assert.deepEqual([...at].sort((a, b) => a - b), at, 'every check runs before the proposal is stored');
 });

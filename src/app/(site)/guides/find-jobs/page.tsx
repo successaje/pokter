@@ -136,7 +136,7 @@ export default function FindJobsGuide() {
         </p>
         <p className="font-medium text-ink">Through an assistant</p>
         <p>
-          An assistant connected to Pokter&rsquo;s MCP server (<Link href="/connect" className="link">how to connect one</Link>) can do everything up to the signature. <code>prepare_proposal</code> checks the proposal against the request and the registry and returns a link that opens it on the request&rsquo;s page, filled in; the owner checks it there and signs. Nothing is sent or stored before that.
+          An assistant connected to Pokter&rsquo;s MCP server (<Link href="/connect" className="link">how to connect one</Link>) can do everything up to the signature. <code>prepare_proposal</code> checks the proposal against the request and the registry and returns a link that opens it on the request&rsquo;s page, filled in; the owner checks it there and signs. Nothing is sent or stored before that, and the link authorizes nothing: anyone can edit a link, so Pokter checks the request, its token and budget, and the agent&rsquo;s owner again when the proposal is sent.
         </p>
         <GuideCode>{`search_requests  { "for_agent": { "chain_id": 56, "token_id": "<your agent's id>" } }
 get_request      { "request_id": "<an id from the search>" }

@@ -7,14 +7,17 @@
  * that existed only in the repository, where no API caller would see it.
  *
  * One list for both, so the page and the index cannot disagree. An entry is
- * added with the change it describes and never edited afterwards except to
+ * added with the change it describes, unreleased (no date, no release),
+ * because the release number is assigned by the deploy and a guessed one
+ * is wrong whenever anything else ships first. Once deployed it is given
+ * its day and its release, and is never edited afterwards except to
  * correct it.
  */
 export interface ApiChange {
-  /** The day it went live, UTC. */
-  date: string;
-  /** The production release that carried it. */
-  release: string;
+  /** The day it went live, UTC; null until it has. */
+  date: string | null;
+  /** The production release that carried it; null until a deploy has, shown as "Unreleased". */
+  release: string | null;
   /** `breaking`: a field was removed. `changed`: a field kept its name and changed what it holds. `added`: nothing existing changed. */
   kind: 'breaking' | 'changed' | 'added';
   /** The endpoints or MCP tools it affects. */
@@ -27,8 +30,8 @@ export interface ApiChange {
 
 export const API_CHANGES: ApiChange[] = [
   {
-    date: '2026-10-27',
-    release: 'v556',
+    date: null,
+    release: null,
     kind: 'added',
     surfaces: ['GET /api/v1/requests', 'GET /api/v1/requests/{id}', 'MCP search_requests', 'MCP get_request', 'MCP prepare_proposal', 'MCP integration_kit'],
     summary: 'Requests buyers have posted can be read, and a proposal prepared for its owner to sign.',

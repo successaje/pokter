@@ -122,14 +122,42 @@ export interface ProposalPrefill {
   note: string;
 }
 
-/** The request page's link that opens the proposal form with these values in it. */
-export function proposalLink(origin: string, requestId: string, prefill: ProposalPrefill): string {
+/**
+ * The longest prepared link Pokter hands out. Browsers take far longer
+ * ones, but chat apps, mail clients and proxies cut or refuse links past
+ * a couple of thousand characters, and a note is up to 1,200 characters
+ * that can triple in length once encoded.
+ */
+export const PROPOSAL_LINK_MAX = 2000;
+
+/**
+ * The request page's link that opens the proposal form with these values
+ * in it — without the note when carrying it would make the link longer
+ * than `PROPOSAL_LINK_MAX`, so the owner pastes it instead of opening a
+ * link that arrives cut short.
+ */
+export function proposalLink(origin: string, requestId: string, prefill: ProposalPrefill): { url: string; noteInLink: boolean } {
   const url = new URL(`/requests/${requestId}`, origin);
   url.searchParams.set('propose', `${prefill.agentChainId}:${prefill.agentTokenId}`);
   url.searchParams.set('price', prefill.price);
   url.searchParams.set('days', String(prefill.deliverDays));
-  if (prefill.note) url.searchParams.set('note', prefill.note);
-  return url.href;
+  const bare = url.href;
+  if (!prefill.note) return { url: bare, noteInLink: true };
+  url.searchParams.set('note', prefill.note);
+  return url.href.length <= PROPOSAL_LINK_MAX ? { url: url.href, noteInLink: true } : { url: bare, noteInLink: false };
+}
+
+/*
+ * Control characters, and the ones that reorder text on screen (bidi
+ * overrides and isolates), from a note read out of a link. A note is
+ * shown as text, never as markup, but a right-to-left override can still
+ * make what the owner reads differ from what they would sign.
+ */
+const UNSAFE_TEXT = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F\u202A-\u202E\u2066-\u2069]/g;
+
+/** A note as plain text: line breaks and tabs kept, control and reordering characters dropped. */
+export function plainNote(text: string): string {
+  return text.replace(UNSAFE_TEXT, '');
 }
 
 /**
@@ -137,7 +165,9 @@ export function proposalLink(origin: string, requestId: string, prefill: Proposa
  *
  * Read from a link anyone can write, so only well-formed values survive,
  * and the form shows each one for the owner to check before signing:
- * nothing here is sent anywhere until they do.
+ * nothing here is sent anywhere until they do, and nothing in it is
+ * trusted when they do — the proposal route checks the request, its
+ * token and budget, and the agent's owner afresh on every proposal.
  */
 export function readProposalPrefill(params: Record<string, string | string[] | undefined>): (Omit<ProposalPrefill, 'deliverDays'> & { deliverDays: ProposalPrefill['deliverDays'] | null }) | null {
   const one = (key: string) => (typeof params[key] === 'string' ? (params[key] as string) : '');
@@ -151,6 +181,6 @@ export function readProposalPrefill(params: Record<string, string | string[] | u
     price,
     /* Not one the form offers: left to the form's own default rather than guessed. */
     deliverDays: (DELIVERY_OPTIONS as readonly number[]).includes(days) ? (days as ProposalPrefill['deliverDays']) : null,
-    note: one('note').slice(0, LIMITS.note),
+    note: plainNote(one('note')).slice(0, LIMITS.note),
   };
 }

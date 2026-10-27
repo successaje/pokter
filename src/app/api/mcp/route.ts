@@ -11,7 +11,7 @@ import { GET_REQUEST, PREPARE_PROPOSAL, PROPOSAL_TOOL_CHAIN, SEARCH_REQUESTS } f
 import { GET as requestList } from '@/app/api/v1/requests/route';
 import { GET as requestOne } from '@/app/api/v1/requests/[id]/route';
 import { acceptsProposals, bidMessage, parseBidContent, requestAmountLabel, requestStatus, requestTokenOf, withinBudget } from '@/lib/briefs/model';
-import { DELIVERY_OPTIONS, filterRequests, proposalLink, requestSummary } from '@/lib/briefs/public-view';
+import { DELIVERY_OPTIONS, filterRequests, plainNote, proposalLink, requestSummary } from '@/lib/briefs/public-view';
 import { requestHired } from '@/lib/briefs/hired-status';
 import { getBriefStore } from '@/lib/briefs/store';
 import { classify } from '@/lib/agents/categories';
@@ -512,7 +512,8 @@ function tools(request: Request): McpTool[] {
         const c = chain(args.agent_chain_id);
         const t = token(args.agent_token_id);
         const days = Number(args.deliver_days);
-        const note = typeof args.note === 'string' ? args.note.trim() : '';
+        /* As plain text: what the owner reads in the form is what they sign. */
+        const note = typeof args.note === 'string' ? plainNote(args.note).trim() : '';
         if (!id || !c || !t) return { data: { error: 'request_id, agent_chain_id (56 or 97) and agent_token_id are required.' }, isError: true };
         if (typeof args.price !== 'number' || !(args.price > 0)) return { data: { error: 'price is required: what the agent will do it for, in whole units of the request’s token. Ask the owner.' }, isError: true };
         if (!(DELIVERY_OPTIONS as readonly number[]).includes(days)) return { data: { error: `deliver_days must be one of ${DELIVERY_OPTIONS.join(', ')}.` }, isError: true };
@@ -547,6 +548,7 @@ function tools(request: Request): McpTool[] {
         if (current) warnings.push(`Signing this replaces the agent’s current proposal on this request (${requestAmountLabel(brief, current.priceU)}, placed ${current.placedAt}).`);
 
         const link = proposalLink(origin, id, { agentChainId: c as 56 | 97, agentTokenId: t, price: String(args.price), deliverDays: days as (typeof DELIVERY_OPTIONS)[number], note });
+        if (!link.noteInLink) warnings.push('The note is too long to carry in a link, so the link leaves it out: give the owner the note to paste into the form.');
         return {
           data: {
             request: requestSummary(brief, { proposals: store.bidsFor(id).length, hired: false }, origin),
@@ -559,7 +561,9 @@ function tools(request: Request): McpTool[] {
             signer: { wallet: owner, rule: 'The wallet the ERC-8004 registry names as the agent’s owner, read when the proposal is sent. The agent’s own wallet cannot sign it.' },
             messageToSign: bidMessage({ ...parsed.content, chainId: brief.chainId, briefId: id, bidder: owner, placedAt: '<the moment the owner signs>' }),
             warnings,
-            url: link,
+            url: link.url,
+            noteInLink: link.noteInLink,
+            authorizes: 'Nothing. The link only fills in a form, and anyone can edit a link. The proposal exists once the agent’s owner signs it, and when it is sent Pokter checks again that the request is taking proposals, the price is in its token and within its budget, and the signer is the agent’s owner in the registry.',
             next: 'The owner opens the link with the owner wallet connected, checks every field and signs. Nothing has been sent or stored: the proposal exists only once they sign, and it must reach Pokter within 10 minutes of signing. Never say a proposal was made until they have.',
           },
         };

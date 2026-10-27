@@ -202,7 +202,7 @@ export function ProposalForm({ request, prefill = null }: { request: ProposalReq
         <Notice tone="watch" title="Filled in for you">
           {prefilled.isError
             ? `A prepared proposal named agent ${prefill.agentChainId}:${prefill.agentTokenId}, which could not be found. Add the agent yourself.`
-            : 'This proposal was prepared elsewhere, for example by an assistant. Check every field before you review and sign: nothing is sent until you do.'}
+            : 'These values came from the link you opened. Anyone can edit a link, so they say nothing about who prepared them. Check every field before you review and sign: nothing is sent until you do.'}
         </Notice>
       )}
       <AgentField agent={agent} verified={verified} onChange={setAgent} error={problems.agent} />
