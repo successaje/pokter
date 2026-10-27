@@ -1,6 +1,81 @@
 # Production release and owner-led test session
 
-Prepared on 26 October 2026 for PR #322. Nothing here has been deployed, enabled or funded.
+Prepared on 26 October 2026 for PR #322, and run on 26 October 2026. The outcome comes first; the plan below it is kept as it was run.
+
+## Outcome
+
+**Funding, delivery and recovery passed for all three currencies.** Settlement is still pending: it becomes possible on 2 November 2026.
+
+### Releases
+
+| Release | PR | What |
+| --- | --- | --- |
+| v541 | #322 | The token-aware release, every new currency off. Smoke checks 31/31 |
+| — | — | Backfill run `release-2026-10-26`, after backup `pre-deploy-2026-10-26` was verified |
+| v542 | #323 | Binance-Peg USDT on |
+| v543 | #324 | Workspace: earlier jobs show their currency, not base units |
+| v544 | #325 | Binance-Peg USDC on |
+| v545 | #326 | USD1 on |
+
+**The backfill:**
+- It classified all 187 rows (170 jobs: 144 testnet $U, 26 mainnet $U), with 170 audit entries, all `written`.
+- 17 testnet jobs have two rows each. The published totals count every job once.
+- Completed totals returned to 15.88 testnet $U and 1.04 mainnet $U.
+
+### The jobs
+
+Every job is on the mainnet escrow (`0xEa4D…EBA6`), hires Touchstone (56/374115, provider `0x0710…19e7`), and was funded by the owner's wallet.
+- **Budget:** exactly 0.05 of its token (raw `50000000000000000`).
+- **Times:** read from the chain, in UTC, on 26 October 2026 unless stated. The owner's local time is UTC+1.
+- **Settlement:** it can be released once the review window (`disputeWindow`, 604,800 s, read from the policy contract) has passed since delivery (`submittedAt`).
+- **Deadline:** the job's `expiredAt`.
+
+| Job | Token | Kind | Exact approval | Funded | Delivered | Settlement possible from | Deadline |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 57097 | Binance-Peg USDT | hire to delivery | 20:38:45 | 20:38:55 | 20:39:00 | 2 Nov, 20:39:00 | 3 Nov, 20:38:13 |
+| 57098 | Binance-Peg USDT | recovery | 20:56:43 | 20:57:37 | 20:57:40 | 2 Nov, 20:57:40 | 3 Nov, 20:55:11 |
+| 57099 | Binance-Peg USDC | hire to delivery | 21:49:58 | 21:50:03 | 21:50:06 | 2 Nov, 21:50:06 | 3 Nov, 21:49:13 |
+| 57100 | Binance-Peg USDC | recovery | 21:58:16 | 21:58:35 | 21:58:38 | 2 Nov, 21:58:38 | 3 Nov, 21:57:27 |
+| 57101 | USD1 | hire to delivery | 22:19:44 | 22:19:50 | 22:19:53 | 2 Nov, 22:19:53 | 3 Nov, 22:19:17 |
+| 57103 | USD1 | recovery | 22:21:36 | 22:21:54 | 22:21:58 | 2 Nov, 22:21:58 | 3 Nov, 22:21:16 |
+
+Job 57102 belongs to another buyer and another agent, and was funded in $U.
+
+### Results
+
+- **Every job, checked against the escrow** with `scripts/rehearsal-verify.mts`. 11/11 checks passed on each:
+  - the client and the provider;
+  - `jobPaymentToken` equals the token chosen;
+  - the budget equals the signed raw amount exactly;
+  - the status (SUBMITTED);
+  - the deadline;
+  - no allowance left behind;
+  - Pokter's job route and receipt name the same job, token and raw amount.
+- **Delivery:** each job was delivered within seconds of funding. The deliverable Pokter serves hashes to the one recorded on chain. The verdict was Caution (Cake trades freely; its owner contract can mint).
+- **Recovery** (57098, 57100, 57103):
+  - the create, register and budget prompts were approved, and the fund prompt was rejected;
+  - after a reload, a second tab refused to start another hire;
+  - "Finish funding job N" funded the same job.
+  
+  The owner confirmed the browser behaviour for all three. The chain shows one job per hire, and exactly two approvals and two payments per token.
+- **Passkey** (step B): refused, but on BNB Chain it is refused by chain ("where the passkey wallet does not act yet") before the token check is reached. The by-name refusal for a token hire can only be reached on testnet, and is covered by unit tests.
+- **Seen during the session, since fixed:**
+  - The browser-wallet progress list showed a dormant "Swapping for the missing $U" step on token hires. No swap ran, because the code refuses swaps for token hires. The step has been left out of token hires since #327 (v546).
+  - Workspace showed earlier jobs as base units (#324).
+- **Pre-flight** (`scripts/test-session-preflight.mjs`): READY for each token before its first hire, right after it was turned on. A fresh signed quote from production named the token, the exact 0.05 and the registered signer.
+
+### Settlement: what is pending, and the race after the deadline
+
+- **The window:** release, settlement, earnings and "settled" receipts are pending until the times above. Nothing shortens the window.
+- **The race:** after a job's deadline, the buyer's refund (`claimRefund`) and the release (`Router.settle`) both succeed on a delivered job. This was checked by read-only simulation on four delivered jobs past their deadline (56872, 56719, 56718, 56554), and whichever lands first wins. So each job should be settled between "settlement possible from" and its deadline.
+- **Pokter's own Reclaim button** refuses a delivered job, so it does not race. A refund sent from the wallet directly would.
+
+### Not part of the session
+
+- Testnet USDT is supported and fork-tested but not turned on.
+- Testnet USDC is rejected by the testnet escrow, and USD1 has no testnet contract.
+
+## The plan, as it was run
 
 ## What restricts new currencies to you
 

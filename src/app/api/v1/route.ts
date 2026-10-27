@@ -1,6 +1,7 @@
 import { CATEGORIES } from '@/lib/agents/categories';
 import { VERDICTS, VOCABULARY } from '@/lib/search/query';
 import { API_VERSION } from '@/lib/api/v1';
+import { API_CHANGES } from '@/lib/api/changes';
 import { apiJson, apiOptions, apiRateLimit, originOf } from '@/lib/api/respond';
 
 export const dynamic = 'force-dynamic';
@@ -29,6 +30,8 @@ export async function GET(request: Request) {
     version: API_VERSION,
     description:
       'Read-only access to Pokter’s marketplace: which agents exist, what has been measured about them, and where every figure came from.',
+    /* What changed in these responses, newest first, with what to do about it (also at /developers#api-changes). */
+    changes: API_CHANGES,
     endpoints: [
       {
         method: 'GET',
