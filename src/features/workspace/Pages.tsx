@@ -27,6 +27,8 @@ import { useRequestAlerts } from '@/features/briefs/useRequestAlerts';
 import { markRequestAlertRead, markRequestAlertsRead } from '@/lib/briefs/request-alerts';
 import { budgetOf, JobRow, NeedsWallet, PageHeader, PhaseLabel } from './parts';
 import { totalLines } from './totals';
+import { MoneyTotal } from '@/ui/MoneyTotal';
+import { approxTotalView } from '@/lib/money/approx-total';
 import { RecoverJob } from './RecoverJob';
 import { useReadSync } from './useReadSync';
 import { jobHref } from '@/lib/jobs/href';
@@ -487,20 +489,19 @@ export function WalletPage() {
             ['Released to agents', sum(['settled'])],
             ['Returned to you', sum(['refunded', 'expired', 'rejected'])],
             ['In dispute', sum(['disputed'])],
-          ] as const).map(([label, value]) => (
-            <div key={label} className="rounded-[12px] border border-rule px-4 py-3">
-              <span className="t-label">{label}</span>
-              {value.length === 0 ? (
-                <p className="t-readout mt-1 text-lg">0</p>
-              ) : (
-                value.map((line) => (
-                  <p key={line.key} className={cn('t-readout mt-1', value.length > 1 ? 'text-[14px]' : 'text-lg', line.test && 'text-ink-2')}>
-                    {line.text}
-                  </p>
-                ))
-              )}
-            </div>
-          ))}
+          ] as const).map(([label, value]) => {
+            const total = approxTotalView(value);
+            return (
+              <div key={label} className="rounded-[12px] border border-rule px-4 py-3">
+                <span className="t-label">{label}</span>
+                {/* One figure; every exact amount on hover or tap, test tokens and unread currencies listed apart. */}
+                <p className="t-readout mt-1 text-lg">
+                  <MoneyTotal total={total} />
+                </p>
+                {total.caption && <p className="text-[12px] text-ink-3">{total.caption}</p>}
+              </div>
+            );
+          })}
         </div>
         {jobs.length === 0 ? (
           <p className="text-sm text-ink-3">No job payments yet.</p>

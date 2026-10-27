@@ -44,6 +44,13 @@ export function earnedByToken(jobs: ReadonlyArray<{ chainId: number; status: str
 }
 
 /** An earned line in words: "1.5 $U", "2 test USDT (no value)", "3 jobs, currency not yet read". */
+/** Earned lines as money lines, for one summary figure over them (`approxUsdTotal`). */
+export function earnedMoneyLines(lines: readonly EarnedLine[]) {
+  return lines
+    .filter((line) => line.raw > 0n || line.token === null)
+    .map((line) => ({ key: `${line.chainId}:${line.token ?? 'unknown'}`, text: earnedLineText(line), chainId: line.chainId, token: line.token, raw: line.raw, decimals: line.decimals }));
+}
+
 export function earnedLineText(line: EarnedLine): string {
   if (line.token === null || line.label === null || line.symbol === null) {
     return `${line.jobs} job${line.jobs === 1 ? '' : 's'}, currency not yet read${line.realMoney ? '' : ' (test)'}`;
