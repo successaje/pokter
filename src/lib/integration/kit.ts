@@ -158,8 +158,14 @@ export function buildIntegrationKit(origin: string, input: KitEscrowInput[]): In
     ],
     refusals: QUOTE_FAILURE_CODES.map((code) => {
       const failure = quoteFailure(code);
-      const { status, message } = describeQuoteFailure(failure, 'The agent');
-      return { code, layer: failure.layer, retryable: failure.retryable, status, meaning: message };
+      /*
+       * The messages are written for a named agent, which some open with
+       * and some carry mid-sentence. Named "The agent" they read "no agent
+       * card it could reach for The agent"; named in lower case and
+       * capitalised once, both kinds read as sentences.
+       */
+      const { status, message } = describeQuoteFailure(failure, 'the agent');
+      return { code, layer: failure.layer, retryable: failure.retryable, status, meaning: message.charAt(0).toUpperCase() + message.slice(1) };
     }),
     checklist: CHECKLIST,
     workedExample: { ...workedExample(example), canonicalRules: CANONICAL_RULES, snippet: SIGNING_SNIPPET },
