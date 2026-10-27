@@ -208,7 +208,7 @@ export default async function SetAndEarn() {
               <h2 id="picks-title" className="text-[16px] font-semibold">
                 Three agents to start with
               </h2>
-              <p className="text-[12.5px] text-ink-3">{freePicks ? 'Can be hired on testnet, free' : 'Hireable now'}, each from a different operator, so they count as three.</p>
+              <p className="text-[12.5px] text-ink-3">{freePicks ? 'Can be hired on testnet, free' : 'Hireable via escrow'}, each from a different operator, so they count as three.</p>
             </div>
             {picks.length > 0 ? (
               <ul className="ruled">

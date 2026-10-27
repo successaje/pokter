@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { X402Island } from '@/features/x402/X402Island';
+import { PayPerCallDeclared } from '@/features/x402/PayPerCallDeclared';
 import { x402Enabled } from '@/lib/x402/flags';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
@@ -617,6 +618,12 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                 <TrialPanel agent={{ chainId: p.chainId, tokenId: p.tokenId, name: p.name }} defaultTask={templates[0]?.task ?? 'Produce a read-only assessment. State every assumption and data source; execute no transaction.'} />
               </div>
             )}
+            {/* While x402 is off: what the registration declares, as a route Pokter does not take payments on. Streamed, so a slow registration never holds the page. */}
+            {!x402Enabled() && p.chainId === 56 && (
+              <Suspense fallback={null}>
+                <PayPerCallDeclared chainId={p.chainId} tokenId={p.tokenId} />
+              </Suspense>
+            )}
             {/* Off unless the operator turns x402 on; then only for agents on the one network it supports. */}
             {x402Enabled() && p.chainId === 56 && (
               <div id="pay-per-call" className="scroll-mt-32 flex flex-col gap-3 rounded-[14px] border border-rule bg-raised p-5 sm:p-6">
@@ -879,7 +886,7 @@ export default async function AgentPage({ params, searchParams }: { params: Para
             {p.quote ? (
               <Facts
                 rows={[
-                  { label: 'Signed price', value: <span className="t-readout">{p.quote.label}</span> },
+                  { label: p.quote.current ? 'Escrow quote' : 'Last signed escrow quote', value: <span className="t-readout">{p.quote.label}</span> },
                   /* The money, said once and plainly: a hire is funded in the
                      token the agent signed, so a buyer holding only $U has to
                      learn that here and not at the wallet. */

@@ -64,8 +64,8 @@ function specimenFor(entry: SearchableAgent, row: FindRow): Specimen {
     },
     {
       id: 'price',
-      label: 'Signed price',
-      result: row.priceU !== null ? `${row.priceLabel}, signed by its wallet` : 'Has not signed a price',
+      label: row.priceU !== null && !row.priceFresh ? 'Last signed escrow quote' : 'Escrow quote',
+      result: row.priceU !== null ? `${row.priceLabel}, signed by its wallet` : 'Has not signed a quote',
       tone: row.priceU !== null ? 'ok' : 'none',
     },
     {

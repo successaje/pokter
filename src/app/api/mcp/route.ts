@@ -195,6 +195,8 @@ function tools(request: Request): McpTool[] {
               price: row.priceU !== null ? `${row.priceLabel}, signed by the agent` : null,
               // A signed price holds for minutes; an expired one is a guide, and get_quote asks for a current one.
               priceCurrent: row.priceU !== null ? row.priceFresh : null,
+              /* Additive: the payment route the price is for. Always escrow; Pokter takes no pay-per-call payments. */
+              priceRoute: row.priceU !== null ? 'escrow' : null,
               ...(row.priceU === null
                 ? { noPrice: row.hirable ? 'It has not signed a price: on the hire page the buyer sets the budget, and the agent may decline.' : 'It has not signed a price and cannot be hired now; get_agent says why.' }
                 : {}),

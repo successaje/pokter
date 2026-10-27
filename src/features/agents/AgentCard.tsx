@@ -103,7 +103,7 @@ export function HireNetwork({ chainId, className }: { chainId: number | null; cl
 export function PriceText({ row, className }: { row: FindRow; className?: string }) {
   if (row.priceU !== null) {
     return (
-      <span className={cn('t-readout text-ink', className)} title="Signed by the agent's registered wallet">
+      <span className={cn('t-readout text-ink', className)} title={row.priceFresh ? 'Escrow quote, signed by the agent’s registered wallet' : 'Last signed escrow quote, expired; a fresh quote is requested before payment'}>
         {row.priceLabel}
       </span>
     );
@@ -160,6 +160,10 @@ export function RegisteredNetwork({ chainId, className }: { chainId: number; cla
 export function HiringLines({ row, align }: { row: FindRow; align?: 'end' }) {
   return (
     <>
+      {/* Which route the price above is for, and whether it is still current: never every amount called a quote. */}
+      {row.priceU !== null && (
+        <span className={cn('text-[11.5px] text-ink-3', align === 'end' && 'text-right')}>{row.priceFresh ? 'Escrow quote' : 'Last signed escrow quote'}</span>
+      )}
       {row.hireChainId !== null
         ? <HireNetwork chainId={row.hireChainId} />
         : row.hirable ? <TrialNote /> : null}
@@ -395,7 +399,7 @@ function NextStep({ row, size = 's', wide = false }: { row: FindRow; size?: 's';
       </LinkButton>
     ) : (
       <LinkButton href={agentHref(row)} intent="secondary" className="w-full">
-        Why it cannot be hired yet
+        Why it cannot be hired through escrow yet
       </LinkButton>
     );
   }
@@ -424,7 +428,7 @@ export function AgentRow({ row, reason, trailing }: { row: FindRow; reason?: str
           <Link href={agentHref(row)} className="truncate after:absolute after:inset-0 hover:underline focus-visible:outline-none">
             {row.name}
           </Link>
-          {row.hirable && <span className="shrink-0 rounded-[5px] bg-signal-wash px-1.5 py-px text-[11px] font-medium text-ink">Hireable</span>}
+          {row.hirable && <span className="shrink-0 rounded-[5px] bg-signal-wash px-1.5 py-px text-[11px] font-medium text-ink">Hireable via escrow</span>}
         </h3>
         <p className="truncate text-[13px] text-ink-2">{row.description || 'No description published.'}</p>
         <span className="mt-1 flex flex-wrap items-center gap-2"><MaturityLabel maturity={row.maturity} concise /><OnChainTag row={row} /></span>
