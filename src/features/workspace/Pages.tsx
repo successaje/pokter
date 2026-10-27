@@ -53,7 +53,7 @@ const FILTERS: Array<{ id: string; label: string; phases: JobPhase[] | null; onl
 ];
 
 export function JobsPage() {
-  const { jobs, address } = useMyJobs();
+  const { jobs, address, ready, failed, retry } = useMyJobs();
   const sp = useSearchParams();
   const filter = FILTERS.find((f) => f.id === sp.get('filter')) ?? FILTERS[0];
   const now = useNow();
@@ -73,7 +73,7 @@ export function JobsPage() {
     <>
       <PageHeader
         title="My jobs"
-        description="Every job this wallet has funded through Pokter, read from this device and refreshed from chain when opened."
+        description="Every job this wallet has funded through Pokter, from Pokter’s record of the wallet and from this browser, refreshed from chain when you open one."
         action={
           <div className="flex items-center gap-2">
             <LinkButton href="/workspace/agents" intent="ghost" size="s">
@@ -92,7 +92,22 @@ export function JobsPage() {
         </p>
       )}
       <TabLinks label="Filter jobs" active={filter.id} tabs={counted.filter((f) => !f.onlyIfAny || f.count > 0 || f.id === filter.id).map((f) => ({ id: f.id, label: f.label, href: f.id === 'all' ? '/workspace/jobs' : `/workspace/jobs?filter=${f.id}`, count: f.count }))} className="mb-2" />
-      {shown.length === 0 ? (
+      {failed && jobs.length > 0 && (
+        <Notice tone="watch" title="Some jobs may be missing" className="mb-3" action={<Button size="s" intent="secondary" onClick={retry}>Try again</Button>}>
+          Pokter&rsquo;s record of this wallet could not be read just now, so only the jobs this browser remembers are shown.
+        </Notice>
+      )}
+      {!ready ? (
+        <div className="flex flex-col gap-2" aria-busy="true" aria-label="Loading your jobs">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="h-16 animate-pulse rounded-[12px] bg-sunken motion-reduce:animate-none" />
+          ))}
+        </div>
+      ) : failed && jobs.length === 0 ? (
+        <EmptyState tone="bad" title="Your jobs could not be loaded" className="mt-6" action={<Button intent="secondary" onClick={retry}>Try again</Button>}>
+          Pokter&rsquo;s record of this wallet did not answer just now. This only affects the list: your jobs, and any money in them, are unchanged in escrow. You can also recover a job by its number.
+        </EmptyState>
+      ) : shown.length === 0 ? (
         <EmptyState title={jobs.length === 0 ? 'No jobs yet' : 'Nothing here'} className="mt-6" action={jobs.length === 0 ? <LinkButton href="/discover">Find an agent</LinkButton> : undefined}>
           {jobs.length === 0 ? 'Hire an agent and its job appears here, with its deadline, delivery and settlement.' : 'No job is in this state right now.'}
         </EmptyState>

@@ -79,6 +79,8 @@ test('fees, review windows and tokens are read, not written down', () => {
 test('the footer links every guide, from the same list', () => {
   const footer = source('src/shell/SiteFooter.tsx');
   assert.match(footer, /\.\.\.GUIDES\.map\(\(g\) => \(\{ href: g\.href, label: g\.title \}\)\)/);
+  /* The full footer is on the home page only; every other page has the compact one. */
+  assert.match(footer, /\{ href: '\/guides', label: 'Guides' \}/);
 });
 
 test('the escrow fee, stored in basis points, is said as a percentage without trailing zeros', () => {

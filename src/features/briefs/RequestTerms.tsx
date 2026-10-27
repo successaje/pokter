@@ -121,6 +121,15 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
+/**
+ * When proposals close, to the minute and in UTC, as every other deadline
+ * on Pokter is said. A date alone ("31 Oct 2026") left a builder guessing
+ * whether a proposal sent that evening would count, and in which zone.
+ */
 export function closingDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const day = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+  const time = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
+  return `${day}, ${time} UTC`;
 }

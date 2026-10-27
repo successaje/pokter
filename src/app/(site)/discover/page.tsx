@@ -188,7 +188,13 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
           <DiscoverSearch params={base} />
         </div>
         {activity.funded > 0 && (
-          <ul className="grid grid-cols-2 gap-x-6 gap-y-3 text-[13px] sm:order-1 sm:flex sm:flex-wrap sm:items-baseline sm:gap-x-7 sm:gap-y-2">
+          <ul aria-label="Across all of Pokter, not just these results" className="grid grid-cols-2 gap-x-6 gap-y-3 text-[13px] sm:order-1 sm:flex sm:flex-wrap sm:items-baseline sm:gap-x-7 sm:gap-y-2">
+            {/*
+              Marketplace-wide, and said so: under a category filter, "8
+              outside deliveries" sat above one Health Factor result and read
+              as that category's record.
+            */}
+            <li className="t-label col-span-2 self-center sm:col-span-1">Across Pokter</li>
             {[
               { value: activity.funded, label: 'outside jobs funded', note: 'Funded through Pokter\u2019s escrow by a buyer that is not Pokter, on either chain.' },
               { value: activity.open, label: 'open now', note: 'Funded or delivered and not yet settled: the escrow is still holding the money.' },

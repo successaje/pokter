@@ -42,8 +42,8 @@ export default function manifest(): MetadataRoute.Manifest {
     ],
     shortcuts: [
       {
-        name: 'Workspace',
-        short_name: 'Workspace',
+        name: 'My jobs',
+        short_name: 'My jobs',
         description: 'Your jobs and anything waiting on you.',
         url: '/workspace?source=app-shortcut',
       },

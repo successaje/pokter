@@ -115,7 +115,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
     p.record.totalProbes === 0 ? 'Not measured by Pokter yet' : `answered ${p.record.totalAnswered} of ${p.record.totalProbes} probes`;
   // The evidence step, the same word the page leads with; availability follows in the description.
   const title = `${p.name} — ${p.maturity.label}`;
-  const description = `${p.summary} ${p.maturity.label}. Availability ${p.verdict.label.toLowerCase()}: ${measured}.`.slice(0, 300);
+  const description = `${p.summary} ${p.maturity.label}. Availability: ${p.verdict.label.toLowerCase()}, ${measured}.`.slice(0, 300);
   const url = `/agents/${p.chainId}/${p.tokenId}`;
   return { title, description, alternates: { canonical: url }, openGraph: { title, description, url, type: 'profile' } };
 }
@@ -562,7 +562,7 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                 <Link href="/methodology#maturity" className="text-[12.5px] font-medium text-ink-2 hover:text-ink hover:underline">How each step is earned</Link>
               </div>
               <MaturityLadder maturity={p.maturity} />
-              <p className="text-[11.5px] leading-relaxed text-ink-3">Each step is something Pokter has seen this agent do. Availability ({p.verdict.label}) is judged separately, from Pokter&rsquo;s probes and third-party attestations.</p>
+              <p className="text-[11.5px] leading-relaxed text-ink-3">Each step is something Pokter has seen this agent do. Availability ({p.verdict.label.toLowerCase()}) is judged separately, from Pokter&rsquo;s probes and third-party attestations, and says nothing about whether its answers are right.</p>
             </div>
             {p.sample && (
               <div id="sample" className="scroll-mt-32 flex flex-col gap-3">

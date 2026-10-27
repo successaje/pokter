@@ -343,6 +343,25 @@ export const VERDICT_LABEL: Record<Verdict, string> = {
   unproven: 'Not measured',
 };
 
+/**
+ * The verdict as people read it: what it measures, said in the words.
+ *
+ * The verdict judges whether an agent replies (Pokter's probes, and the
+ * attestations of anyone who measured it), never whether its answers are
+ * right. "Reliable" in green beside "0 of 3 correctness checks passed"
+ * read as a contradiction, or worse, as an endorsement of answers nobody
+ * had checked. Every label here says replies; `VERDICT_LABEL` stays the
+ * API's vocabulary (`verdictLabel`) and the query terms (`is:reliable`).
+ */
+export const AVAILABILITY_LABEL: Record<Verdict, string> = {
+  proven: 'Replies reliably, confirmed',
+  reliable: 'Replies reliably',
+  emerging: 'Replies intermittently',
+  observed: 'Too early to judge',
+  failing: 'Replies unreliably',
+  unproven: 'Not measured',
+};
+
 /** One line on what each state means, for anywhere the badge needs explaining. */
 export const VERDICT_MEANING: Record<Verdict, string> = {
   proven: 'Independent measurers agree, over enough probes and a long enough window.',

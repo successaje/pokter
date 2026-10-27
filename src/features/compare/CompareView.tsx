@@ -5,11 +5,12 @@ import { leaders } from '@/lib/compare/best';
 import { activityRow } from '@/lib/activity/reading';
 import { coordinationText } from '@/lib/proof/coordination';
 import { capabilityText } from '@/lib/capability/match';
-import { ago, checkReading, custodyOf, declaredProtocols, endpointReading } from '@/lib/compare/rows';
+import { ago, checkReading, checkTone, custodyOf, declaredProtocols, distinctPercents, endpointReading } from '@/lib/compare/rows';
 import { formatQuotedPrice } from '@/lib/erc8183/pricing';
 import type { Comparison } from '@/lib/marketplace';
 import { chainLabel } from '@/lib/network/presentation';
-import { VERDICT_LABEL } from '@/lib/proof/engine';
+import { AVAILABILITY_LABEL } from '@/lib/proof/engine';
+import { deliveryAdjustedVerdict } from '@/lib/search/match';
 import { cn } from '@/lib/ui/cn';
 import { formatMs } from '@/lib/ui/format';
 import { AgentAvatar } from '@/ui/Agent';
@@ -26,7 +27,7 @@ import { VerdictLabel } from '@/ui/Verdict';
 type Row = {
   label: string;
   hint?: string;
-  value: (c: Comparison) => React.ReactNode;
+  value: (c: Comparison, all: readonly Comparison[]) => React.ReactNode;
   raw?: (c: Comparison) => string;
   /** A number to rank this row by, and which way is better. Null: no fair comparison for this agent. */
   rank?: { of: (c: Comparison, all: readonly Comparison[]) => number | null; better: 'higher' | 'lower' };
@@ -40,12 +41,46 @@ function rate(c: Comparison) {
   return c.record.totalProbes ? c.record.totalAnswered / c.record.totalProbes : null;
 }
 
+/* A rate over a handful of probes is noise: five at least before it can lead. */
+const rankedRate = (c: Comparison) => (c.record.totalProbes >= 5 ? rate(c) : null);
+
+/*
+ * The verdict the agent's own page shows: demoted when paid jobs lapse
+ * (`deliveryAdjustedVerdict`), so the two pages never disagree about one
+ * agent.
+ */
+const availability = (c: Comparison) => deliveryAdjustedVerdict(c.proof.verdict, c.economicHistory).verdict;
+
+/** Correctness, marked as plainly as availability: a pass, a failure, or neither. */
+function CheckResult({ check }: { check: Comparison['check'] }) {
+  const tone = checkTone(check);
+  const text = checkReading(check).text;
+  if (tone === 'none') return <span className="text-ink-3">{text}</span>;
+  return (
+    <span className={cn('inline-flex items-center gap-1.5 font-medium', tone === 'pass' ? 'text-ok' : 'text-bad')}>
+      {tone === 'pass' ? <Icon.Check size={13} aria-hidden /> : <Icon.Cross size={13} aria-hidden />}
+      {text}
+    </span>
+  );
+}
+
 const ROWS: Row[] = [
   { label: 'Does', value: (c) => (c.category === 'unclassified' ? 'Unclassified' : (CATEGORY_BY_ID.get(c.category as Category)?.label ?? c.category)), raw: (c) => String(c.category) },
-  { label: 'Evidence', value: (c) => <VerdictLabel verdict={c.proof.verdict} />, raw: (c) => VERDICT_LABEL[c.proof.verdict] },
-  { label: 'Correctness checks', hint: 'Its answers against what Pokter reads on chain', value: (c) => checkReading(c.check).text, raw: (c) => checkReading(c.check).text, rank: { of: (c) => checkReading(c.check).score, better: 'higher' } },
-  // A rate over a handful of probes is noise: five at least before it can lead.
-  { label: 'Answered probes', hint: 'All time, by Pokter', value: (c) => (c.record.totalProbes ? `${Math.round(rate(c)! * 100)}% of ${c.record.totalProbes}` : 'Not probed'), raw: (c) => String(rate(c)), rank: { of: (c) => (c.record.totalProbes >= 5 ? rate(c) : null), better: 'higher' } },
+  /*
+   * Two questions, two rows, each marked as plainly as the other. Whether
+   * it replies is not whether it is right: a green "Reliable" beside
+   * "0 of 3 passed" read as an endorsement of answers nobody had checked.
+   */
+  { label: 'Availability', hint: 'Whether it replies to Pokter’s probes', value: (c) => <VerdictLabel verdict={availability(c)} />, raw: (c) => AVAILABILITY_LABEL[availability(c)] },
+  { label: 'Correctness', hint: 'Whether its answers match what Pokter reads on chain', value: (c) => <CheckResult check={c.check} />, raw: (c) => checkReading(c.check).text, rank: { of: (c) => checkReading(c.check).score, better: 'higher' } },
+  {
+    label: 'Answered probes',
+    hint: 'All time, by Pokter',
+    value: (c, all) => (c.record.totalProbes ? `${distinctPercents(all.map(rate)).labels[all.indexOf(c)]} of ${c.record.totalProbes}` : 'Not probed'),
+    raw: (c) => String(rate(c)),
+    /* Ranked on the rate as shown: a displayed tie is a tie. */
+    rank: { of: (c, all) => (rankedRate(c) === null ? null : distinctPercents(all.map(rate)).ranked[all.indexOf(c)]), better: 'higher' },
+  },
   { label: 'Last checked', hint: 'Pokter’s latest probe', value: (c) => ago(c.latestProbe?.probedAt ?? null), raw: (c) => ago(c.latestProbe?.probedAt ?? null) },
   { label: 'Endpoint', hint: 'What that probe saw', value: (c) => endpointReading(c.latestProbe), raw: (c) => String(c.latestProbe?.ok ?? '') },
   { label: 'Typical reply', value: (c) => formatMs(medianMs(c)), raw: (c) => String(medianMs(c)), rank: { of: medianMs, better: 'lower' } },
@@ -116,7 +151,7 @@ export function CompareView({ items, images }: { items: readonly Comparison[]; i
                       </th>
                       {items.map((c, i) => (
                         <td key={`${c.agent.chain_id}:${c.agent.token_id}`} className={cn('border-l border-rule p-4 text-center align-middle text-ink-2', best.has(i) && 'bg-ok-wash/70 text-ink')}>
-                          {row.value(c)}
+                          {row.value(c, items)}
                           {best.has(i) && <BestMark />}
                         </td>
                       ))}
@@ -149,7 +184,7 @@ export function CompareView({ items, images }: { items: readonly Comparison[]; i
                       <div key={`${c.agent.chain_id}:${c.agent.token_id}`} className={cn('flex items-center justify-between gap-3 py-2 text-[13.5px]', best.has(i) && '-mx-2 rounded-[8px] bg-ok-wash/70 px-2')}>
                         <dt className="truncate font-medium">{c.agent.name}</dt>
                         <dd className="shrink-0 text-right text-ink-2">
-                          {row.value(c)}
+                          {row.value(c, items)}
                           {best.has(i) && <BestMark />}
                         </dd>
                       </div>

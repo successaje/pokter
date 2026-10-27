@@ -2,13 +2,13 @@
 
 import { useMemo, useState } from 'react';
 
-import { computeCost } from '@/lib/pancakeswap/cost';
+import { computeCost, GAS_PER_REBALANCE_USD } from '@/lib/pancakeswap/cost';
 import type { ClientPool } from '@/lib/pancakeswap/pool';
 import { cn } from '@/lib/ui/cn';
 import { Address } from '@/ui/Data';
 import { Notice } from '@/ui/Feedback';
 
-const usd = (n: number) => (n >= 100 ? `$${n.toFixed(0)}` : n >= 1 ? `$${n.toFixed(2)}` : `$${n.toFixed(3)}`);
+const usd = (n: number) => (n >= 100 ? `$${n.toFixed(0)}` : n >= 0.01 ? `$${n.toFixed(2)}` : `$${n.toFixed(3)}`);
 const pct = (n: number) => (n >= 0.01 ? `${(n * 100).toFixed(2)}%` : `${(n * 100).toFixed(4)}%`);
 
 function Slider({ label, value, display, min, max, step, onChange }: { label: string; value: number; display: string; min: number; max: number; step: number; onChange: (v: number) => void }) {
@@ -64,22 +64,22 @@ export function PoolCheck({ pools }: { pools: ClientPool[] }) {
         <Slider label="Position size" value={positionUsd} display={`$${positionUsd.toLocaleString('en-US')}`} min={1000} max={500_000} step={1000} onChange={setPositionUsd} />
         <Slider label="Rebalances per month" value={rebalances} display={String(rebalances)} min={1} max={60} step={1} onChange={setRebalances} />
         <Slider label="Share of position swapped each time" value={turnover} display={pct(turnover)} min={0.05} max={1} step={0.05} onChange={setTurnover} />
-        <Slider label="Agent’s price per job" value={agentFeeU} display={`${agentFeeU.toFixed(2)} $U`} min={0} max={2} step={0.01} onChange={setAgentFeeU} />
-        <p className="text-[12px] text-ink-3">Use the agent&rsquo;s signed price from its profile. Pokter does not assume one.</p>
+        <Slider label="Agent’s price per rebalance" value={agentFeeU} display={`$${agentFeeU.toFixed(2)}`} min={0} max={2} step={0.01} onChange={setAgentFeeU} />
+        <p className="text-[12px] text-ink-3">Starts at an example of $0.10. Set it to the agent&rsquo;s signed price from its profile, in $U, USDT, USDC or USD1, each counted at $1.</p>
       </div>
 
       <div className="flex flex-col gap-5">
         <div className="rounded-[16px] border-2 border-ink bg-raised p-6">
           <span className="t-label">The agent must improve your fee capture by</span>
           <p className="t-readout mt-2 text-[2.6rem] leading-none tracking-[-0.03em]">{pct(cost.breakEvenApr)}</p>
-          <p className="mt-2 text-sm text-ink-2">a year, on this position, just to cover what running it costs. Hold it to that number after a month.</p>
+          <p className="mt-2 text-sm text-ink-2">a year, on this position, just to cover what running it costs: {usd(cost.totalCostUsd)} a month, including the agent&rsquo;s own price. Hold it to that number after a month.</p>
         </div>
         <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-[14px] border border-rule bg-rule sm:grid-cols-4">
           {[
             ['Pool fees', usd(cost.swapFeesUsd)],
             ['Price impact', usd(cost.priceImpactUsd)],
             ['Gas', usd(cost.gasUsd)],
-            ['Agent fees', `${cost.agentFeesU.toFixed(2)} $U`],
+            ['Agent’s price', usd(cost.agentFeesUsd)],
           ].map(([k, v]) => (
             <div key={k} className="flex flex-col gap-1 bg-raised p-4">
               <dt className="t-label">{k}</dt>
@@ -94,6 +94,9 @@ export function PoolCheck({ pools }: { pools: ClientPool[] }) {
           {/* Pools are read on BNB Chain mainnet (see pancakeswap/pool). */}
           <Address address={pool.address} chainId={56} />
         </div>
+        <p className="text-[12.5px] leading-relaxed text-ink-3">
+          Assumptions: pool fees and price impact are read from the pool now; gas is an estimate of ${GAS_PER_REBALANCE_USD.toFixed(2)} per rebalance, not a reading; the agent&rsquo;s price is counted at $1 per dollar stablecoin; position size, rebalances and the share swapped are examples until you set them.
+        </p>
         {cost.beyondTickRange && (
           <Notice tone="watch" title="This trade moves past the current tick">
             The impact estimate uses only liquidity at the current tick, so for a trade this large it understates the real cost.

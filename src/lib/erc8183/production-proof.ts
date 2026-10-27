@@ -68,6 +68,8 @@ export interface ProductionProofSummary {
    */
   lifecycleDemoJobs: number;
   answeredDeliveries: number;
+  /** Delivered and still inside the review window or awaiting settlement: answered, not yet settled. */
+  inReview: number;
   /** Accepted jobs whose buyer was the seller, not counted as answered deliveries. */
   completedSelfHires: number;
   byStatus: Record<JobStatusName, number>;
@@ -239,6 +241,7 @@ export function summarizeProductionProof(
      * demand; an outside review counted 8 here where the strict figure was 7.
      */
     answeredDeliveries: byStatus.COMPLETED - lifecycleDemoJobs - completedSelfHires,
+    inReview: byStatus.SUBMITTED,
     completedSelfHires,
     outsideSelfHireJobs: jobs.filter((job) => !isTeamFunded(job) && isSelfHire(job)).length,
     outsideDemandJobs: jobs.filter((job) => !isTeamFunded(job) && !isSelfHire(job)).length,

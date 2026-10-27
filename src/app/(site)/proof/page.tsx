@@ -16,6 +16,7 @@ import { isLifecycleDemo } from '@/lib/agent/credited-history';
 import { listSearchable } from '@/lib/marketplace';
 import type { HiredJob, JobStatusName } from '@/lib/erc8183/types';
 import { chainLabel, escrowMoney, explorerBaseFor } from '@/lib/network/presentation';
+import { jobEvidencePath } from '@/lib/jobs/evidence-view';
 import { escrowCommerceAddress } from '@/lib/erc8183/addresses';
 import { jobReceipt } from '@/lib/jobs/receipt-link';
 import { teamWalletList, teamWalletSet } from '@/lib/team/server';
@@ -107,7 +108,7 @@ function FilterGroup<T extends string>({
 
 function Metric({ value, label, note }: { value: string; label: string; note: string }) {
   return (
-    <div className="flex min-h-36 flex-col justify-between gap-5 border-t border-rule py-5 sm:px-5 sm:first:pl-0">
+    <div className="flex flex-col gap-3 border-t border-rule py-5 sm:pr-5">
       <span className="t-readout text-[2rem] leading-none tracking-[-0.04em]">{value}</span>
       <span>
         <span className="block text-[13.5px] font-medium text-ink">{label}</span>
@@ -221,7 +222,7 @@ export default async function ProductionProofPage({ searchParams }: { searchPara
       </section>
       {agentKey && <div className="border-b border-rule py-3 text-[13px] text-ink-2">Filtered to ERC-8004 identity <span className="t-readout">{agentKey}</span>. <Link href={proofHref(filters, {})} className="ml-2 font-medium hover:underline">Clear agent filter</Link></div>}
 
-      <section aria-label="Production metrics" className="grid grid-cols-2 gap-x-5 py-8 sm:grid-cols-4 lg:grid-cols-7">
+      <section aria-label="Production metrics" className="grid grid-cols-2 gap-x-5 py-8 sm:grid-cols-4">
         {/*
           The answered count leads, because "Accepted deliveries" counted
           Pokter's own lifecycle demonstrations — which settle identically
@@ -239,8 +240,13 @@ export default async function ProductionProofPage({ searchParams }: { searchPara
         */}
         <Metric
           value={summary.answeredDeliveries.toLocaleString('en-US')}
-          label="Answered deliveries"
+          label="Settled with an answer"
           note={`Settled by escrow with the agent’s answer. ${summary.answeredDeliveries} of ${summary.completed} settled jobs${summary.completedSelfHires > 0 ? `; ${summary.completedSelfHires} self-hire${summary.completedSelfHires === 1 ? '' : 's'} (buyer was the seller) not counted` : ''}.`}
+        />
+        <Metric
+          value={summary.inReview.toLocaleString('en-US')}
+          label="Delivered, in review"
+          note="Answered, and waiting for the review window to close or for someone to settle it. Not yet counted as settled."
         />
         <Metric
           value={summary.lifecycleDemoJobs.toLocaleString('en-US')}
@@ -321,7 +327,11 @@ export default async function ProductionProofPage({ searchParams }: { searchPara
                   const label = agentLabel(job);
                   return (
                     <tr key={job.id}>
-                      <td className="px-4 py-3.5 align-top"><span className="font-medium text-ink">#{job.jobId}</span><span className="mt-0.5 block text-[11.5px] text-ink-3">{job.hiredAt.slice(0, 10)}</span></td>
+                      <td className="px-4 py-3.5 align-top">
+                        {/* The job as Pokter reads it, in words: a buyer should not need a block explorer to see what was asked and delivered. */}
+                        <Link href={jobEvidencePath(job)} className="font-medium text-ink hover:underline">#{job.jobId}</Link>
+                        <span className="mt-0.5 block text-[11.5px] text-ink-3">{job.hiredAt.slice(0, 10)}</span>
+                      </td>
                       <td className="max-w-56 px-4 py-3.5 align-top">
                         {label.registered ? (
                           <>
@@ -341,7 +351,12 @@ export default async function ProductionProofPage({ searchParams }: { searchPara
                         {STATUS_COPY[job.status]}
                         {isLifecycleDemo(job) && <span className="mt-0.5 block text-[11.5px] font-normal text-ink-3">Lifecycle demo: no answer from the agent</span>}
                       </td>
-                      <td className="px-4 py-3.5 text-right align-top"><a href={receiptLink(job)} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 font-medium text-ink hover:underline">BscScan <Icon.External size={13} /></a></td>
+                      <td className="px-4 py-3.5 text-right align-top">
+                        <span className="inline-flex items-center gap-3">
+                          <Link href={jobEvidencePath(job)} className="font-medium text-ink hover:underline">Job page</Link>
+                          <a href={receiptLink(job)} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 text-ink-2 hover:text-ink hover:underline">BscScan <Icon.External size={13} /></a>
+                        </span>
+                      </td>
                     </tr>
                   );
                 })}

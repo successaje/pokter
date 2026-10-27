@@ -3,7 +3,7 @@ import { ImageResponse } from 'next/og';
 import { CATEGORY_BY_ID } from '@/lib/agents/categories';
 import { quotePriceLabel } from '@/lib/find/price';
 import { loadDossier } from '@/lib/marketplace';
-import { VERDICT_LABEL } from '@/lib/proof/engine';
+import { AVAILABILITY_LABEL } from '@/lib/proof/engine';
 import type { ChainId } from '@/lib/scan/types';
 
 export const alt = 'What Pokter has measured about this agent';
@@ -88,7 +88,7 @@ export default async function AgentImage({ params }: { params: Promise<{ chainId
           <div style={{ display: 'flex', fontSize: 76, fontWeight: 700, letterSpacing: -3, lineHeight: 1 }}>{name}</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, fontSize: 30, color: TONE[proof.verdict] ?? INK2, fontWeight: 600, marginTop: 8 }}>
             <div style={{ width: 16, height: 16, borderRadius: 8, background: TONE[proof.verdict] ?? INK2 }} />
-            {VERDICT_LABEL[proof.verdict]}
+            {AVAILABILITY_LABEL[proof.verdict]}
           </div>
         </div>
         <div style={{ display: 'flex', marginTop: 'auto', borderTop: `2px solid ${RULE}` }}>

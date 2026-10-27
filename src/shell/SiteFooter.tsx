@@ -16,7 +16,7 @@ const GROUPS: Array<{ title: string; links: Array<{ href: string; label: string;
       { href: '/proof', label: 'Production proof' },
       { href: '/rankings', label: 'Outcome rankings' },
       { href: '/leaderboard', label: 'Leaderboard' },
-      { href: '/workspace', label: 'Workspace' },
+      { href: '/workspace', label: 'Hiring' },
       { href: '/build', label: 'Build an agent' },
     ],
   },
@@ -152,6 +152,8 @@ export function CompactFooter() {
   const links = [
     { href: '/agents', label: 'All agents' },
     { href: '/requests', label: 'Requests' },
+    /* The three starting points, from every page: the full footer, which lists each, is on the home page only. */
+    { href: '/guides', label: 'Guides' },
     { href: '/how-it-works', label: 'How it works' },
     { href: '/methodology', label: 'Methodology' },
     { href: '/rankings', label: 'Outcome rankings' },
