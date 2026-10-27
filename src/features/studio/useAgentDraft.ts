@@ -39,6 +39,8 @@ export interface EndpointPreflight {
   quoteCapability: boolean;
   /** A skill named for pricing that Pokter does not ask (see `priceLikeSkill`). */
   priceLikeSkill?: string | null;
+  /** Set when the card offers JSON-RPC only at an A2A version Pokter does not speak yet. */
+  a2aVersionNote?: string | null;
   safety: {
     httpsRequired: boolean;
     credentialsRejected: boolean;

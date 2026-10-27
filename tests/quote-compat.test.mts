@@ -103,7 +103,9 @@ test('preflight passes exactly the skills the requester asks, and names one that
   assert.equal(negotiationSkillOf([{ id: 'get_quote' }, { id: 'negotiate-x' }, { id: 'negotiate' }]), 'negotiate', 'the plain id first, as before');
   assert.equal(priceLikeSkill(['check_token', 'get_quote']), 'get_quote');
   assert.equal(priceLikeSkill(['get_quote', 'negotiate']), null, 'nothing to warn about when negotiate is there');
-  assert.match(code('app/api/builders/preflight/route.ts'), /const quoteCapability = capabilities\.some\(isNegotiationSkill\);/);
+  /* By the skill the requester would ask, chosen by id, not by the display names the probe lists. */
+  assert.match(code('app/api/builders/preflight/route.ts'), /const quoteCapability = result\.negotiationSkill !== undefined \? Boolean\(result\.negotiationSkill\) : capabilities\.some\(isNegotiationSkill\);/);
+  assert.match(code('lib/proof/prober.ts'), /negotiationSkill: negotiationSkillOf\(skills\),/);
   const { builderChecklist } = await import('../src/lib/builder/checklist');
   const stages = builderChecklist({ identity: { done: true, missing: [] }, endpoint: { checked: true, ok: true, detail: null, status: 200 }, capabilities: ['check_token', 'get_quote'], quoteCapability: false, priceLikeSkill: 'get_quote', trial: { ran: false, ok: false, summary: null, error: null } });
   const price = stages.find((s) => s.id === 'price')!;

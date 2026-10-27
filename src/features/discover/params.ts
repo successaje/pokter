@@ -5,7 +5,8 @@ export const PAGE_SIZE = 24;
 
 export interface DiscoverParams {
   q: string;
-  category: Category | null;
+  /** One of the five, or `unclassified`: agents that signed a price in work Pokter does not evaluate. */
+  category: Category | 'unclassified' | null;
   hireable: boolean;
   answering: boolean;
   priced: boolean;
@@ -30,7 +31,7 @@ export function parseDiscoverParams(sp: Record<string, string | string[] | undef
   return {
     // `brief` is the previous product's natural-language parameter.
     q: (one('q') || one('brief')).slice(0, 400),
-    category: CATEGORY_BY_ID.has(cat as Category) ? (cat as Category) : null,
+    category: cat === 'unclassified' ? 'unclassified' : CATEGORY_BY_ID.has(cat as Category) ? (cat as Category) : null,
     hireable: one('hireable') === '1',
     answering: one('answering') === '1',
     priced: one('priced') === '1',

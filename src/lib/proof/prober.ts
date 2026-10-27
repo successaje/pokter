@@ -14,7 +14,8 @@ import type { AttestationMethod } from './attestation';
 import { readRpcResponse } from '@/lib/protocol/stream';
 import { deadlineSignal } from '@/lib/net/bounded';
 import { listMcpTools, type McpTool } from '@/lib/mcp/probe';
-import { isAgentCard, jsonRpcEndpoint } from '@/lib/a2a/card';
+import { isAgentCard, jsonRpcInterface } from '@/lib/a2a/card';
+import { negotiationSkillOf } from '@/lib/erc8183/courier-parse';
 
 /**
  * Pokter as a measurer.
@@ -39,6 +40,18 @@ export interface ProbeResult {
   detail: string;
   /** Read-only capabilities observed during the protocol handshake. */
   capabilities?: string[];
+  /**
+   * The skill a price request would be sent to, chosen exactly as the
+   * requester chooses it (`negotiationSkillOf`, by id), or null. The list
+   * above is by display name, and a card's `{ id: 'negotiate', name:
+   * 'Negotiate price' }` is quoted by id: judging readiness from the name
+   * told such a builder it had no negotiate skill.
+   */
+  negotiationSkill?: string | null;
+  /** Skill ids, then names where a skill has no id, for naming a misnamed pricing skill. */
+  skillIds?: string[];
+  /** The A2A version of the JSON-RPC interface Pokter would call, when the card states one. */
+  a2aVersion?: string | null;
   /** The A2A card says its endpoint needs credentials (see `cardRequiresAuth`). */
   requiresAuth?: boolean;
   /** MCP tools as declared, input schemas included (see `listMcpTools`). */
@@ -350,7 +363,8 @@ async function probeAt(
           body,
         };
       }
-      const callable = jsonRpcEndpoint(body);
+      const callable = jsonRpcInterface(body);
+      const skills = Array.isArray(body.skills) ? body.skills : [];
       return {
         result: {
           ok: true,
@@ -358,6 +372,9 @@ async function probeAt(
           status: response.status,
           detail: `A2A capability handshake succeeded${capabilities.length ? ` with ${capabilities.length} declared skills` : ''}.${callable ? '' : ' Its card offers no HTTPS JSON-RPC interface, which is the one Pokter calls, so it cannot be quoted or hired here.'}`,
           capabilities,
+          negotiationSkill: negotiationSkillOf(skills),
+          skillIds: skills.map((skill) => asObject(skill)?.id ?? asObject(skill)?.name).filter((id): id is string => typeof id === 'string'),
+          a2aVersion: callable?.version ?? null,
           requiresAuth: cardRequiresAuth(body),
           at,
         },

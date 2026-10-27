@@ -413,6 +413,12 @@ function StepTest({ d }: { d: AgentDraft }) {
                 <dt className="t-label">HTTP status</dt>
                 <dd className="t-readout mt-1">{p.status ?? '—'}</dd>
               </div>
+              {p.a2aVersionNote && (
+                <div className="sm:col-span-2">
+                  <dt className="t-label">A2A version</dt>
+                  <dd className="mt-1 text-watch">{p.a2aVersionNote}</dd>
+                </div>
+              )}
             </dl>
             <Details summary="What Pokter refused to do while checking (safety)">
               <ul className="grid grid-cols-1 gap-1.5 text-[12.5px] text-ink-2 sm:grid-cols-2">

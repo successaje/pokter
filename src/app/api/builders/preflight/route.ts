@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 
+import { a2aVersionUnsupported } from '@/lib/a2a/card';
 import { isNegotiationSkill, priceLikeSkill } from '@/lib/erc8183/courier-parse';
 import { probeEndpoint } from '@/lib/proof/prober';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
@@ -38,9 +39,17 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   const result = await probeEndpoint(endpoint, protocol);
   const capabilities = result.capabilities ?? [];
-  /* The requester's own rule (`isNegotiationSkill`), so passing here means Pokter will ask. */
-  const quoteCapability = capabilities.some(isNegotiationSkill);
-  const pricingNamedOtherwise = priceLikeSkill(capabilities);
+  /*
+   * The skill the requester would send a price request to, chosen the way
+   * it chooses (by id), so passing here means Pokter will ask. MCP results
+   * carry no card, so their tool names are judged by the same rule.
+   */
+  const quoteCapability = result.negotiationSkill !== undefined ? Boolean(result.negotiationSkill) : capabilities.some(isNegotiationSkill);
+  const pricingNamedOtherwise = quoteCapability ? null : priceLikeSkill(result.skillIds ?? capabilities);
+  /* A card that offers JSON-RPC only at A2A 1.x: Pokter asks in 0.3 and does not yet speak the newer wire format. */
+  const a2aVersionNote = a2aVersionUnsupported(result.a2aVersion)
+    ? `Its card offers JSON-RPC only at A2A ${result.a2aVersion}. Pokter asks in A2A 0.3 (message/send) and does not yet speak the newer wire format, so add an A2A 0.3 interface to be priced and hired.`
+    : null;
 
   return NextResponse.json({
     ...result,
@@ -49,6 +58,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     capabilities,
     quoteCapability,
     priceLikeSkill: pricingNamedOtherwise,
+    a2aVersionNote,
     safety: {
       httpsRequired: true,
       credentialsRejected: true,

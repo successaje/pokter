@@ -919,7 +919,47 @@ async function buildSearchableWithStatus(
     onChain: onChainOf(listing.agent, listing.category, wallets),
   })));
 
-  return { entries, unreachable, incomplete };
+  /*
+   * Agents that have signed a price for Pokter but that no category listing
+   * returned: their work fits none of the five categories Pokter evaluates,
+   * or the category search ranked them out. Stockroom, Bound, Lattice and
+   * Tidemark held signed quotes and appeared nowhere in hiring discovery or
+   * in the "signed a price" count. They are included as what they are: a
+   * registry row and a signed price, classified by the same rule as a name
+   * search (`searchableFrom`), so most read "Unclassified" and none claims
+   * an evaluation Pokter has not run.
+   */
+  const listed = new Set(all.map((l) => `${l.agent.chain_id}:${l.agent.token_id}`));
+  const signedElsewhere = store
+    .quotedAgents()
+    .filter((a) => !listed.has(`${a.chainId}:${a.tokenId}`) && (options.chainId === undefined || a.chainId === options.chainId));
+  /* Only ones Pokter would promote: this path exists to surface agents for hire, so an identity that says it is a test stays findable by its name or ID and is not added here (`isPromotableAgent`). */
+  const extra = searchableFrom((await signedAgentRows(signedElsewhere)).filter((agent) => isPromotableAgent(agent)));
+
+  return { entries: [...entries, ...extra], unreachable, incomplete };
+}
+
+/*
+ * Registry rows for signed agents outside the category listings, kept
+ * between catalogue builds: the catalogue rebuilds every minute, and these
+ * rows change far less often than that. A failed read is retried sooner.
+ */
+const SIGNED_ROW_TTL_MS = 30 * 60_000;
+const SIGNED_ROW_MISS_MS = 5 * 60_000;
+const SIGNED_ROW_LIMIT = 60;
+const signedRows = new Map<string, { agent: ScanAgentDetail | null; at: number }>();
+
+async function signedAgentRows(agents: Array<{ chainId: number; tokenId: string }>, now = Date.now()): Promise<ScanAgentDetail[]> {
+  const wanted = agents.filter((a) => a.chainId === BSC_MAINNET || a.chainId === BSC_TESTNET).slice(0, SIGNED_ROW_LIMIT);
+  const rows = await mapWithConcurrency(wanted, 6, async ({ chainId, tokenId }) => {
+    const key = `${chainId}:${tokenId}`;
+    const known = signedRows.get(key);
+    if (known && now - known.at < (known.agent ? SIGNED_ROW_TTL_MS : SIGNED_ROW_MISS_MS)) return known.agent;
+    const agent = await getAgent(chainId as ChainId, tokenId).catch(() => null);
+    signedRows.set(key, { agent, at: now });
+    return agent;
+  });
+  return rows.filter((agent): agent is ScanAgentDetail => agent !== null);
 }
 
 /**
