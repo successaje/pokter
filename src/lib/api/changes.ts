@@ -30,8 +30,8 @@ export interface ApiChange {
 
 export const API_CHANGES: ApiChange[] = [
   {
-    date: null,
-    release: null,
+    date: '2026-10-27',
+    release: 'v556',
     kind: 'added',
     surfaces: ['GET /api/v1/requests', 'GET /api/v1/requests/{id}', 'MCP search_requests', 'MCP get_request', 'MCP prepare_proposal', 'MCP integration_kit'],
     summary: 'Requests buyers have posted can be read, and a proposal prepared for its owner to sign.',
