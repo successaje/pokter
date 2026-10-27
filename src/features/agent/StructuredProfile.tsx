@@ -96,11 +96,13 @@ export function StructuredProfile({ s, sampleAnchor, onChain }: { s: Structured;
         ) : s.back.delivered > 0 ? (
           /*
            * Delivered, but nothing Pokter may show: no sample is not no
-           * delivery. Said as what it is, with the newest delivery's
-           * evidence one click away.
+           * delivery. Two reasons, both said: an outside buyer's answer is
+           * shown only once the buyer publishes it (`answerIsPublic`), and
+           * any answer only once it matches its hash. The newest delivery's
+           * evidence is one click away either way.
            */
           <Missing>
-            No readable sample available. It has delivered {s.back.delivered === 1 ? 'a paid job' : `${s.back.delivered} paid jobs`} through Pokter, but no delivery could be read and matched to its hash on chain just now.{' '}
+            No published sample yet. It has delivered {s.back.delivered === 1 ? 'a paid job' : `${s.back.delivered} paid jobs`} through Pokter. An outside buyer&rsquo;s answer appears here only once the buyer publishes it, and any answer only once it matches its hash on chain.{' '}
             {s.back.latest && (
               <Link href={jobEvidencePath({ chainId: s.back.latest.chainId, jobId: s.back.latest.jobId })} className="font-medium text-ink-2 hover:text-ink hover:underline">
                 The newest delivery&rsquo;s evidence

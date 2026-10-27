@@ -175,13 +175,21 @@ export default async function JobEvidencePage({ params }: { params: Promise<Para
           </>
         ) : (
           <p>
-            The brief is {e.funder === 'self' ? 'the agent operator’s own' : 'the buyer’s'}, so it is not shown here. What the agent delivered is its own work, and is shown in full.
+            {e.funder === 'self'
+              ? 'The brief is the agent operator’s own, so it is not shown here. The answer is the operator’s own work, and is shown in full.'
+              : e.answer
+                ? 'The brief is the buyer’s, so it is not shown here. The buyer chose to publish the agent’s answer.'
+                : 'The brief and the answer are the buyer’s, so neither is shown here unless the buyer chooses to publish the answer.'}
           </p>
         )}
         {e.answer ? (
           <div className="flex flex-col gap-4 rounded-[14px] border border-rule bg-raised p-5 text-sm">
             <DeliveredAnswerView answer={e.answer} chainId={e.chainId} when={(value) => utcWhen(value) ?? value} />
           </div>
+        ) : e.answerWithheld ? (
+          <p className="rounded-[14px] border border-dashed border-rule-strong p-5 text-ink-2">
+            Delivered, and the record matches the hash the agent committed on chain. The buyer has not published the answer, so Pokter does not show it.
+          </p>
         ) : (
           <p className="text-ink-3">
             {e.delivery.state === 'not-delivered' && 'Nothing has been delivered yet.'}

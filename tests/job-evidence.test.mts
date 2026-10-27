@@ -25,17 +25,18 @@ test('who funded a job: the team, the agent’s own operator, an outside buyer, 
   for (const funder of ['team', 'self', 'outside', 'unknown'] as const) assert.ok(FUNDER_LABEL[funder]);
 });
 
-test('the agent’s answer is shown for every delivered job; the brief only for Pokter’s own test jobs', () => {
+test('that a job was delivered is public on every job; its answer only when public, and the brief only for Pokter’s own test jobs', () => {
   assert.equal(briefIsPublic('team'), true);
   for (const funder of ['self', 'outside', 'unknown'] as const) assert.equal(briefIsPublic(funder), false, funder);
   const loader = code('lib/jobs/evidence.ts');
   assert.match(loader, /brief: briefIsPublic\(funder\) \? indexed\.task : null/);
-  assert.match(loader, /if \(matchedBy\) answer = readDeliveredAnswer\(publishableAnswerText\(read\.text, funder, chain\.client\)\);/, 'every real delivery, never one that fails its own hash');
+  assert.match(loader, /if \(answerIsPublic\(funder, getJobStore\(\)\.answerPublication\(chainId, jobId\)\)\) answer = readDeliveredAnswer\(publishableAnswerText\(read\.text, funder, chain\.client\)\);\s*else answerWithheld = true;/, 'a published answer, never one that fails its own hash');
   const view = code('features/delivery/AnswerView.tsx').replace(/\/\*[\s\S]*?\*\//g, '');
   assert.doesNotMatch(view, /\.asked\b/, 'the shared answer view never prints the brief');
   const page = code('app/(site)/jobs/[chainId]/[jobId]/page.tsx');
   assert.match(page, /e\.brief !== null \?/);
-  assert.match(page, /so it is not shown here\. What the agent delivered is its own work, and is shown in full\./);
+  assert.match(page, /The buyer has not published the answer, so Pokter does not show it\./);
+  assert.doesNotMatch(page, /What the agent delivered is its own work, and is shown in full/);
   assert.match(page, /<DeliveredAnswerView answer=\{e\.answer\}/);
   /* The buyer's address is never shown, as the receipts API never returns it. */
   assert.doesNotMatch(page, /\.client\b/);

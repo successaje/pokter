@@ -129,6 +129,14 @@ export interface JobStore {
   noticeFor(chainId: number, jobId: string): SellerNotice | null;
   notices(): SellerNotice[];
   /**
+   * The funding wallet's latest signed choice about publishing a job's
+   * delivered answer (see answer-publication.ts). An older decision never
+   * replaces a newer one, so a replayed signature cannot undo a later
+   * choice.
+   */
+  recordAnswerPublication(input: { chainId: number; jobId: string; client: string; published: boolean; decidedAt: string; signature: string }): 'recorded' | 'stale';
+  answerPublication(chainId: number, jobId: string): { published: boolean; decidedAt: string; client: string } | null;
+  /**
    * Who owned the hired agent when the job was funded, if Pokter saw it
    * close enough to the funding to say (see owner-at-job.ts).
    *
@@ -299,6 +307,16 @@ const SCHEMA = `
     detail   TEXT NOT NULL,
     at       TEXT NOT NULL,
     PRIMARY KEY (chain_id, token_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS answer_publication (
+    chain_id   INTEGER NOT NULL,
+    job_id     TEXT NOT NULL,
+    client     TEXT NOT NULL,
+    published  INTEGER NOT NULL,
+    decided_at TEXT NOT NULL,
+    signature  TEXT NOT NULL,
+    PRIMARY KEY (chain_id, job_id)
   );
 `;
 
@@ -667,6 +685,26 @@ class SqliteJobStore implements JobStore {
   notices(): SellerNotice[] {
     const rows = this.db.prepare('SELECT * FROM seller_notices').all() as unknown as NoticeRow[];
     return rows.map(toNotice);
+  }
+
+  recordAnswerPublication(input: { chainId: number; jobId: string; client: string; published: boolean; decidedAt: string; signature: string }): 'recorded' | 'stale' {
+    const result = this.db
+      .prepare(
+        `INSERT INTO answer_publication (chain_id, job_id, client, published, decided_at, signature)
+         VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT (chain_id, job_id) DO UPDATE SET
+           client = excluded.client, published = excluded.published, decided_at = excluded.decided_at, signature = excluded.signature
+         WHERE excluded.decided_at > answer_publication.decided_at`,
+      )
+      .run(input.chainId, input.jobId, input.client.toLowerCase(), input.published ? 1 : 0, input.decidedAt, input.signature);
+    return Number(result.changes) > 0 ? 'recorded' : 'stale';
+  }
+
+  answerPublication(chainId: number, jobId: string): { published: boolean; decidedAt: string; client: string } | null {
+    const row = this.db
+      .prepare('SELECT published, decided_at, client FROM answer_publication WHERE chain_id = ? AND job_id = ?')
+      .get(chainId, jobId) as unknown as { published: number; decided_at: string; client: string } | undefined;
+    return row ? { published: row.published === 1, decidedAt: row.decided_at, client: row.client } : null;
   }
 
   recordOwnerAt(input: { id: string; owner: string; fundedAt: string; proof: OwnerProof }): void {

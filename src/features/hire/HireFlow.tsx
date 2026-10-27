@@ -664,7 +664,8 @@ export function HireFlow(props: HireFlowProps) {
               />
             )}
             <p id="task-hint" className="flex justify-between gap-3 text-[12.5px] text-ink-3">
-              <span>Your brief is public on-chain. Don’t include secrets.</span>
+              {/* Both halves of what is public, said before anything is funded: the brief and the answer's link are on chain whatever Pokter shows; Pokter's own pages show the answer only once the buyer publishes it. */}
+              <span>Your brief is public on chain, and so is the link to the agent’s answer. Don’t include secrets. Pokter shows the answer on its own pages only if you publish it after delivery.</span>
               <span className="t-readout shrink-0">{hire.task.length}/2000</span>
             </p>
           </div>
