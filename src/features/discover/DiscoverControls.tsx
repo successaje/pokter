@@ -123,8 +123,15 @@ export function SortSelect({ params, className, variant = 'boxed' }: { params: D
   );
 }
 
-/** The one Filters control: a bottom sheet on a phone, a drawer from the side on wider screens. */
-export function FiltersButton({ count, children }: { count: number; children: ReactNode }) {
+/**
+ * Everything that narrows the results, with what each filter means: a
+ * bottom sheet on a phone, a drawer from the side on wider screens.
+ *
+ * A quiet text button, not a pill: in a row of pills it read as one more
+ * task to choose. No count on it: every filter that is on already shows on
+ * the row, as a checked pill or a chip.
+ */
+export function FiltersButton({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -132,19 +139,47 @@ export function FiltersButton({ count, children }: { count: number; children: Re
         type="button"
         onClick={() => setOpen(true)}
         aria-haspopup="dialog"
-        className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-rule-strong px-3 text-[13px] font-medium text-ink-2 transition-colors hover:border-ink hover:text-ink"
+        className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-[13px] font-medium text-ink-2 transition-colors hover:bg-sunken hover:text-ink max-sm:-ml-2.5"
       >
-        <Icon.Filter size={13} /> Filters
-        {count > 0 && (
-          <span className="t-readout grid size-5 place-items-center rounded-full bg-ink text-[11px] text-paper">
-            {count}
-            <span className="sr-only"> on</span>
-          </span>
-        )}
+        <Icon.Filter size={13} /> All filters
       </button>
-      <Sheet open={open} onClose={() => setOpen(false)} title="Filters" variant="drawer">
+      <Sheet open={open} onClose={() => setOpen(false)} title="All filters" variant="drawer">
         <div onClick={(e) => (e.target as HTMLElement).closest('a') && setOpen(false)}>{children}</div>
       </Sheet>
     </>
+  );
+}
+
+/**
+ * A row of filter pills. From `sm` it wraps; on a phone it is one line that
+ * scrolls sideways, edge to edge, and opens at the pill that is on, so a
+ * chosen task is never the one past the edge.
+ */
+export function PillRow({ label, className, children }: { label: string; className?: string; children: ReactNode }) {
+  const row = useRef<HTMLDivElement>(null);
+  const shown = useRef<Element | null>(null);
+  useEffect(() => {
+    const el = row.current;
+    const on = el?.querySelector<HTMLElement>('[aria-current="true"], [aria-checked="true"]');
+    if (!el || !on || on === shown.current) return;
+    shown.current = on;
+    const inView = on.offsetLeft >= el.scrollLeft && on.offsetLeft + on.offsetWidth <= el.scrollLeft + el.clientWidth;
+    // Sideways only: scrollIntoView would also move the page to the row.
+    if (!inView) el.scrollLeft = on.offsetLeft - 16;
+  });
+  return (
+    <div
+      ref={row}
+      role="group"
+      aria-label={label}
+      className={cn(
+        'relative flex gap-2 sm:flex-wrap',
+        // Room above and below for the focus ring, which the scroller would otherwise clip.
+        'max-sm:-mx-4 max-sm:-my-1 max-sm:overflow-x-auto max-sm:px-4 max-sm:py-1 max-sm:[scrollbar-width:none] max-sm:[&::-webkit-scrollbar]:hidden',
+        className,
+      )}
+    >
+      {children}
+    </div>
   );
 }

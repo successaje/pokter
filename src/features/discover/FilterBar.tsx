@@ -2,7 +2,7 @@ import Link from 'next/link';
 
 import { cn } from '@/lib/ui/cn';
 import { discoverHref, type DiscoverParams } from './params';
-import { FiltersButton, SortSelect } from './DiscoverControls';
+import { FiltersButton, PillRow, SortSelect } from './DiscoverControls';
 import { chainLabel } from '@/lib/network/presentation';
 import { Icon } from '@/ui/icons';
 
@@ -72,14 +72,38 @@ export function Tally({ n, on }: { n: number; on: boolean }) {
 
 type Collections = { hireable: number; priced: number; answering: number; checked: number; outsideDelivery: number; corroborated: number };
 
-/** Each filter that is on, by the name the Filters panel gives it, with the link that turns it off. */
+/** The buyer signals, named once for the row and the panel. Each one narrows; any number can be on. */
+const SIGNALS = [
+  { key: 'hireable', label: 'Hireable via escrow', hint: 'Answering, and payable through escrow' },
+  { key: 'priced', label: 'Has an escrow quote', hint: 'Has signed an escrow price with its wallet, current or expired' },
+  { key: 'outsideDelivery', label: 'Outside buyer delivered', hint: 'Settled work funded outside Pokter’s team' },
+  { key: 'checked', label: 'Correctness checked', hint: 'Passed the latest check for its category' },
+  { key: 'answering', label: 'Answered this week', hint: 'Replied to a Pokter probe in 7 days' },
+] as const satisfies ReadonlyArray<{ key: keyof Collections & keyof DiscoverParams; label: string; hint: string }>;
+
+/** A buyer signal on the row: a pill that shows a check while it is on, and explains itself on hover. */
+function SignalPill({ href, on, label, hint }: { href: string; on: boolean; label: string; hint: string }) {
+  return (
+    <Link
+      href={href}
+      scroll={false}
+      role="switch"
+      aria-checked={on}
+      title={hint}
+      className={cn(
+        'inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[13px] font-medium transition-colors',
+        on ? 'border-ink bg-ink text-paper' : 'border-rule-strong text-ink-2 hover:border-ink hover:text-ink',
+      )}
+    >
+      {on && <Icon.Check size={13} aria-hidden />}
+      {label}
+    </Link>
+  );
+}
+
+/** Each filter that is on and has no pill on the row, by the name the panel gives it, with the link that turns it off. */
 export function activeFilterChips(p: DiscoverParams): Array<{ label: string; href: string }> {
   return [
-    p.hireable && { label: 'Hireable via escrow', href: discoverHref({ hireable: false }, p) },
-    p.priced && { label: 'Has an escrow quote', href: discoverHref({ priced: false }, p) },
-    p.outsideDelivery && { label: 'Outside buyer delivered', href: discoverHref({ outsideDelivery: false }, p) },
-    p.checked && { label: 'Correctness checked', href: discoverHref({ checked: false }, p) },
-    p.answering && { label: 'Answered this week', href: discoverHref({ answering: false }, p) },
     p.evidence === 'measured' && { label: 'Measured by Pokter', href: discoverHref({ evidence: 'any' }, p) },
     p.evidence === 'corroborated' && { label: 'Has published attestations', href: discoverHref({ evidence: 'any' }, p) },
     p.chain !== 'any' && { label: `Registered on ${chainLabel(Number(p.chain))}`, href: discoverHref({ chain: 'any' }, p) },
@@ -87,26 +111,26 @@ export function activeFilterChips(p: DiscoverParams): Array<{ label: string; hre
 }
 
 /**
- * The catalogue's filters: the tasks, then one Filters control.
+ * The catalogue's filters: the tasks, then the buyer signals, both in view.
  *
- * The rail cost a fixed 232px of every wide screen, so it moved along the
- * top, where it grew to three rows of pills: five buyer signals, three
- * evidence choices and the tasks, all at one weight above the results.
- * Now the tasks stay as pills, because choosing a task is choosing what to
- * look at, and everything that narrows within it sits behind one Filters
- * button, with each one that is on shown as a chip that removes it. The
- * same layout on every width, so a phone and a laptop describe the
- * catalogue the same way.
+ * Behind one Filters button the signals were a click away and the button sat
+ * alone on its row, shaped like one more task. Now the row under the tasks
+ * is the five signals, a quiet All filters for the rest (the evidence choice
+ * and what each filter means), and the sort. Tasks choose one; signals
+ * narrow, any number at once, and show a check while on.
  *
- * Counts come with the tasks and inside the panel. On a filter that is on,
- * the number that matters is how many results remain, which the heading
- * below says.
+ * Counts stay with the tasks and in the panel. The signal counts are over
+ * the whole catalogue, so on a pill under a chosen task they would claim
+ * more than clicking shows; the heading below says how many remain.
+ *
+ * On a phone each row is one line that scrolls sideways, rather than seven
+ * rows of pills above the first result.
  */
 export function FilterBar({ p, counts, allTasks, collections }: { p: DiscoverParams; counts: Array<{ id: string; label: string; count: number }>; allTasks: number; collections: Collections }) {
   const chips = activeFilterChips(p);
   return (
     <div className="flex flex-col gap-3" role="group" aria-label="Filters">
-      <div className="flex flex-wrap gap-2" role="group" aria-label="Task">
+      <PillRow label="Task">
         <Pill href={discoverHref({}, p, ['category'])} on={!p.category}>
           All tasks <Tally n={allTasks} on={!p.category} />
         </Pill>
@@ -115,9 +139,14 @@ export function FilterBar({ p, counts, allTasks, collections }: { p: DiscoverPar
             {c.label} <Tally n={c.count} on={p.category === c.id} />
           </Pill>
         ))}
-      </div>
+      </PillRow>
       <div className="flex flex-wrap items-center gap-2">
-        <FiltersButton count={chips.length}>
+        <PillRow label="Buyer signals" className="max-sm:w-[calc(100%+2rem)]">
+          {SIGNALS.map((signal) => (
+            <SignalPill key={signal.key} href={discoverHref({ [signal.key]: !p[signal.key] }, p)} on={p[signal.key]} label={signal.label} hint={signal.hint} />
+          ))}
+        </PillRow>
+        <FiltersButton>
           <Filters p={p} collections={collections} />
         </FiltersButton>
         {chips.map((chip) => (
@@ -138,17 +167,15 @@ export function FilterBar({ p, counts, allTasks, collections }: { p: DiscoverPar
   );
 }
 
-/** The panel behind the Filters button: what narrows the results within a task, each with what it means. */
+/** The panel behind All filters: everything that narrows the results within a task, each with what it means. */
 export function Filters({ p, collections }: { p: DiscoverParams; collections: Collections }) {
   return (
     <div className="flex flex-col gap-7">
       <section className="flex flex-col gap-1" aria-label="Buyer signals">
         <h2 className="t-label mb-1.5 px-2.5">Buyer signals</h2>
-        <Toggle href={discoverHref({ hireable: !p.hireable }, p)} on={p.hireable} label="Hireable via escrow" count={collections.hireable} hint="Answering, and payable through escrow" />
-        <Toggle href={discoverHref({ priced: !p.priced }, p)} on={p.priced} label="Has an escrow quote" count={collections.priced} hint="Has signed an escrow price with its wallet, current or expired" />
-        <Toggle href={discoverHref({ outsideDelivery: !p.outsideDelivery }, p)} on={p.outsideDelivery} label="Outside buyer delivered" count={collections.outsideDelivery} hint="Settled work funded outside Pokter’s team" />
-        <Toggle href={discoverHref({ checked: !p.checked }, p)} on={p.checked} label="Correctness checked" count={collections.checked} hint="Passed the latest check for its category" />
-        <Toggle href={discoverHref({ answering: !p.answering }, p)} on={p.answering} label="Answered this week" count={collections.answering} hint="Replied to a Pokter probe in 7 days" />
+        {SIGNALS.map((signal) => (
+          <Toggle key={signal.key} href={discoverHref({ [signal.key]: !p[signal.key] }, p)} on={p[signal.key]} label={signal.label} count={collections[signal.key]} hint={signal.hint} />
+        ))}
       </section>
       <section className="flex flex-col gap-1" aria-label="Evidence">
         <h2 className="t-label mb-1.5 px-2.5">Evidence</h2>
