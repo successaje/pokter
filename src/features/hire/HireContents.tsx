@@ -11,7 +11,9 @@ import { currencyEvidence } from '@/lib/hire/currency-choice';
 import { loadProfile } from '@/features/agent/profile';
 import { deliversItself } from '@/features/hire/delivery';
 import { HireNetworks, type HireNetwork } from '@/features/hire/HireNetworks';
+import { withHandovers } from '@/features/hire/handover';
 import { ownRegistration } from '@/lib/agents/own-registration';
+import { enabledEscrowChains } from '@/lib/network/escrow';
 import type { ChainId } from '@/lib/scan/types';
 import { LinkButton } from '@/ui/Button';
 import { EmptyState } from '@/ui/Feedback';
@@ -126,11 +128,17 @@ export async function HireContents({
     redirect(`/hire/${opening.chainId}/${opening.tokenId}?escrow=${p.escrow.chainId}${task ? `&task=${encodeURIComponent(task)}` : ''}`);
   }
 
+  /* The way back to every other network where this agent has its own registration (`withHandovers`). */
+  const offered = new Set(withHandoffs.map((n) => n.chainId));
+  const elsewhere = enabledEscrowChains().filter((option) => !offered.has(option));
+  const twins = await Promise.all(elsewhere.map(async (on) => ({ on, twin: await ownRegistration(on, p.owner, p.name, chainId, tokenId).catch(() => null) })));
+  const allNetworks = withHandovers(withHandoffs, twins);
+
   const fromRequest = chosenProposal(proposalId, chainId, tokenId);
 
   return (
     <HireNetworks
-      networks={withHandoffs}
+      networks={allNetworks}
       initialChainId={p.escrow.chainId}
       embedded={embedded}
       agent={{ chainId: p.chainId, tokenId: p.tokenId, name: p.name, category: p.category?.id ?? 'unclassified', wallet: p.agentWallet, imageUrl: p.imageUrl, key: p.key }}
