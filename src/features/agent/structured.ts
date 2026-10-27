@@ -21,7 +21,16 @@ export interface StructuredLine {
 export interface StructuredProfile {
   does: { text: string | null };
   send: { example: StructuredLine | null; answered: { text: string; jobId: string } | null };
-  back: { result: string | null; jobId: string | null; relayed: boolean; lifecycleOnly: boolean };
+  back: {
+    result: string | null;
+    jobId: string | null;
+    relayed: boolean;
+    lifecycleOnly: boolean;
+    /** Paid jobs it delivered, whether or not one can be shown as a sample. */
+    delivered: number;
+    /** The newest of them, for its evidence page when there is no sample. */
+    latest: { chainId: number; jobId: string } | null;
+  };
   goodFor: { skills: string[]; category: { label: string; declared: boolean } | null };
   limits: StructuredLine[];
 }
@@ -33,6 +42,10 @@ export interface StructuredInput {
   category: { label: string; source: 'declared' | 'name' | 'description' | null } | null;
   hireBlocker: { reason: string } | null;
   warnings: string[];
+  /** The agent's jobs, newest first: a delivered one is never described as no delivery. */
+  jobHistory?: Array<{ chainId: number; jobId: string; delivered: boolean }>;
+  /** Every delivery counted, where the list above holds only the newest twelve jobs. */
+  history?: { delivered: number };
 }
 
 const one = (value: string | null | undefined, max: number): string | null => {
@@ -41,15 +54,29 @@ const one = (value: string | null | undefined, max: number): string | null => {
   return t.length <= max ? t : `${t.slice(0, max - 1).replace(/\s+\S*$/, '')}…`;
 };
 
-/** The agent's answer in a sentence: its stated result, else its title, else the first field that reads as text. */
+/*
+ * Field names that carry the answer rather than restate the question. A
+ * token check delivers `token`, `name` and `symbol` before its `verdict`;
+ * summarising it by the first field said "token: 0x0E09…", which is the
+ * brief, not what came back.
+ */
+const ANSWER_FIELDS = ['verdict', 'summary', 'answer', 'conclusion', 'recommendation', 'result', 'health factor', 'status'];
+
+/** The agent's answer in a sentence: its stated result, else its title, else a field that carries an answer, else the first that reads as text. */
 function resultOf(sample: NonNullable<StructuredInput['sample']>): string | null {
   if (sample.result) return one(sample.result, 360);
   if (sample.title) return one(sample.title, 360);
-  for (const field of sample.fields) {
+  const ranked = [...sample.fields].sort((a, b) => rank(a.label) - rank(b.label));
+  for (const field of ranked) {
     const value = typeof field.value === 'string' ? field.value : flatText(field.value);
     if (value) return one(`${field.label}: ${value}`, 360);
   }
   return null;
+}
+
+function rank(label: string): number {
+  const at = ANSWER_FIELDS.indexOf(label.toLowerCase());
+  return at === -1 ? ANSWER_FIELDS.length : at;
 }
 
 export function structuredProfile(p: StructuredInput): StructuredProfile {
@@ -92,6 +119,8 @@ export function structuredProfile(p: StructuredInput): StructuredProfile {
       jobId: answer?.jobId ?? null,
       relayed: answer?.kind === 'relayed',
       lifecycleOnly: p.sample?.kind === 'lifecycle',
+      delivered: p.history?.delivered ?? (p.jobHistory ?? []).filter((job) => job.delivered).length,
+      latest: (p.jobHistory ?? []).find((job) => job.delivered) ?? null,
     },
     goodFor: {
       skills,

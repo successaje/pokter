@@ -453,7 +453,7 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
         }));
     })(),
     delivery,
-    sample: sampleDelivery(agent.chain_id, agent.token_id),
+    sample: await sampleDelivery(agent.chain_id, agent.token_id),
     benchmark: platform ? { platform, own: agentReadings({ record, history }) } : null,
     reviews: getReviewStore().byAgent(agent.chain_id, agent.token_id).filter((r) => r.visibility !== 'hidden'),
     categoryCheck,
