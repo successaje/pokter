@@ -12,6 +12,7 @@ import { currencyChoices, type CurrencyChoices, type CurrencyEvidence } from '@/
 import { FAUCETS, chainLabel, explorerBaseFor } from '@/lib/network/presentation';
 import { jobHref } from '@/lib/jobs/href';
 import { useGasSponsorship } from '@/lib/wallet/sponsor-client';
+import { WALLET_NETWORK } from '@/lib/wallet/passkey';
 import { cn } from '@/lib/ui/cn';
 import { shortAddress } from '@/lib/ui/format';
 import { formatBudget, formatQuotedRaw } from '@/lib/erc8183/pricing';
@@ -305,6 +306,18 @@ export function HireFlow(props: HireFlowProps) {
   const priceFloor = hire.provider?.relationship === 'registry-agent' ? (hire.reviewQuote?.priceU ?? props.signedQuoteU) : null;
   /* A price signed in another token is funded exactly, in that token, under that token's own limits (the plan checks them). */
   const signedTokenPrice = priceSymbol !== '$U';
+  /*
+   * Why the passkey option is closed for this hire, said in the connect
+   * sheet before anyone makes a wallet that cannot fund it. A passkey
+   * wallet acts only on WALLET_NETWORK and funds only $U; a mainnet $U hire
+   * used to offer it, and the buyer learnt otherwise after creating one.
+   */
+  const passkeyBlocked =
+    escrowChainId !== WALLET_NETWORK.chainId
+      ? `This hire is paid with real funds on ${networkLabel}, and a passkey wallet acts only on ${chainLabel(WALLET_NETWORK.chainId)}. Use a browser or phone wallet.`
+      : signedTokenPrice
+        ? `A passkey wallet funds $U only, and this hire is in ${priceSymbol}. Use a browser or phone wallet.`
+        : null;
   /* The signed amount exactly as signed, from its raw units: never a float that could round. */
   const signedAmountLabel = !hire.reviewQuote
     ? null
@@ -1247,7 +1260,7 @@ export function HireFlow(props: HireFlowProps) {
             <Notice
               tone="bad"
               title="This hire cannot be funded this way"
-              action={hire.plan.code === 'wallet-cannot-fund-token' ? <Button size="s" intent="secondary" onClick={() => openConnect('to fund this job', { passkeyUnavailable: `A passkey wallet funds $U only, and this hire is in ${priceSymbol}.` })}>Connect a browser wallet</Button> : undefined}
+              action={hire.plan.code === 'wallet-cannot-fund-token' ? <Button size="s" intent="secondary" onClick={() => openConnect('to fund this job', passkeyBlocked ? { passkeyUnavailable: passkeyBlocked } : undefined)}>Connect a browser wallet</Button> : undefined}
             >
               {hire.plan.message}
             </Notice>
@@ -1258,11 +1271,11 @@ export function HireFlow(props: HireFlowProps) {
               <p className="text-sm text-ink-2">{hire.lockReason ?? 'Connect a wallet to fund this job.'}</p>
               {/* Switches to this hire's escrow, which is not necessarily the site's default network the connect dialog offers. */}
               <Button
-                onClick={() => (hire.active.wrongChain ? switchChain({ chainId: escrowChainId === 56 ? 56 : 97 }) : openConnect('to fund this job', signedTokenPrice ? { passkeyUnavailable: `A passkey wallet funds $U only, and this hire is in ${priceSymbol}. Use a browser or phone wallet.` } : undefined))}
+                onClick={() => (hire.active.wrongChain ? switchChain({ chainId: escrowChainId === 56 ? 56 : 97 }) : openConnect('to fund this job', passkeyBlocked ? { passkeyUnavailable: passkeyBlocked } : undefined))}
                 busy={switching}
                 icon={<Icon.Wallet size={16} />}
               >
-                {hire.active.wrongChain ? `Switch to ${networkLabel}` : hire.active.passkeyUnsupported ? 'Connect a browser wallet' : 'Connect a wallet'}
+                {hire.active.wrongChain ? `Switch to ${networkLabel}` : hire.active.passkeyUnsupported || passkeyBlocked ? 'Connect a browser wallet' : 'Connect a wallet'}
               </Button>
               <p className="text-[12.5px] text-ink-3">
                 {pay ? pay.connectNote : testnet ? 'A passkey wallet takes about ten seconds to make, and needs no extension.' : `This hire is paid in real ${priceSymbol} on ${networkLabel}, from a browser or mobile wallet.`}

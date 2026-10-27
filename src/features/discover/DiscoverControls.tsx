@@ -123,25 +123,26 @@ export function SortSelect({ params, className, variant = 'boxed' }: { params: D
   );
 }
 
-/** On phones the filter column becomes a sheet behind one button. */
-export function MobileFilters({ count, children, label = 'Filters', pill = false }: { count: number; children: ReactNode; label?: string; pill?: boolean }) {
+/** The one Filters control: a bottom sheet on a phone, a drawer from the side on wider screens. */
+export function FiltersButton({ count, children }: { count: number; children: ReactNode }) {
   const [open, setOpen] = useState(false);
   return (
     <>
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className={cn(
-          pill
-            ? 'inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-dashed border-rule-strong px-3 text-[13px] font-medium text-ink-2 hover:border-ink hover:text-ink'
-            : 'inline-flex h-9 items-center gap-2 rounded-[8px] border border-rule-strong bg-raised px-3 text-[13px] font-medium',
-          'lg:hidden',
-        )}
+        aria-haspopup="dialog"
+        className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-rule-strong px-3 text-[13px] font-medium text-ink-2 transition-colors hover:border-ink hover:text-ink"
       >
-        <Icon.Filter size={pill ? 13 : 15} /> {label}
-        {count > 0 && <span className="t-readout grid size-5 place-items-center rounded-full bg-ink text-[11px] text-paper">{count}</span>}
+        <Icon.Filter size={13} /> Filters
+        {count > 0 && (
+          <span className="t-readout grid size-5 place-items-center rounded-full bg-ink text-[11px] text-paper">
+            {count}
+            <span className="sr-only"> on</span>
+          </span>
+        )}
       </button>
-      <Sheet open={open} onClose={() => setOpen(false)} title="Filters">
+      <Sheet open={open} onClose={() => setOpen(false)} title="Filters" variant="drawer">
         <div onClick={(e) => (e.target as HTMLElement).closest('a') && setOpen(false)}>{children}</div>
       </Sheet>
     </>

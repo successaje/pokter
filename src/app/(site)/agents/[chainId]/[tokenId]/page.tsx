@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { Suspense, type ReactNode } from 'react';
 
-import { chainLabel, explorerBaseFor } from '@/lib/network/presentation';
+import { CHAIN_ID, chainLabel, explorerBaseFor } from '@/lib/network/presentation';
 import { cn } from '@/lib/ui/cn';
 import { formatDelivery, formatMs, shortAddress } from '@/lib/ui/format';
 import type { ChainId } from '@/lib/scan/types';
@@ -921,7 +921,12 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                       ? `The ${chainLabel(p.escrow.chainId)} escrow funds hires in ${p.escrowTokens.map((t) => t.symbol).join(', ')}.`
                       : undefined,
                   },
-                  { label: 'Network fee', value: 'Covered by Pokter for passkey wallets where available; otherwise a few cents of BNB' },
+                  /* Pokter tops up gas only for a passkey wallet, which acts on CHAIN_ID and funds $U alone; every other hire's fee is the buyer's. */
+                  {
+                    label: 'Network fee',
+                    value: `A few cents of ${p.escrow.chainId === 56 ? 'BNB' : 'tBNB'}, paid by your wallet`,
+                    hint: p.escrow.chainId === CHAIN_ID && (p.quote.symbol ?? '$U') === '$U' ? 'Pokter tops it up for a passkey wallet that runs short.' : undefined,
+                  },
                 ]}
               />
             ) : (

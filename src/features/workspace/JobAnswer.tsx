@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { DeliveredAnswerView } from '@/features/delivery/AnswerView';
 import { briefText, type DeliveredAnswer } from '@/lib/delivery/answer';
 import type { HiredJob } from '@/lib/erc8183/types';
+import { utcWhen } from '@/lib/jobs/evidence-view';
 import { Button } from '@/ui/Button';
 import { Skeleton } from '@/ui/Feedback';
 import { Icon } from '@/ui/icons';
@@ -26,10 +27,9 @@ type AnswerResponse =
  * read, where it came from and what it does not cover. The file and the
  * hash that prove it are one level down, always there.
  */
-/** A timestamp as written when it is not a date we can parse. */
-function localMoment(value: string): string {
-  const parsed = new Date(value);
-  return parsed.toString() === 'Invalid Date' ? value : parsed.toLocaleString();
+/** In UTC, like every other time on the job page; as written when it is not a date. */
+function answerMoment(value: string): string {
+  return utcWhen(value) ?? value;
 }
 
 export function JobAnswer({
@@ -116,7 +116,7 @@ export function JobAnswer({
         <p className="text-[13.5px] text-ink-2">Delivered. The buyer has not published the answer, so it is shown only to the wallet that funded the job.</p>
       ) : (
         <>
-          <DeliveredAnswerView answer={answer!} chainId={job.chainId} when={localMoment} />
+          <DeliveredAnswerView answer={answer!} chainId={job.chainId} when={answerMoment} />
           {owned && data.matchesChain && (data.funder === 'outside' || data.funder === 'unknown') && <AnswerPublication job={job} published={data.published === true} />}
         </>
       )}

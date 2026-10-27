@@ -16,8 +16,14 @@ const VIEWS: Array<{ id: Section; href: string; label: string; icon: ReactNode }
   { id: 'building', href: '/build', label: 'Building', icon: <Icon.Layers size={15} /> },
 ];
 
-/* Open is remembered; folded to icons is the default, as the rail is drawn. */
+/*
+ * Open, with its labels, is the default where there is room: folded to
+ * icons, the rail asked a newcomer to hover each one to learn where things
+ * were. Below WIDE it starts folded so the page keeps its width. Either
+ * choice, once made, is remembered on this device.
+ */
 const EXPANDED_KEY = 'pokter.workspace.expanded';
+const WIDE = 1024;
 
 function isOn(pathname: string, item: WorkspaceItem) {
   return item.exact ? pathname === item.href : pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -28,10 +34,11 @@ function isOn(pathname: string, item: WorkspaceItem) {
  *
  * At the top left, a switch between the two: someone who builds may also
  * hire, and neither side is a role they chose. Under it, a floating rail
- * of where the work is — icons, a rule, then the references — which opens
- * to show its labels and remembers that on this device. Folded, each icon
- * names itself on hover and on keyboard focus, so nothing is reachable
- * only by guessing. The page takes the rest of the width.
+ * of where the work is — icons, a rule, then the references — open with
+ * its labels on a wide screen, and folding to icons when asked, which this
+ * device remembers. Folded, each icon names itself on hover and on keyboard
+ * focus, so nothing is reachable only by guessing. The page takes the rest
+ * of the width.
  *
  * On a phone the switch stays at the top and the rail becomes a row of
  * links under it, because a drawer for six links is a step nobody needs.
@@ -39,13 +46,15 @@ function isOn(pathname: string, item: WorkspaceItem) {
 export function WorkspaceFrame({ section, items, more = [], children }: { section: Section; items: WorkspaceItem[]; more?: WorkspaceItem[]; children: ReactNode }) {
   const pathname = usePathname() ?? '/';
   const label = section === 'building' ? 'Building' : 'Hiring';
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
   useEffect(() => {
+    let stored: string | null = null;
     try {
-      if (window.localStorage.getItem(EXPANDED_KEY) === '1') setExpanded(true); // eslint-disable-line react-hooks/set-state-in-effect -- read once after hydration; the server cannot know it
+      stored = window.localStorage.getItem(EXPANDED_KEY);
     } catch {
-      /* Storage blocked: the rail starts folded. */
+      /* Storage blocked: the width decides. */
     }
+    if (stored === '0' || (stored === null && window.innerWidth < WIDE)) setExpanded(false); // eslint-disable-line react-hooks/set-state-in-effect -- read once after hydration; the server cannot know it
   }, []);
   const toggle = () => {
     setExpanded((was) => {

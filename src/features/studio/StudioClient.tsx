@@ -11,6 +11,7 @@ import type { DiagnosticReport } from '@/lib/diagnostic/checks';
 import { builderReadinessMilestones, type BuilderLifecycle } from '@/lib/diagnostic/builder-lifecycle';
 import { Readiness, ReadinessSkeleton } from './Readiness';
 import { WalletRoles } from './WalletRoles';
+import { useOwnedAgents } from './VerifyOwner';
 import { CampaignGoal } from './CampaignGoal';
 import { summarizeQuality } from '@/lib/builder/quality';
 import { connectIdentityWallet, hasIdentityWallet, signIdentityMessage } from '@/lib/registry/wallet';
@@ -141,7 +142,6 @@ export function SignOutStudio() {
 
 /* ───────── Agents owned by the connected wallet (public data) ───────── */
 
-type OwnedAgent = { chainId: number; tokenId: string; name: string; imageUrl: string | null; category: string | null; declaresProtocol: boolean; createdAt: string | null };
 
 /** The empty state an overview uses: one dashed panel, one sentence, one way forward. */
 function EmptyAgents({ children }: { children: React.ReactNode }) {
@@ -157,18 +157,7 @@ function EmptyAgents({ children }: { children: React.ReactNode }) {
 
 export function OwnedAgents({ boxed = false }: { boxed?: boolean }) {
   const { address } = useActiveWallet();
-  const owned = useQuery({
-    queryKey: ['owned-agents', address],
-    enabled: Boolean(address),
-    queryFn: async () => {
-      const r = await fetch(`/api/builders/agents?address=${address}`, { cache: 'no-store' });
-      if (!r.ok) throw new Error('The registry did not answer.');
-      const body = (await r.json()) as { agents: OwnedAgent[]; unavailable?: number[] };
-      /* Nothing found while a chain went unread is not "no agents". */
-      if (body.agents.length === 0 && body.unavailable?.length) throw new Error('The agent index did not answer, so your agents could not be listed. Reload to try again.');
-      return body;
-    },
-  });
+  const owned = useOwnedAgents(address);
   if (!address) {
     return boxed ? <EmptyAgents>Connect the wallet that owns your agents to list them here, or start a new one.</EmptyAgents> : <p className="text-[13px] text-ink-3">Connect the wallet that owns your agents to list them here.</p>;
   }

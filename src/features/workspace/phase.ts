@@ -1,5 +1,6 @@
 import type { HiredJob } from '@/lib/erc8183/types';
 import { isReclaimable } from '@/lib/erc8183/reclaim-gate';
+import { formatElapsed } from '@/lib/ui/format';
 
 /*
  * Kept apart from the hooks so it can be tested without the wallet SDK:
@@ -50,3 +51,32 @@ export const PHASE: Record<JobPhase, { label: string; tone: 'ok' | 'watch' | 'in
   expired: { label: 'Expired · refunded', tone: 'none', needsYou: false, next: 'The deadline passed with the job unsettled, and its escrow was reclaimed: nothing was delivered, or a delivery was never settled. The contract marks a job expired when that refund is claimed.' },
 };
 
+
+/**
+ * What a job's row in My jobs says under its status: the next deadline or
+ * the next action, so the list answers "what do I do now" without opening
+ * each job. It used to print the date Pokter last read the status, with
+ * no label, which looked like a deadline and was not one.
+ *
+ * The review window's close is not known here (the list does not read
+ * when each delivery was submitted), so a delivered job names the action
+ * and the job page names the date.
+ */
+export function jobNextStep(job: HiredJob, now = Date.now()): { text: string; act: boolean } {
+  const phase = jobPhase(job, now);
+  switch (phase) {
+    case 'working': {
+      const ms = Date.parse(job.expiredAt) - now;
+      return { text: ms > 0 ? `Delivery due in ${formatElapsed(ms)}` : 'Deadline passed', act: false };
+    }
+    case 'review':
+      // True before and after the review window closes, when the action changes from dispute-or-wait to release.
+      return { text: 'Answer delivered: check it', act: true };
+    case 'reclaim':
+      return { text: 'Reclaim your escrow', act: true };
+    case 'disputed':
+      return { text: 'Voters deciding', act: false };
+    default:
+      return { text: 'Nothing to do', act: false };
+  }
+}

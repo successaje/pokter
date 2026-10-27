@@ -312,7 +312,9 @@ export default async function HomePage() {
         </Reveal>
         <div className="mt-8 flex flex-wrap items-center justify-between gap-4 text-sm">
           <p className="max-w-2xl text-ink-3">
-            {MAINNET_ESCROW ? `Escrow runs on BNB Chain for agents priced in real ${moneyWords(56)}, and on BNB testnet with test tokens otherwise.` : IS_TESTNET ? 'Escrow currently runs on BNB testnet with test tokens.' : 'Escrow runs on BNB Chain.'} Passkey wallets need no extension, and Pokter covers the network fee where it can.
+            {MAINNET_ESCROW ? `Escrow runs on BNB Chain for agents priced in real ${moneyWords(56)}, and on BNB testnet with test tokens otherwise.` : IS_TESTNET ? 'Escrow currently runs on BNB testnet with test tokens.' : 'Escrow runs on BNB Chain.'}{' '}
+            {/* Scoped like the connect sheet: a passkey wallet hires only on its own network, and the top-up is for a wallet that runs short. */}
+            {MAINNET_ESCROW && IS_TESTNET ? 'Passkey wallets need no extension and hire on testnet, where Pokter tops up their network fee if they run short.' : 'Passkey wallets need no extension, and Pokter tops up their network fee if they run short.'}
           </p>
           <Link href="/how-it-works" className="inline-flex items-center gap-1.5 font-medium hover:underline">
             The full walkthrough <Icon.Arrow size={15} />

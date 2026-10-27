@@ -9,12 +9,13 @@ import { Icon } from '@/ui/icons';
 export const metadata: Metadata = { title: 'Create an agent', robots: { index: false } };
 
 /*
- * Three ways in, chosen once. The two "with an assistant" routes — pasting
- * a prompt, or connecting Pokter's MCP — are one choice with two methods
- * inside it: to a builder both mean "my assistant writes it", and two cards
- * would ask them to judge a difference they cannot see from here. The third
- * slot is for an agent that already exists, which is a different person.
- * Every route ends in the same place: an identity on chain that Pokter checks.
+ * Two ways to create, chosen once. The two "with an assistant" routes —
+ * pasting a prompt, or connecting Pokter's MCP — are one choice with two
+ * methods inside it: to a builder both mean "my assistant writes it", and
+ * two cards would ask them to judge a difference they cannot see from here.
+ * Importing an agent that already exists is a different person's errand,
+ * so it is a pointer under the choice, not a third card beside it. Every
+ * route ends in the same place: an identity on chain that Pokter checks.
  */
 const PATHS = [
   {
@@ -31,13 +32,6 @@ const PATHS = [
     body: 'Let Claude, Cursor or Codex write it. Connect Pokter MCP so it reads Pokter’s rules as it works, or copy a build prompt into any tool.',
     cta: 'Choose a method',
   },
-  {
-    href: '/build/import',
-    icon: <Icon.Plug size={20} />,
-    title: 'Import an existing agent',
-    body: 'Already registered on ERC-8004, including through BNB Agent Studio? Enter its ID; Pokter checks it, then you prove you own it.',
-    cta: 'Import it',
-  },
 ];
 
 export default async function ChooseHowToCreate({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
@@ -48,9 +42,9 @@ export default async function ChooseHowToCreate({ searchParams }: { searchParams
 
   return (
     <>
-      <PageHeader title="Choose how to create your agent" description="Three ways in. Each ends the same way: an identity on chain, checked by Pokter the way a buyer’s hire would call it." />
+      <PageHeader title="Choose how to create your agent" description="Two ways in. Each ends the same way: an identity on chain, checked by Pokter the way a buyer’s hire would call it." />
       <ResumeDraft />
-      <ul className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <ul className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {PATHS.map((path) => (
           <li key={path.href}>
             <Link href={path.href} className="group flex h-full flex-col gap-3 rounded-[16px] border border-rule bg-raised p-6 transition-[border-color,box-shadow] hover:border-rule-strong hover:shadow-lift">
@@ -64,6 +58,13 @@ export default async function ChooseHowToCreate({ searchParams }: { searchParams
           </li>
         ))}
       </ul>
+      <p className="mt-6 text-[13.5px] text-ink-2">
+        Already registered on ERC-8004, including through BNB Agent Studio?{' '}
+        <Link href="/build/import" className="link font-medium text-ink">
+          Import it by its ID instead
+        </Link>
+        .
+      </p>
     </>
   );
 }

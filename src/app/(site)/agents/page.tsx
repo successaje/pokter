@@ -3,9 +3,9 @@ import Link from 'next/link';
 
 import { AgentCard, MiniAgentCard } from '@/features/agents/AgentCard';
 import { CompareToggle, CompareTray } from '@/features/compare/CompareControls';
-import { DiscoverSearch, MobileFilters, SortSelect } from '@/features/discover/DiscoverControls';
-import { FilterBar, Filters } from '@/features/discover/FilterBar';
-import { discoverHref, parseDiscoverParams } from '@/features/discover/params';
+import { DiscoverSearch } from '@/features/discover/DiscoverControls';
+import { FilterBar } from '@/features/discover/FilterBar';
+import { parseDiscoverParams } from '@/features/discover/params';
 import { discover } from '@/features/discover/search';
 import { CatalogueTools } from '@/features/discover/CatalogueTools';
 import { deliveryTimes, DELIVERY_LOOKUP_CONCURRENCY } from '@/lib/agent/delivery-times';
@@ -39,7 +39,6 @@ export default async function AllAgentsPage({ searchParams }: { searchParams: Pr
   const p = parseDiscoverParams(await searchParams);
   const result = await discover(p);
   const base = { ...p, pages: 1 };
-  const activeFilters = [p.category, p.hireable, p.answering, p.priced, p.evidence !== 'any', p.chain !== 'any'].filter(Boolean).length;
 
   /* Only agents with a delivery to time; the rest cost no call. */
   /*
@@ -75,19 +74,6 @@ export default async function AllAgentsPage({ searchParams }: { searchParams: Pr
         <FilterBar p={base} counts={result.categoryCounts} allTasks={result.allTasksCount} collections={result.collections} />
 
         <section aria-label="Results" className="min-w-0">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-rule pb-4">
-            <div className="flex items-center gap-3">
-              <MobileFilters count={activeFilters}>
-                <Filters p={base} counts={result.categoryCounts} allTasks={result.allTasksCount} />
-              </MobileFilters>
-              {activeFilters > 0 && (
-                <Link href={discoverHref({ category: null, hireable: false, answering: false, priced: false, evidence: 'any', chain: 'any' }, p)} className="text-[13px] text-ink-3 hover:text-ink" scroll={false}>
-                  Clear filters
-                </Link>
-              )}
-            </div>
-            <SortSelect params={base} className="lg:hidden" />
-          </div>
 
           {result.total === 0 ? (
             <EmptyState title="Nothing matches these filters">
