@@ -150,14 +150,14 @@ export function RegisteredNetwork({ chainId, className }: { chainId: number; cla
 /**
  * The money lines under a price: what a paid hire settles in, or the free
  * trial when that is all there is, and the network the identity is
- * registered on.
+ * registered on when that is a different one.
  *
  * One component because there are three card layouts, and the first
  * version of this change updated one of them — so two kept calling
  * `HireNetwork` straight and lost both the trial line and the
  * registration. Written once, they cannot disagree.
  */
-export function HiringLines({ row, align }: { row: FindRow; align?: 'end' }) {
+export function HiringLines({ row, align, network = true }: { row: FindRow; align?: 'end'; /** False where a NetworkTag already says it. */ network?: boolean }) {
   return (
     <>
       {/* Which route the price above is for, and whether it is still current: never every amount called a quote. */}
@@ -165,10 +165,27 @@ export function HiringLines({ row, align }: { row: FindRow; align?: 'end' }) {
         <span className={cn('text-[11.5px] text-ink-3', align === 'end' && 'text-right')}>{row.priceFresh ? 'Escrow quote' : 'Last signed escrow quote'}</span>
       )}
       {row.hireChainId !== null
-        ? <HireNetwork chainId={row.hireChainId} />
+        ? network && <HireNetwork chainId={row.hireChainId} />
         : row.hirable ? <TrialNote /> : null}
-      <RegisteredNetwork chainId={row.chainId} className={align === 'end' ? 'text-right' : undefined} />
+      {/* Said only when it differs from where the hire settles: "Real funds · BNB Chain" over "Registered on BNB Chain" was one fact on two lines of every card. */}
+      {row.hireChainId !== row.chainId && <RegisteredNetwork chainId={row.chainId} className={align === 'end' ? 'text-right' : undefined} />}
     </>
+  );
+}
+
+/**
+ * Where a hire settles, as a tag a reader sees before the price: on the
+ * homepage three of four featured agents were testnet, and the only sign
+ * was the last line of a caption under the price, wrapped to two lines.
+ */
+export function NetworkTag({ chainId }: { chainId: number | null }) {
+  if (chainId === null) return null;
+  const money = escrowMoney(chainId);
+  if (money.real === null) return null;
+  return (
+    <span className={cn('inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11.5px] font-medium', money.real ? 'border border-rule text-ink-2' : 'bg-watch-wash text-watch')}>
+      {money.real ? 'BNB Chain · real funds' : 'Testnet · test tokens'}
+    </span>
   );
 }
 
@@ -469,9 +486,12 @@ export function FeaturedAgent({ row }: { row: FindRow }) {
   const status = availabilityText(row);
   return (
     <article className="group relative flex h-full flex-col gap-4 rounded-[16px] border border-rule bg-raised p-6 transition-[border-color,box-shadow] duration-200 hover:border-rule-strong hover:shadow-lift">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex items-start justify-between gap-3">
         <AgentAvatar name={row.name} imageUrl={row.imageUrl} seed={row.key} size={48} status={answerState(row)} />
-        <span className="t-label">{row.categoryLabel}</span>
+        <span className="flex flex-col items-end gap-2 pt-1 text-right">
+          <span className="t-label">{row.categoryLabel}</span>
+          <NetworkTag chainId={row.hireChainId} />
+        </span>
       </div>
       <div className="flex flex-col gap-1.5">
         <h3 className="text-lg font-semibold tracking-[-0.015em]">
@@ -494,7 +514,7 @@ export function FeaturedAgent({ row }: { row: FindRow }) {
           <dt className="t-label">Price</dt>
           <dd className="flex flex-col gap-0.5">
             <PriceText row={row} />
-            <HiringLines row={row} />
+            <HiringLines row={row} network={false} />
           </dd>
         </div>
         <div className="flex flex-col gap-0.5">

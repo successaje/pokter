@@ -2,7 +2,8 @@ import Link from 'next/link';
 
 import { cn } from '@/lib/ui/cn';
 import { discoverHref, type DiscoverParams } from './params';
-import { SortSelect } from './DiscoverControls';
+import { FiltersButton, SortSelect } from './DiscoverControls';
+import { chainLabel } from '@/lib/network/presentation';
 import { Icon } from '@/ui/icons';
 
 /*
@@ -32,14 +33,17 @@ function FilterLink({ href, on, children, count }: { href: string; on: boolean; 
   );
 }
 
-function Toggle({ href, on, label, hint }: { href: string; on: boolean; label: string; hint: string }) {
+function Toggle({ href, on, label, hint, count }: { href: string; on: boolean; label: string; hint: string; count?: number }) {
   return (
     <Link href={href} scroll={false} role="switch" aria-checked={on} className="group flex items-start gap-3 rounded-[8px] px-2.5 py-2 hover:bg-sunken">
-      <span className={cn('relative mt-0.5 h-[18px] w-8 shrink-0 rounded-full transition-colors', on ? 'bg-ink' : 'bg-rule-strong')}>
-        <span className={cn('absolute top-[2px] size-[14px] rounded-full bg-raised transition-[left] duration-200', on ? 'left-[16px]' : 'left-[2px]')} />
+      <span className={cn('relative mt-0.5 h-[18px] w-8 shrink-0 rounded-full transition-colors motion-reduce:transition-none', on ? 'bg-ink' : 'bg-rule-strong')}>
+        <span className={cn('absolute top-[2px] size-[14px] rounded-full bg-raised transition-[left] duration-200 motion-reduce:transition-none', on ? 'left-[16px]' : 'left-[2px]')} />
       </span>
-      <span className="flex flex-col">
-        <span className="text-[13.5px] font-medium text-ink">{label}</span>
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="flex items-baseline justify-between gap-3 text-[13.5px] font-medium text-ink">
+          {label}
+          {count !== undefined && <span className="t-readout text-[11.5px] font-normal text-ink-3">{count}</span>}
+        </span>
         <span className="text-[12px] leading-snug text-ink-3">{hint}</span>
       </span>
     </Link>
@@ -62,149 +66,89 @@ export function Pill({ href, on, children }: { href: string; on: boolean; childr
   );
 }
 
-/**
- * The same filters as the rail, laid along the top.
- *
- * The rail cost a fixed 232px of every wide screen and the results paid for
- * it: three cards where four fit, each one narrower than its own contents, so
- * names and prices truncated while a column of mostly-inactive filters sat
- * beside them. Along the top the filters take two lines and give the width
- * back.
- *
- * Counts come with the task pills and nowhere else. On a toggle the number
- * that matters is how many results remain, which the header already says; on
- * a task it is how many exist under it, which is the thing being chosen
- * between.
- *
- * Below `lg` this is not rendered at all and `MobileFilters` keeps the rail
- * in a sheet, because sixteen task pills wrap to half a phone screen before
- * a single result is visible.
- */
 export function Tally({ n, on }: { n: number; on: boolean }) {
   return <span className={cn('t-readout text-[11.5px]', on ? 'text-paper/70' : 'text-ink-3')}>{n}</span>;
 }
 
-export function FilterBar({
-  p,
-  counts,
-  allTasks,
-  collections,
-}: {
-  p: DiscoverParams;
-  counts: Array<{ id: string; label: string; count: number }>;
-  allTasks: number;
-  collections: { hireable: number; priced: number; answering: number; checked: number; outsideDelivery: number; corroborated: number };
-}) {
-  return (
-    <div className="hidden flex-col gap-2.5 lg:flex" aria-label="Filters">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Buyer signals">
-          <Pill href={discoverHref({ hireable: !p.hireable }, p)} on={p.hireable}>{p.hireable && <Icon.Check size={13} />}Hireable via escrow <Tally n={collections.hireable} on={p.hireable} /></Pill>
-          <Pill href={discoverHref({ priced: !p.priced }, p)} on={p.priced}>{p.priced && <Icon.Check size={13} />}Has an escrow quote <Tally n={collections.priced} on={p.priced} /></Pill>
-          <Pill href={discoverHref({ outsideDelivery: !p.outsideDelivery }, p)} on={p.outsideDelivery}>{p.outsideDelivery && <Icon.Check size={13} />}Outside buyer delivered <Tally n={collections.outsideDelivery} on={p.outsideDelivery} /></Pill>
-          <Pill href={discoverHref({ checked: !p.checked }, p)} on={p.checked}>{p.checked && <Icon.Check size={13} />}Correctness checked <Tally n={collections.checked} on={p.checked} /></Pill>
-          <Pill href={discoverHref({ answering: !p.answering }, p)} on={p.answering}>{p.answering && <Icon.Check size={13} />}Answered this week <Tally n={collections.answering} on={p.answering} /></Pill>
-        </div>
-        <span aria-hidden className="h-5 w-px bg-rule" />
-        <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Evidence">
-          {/* Short enough that sort fits on this line rather than wrapping
-              under it. "Attested by others" is what the collection tab
-              called this before it became a pill, so it is the shorter
-              label and the one already in the product's vocabulary. */}
-          <Pill href={discoverHref({ evidence: 'any' }, p)} on={p.evidence === 'any'}>Any</Pill>
-          <Pill href={discoverHref({ evidence: 'measured' }, p)} on={p.evidence === 'measured'}>Measured by Pokter</Pill>
-          <Pill href={discoverHref({ evidence: 'corroborated' }, p)} on={p.evidence === 'corroborated'}>Attested by others <Tally n={collections.corroborated} on={p.evidence === 'corroborated'} /></Pill>
-        </div>
-        {/* The tasks moved to the line below and left this one's right end
-            empty, which is where sort belongs: it governs the results, not
-            the filters, and it was wedged against a network switch and a
-            layout toggle that are both gone. */}
-        <SortSelect params={p} className="ml-auto" />
-      </div>
-      <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Task">
-        <Pill href={discoverHref({}, p, ['category'])} on={!p.category}>
-          All tasks <span className={cn('t-readout text-[11.5px]', p.category ? 'text-ink-3' : 'text-paper/70')}>{allTasks}</span>
-        </Pill>
-        {counts.map((c) => (
-          <Pill key={c.id} href={discoverHref({ category: c.id as DiscoverParams['category'] }, p)} on={p.category === c.id}>
-            {c.label} <span className={cn('t-readout text-[11.5px]', p.category === c.id ? 'text-paper/70' : 'text-ink-3')}>{c.count}</span>
-          </Pill>
-        ))}
-      </div>
-    </div>
-  );
+type Collections = { hireable: number; priced: number; answering: number; checked: number; outsideDelivery: number; corroborated: number };
+
+/** Each filter that is on, by the name the Filters panel gives it, with the link that turns it off. */
+export function activeFilterChips(p: DiscoverParams): Array<{ label: string; href: string }> {
+  return [
+    p.hireable && { label: 'Hireable via escrow', href: discoverHref({ hireable: false }, p) },
+    p.priced && { label: 'Has an escrow quote', href: discoverHref({ priced: false }, p) },
+    p.outsideDelivery && { label: 'Outside buyer delivered', href: discoverHref({ outsideDelivery: false }, p) },
+    p.checked && { label: 'Correctness checked', href: discoverHref({ checked: false }, p) },
+    p.answering && { label: 'Answered this week', href: discoverHref({ answering: false }, p) },
+    p.evidence === 'measured' && { label: 'Measured by Pokter', href: discoverHref({ evidence: 'any' }, p) },
+    p.evidence === 'corroborated' && { label: 'Has published attestations', href: discoverHref({ evidence: 'any' }, p) },
+    p.chain !== 'any' && { label: `Registered on ${chainLabel(Number(p.chain))}`, href: discoverHref({ chain: 'any' }, p) },
+  ].filter((chip): chip is { label: string; href: string } => Boolean(chip));
 }
 
 /**
- * The phone's filters, laid out in the page rather than behind a button.
+ * The catalogue's filters: the tasks, then one Filters control.
  *
- * Everything sat in a sheet behind "Filters" and the tasks scrolled sideways
- * in one row, so a buyer on a phone saw neither what they could narrow by
- * nor most of the tasks. There are five tasks, which wrap to two short rows,
- * and the four buyer signals are the filters that decide a hire, so both
- * are shown. The rest — answered this week, evidence, network — stay one
- * tap away under "More filters". Sort closes the block, since it governs
- * the results below it.
+ * The rail cost a fixed 232px of every wide screen, so it moved along the
+ * top, where it grew to three rows of pills: five buyer signals, three
+ * evidence choices and the tasks, all at one weight above the results.
+ * Now the tasks stay as pills, because choosing a task is choosing what to
+ * look at, and everything that narrows within it sits behind one Filters
+ * button, with each one that is on shown as a chip that removes it. The
+ * same layout on every width, so a phone and a laptop describe the
+ * catalogue the same way.
+ *
+ * Counts come with the tasks and inside the panel. On a filter that is on,
+ * the number that matters is how many results remain, which the heading
+ * below says.
  */
-export function MobileFilterBlock({
-  p,
-  counts,
-  allTasks,
-  collections,
-  more,
-}: {
-  p: DiscoverParams;
-  counts: Array<{ id: string; label: string; count: number }>;
-  allTasks: number;
-  collections: { hireable: number; priced: number; outsideDelivery: number; checked: number };
-  more: React.ReactNode;
-}) {
+export function FilterBar({ p, counts, allTasks, collections }: { p: DiscoverParams; counts: Array<{ id: string; label: string; count: number }>; allTasks: number; collections: Collections }) {
+  const chips = activeFilterChips(p);
   return (
-    <div className="-mx-4 flex flex-col gap-4 border-y border-rule px-4 py-5 lg:hidden" aria-label="Filters">
+    <div className="flex flex-col gap-3" role="group" aria-label="Filters">
       <div className="flex flex-wrap gap-2" role="group" aria-label="Task">
-        <Pill href={discoverHref({}, p, ['category'])} on={!p.category}>All <Tally n={allTasks} on={!p.category} /></Pill>
-        {counts.map((category) => (
-          <Pill key={category.id} href={discoverHref({ category: category.id as DiscoverParams['category'] }, p)} on={p.category === category.id}>
-            {category.label} <Tally n={category.count} on={p.category === category.id} />
+        <Pill href={discoverHref({}, p, ['category'])} on={!p.category}>
+          All tasks <Tally n={allTasks} on={!p.category} />
+        </Pill>
+        {counts.map((c) => (
+          <Pill key={c.id} href={discoverHref({ category: c.id as DiscoverParams['category'] }, p)} on={p.category === c.id}>
+            {c.label} <Tally n={c.count} on={p.category === c.id} />
           </Pill>
         ))}
       </div>
-      <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Buyer signals">
-        <Pill href={discoverHref({ hireable: !p.hireable }, p)} on={p.hireable}>{p.hireable && <Icon.Check size={13} />}Hireable via escrow <Tally n={collections.hireable} on={p.hireable} /></Pill>
-        <Pill href={discoverHref({ priced: !p.priced }, p)} on={p.priced}>{p.priced && <Icon.Check size={13} />}Escrow quote <Tally n={collections.priced} on={p.priced} /></Pill>
-        <Pill href={discoverHref({ outsideDelivery: !p.outsideDelivery }, p)} on={p.outsideDelivery}>{p.outsideDelivery && <Icon.Check size={13} />}Outside buyer delivered <Tally n={collections.outsideDelivery} on={p.outsideDelivery} /></Pill>
-        <Pill href={discoverHref({ checked: !p.checked }, p)} on={p.checked}>{p.checked && <Icon.Check size={13} />}Checked <Tally n={collections.checked} on={p.checked} /></Pill>
-        {more}
+      <div className="flex flex-wrap items-center gap-2">
+        <FiltersButton count={chips.length}>
+          <Filters p={p} collections={collections} />
+        </FiltersButton>
+        {chips.map((chip) => (
+          <Link
+            key={chip.label}
+            href={chip.href}
+            scroll={false}
+            aria-label={`Remove filter: ${chip.label}`}
+            className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-ink px-3 text-[13px] font-medium text-paper hover:bg-ink/85"
+          >
+            {chip.label}
+            <Icon.Cross size={12} aria-hidden />
+          </Link>
+        ))}
         <SortSelect params={p} variant="inline" className="ml-auto" />
       </div>
     </div>
   );
 }
 
-export function Filters({ p, counts, allTasks }: { p: DiscoverParams; counts: Array<{ id: string; label: string; count: number }>; allTasks: number }) {
-  // Counted under the same filters as the results; the sum of the tasks
-  // left out agents in no task, so it never matched the list.
-  const total = allTasks;
+/** The panel behind the Filters button: what narrows the results within a task, each with what it means. */
+export function Filters({ p, collections }: { p: DiscoverParams; collections: Collections }) {
   return (
     <div className="flex flex-col gap-7">
-      <section className="flex flex-col gap-1" aria-label="Task">
-        <h2 className="t-label mb-1.5 px-2.5">Task</h2>
-        <FilterLink href={discoverHref({}, p, ['category'])} on={!p.category} count={total}>
-          All tasks
-        </FilterLink>
-        {counts.map((c) => (
-          <FilterLink key={c.id} href={discoverHref({ category: c.id as DiscoverParams['category'] }, p)} on={p.category === c.id} count={c.count}>
-            {c.label}
-          </FilterLink>
-        ))}
-      </section>
       <section className="flex flex-col gap-1" aria-label="Buyer signals">
         <h2 className="t-label mb-1.5 px-2.5">Buyer signals</h2>
-        <Toggle href={discoverHref({ hireable: !p.hireable }, p)} on={p.hireable} label="Hireable via escrow" hint="Answering, and payable through escrow" />
-        <Toggle href={discoverHref({ priced: !p.priced }, p)} on={p.priced} label="Has an escrow quote" hint="Has signed an escrow price with its wallet, current or expired" />
-        <Toggle href={discoverHref({ outsideDelivery: !p.outsideDelivery }, p)} on={p.outsideDelivery} label="Outside buyer delivered" hint="Settled work funded outside Pokter’s team" />
-        <Toggle href={discoverHref({ checked: !p.checked }, p)} on={p.checked} label="Correctness checked" hint="Passed the latest check for its category" />
-        <Toggle href={discoverHref({ answering: !p.answering }, p)} on={p.answering} label="Answered this week" hint="Replied to a Pokter probe in 7 days" />
+        <Toggle href={discoverHref({ hireable: !p.hireable }, p)} on={p.hireable} label="Hireable via escrow" count={collections.hireable} hint="Answering, and payable through escrow" />
+        <Toggle href={discoverHref({ priced: !p.priced }, p)} on={p.priced} label="Has an escrow quote" count={collections.priced} hint="Has signed an escrow price with its wallet, current or expired" />
+        <Toggle href={discoverHref({ outsideDelivery: !p.outsideDelivery }, p)} on={p.outsideDelivery} label="Outside buyer delivered" count={collections.outsideDelivery} hint="Settled work funded outside Pokter’s team" />
+        <Toggle href={discoverHref({ checked: !p.checked }, p)} on={p.checked} label="Correctness checked" count={collections.checked} hint="Passed the latest check for its category" />
+        <Toggle href={discoverHref({ answering: !p.answering }, p)} on={p.answering} label="Answered this week" count={collections.answering} hint="Replied to a Pokter probe in 7 days" />
       </section>
       <section className="flex flex-col gap-1" aria-label="Evidence">
         <h2 className="t-label mb-1.5 px-2.5">Evidence</h2>
@@ -214,7 +158,7 @@ export function Filters({ p, counts, allTasks }: { p: DiscoverParams; counts: Ar
         <FilterLink href={discoverHref({ evidence: 'measured' }, p)} on={p.evidence === 'measured'}>
           Measured by Pokter
         </FilterLink>
-        <FilterLink href={discoverHref({ evidence: 'corroborated' }, p)} on={p.evidence === 'corroborated'}>
+        <FilterLink href={discoverHref({ evidence: 'corroborated' }, p)} on={p.evidence === 'corroborated'} count={collections.corroborated}>
           Has published attestations
         </FilterLink>
       </section>

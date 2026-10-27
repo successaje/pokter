@@ -8,6 +8,7 @@ import { AgentAvatar } from '@/ui/Agent';
 import { EmptyState, Notice } from '@/ui/Feedback';
 import { Icon } from '@/ui/icons';
 import { cn } from '@/lib/ui/cn';
+import { WhyNumbersDiffer } from '@/features/proof/WhyNumbersDiffer';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,9 +48,12 @@ export default async function OutcomeRankingsPage({ searchParams }: { searchPara
             {label}
           </Link>
         ))}
+        {/* Which money the counts are in, said where the population is chosen: both networks, because a ranking is of the agent. */}
+        <span className="ml-auto self-center text-[12.5px] text-ink-3">BNB Chain and testnet together · test money included</span>
       </nav>
 
-      <div className="py-6">
+      <div className="flex flex-col gap-3 py-6">
+        <WhyNumbersDiffer current="rankings" />
         {scope === 'outside-team' ? (
           <Notice tone="neutral" title="Outside-team is not the same as independent">
             The funding wallet is not in Pokter&rsquo;s published team set. Pokter cannot prove that a buyer was unsubsidized or unrelated, so this page does not make that claim.

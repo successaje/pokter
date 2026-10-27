@@ -7,7 +7,7 @@ import { RememberDiscoverResults } from '@/features/discover/ReturnToResults';
 
 import { AgentCard, AgentRow, MiniAgentCard } from '@/features/agents/AgentCard';
 import { CompareToggle, CompareTray } from '@/features/compare/CompareControls';
-import { DiscoverSearch, MobileFilters } from '@/features/discover/DiscoverControls';
+import { DiscoverSearch } from '@/features/discover/DiscoverControls';
 import { ManyQuotes } from '@/features/discover/ManyQuotes';
 import { comparisonCandidates } from '@/lib/hire/compare-quotes';
 import { discoverHref, PAGE_SIZE, parseDiscoverParams } from '@/features/discover/params';
@@ -15,7 +15,7 @@ import { discover } from '@/features/discover/search';
 import { CatalogueTools } from '@/features/discover/CatalogueTools';
 import { RequestRow } from '@/features/briefs/RequestRow';
 import { requestRows } from '@/features/briefs/request-rows';
-import { FilterBar, Filters, MobileFilterBlock } from '@/features/discover/FilterBar';
+import { FilterBar } from '@/features/discover/FilterBar';
 import { deliveryTimes, DELIVERY_LOOKUP_CONCURRENCY } from '@/lib/agent/delivery-times';
 import { mapWithConcurrency } from '@/lib/concurrency';
 import { outsideActivity } from '@/lib/erc8183/outside-activity';
@@ -111,8 +111,6 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
     .sort((x, y) => Date.parse(y.postedAt) - Date.parse(x.postedAt));
   const openTotal = open.length;
   const openRequests = open.slice(0, 4);
-  // The ones under "More filters" on a phone: the block above it shows the rest.
-  const moreFilters = [p.answering, p.evidence !== 'any', p.chain !== 'any'].filter(Boolean).length;
   const activeFilters = [p.category, p.hireable, p.answering, p.priced, p.checked, p.outsideDelivery, p.evidence !== 'any', p.chain !== 'any'].filter(Boolean).length;
 
   return (
@@ -254,17 +252,6 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
 
       <div className="mt-8 flex flex-col gap-6">
         <FilterBar p={base} counts={result.categoryCounts} allTasks={result.allTasksCount} collections={result.collections} />
-        <MobileFilterBlock
-          p={base}
-          counts={result.categoryCounts}
-          allTasks={result.allTasksCount}
-          collections={result.collections}
-          more={
-            <MobileFilters count={moreFilters} label="More filters" pill>
-              <Filters p={base} counts={result.categoryCounts} allTasks={result.allTasksCount} />
-            </MobileFilters>
-          }
-        />
 
         <section aria-label="Results" className="min-w-0">
           {/* The top few that can be hired, asked for a price on these exact words. Only when there are words, and at least two to compare. */}

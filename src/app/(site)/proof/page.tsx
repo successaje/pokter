@@ -23,6 +23,7 @@ import { teamWalletList, teamWalletSet } from '@/lib/team/server';
 import { fundedByTeam } from '@/lib/team/wallets';
 import { cn } from '@/lib/ui/cn';
 import { Icon } from '@/ui/icons';
+import { WhyNumbersDiffer } from '@/features/proof/WhyNumbersDiffer';
 
 export const dynamic = 'force-dynamic';
 
@@ -199,6 +200,10 @@ export default async function ProductionProofPage({ searchParams }: { searchPara
           <p className="mt-2">The funding wallet is not in Pokter&rsquo;s published team set. It does not prove the buyer was unsubsidized or unrelated, so this page does not rename it “independent.”</p>
         </div>
       </header>
+
+      <div className="pt-6">
+        <WhyNumbersDiffer current="proof" />
+      </div>
 
       <section aria-label="Filters" className="grid gap-5 border-b border-rule py-6 md:grid-cols-3">
         <FilterGroup<ProofNetwork>
