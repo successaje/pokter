@@ -48,6 +48,7 @@ import { currentHireBlocker, currentPriceCheck } from '@/lib/hire/blocker-live';
 import { clipAtWord } from '@/lib/ui/clip';
 import { agentReadings, type PlatformBenchmark } from '@/lib/benchmark/platform';
 import { currentPlatformBenchmark } from '@/lib/benchmark/platform-server';
+import { registeredAgentWallet } from '@/lib/registry/live-agent';
 
 /** Agent-provided text is untrusted: strip control characters and cap it. */
 function clean(text: string | null | undefined, max = 4000) {
@@ -251,10 +252,12 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
   const addresses = correctedErc8183Addresses(escrowChain);
 
   const cardReadAt = new Date().toISOString();
+  /* Who a hire from this page pays: the registry's agent wallet now, as the quote route reads it, so the page and the quote name one wallet. */
+  const payee = await registeredAgentWallet(agent);
   const [cardRead, delivery, providers, suggestion, alternatives, imageUrl, platform] = await Promise.all([
     readCardForPage(agent.services?.a2a?.endpoint, agent.token_id).catch(() => ({ skills: [], problem: null })),
     deliveryTimes(agent.chain_id, agent.token_id).catch(() => ({ samples: 0, medianMs: null, fastestMs: null, slowestMs: null, onTime: null })),
-    providerChoicesFor(agent, escrowChain, d.quote, relayRefused).catch(() => [] as ProviderChoice[]),
+    providerChoicesFor({ ...agent, agent_wallet: payee }, escrowChain, d.quote, relayRefused).catch(() => [] as ProviderChoice[]),
     d.quote || category === 'unclassified' ? Promise.resolve(null) : suggestedBudgetFor(category, { chainId: agent.chain_id as ChainId }).catch(() => null),
     category === 'unclassified' ? Promise.resolve([]) : recommendedAlternatives(category, agent.token_id, 3).catch(() => []),
     resolveAgentImage(agent.chain_id, agent.token_id, agent.image_url).catch(() => httpsOnly(agent.image_url)),
@@ -331,7 +334,7 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
     summary: description ? firstSentence(description) : 'This agent has not published a description.',
     description,
     owner: agent.owner_address,
-    agentWallet: agent.agent_wallet ?? null,
+    agentWallet: payee,
     createdAt: agent.created_at ?? null,
     category: meta
       ? {

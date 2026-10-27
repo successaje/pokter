@@ -29,6 +29,7 @@ import {
 import { getQuestStore } from '@/lib/quest/store';
 import { PROBE_ADAPTER } from '@/lib/proof/probe-target';
 import type { QuoteFailure } from '@/lib/hire/failure';
+import { withRegisteredWallet } from '@/lib/registry/live-agent';
 
 export interface SweepOptions {
   chainId?: ChainId;
@@ -321,7 +322,9 @@ export async function runSweep({
     // Why it would not quote, kept: the agent's page says so to its owner.
     let failure: QuoteFailure | null = null;
     let refusal: string | null = null;
-    let quote = await requestQuote(agent, {
+    /* Checked against the wallet the registry names now, as every hire route checks it (`registeredAgentWallet`), so a stored price is one a hire would accept. */
+    const priced = await withRegisteredWallet(agent);
+    let quote = await requestQuote(priced, {
       signal,
       onFailure: (reason) => {
         failure = reason;
@@ -343,7 +346,7 @@ export async function runSweep({
     if (sample && !signal?.aborted) {
       let retryFailure: QuoteFailure | null = null;
       let retryRefusal: string | null = null;
-      const retried = await requestQuote(agent, {
+      const retried = await requestQuote(priced, {
         signal,
         enquiry: { task_description: sample, terms: POKTER_TERMS },
         onFailure: (reason) => {

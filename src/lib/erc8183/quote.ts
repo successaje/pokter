@@ -14,7 +14,7 @@ import { NO_ENDPOINT_DETAIL } from '@/lib/hire/no-endpoint';
 import { POKTER_TERMS } from './terms';
 import { a2aUserMessage } from '@/lib/a2a/message';
 import { quoteRefusal, responseData } from './quote-reply';
-import { liveAgentFields } from '@/lib/registry/live-agent';
+import { liveAgentFields, registeredAgentWallet } from '@/lib/registry/live-agent';
 import { contractSignatureCheck } from './contract-signature';
 
 /**
@@ -180,19 +180,19 @@ export async function requestQuote(
     return null;
   };
   let endpoint = agent.services?.a2a?.endpoint?.replace('{agentId}', agent.token_id) ?? null;
-  let agentWallet = agent.agent_wallet ?? null;
   /*
-   * The indexer's row is a copy. When it is missing either field, read the
+   * The indexer's row is a copy. When it names no A2A endpoint, read the
    * registration itself before calling the agent unreachable
-   * (`liveAgentFields`). Only missing fields are filled: a wallet the
-   * indexer has is the one the hire routes pay, and replacing it here
-   * would let a quote and the job it funds name different wallets.
+   * (`liveAgentFields`).
    */
-  if (!endpoint || !agentWallet) {
-    const live = await liveAgentFields(agent.chain_id, agent.token_id);
-    endpoint ??= live.a2aEndpoint?.replace('{agentId}', agent.token_id) ?? null;
-    agentWallet ??= live.agentWallet;
-  }
+  if (!endpoint) endpoint = (await liveAgentFields(agent.chain_id, agent.token_id)).a2aEndpoint?.replace('{agentId}', agent.token_id) ?? null;
+  /*
+   * The wallet the signature must recover to: the registry's own, read the
+   * way every hire route reads the wallet it pays (`registeredAgentWallet`),
+   * so a quote and the job it funds always name the same one. The
+   * indexer's copy is used only when the chain does not answer.
+   */
+  const agentWallet = await registeredAgentWallet(agent);
   /* Nothing was read for either, from the index or the registry: each is a fact about the registration, said as one. */
   if (!endpoint) return fail(quoteFailure('no-endpoint', { detail: NO_ENDPOINT_DETAIL.registryNoA2a }));
   if (!agentWallet) return fail(quoteFailure('no-endpoint', { detail: NO_ENDPOINT_DETAIL.registryNoWallet }));

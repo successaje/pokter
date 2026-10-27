@@ -21,6 +21,7 @@ import { describeQuoteFailure, quoteFailure, type FailureLayer, type QuoteFailur
 import { getProbeStore } from '@/lib/history/store';
 import { recordHireAttempt } from '@/lib/builder/diagnostics/store';
 import { canonicalTokenId, type AttemptCode } from '@/lib/builder/diagnostics/attempt';
+import { withRegisteredWallet } from '@/lib/registry/live-agent';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
@@ -122,10 +123,12 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
   }
 
-  const agent = await getAgent(chainId, tokenId).catch(() => null);
-  if (!agent) {
+  const indexed = await getAgent(chainId, tokenId).catch(() => null);
+  if (!indexed) {
     return NextResponse.json({ error: 'No such agent.' }, { status: 404 });
   }
+  /* The wallet the quote is checked against and the job pays, as the registry names it now (`registeredAgentWallet`). */
+  const agent = await withRegisteredWallet(indexed);
 
   /*
    * Every outcome from here on is recorded for the agent's builder before
@@ -348,7 +351,8 @@ export async function POST(request: Request): Promise<NextResponse> {
     getJobStore().recordQuoteIntent({
       negotiationHash: quote.negotiationHash,
       escrowChainId,
-      provider: agent.agent_wallet ?? quote.signer,
+      /* The wallet the signature was checked against: by construction the registered one (`verifyNegotiationSignature` returns only the wallet it was told to expect). */
+      provider: quote.signer,
       agentChainId: chainId,
       agentTokenId: tokenId,
       agentName: agent.name || `Agent #${tokenId}`,
@@ -391,7 +395,7 @@ export async function POST(request: Request): Promise<NextResponse> {
          */
         termsBound: true,
         task,
-        provider: agent.agent_wallet ?? quote.signer,
+        provider: quote.signer,
         escrowChainId,
         quotedAt: new Date().toISOString(),
       });
