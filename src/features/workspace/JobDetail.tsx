@@ -280,7 +280,7 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
       {(job.status === 'SUBMITTED' || job.status === 'COMPLETED' || job.status === 'REJECTED') && (
         <section aria-labelledby="answer-title" className="flex flex-col gap-4 rounded-[16px] border border-rule-strong bg-raised p-5 sm:p-6">
           <h2 id="answer-title" className="t-h3">The answer</h2>
-          <JobAnswer job={job} deliverableUrl={a.deliverableUrl ?? null} verify={{ run: () => void a.verifyReceipt(), busy: a.busy === 'verify', verified: a.receiptVerified }} />
+          <JobAnswer job={job} owned={owned} deliverableUrl={a.deliverableUrl ?? null} verify={{ run: () => void a.verifyReceipt(), busy: a.busy === 'verify', verified: a.receiptVerified }} />
         </section>
       )}
 
@@ -451,7 +451,12 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
         <aside className="flex flex-col gap-5">
           <div className="flex flex-col gap-3 rounded-[14px] border border-rule bg-raised p-5 text-sm">
             <span className="t-label">The job</span>
-            <p className="whitespace-pre-line break-words text-[13.5px] leading-relaxed text-ink-2">{job.task}</p>
+            {/* The brief is the buyer's: shown to the wallet that funded it, as on the public evidence page. */}
+            {owned ? (
+              <p className="whitespace-pre-line break-words text-[13.5px] leading-relaxed text-ink-2">{job.task}</p>
+            ) : (
+              <p className="text-[13.5px] leading-relaxed text-ink-3">The brief is shown to the wallet that funded this job.</p>
+            )}
             <Details summary="On-chain details">
               <dl className="flex flex-col gap-2 text-[13px]">
                 <div className="flex justify-between gap-2">

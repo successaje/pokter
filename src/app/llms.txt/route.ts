@@ -63,8 +63,9 @@ ${GUIDES.map((g) => `- [${g.title}](${base}${g.href}): ${g.summary}`).join('\n')
   ${api}/requests/{id}.
 - [Job evidence](${base}/jobs/{chainId}/{jobId}): one job as the escrow
   records it, with Pokter's check that the delivery matches its on-chain
-  hash. A buyer's brief and answer are shown only for Pokter's own test
-  jobs. Each receipt below links its page as \`page\`.
+  hash. The brief is shown only for Pokter's own test jobs; the answer for
+  those, for an operator's hire of its own agent, and for any other job
+  once its buyer publishes it. Each receipt below links its page as \`page\`.
 - [Receipts](${api}/receipts): every job commissioned through Pokter,
   verified against ERC-8183 before indexing, with the job ids to check on
   chain yourself.

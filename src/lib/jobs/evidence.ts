@@ -16,6 +16,7 @@ import { getJobStore } from '@/lib/erc8183/store';
 import type { HiredJob } from '@/lib/erc8183/types';
 import { jobReceipt } from '@/lib/jobs/receipt-link';
 import { teamWalletSet } from '@/lib/team/server';
+import { answerIsPublic } from './answer-publication';
 
 import { briefIsPublic, jobFunder, publishableAnswerText, wasDelivered, type JobFunder } from './evidence-view';
 
@@ -61,8 +62,10 @@ export interface JobEvidence {
     | { state: 'unread'; reason: string };
   /** Only for Pokter's own test jobs (`briefIsPublic`). */
   brief: string | null;
-  /** For every delivered job whose record matches its hash. */
+  /** For a delivered job whose record matches its hash, when its answer is public (`answerIsPublic`). */
   answer: DeliveredAnswer | null;
+  /** Delivered and matching its hash, but the buyer has not chosen to publish the answer. */
+  answerWithheld: boolean;
   receipt: { href: string; hash: string | null };
   fundingTx: string | null;
 }
@@ -95,6 +98,7 @@ export async function loadJobEvidence(chainId: 56 | 97, jobId: string, now = Dat
 
   let delivery: JobEvidence['delivery'];
   let answer: DeliveredAnswer | null = null;
+  let answerWithheld = false;
   if (!chain) delivery = { state: 'chain-unread' };
   else if (!wasDelivered(status)) delivery = { state: 'not-delivered' };
   else {
@@ -104,12 +108,17 @@ export async function loadJobEvidence(chainId: 56 | 97, jobId: string, now = Dat
       const matchedBy = manifestMatch(read.text, chain.deliverable);
       delivery = matchedBy ? { state: 'matches', matchedBy, url: indexed.deliverableUrl } : { state: 'mismatch', url: indexed.deliverableUrl };
       /*
-       * The agent's answer is its work, shown for every job, so no real
-       * delivery is hidden; never one that fails its own hash. The brief
-       * stays the buyer's (`brief` below), and the page never renders
-       * `answer.asked`.
+       * That the work was delivered, and matches its hash, is public on
+       * every job. What it says is shown only when it is public
+       * (`answerIsPublic`): Pokter's own tests, a self-hire, or a buyer
+       * who chose to publish it. Never one that fails its own hash. The
+       * brief stays the buyer's (`brief` below), and the page never
+       * renders `answer.asked`.
        */
-      if (matchedBy) answer = readDeliveredAnswer(publishableAnswerText(read.text, funder, chain.client));
+      if (matchedBy) {
+        if (answerIsPublic(funder, getJobStore().answerPublication(chainId, jobId))) answer = readDeliveredAnswer(publishableAnswerText(read.text, funder, chain.client));
+        else answerWithheld = true;
+      }
     }
   }
 
@@ -134,6 +143,7 @@ export async function loadJobEvidence(chainId: 56 | 97, jobId: string, now = Dat
     delivery,
     brief: briefIsPublic(funder) ? indexed.task : null,
     answer,
+    answerWithheld,
     receipt: jobReceipt({ ...indexed, status: status as HiredJob['status'] }, escrowCommerceAddress),
     fundingTx: indexed.hireTxHash,
   };

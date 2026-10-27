@@ -12,6 +12,7 @@ import { readDeliveryText } from '@/lib/delivery/read-delivery';
 import { manifestMatch } from '@/lib/erc8183/manifest-match';
 import { getErc8183Job } from '@altananetwork/sdk';
 import { teamWalletSet } from '@/lib/team/server';
+import { answerIsPublic } from '@/lib/jobs/answer-publication';
 import { deliveryKind, type DeliveryKind } from './delivery-kind';
 
 /** A delivered file, unpacked far enough to show on the dossier. */
@@ -178,10 +179,12 @@ const PUBLISHED_READS = 6;
  * newest first — from Pokter's stored copy when it holds one, else from the
  * agent's own published delivery, checked against the hash on chain.
  *
- * Every delivered job can be the sample, so no agent's real work is hidden
- * behind a rule about who paid for it. What a buyer wrote is another
- * matter: the brief (`asked`) is kept only for Pokter's own test hires, as
- * on the job evidence pages (`briefIsPublic`).
+ * Only a job whose answer is public can be the sample (`answerIsPublic`):
+ * Pokter's own tests, a self-hire, or a job whose buyer chose to publish
+ * its answer. That every job was delivered stays on the agent's record and
+ * its evidence pages either way; what an outside buyer's answer says is
+ * theirs to publish. The brief (`asked`) is kept only for Pokter's own test
+ * hires, as on the job evidence pages (`briefIsPublic`).
  *
  * Stored copies are keyed per chain (`deliverableKey`: the bare id on 97,
  * `56:id` on BNB Chain). This read the bare id, so no mainnet delivery was
@@ -194,10 +197,12 @@ const PUBLISHED_READS = 6;
  */
 export async function sampleDelivery(chainId: number, tokenId: string): Promise<SampleDelivery | null> {
   const team = teamWalletSet();
+  const store = getJobStore();
   const funderOf = (job: HiredJob) => jobFunder({ client: job.client, provider: job.provider }, team);
-  const jobs = getJobStore()
+  const jobs = store
     .byAgent(chainId, tokenId)
     .filter((job) => SHOWABLE.includes(job.status))
+    .filter((job) => answerIsPublic(funderOf(job), store.answerPublication(job.chainId, job.jobId)))
     .sort(
       (a, b) =>
         SHOWABLE.indexOf(a.status) - SHOWABLE.indexOf(b.status) ||

@@ -1,6 +1,7 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 
 import { DeliveredAnswerView } from '@/features/delivery/AnswerView';
 import { briefText, type DeliveredAnswer } from '@/lib/delivery/answer';
@@ -9,11 +10,15 @@ import { Button } from '@/ui/Button';
 import { Skeleton } from '@/ui/Feedback';
 import { Icon } from '@/ui/icons';
 import type { ManifestMatch } from '@/lib/erc8183/manifest-match';
+import { publicationMessage } from '@/lib/jobs/answer-publication';
+import type { JobFunder } from '@/lib/jobs/evidence-view';
+import { useActiveSigner } from '@/lib/wallet/use-active-signer';
+import { Notice } from '@/ui/Feedback';
 
 type AnswerResponse =
   | { delivered: false }
   | { delivered: true; readable: false; reason: string }
-  | { delivered: true; readable: true; matchesChain: boolean; matchedBy?: ManifestMatch | null; manifestHash: string; answer: DeliveredAnswer };
+  | { delivered: true; readable: true; matchesChain: boolean; matchedBy?: ManifestMatch | null; manifestHash: string; answer: DeliveredAnswer; funder?: JobFunder; published?: boolean };
 
 /**
  * The answer, first. The buyer hired an agent to answer a question, so
@@ -29,10 +34,13 @@ function localMoment(value: string): string {
 
 export function JobAnswer({
   job,
+  owned,
   deliverableUrl,
   verify,
 }: {
   job: HiredJob;
+  /** The connected wallet funded this job: it sees its own brief and answer, and decides whether the answer is published. */
+  owned: boolean;
   deliverableUrl: string | null;
   verify: { run: () => void; busy: boolean; verified: boolean };
 }) {
@@ -60,8 +68,15 @@ export function JobAnswer({
     return <p className="text-[13.5px] text-ink-2">{query.isError ? `${(query.error as Error).message} The file and its proof are below.` : 'Nothing has been delivered yet.'}</p>;
   }
 
-  const answer = data.readable ? data.answer : null;
-  const asked = answer?.asked ?? briefText(job.task);
+  /*
+   * Anyone but the funding wallet sees what the public evidence page
+   * shows: the answer once it is public, the brief only for Pokter's own
+   * tests. The page is out of search, but an unpublished answer should not
+   * be one link away on Pokter either.
+   */
+  const withheld = !owned && data.readable && data.published === false;
+  const answer = data.readable && !withheld ? data.answer : null;
+  const asked = owned || (data.readable && data.funder === 'team') ? (answer?.asked ?? briefText(job.task)) : null;
   return (
     <div className="flex flex-col gap-5">
       {asked && (
@@ -73,9 +88,12 @@ export function JobAnswer({
 
       {!data.readable ? (
         <p className="text-[13.5px] text-ink-2">{data.reason}</p>
+      ) : withheld ? (
+        <p className="text-[13.5px] text-ink-2">Delivered. The buyer has not published the answer, so it is shown only to the wallet that funded the job.</p>
       ) : (
         <>
           <DeliveredAnswerView answer={answer!} chainId={job.chainId} when={localMoment} />
+          {owned && data.matchesChain && (data.funder === 'outside' || data.funder === 'unknown') && <AnswerPublication job={job} published={data.published === true} />}
         </>
       )}
 
@@ -89,7 +107,9 @@ export function JobAnswer({
           <span className="hidden font-medium text-ink-2 group-open:inline">Hide</span>
         </summary>
         <div className="flex flex-col gap-3 border-t border-rule px-4 py-3 text-[13px]">
-          {deliverableUrl ? (
+          {withheld ? (
+            <span className="text-ink-3">The delivered file is linked for the wallet that funded the job.</span>
+          ) : deliverableUrl ? (
             <a href={deliverableUrl} target="_blank" rel="noreferrer noopener nofollow" className="inline-flex items-center gap-1.5 self-start font-medium link">
               Open the delivered file <Icon.ArrowUpRight size={14} />
             </a>
@@ -118,6 +138,54 @@ export function JobAnswer({
           </Button>
         </div>
       </details>
+    </div>
+  );
+}
+
+/**
+ * The funding wallet's choice to publish its answer on Pokter's public
+ * pages, or to stop. Off until chosen (see answer-publication.ts): the
+ * answer is the buyer's, and it can carry the task in it. One signature,
+ * which moves nothing; the newest choice wins.
+ */
+function AnswerPublication({ job, published }: { job: HiredJob; published: boolean }) {
+  const signer = useActiveSigner();
+  const queryClient = useQueryClient();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function decide(publish: boolean) {
+    setBusy(true);
+    setError(null);
+    try {
+      const decidedAt = new Date().toISOString();
+      const signature = await signer.sign(publicationMessage({ chainId: job.chainId, jobId: job.jobId, publish, decidedAt }));
+      const response = await fetch(`/api/jobs/${job.jobId}/publication?chain=${job.chainId}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ publish, decidedAt, signature }) });
+      const body = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) throw new Error(body.error ?? 'The choice could not be recorded.');
+      await queryClient.invalidateQueries({ queryKey: ['job-answer', job.chainId, job.jobId] });
+    } catch (reason) {
+      const message = (reason as Error)?.message ?? '';
+      setError(/reject|denied|cancel|NotAllowed/i.test(message) ? 'You declined the signature. Nothing changed.' : message || 'The choice could not be recorded.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-3 rounded-[12px] border border-rule bg-paper px-4 py-3">
+      <div className="flex flex-col gap-1">
+        <span className="text-[13.5px] font-medium text-ink">{published ? 'Published on Pokter' : 'Only you see this answer on Pokter'}</span>
+        <p className="text-[12.5px] leading-relaxed text-ink-3">
+          {published
+            ? 'It is shown on this job’s public evidence page, and may appear as a sample on the agent’s page, with your wallet address taken out.'
+            : 'Publishing it shows it on this job’s public evidence page, and possibly as a sample on the agent’s page, with your wallet address taken out. That helps other buyers judge the agent. The agent’s delivery link is recorded on chain whichever you choose.'}
+        </p>
+      </div>
+      <Button size="s" intent="secondary" className="self-start" busy={busy} disabled={!signer.canSign} onClick={() => void decide(!published)}>
+        {published ? 'Stop publishing it' : 'Publish this answer'}
+      </Button>
+      {error && <Notice tone="bad">{error}</Notice>}
     </div>
   );
 }

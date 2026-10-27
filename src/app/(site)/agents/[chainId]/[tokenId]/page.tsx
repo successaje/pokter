@@ -578,7 +578,7 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                         Job <span className="t-readout">#{p.sample.jobId}</span>
                       </Link>{' '}
                       · {p.sample.status.toLowerCase()}
-                      {p.sample.funder === 'team' ? ' · Pokter’s test hire' : p.sample.funder === 'outside' ? ' · an outside buyer’s job, brief not shown' : p.sample.funder === 'self' ? ' · a self-hire, brief not shown' : ''}
+                      {p.sample.funder === 'team' ? ' · Pokter’s test hire' : p.sample.funder === 'outside' ? ' · an outside buyer’s job, answer published by the buyer' : p.sample.funder === 'self' ? ' · a self-hire, brief not shown' : ''}
                       {p.sample.kind === 'relayed'
                         ? ' · carried by Pokter’s delivery agent: the task went to this agent and its answer is shown unchanged'
                         : p.sample.kind === 'lifecycle'

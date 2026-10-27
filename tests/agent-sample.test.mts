@@ -10,25 +10,26 @@ import { structuredProfile, type StructuredInput } from '../src/features/agent/s
  * listed eight delivered jobs: the stored copies of mainnet deliveries are
  * keyed `56:id`, and the sample read the bare id. No sample must never be
  * said as no delivery, and the sample follows the publication rule the
- * job evidence pages use.
+ * job evidence pages use: an outside buyer's answer only once the buyer
+ * publishes it.
  */
 
 const code = (path: string) => readFileSync(new URL(`../src/${path}`, import.meta.url), 'utf8');
 const base: StructuredInput = { description: '', skills: [], sample: null, category: null, hireBlocker: null, warnings: [] };
 
-test('every delivered job can be the sample; only the brief depends on who paid', () => {
+test('a sample is a delivered job whose answer is public; the brief depends on who paid', () => {
   const loader = code('lib/agent/sample-delivery.ts');
   assert.match(loader, /readDeliverable\(deliverableKey\(job\.chainId, job\.jobId\)\)/);
   assert.doesNotMatch(loader, /readDeliverable\(job\.jobId\)/, 'the bare id finds no mainnet delivery');
-  /* No rule about the funder decides whether the work is shown. */
-  assert.doesNotMatch(loader, /\.filter\(\(job\) => SHOWABLE\.includes\(job\.status\) && /);
+  /* An outside buyer's answer is a sample only once the buyer has published it. */
+  assert.match(loader, /\.filter\(\(job\) => answerIsPublic\(funderOf\(job\), store\.answerPublication\(job\.chainId, job\.jobId\)\)\)/);
   assert.match(loader, /asked: briefIsPublic\(funder\) \? unpacked\.asked : null/);
   assert.match(loader, /asked: briefIsPublic\(funder\) \? answer\.asked : null/);
-  /* A real buyer's job before a test, and an agent's own published delivery when Pokter holds no copy — only if it matches its hash. */
+  /* A published buyer's job before a test, and an agent's own published delivery when Pokter holds no copy — only if it matches its hash. */
   assert.match(loader, /Number\(funderOf\(a\) === 'team'\) - Number\(funderOf\(b\) === 'team'\)/);
   assert.match(loader, /if \(!read\.ok \|\| !manifestMatch\(read\.text, onchain\.deliverable\)\) return remember\(null\);/);
   assert.match(code('features/agent/profile.ts'), /sample: await sampleDelivery\(agent\.chain_id, agent\.token_id\)/);
-  assert.match(code('features/agent/StructuredProfile.tsx'), /but no delivery could be read and matched to its hash on chain just now/);
+  assert.match(code('features/agent/StructuredProfile.tsx'), /An outside buyer&rsquo;s answer appears here only once the buyer publishes it, and any answer only once it matches its hash on chain\./);
   /* The buyer's own address is taken out of what is shown, as on the evidence pages; the hash is of the original bytes. */
   assert.match(loader, /const shown = publishableAnswerText\(stored\.manifestText, funder, job\.client\);/);
   assert.match(loader, /readDeliveredAnswer\(publishableAnswerText\(read\.text, funder, onchain\.client\)\)/);
@@ -50,7 +51,7 @@ test('delivered jobs with no sample to show are said as exactly that, with the n
   assert.equal(structuredProfile(base).back.delivered, 0, 'and no history is still no delivery');
   assert.equal(structuredProfile({ ...base, history: { delivered: 31 }, jobHistory: [{ chainId: 56, jobId: '9', delivered: true }] }).back.delivered, 31, 'the whole count, not the newest twelve');
   const view = code('features/agent/StructuredProfile.tsx');
-  const noSample = view.indexOf('No readable sample available.');
+  const noSample = view.indexOf('No published sample yet.');
   const never = view.indexOf('It has not delivered a paid job through Pokter yet');
   assert.ok(noSample > 0 && never > noSample, 'checked before the never-delivered sentence');
   assert.match(view, /\) : s\.back\.delivered > 0 \? \(/);
