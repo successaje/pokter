@@ -4,6 +4,8 @@ import { listMarketplace } from '@/lib/marketplace';
 import { CATEGORIES } from '@/lib/agents/categories';
 import { acceptsProposals } from '@/lib/briefs/model';
 import { getBriefStore } from '@/lib/briefs/store';
+import { getJobStore } from '@/lib/erc8183/store';
+import { jobEvidencePath, wasDelivered } from '@/lib/jobs/evidence-view';
 import { GUIDES } from '@/lib/guides/catalogue';
 import { siteUrl } from '@/lib/site';
 
@@ -92,8 +94,23 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     requests = [];
   }
 
+  /*
+   * Every delivered job Pokter commissioned, as evidence: what the escrow
+   * records and Pokter's check of the delivery. A buyer's brief is on the
+   * page only for Pokter's own test jobs (see `briefIsPublic`).
+   */
+  let jobs: MetadataRoute.Sitemap = [];
+  try {
+    jobs = getJobStore()
+      .all()
+      .filter((job) => wasDelivered(job.status))
+      .map((job) => ({ url: `${base}${jobEvidencePath(job)}`, lastModified: new Date(job.statusCheckedAt), priority: 0.4 }));
+  } catch {
+    jobs = [];
+  }
+
   const seen = new Set<string>();
-  return [...fixed, ...categories, ...agents, ...requests].filter((entry) =>
+  return [...fixed, ...categories, ...agents, ...requests, ...jobs].filter((entry) =>
     seen.has(entry.url) ? false : (seen.add(entry.url), true),
   );
 }

@@ -58,9 +58,12 @@ test('a reader uses the stored copy only when it is what was delivered', async (
   assert.equal(storedDeliveryText(null, committed), null);
 });
 
-test('the answer and report-check routes read the stored copy through that rule', () => {
+test('the answer route, the job evidence page and report-check read the stored copy through that rule', () => {
+  /* The answer route and the public evidence page share one reader. */
+  const reader = readFileSync(new URL('../src/lib/delivery/read-delivery.ts', import.meta.url), 'utf8');
+  assert.match(reader, /storedDeliveryText\(readDeliverable\(deliverableKey\(chainId, jobId\)\), onchain\.deliverable\)/);
   const answer = readFileSync(new URL('../src/app/api/jobs/[jobId]/answer/route.ts', import.meta.url), 'utf8');
-  assert.match(answer, /storedDeliveryText\(readDeliverable\(deliverableKey\(chainId, jobId\)\), job\.deliverable\)/);
+  assert.match(answer, /await readDeliveryText\(chainId, jobId, job\)/);
   /* report-check reads through the shared loader ProofRun also uses. */
   const loader = readFileSync(new URL('../src/lib/delivery/delivered-report.ts', import.meta.url), 'utf8');
   assert.match(loader, /storedDeliveryText\(readDeliverable\(deliverableKey\(input\.chainId, input\.jobId\)\), job\.deliverable\)/);
