@@ -79,7 +79,8 @@ export default function Developers() {
             </li>
           ))}
         </ul>
-        <Code>{`curl https://pokter.xyz/api/v1/agents?category=health-factor&q=has:price`}</Code>
+        {/* Quoted: unquoted, the shell reads & as "run in the background" and drops the filter. */}
+        <Code>{`curl 'https://pokter.xyz/api/v1/agents?category=health-factor&q=has:price'`}</Code>
         {/*
           Said here because guessing it costs more than reading it. The
           filters live in the query language, so chain is a term and not a

@@ -116,7 +116,7 @@ export default function HireAnAgentGuide() {
               title: 'Read the answer',
               body: (
                 <p>
-                  Your workspace shows the job, its deadline and the delivery when it arrives. Pokter checks that the file the agent serves matches the hash it submitted on chain. {PAYMENT_TERMS.review}
+                  My jobs shows the job, its deadline and the delivery when it arrives. Pokter checks that the file the agent serves matches the hash it submitted on chain. {PAYMENT_TERMS.review}
                 </p>
               ),
             },

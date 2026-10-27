@@ -64,8 +64,32 @@ export function JobAnswer({
     );
   }
   const data = query.data;
-  if (query.isError || !data || !data.delivered) {
-    return <p className="text-[13.5px] text-ink-2">{query.isError ? `${(query.error as Error).message} The file and its proof are below.` : 'Nothing has been delivered yet.'}</p>;
+  if (query.isError) {
+    /*
+     * The answer could not be read or formatted. The delivered file and the
+     * on-chain check do not depend on that, so they stay one click away
+     * rather than disappearing with the summary.
+     */
+    return (
+      <div className="flex flex-col gap-3">
+        <p className="text-[13.5px] text-ink-2">{(query.error as Error).message} The original file and its check against the chain are still available.</p>
+        <div className="flex flex-wrap items-center gap-3 text-[13px]">
+          {deliverableUrl ? (
+            <a href={deliverableUrl} target="_blank" rel="noreferrer noopener nofollow" className="inline-flex items-center gap-1.5 font-medium link">
+              Open the delivered file <Icon.ArrowUpRight size={14} />
+            </a>
+          ) : (
+            <span className="text-ink-3">No readable link was published.</span>
+          )}
+          <Button size="s" intent={verify.verified ? 'ghost' : 'secondary'} onClick={verify.run} busy={verify.busy} disabled={verify.verified}>
+            {verify.verified ? 'Checked: matches' : 'Check it against the chain'}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+  if (!data || !data.delivered) {
+    return <p className="text-[13.5px] text-ink-2">Nothing has been delivered yet.</p>;
   }
 
   /*

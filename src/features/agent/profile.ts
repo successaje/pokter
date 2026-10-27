@@ -28,7 +28,7 @@ import type { TrackRecord } from '@/lib/history/record';
 import type { ProviderChoice } from '@/lib/hire/useHire';
 import { loadDossier, recommendedAlternatives, suggestedBudgetFor, type AgentDossier } from '@/lib/marketplace';
 import { resolveAgentImage, resolveAgentImages } from '@/lib/registry/image';
-import { VERDICT_LABEL, VERDICT_MEANING, type Verdict } from '@/lib/proof/engine';
+import { AVAILABILITY_LABEL, VERDICT_MEANING, type Verdict } from '@/lib/proof/engine';
 import { summarisePublishedEvidence, type PublishedEvidenceSummary } from '@/lib/proof/published';
 import { suggestionLabel, suggestionNote } from '@/lib/find/suggested';
 import { getProbeStore } from '@/lib/history/store';
@@ -345,7 +345,7 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
           source: category === 'unclassified' ? null : categorySignalSource(agent, category),
         }
       : null,
-    verdict: { id: verdict, label: VERDICT_LABEL[verdict], meaning: VERDICT_MEANING[verdict], rationale: verdictRationale, recommended: proof.recommendedForHire },
+    verdict: { id: verdict, label: AVAILABILITY_LABEL[verdict], meaning: VERDICT_MEANING[verdict], rationale: verdictRationale, recommended: proof.recommendedForHire },
     maturity,
     live: { answered: answeredNow, ratio: live.ratio, medianMs: live.medianMs, protocol: live.protocol, endpoint: live.endpoint, capabilities: live.capabilities.slice(0, 20) },
     sinceAnswer: daysSinceLastAnswer(record),

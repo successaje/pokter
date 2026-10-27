@@ -40,8 +40,12 @@ export interface CostBreakdown {
   agentFeesU: number;
   /** Gas, per month, in USD. */
   gasUsd: number;
-  /** Everything except the agent's own fee, which is denominated in $U. */
+  /** Everything except the agent's own fee. */
   onchainCostUsd: number;
+  /** The agent's fees in dollars, counting its dollar stablecoin price at $1 (`AGENT_FEE_USD_PER_UNIT`). */
+  agentFeesUsd: number;
+  /** Everything it costs to run, per month: on-chain costs and the agent's fees. */
+  totalCostUsd: number;
   /** Price impact of a single rebalance, as a fraction. */
   impactPerRebalance: number;
   /**
@@ -105,8 +109,16 @@ function priceImpact(
   return { impact, beyondRange: dx > reserve * 0.1 };
 }
 
-/** Gas per rebalance on BNB Chain, in USD. Deliberately generous. */
-const GAS_PER_REBALANCE_USD = 0.35;
+/** Gas per rebalance on BNB Chain, in USD. An estimate, deliberately generous; not read from chain. */
+export const GAS_PER_REBALANCE_USD = 0.35;
+
+/**
+ * The agent's price counted in dollars: $U, USDT, USDC and USD1 are dollar
+ * stablecoins, counted at $1 each, as Pokter's totals count them. The
+ * break-even left the agent's fee out because it was "in $U", so the
+ * headline was the cost of everything except the agent being judged.
+ */
+export const AGENT_FEE_USD_PER_UNIT = 1;
 
 export function computeCost(input: CostInput): CostBreakdown {
   const { pool, positionUsd, rebalancesPerMonth, agentFeeU, turnoverPerRebalance } =
@@ -124,11 +136,13 @@ export function computeCost(input: CostInput): CostBreakdown {
   const onchainCostUsd = swapFeesUsd + priceImpactUsd + gasUsd;
 
   const agentFeesU = agentFeeU * rebalancesPerMonth;
+  const agentFeesUsd = agentFeesU * AGENT_FEE_USD_PER_UNIT;
+  const totalCostUsd = onchainCostUsd + agentFeesUsd;
 
   // Annualised, and expressed against the position so an LP can compare it to
   // the APR the pool is already paying them.
   const breakEvenApr =
-    positionUsd > 0 ? ((onchainCostUsd * 12) / positionUsd) : 0;
+    positionUsd > 0 ? ((totalCostUsd * 12) / positionUsd) : 0;
 
   return {
     swapFeesUsd,
@@ -136,6 +150,8 @@ export function computeCost(input: CostInput): CostBreakdown {
     agentFeesU,
     gasUsd,
     onchainCostUsd,
+    agentFeesUsd,
+    totalCostUsd,
     impactPerRebalance: impact,
     breakEvenApr,
     beyondTickRange: beyondRange,

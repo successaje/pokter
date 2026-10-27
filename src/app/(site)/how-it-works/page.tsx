@@ -38,7 +38,7 @@ const STEPS = [
   {
     id: 'receive',
     title: 'Receive',
-    you: 'Wait. Your workspace shows the deadline and re-reads the job.',
+    you: 'Wait. My jobs shows the deadline and re-reads the job.',
     pokter: 'Tells the agent the job is funded and, for agents on another network, carries the task through its courier.',
     chain: 'The agent submits a hash of its deliverable. Pokter checks the file it serves matches that hash.',
   },

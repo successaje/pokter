@@ -237,7 +237,7 @@ export default async function JobEvidencePage({ params }: { params: Promise<Para
           </li>
         </ul>
         <p className="text-[13.5px] text-ink-3">
-          Funded this job? <Link href={jobHref(e)} className="link">Open it in your workspace</Link> to review it, dispute it or release the payment from your own wallet.
+          Funded this job? <Link href={jobHref(e)} className="link">Open it in My jobs</Link> to review it, dispute it or release the payment from your own wallet.
         </p>
       </DocSection>
     </Doc>

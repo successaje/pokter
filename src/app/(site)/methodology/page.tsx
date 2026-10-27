@@ -4,11 +4,12 @@ import Link from 'next/link';
 
 import { getEcosystemStats } from '@/lib/marketplace';
 import { supplyCensus } from '@/lib/census/supply';
-import { FAILING_MAX_SCORE, PROVEN_MIN_MEASURERS, PROVEN_MIN_PROBES, PROVEN_MIN_SCORE, PROVEN_MIN_WINDOW_DAYS, VERDICT_LABEL, VERDICT_MEANING, type Verdict } from '@/lib/proof/engine';
+import { FAILING_MAX_SCORE, PROVEN_MIN_MEASURERS, PROVEN_MIN_PROBES, PROVEN_MIN_SCORE, PROVEN_MIN_WINDOW_DAYS, AVAILABILITY_LABEL, VERDICT_MEANING, type Verdict } from '@/lib/proof/engine';
 import { DIMENSION_LABELS, DIMENSION_WEIGHTS, SCORE_VERSION } from '@/lib/score/types';
 import { Doc, DocSection } from '@/features/content/Doc';
 import { LEADERBOARD_METHOD } from '@/lib/leaderboard/method';
 import { MAINNET_ESCROW } from '@/lib/network/presentation';
+import { moneyWords } from '@/lib/integration/currencies';
 import { teamWalletList } from '@/lib/team/server';
 import { VerdictGlyph } from '@/ui/Verdict';
 import { LADDER, RELIABLE_MIN_RATE, RELIABLE_OBSERVED_DAYS, RELIABLE_TERMINAL_JOBS } from '@/lib/agents/maturity';
@@ -105,19 +106,23 @@ export default async function MethodologyPage() {
         {census && <p className="text-[12.5px] text-ink-3">Counted {new Date(census.observedAt).toUTCString().slice(5, 22)} UTC.</p>}
       </DocSection>
 
-      <DocSection id="states" title="The six evidence states">
-        <p>An agent&rsquo;s state is computed, never assigned. The thresholds below are the constants the proof engine uses.</p>
+      <DocSection id="states" title="Availability: the six states">
+        <p>
+          Whether an agent replies, computed from Pokter&rsquo;s probes and the attestations of anyone else who measured it, never assigned. It says nothing about whether its answers are right: that is the correctness check, a separate result. The thresholds below are the constants the proof engine uses; the term in brackets is the one search and the API use.
+        </p>
         <ul className="ruled border-y border-rule">
           {ORDER.map((v) => (
-            <li key={v} className="grid grid-cols-[24px_140px_minmax(0,1fr)] items-baseline gap-3 py-3.5">
+            <li key={v} className="grid grid-cols-[24px_minmax(0,1fr)] items-baseline gap-x-3 gap-y-1 py-3.5 sm:grid-cols-[24px_220px_minmax(0,1fr)]">
               <VerdictGlyph verdict={v} size={11} />
-              <span className="font-semibold text-ink">{VERDICT_LABEL[v]}</span>
-              <span className="text-[14px]">{VERDICT_MEANING[v]}</span>
+              <span className="font-semibold text-ink">
+                {AVAILABILITY_LABEL[v]} <span className="t-readout text-[12px] font-normal text-ink-3">({v})</span>
+              </span>
+              <span className="col-start-2 text-[14px] sm:col-start-auto">{VERDICT_MEANING[v]}</span>
             </li>
           ))}
         </ul>
         <p>
-          <strong>Proven</strong> requires at least {PROVEN_MIN_MEASURERS} independent measurers, {PROVEN_MIN_PROBES}+ probes, at least {PROVEN_MIN_WINDOW_DAYS} day of observation and an answer rate of {Math.round(PROVEN_MIN_SCORE * 100)}% or more. Pokter&rsquo;s own probes never count towards the independent measurers, which is why the Proven tier is currently empty on BNB Chain. <strong>Failing</strong> means measured, and answering at or below {Math.round(FAILING_MAX_SCORE * 100)}%.
+          <strong>{AVAILABILITY_LABEL.proven}</strong> requires at least {PROVEN_MIN_MEASURERS} independent measurers, {PROVEN_MIN_PROBES}+ probes, at least {PROVEN_MIN_WINDOW_DAYS} day of observation and an answer rate of {Math.round(PROVEN_MIN_SCORE * 100)}% or more. Pokter&rsquo;s own probes never count towards the independent measurers, which is why that state is currently empty on BNB Chain. <strong>{AVAILABILITY_LABEL.failing}</strong> means measured, and answering at or below {Math.round(FAILING_MAX_SCORE * 100)}%.
         </p>
         <p>&ldquo;Not measured&rdquo; is a statement about Pokter&rsquo;s coverage, not a verdict on the agent. Hiring an unmeasured or failing agent requires accepting a written warning first.</p>
       </DocSection>
@@ -236,7 +241,7 @@ export default async function MethodologyPage() {
       </DocSection>
 
       <DocSection id="prices" title="Signed prices">
-        <p>No registry field publishes what an agent charges. A price exists only inside a quote the agent signs when asked through its <span className="t-readout">negotiate</span> skill. Pokter keeps a quote only if its signature recovers to the agent&rsquo;s registered wallet, and only shows it as payable if it is in the token the escrow accepts. An agent that would not name a price is shown as &ldquo;no signed price&rdquo;, never given a default.</p>
+        <p>No registry field publishes what an agent charges. A price exists only inside a quote the agent signs when asked through its <span className="t-readout">negotiate</span> skill. Pokter keeps a quote only if its signature recovers to the agent&rsquo;s registered wallet, and only shows it as payable if it is in a token that escrow funds: {moneyWords(56)} on BNB Chain, or test {moneyWords(97)} on BNB testnet. An agent that would not name a price is shown as &ldquo;no signed price&rdquo;, never given a default.</p>
       </DocSection>
 
       <DocSection id="score" title="The Pokter Score">
@@ -259,7 +264,9 @@ export default async function MethodologyPage() {
 
       <DocSection id="never" title="What is never estimated">
         <p><strong>Returns and risk.</strong> No agent publishes realised returns, and nothing on chain attributes profit or loss to a specific agent&rsquo;s decision. Both read &ldquo;not measured&rdquo; permanently, rather than being inferred from uptime.</p>
-        <p><strong>Popularity and ratings.</strong> There are no star ratings or view counts. Reviews exist only when signed by the wallet that funded a completed job.</p>
+        <p>
+          <strong>Popularity.</strong> Nothing is ranked by popularity: there are no view counts, likes or ratings from people who never hired the agent, and no ordering on Pokter uses review scores. Buyer reviews do carry a rating out of 5, but only from the wallet that funded a completed job, and only when that wallet signs it.
+        </p>
       </DocSection>
 
       <DocSection id="team-wallets" title="Pokter's own hires">
@@ -286,7 +293,7 @@ export default async function MethodologyPage() {
           <li>Probes run every few hours, so a short outage between sweeps is not seen.</li>
           <li>
             {MAINNET_ESCROW
-              ? 'An agent that signs its price in mainnet $U is hired on BNB Chain and paid directly. Any other agent is hired on BNB testnet, where Pokter’s courier carries the task to agents registered on mainnet and returns the agent’s answer unchanged, or nothing.'
+              ? `An agent that signs its price in ${moneyWords(56)} on BNB Chain is hired there and paid in that token. One that signs in a test token, or signs no price, is hired on BNB testnet, where Pokter’s courier carries the task to agents registered on mainnet and returns the agent’s answer unchanged, or nothing.`
               : 'Escrow currently runs on BNB testnet. Delivery for agents registered on mainnet goes through Pokter’s testnet courier, which carries the task and returns the agent’s answer unchanged, or nothing.'}
           </li>
           <li>The ERC-8004 validation registry is not deployed on BSC, so no validator attestations exist to use.</li>
