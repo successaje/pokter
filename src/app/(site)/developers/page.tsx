@@ -106,9 +106,9 @@ export default function Developers() {
         </p>
         <ol className="ruled border-y border-rule text-[14px]">
           {API_CHANGES.map((change) => (
-            <li key={`${change.date}-${change.summary}`} className="flex flex-col gap-2 py-4">
+            <li key={change.summary} className="flex flex-col gap-2 py-4">
               <span className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                <span className="t-readout text-[12.5px] text-ink-3">{change.date} · {change.release}</span>
+                <span className="t-readout text-[12.5px] text-ink-3">{change.release ? `${change.date} · ${change.release}` : 'Unreleased'}</span>
                 <span className={change.kind === 'breaking' ? 'text-[12.5px] font-semibold text-bad' : change.kind === 'changed' ? 'text-[12.5px] font-semibold text-watch' : 'text-[12.5px] font-semibold text-ink-2'}>
                   {change.kind === 'breaking' ? 'Breaking' : change.kind === 'changed' ? 'Changed' : 'Added'}
                 </span>

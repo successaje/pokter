@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
 
 import { amountToRaw, bidMessage, requestAmountLabel, requestTokenOf, requestUnit, withinBudget, type BidContent } from '@/lib/briefs/model';
+import { DELIVERY_OPTIONS, type ProposalPrefill } from '@/lib/briefs/public-view';
 import { amountWithinLimits, budgetLimitsFor } from '@/lib/hire/budget-limits';
 import { cn } from '@/lib/ui/cn';
 import { shortAddress } from '@/lib/ui/format';
@@ -23,7 +24,6 @@ import { Icon } from '@/ui/icons';
 export type ProposalRequest = { id: string; title: string; chainId: number; deliverDays: number; budgetU: number; budgetRaw: string; paymentToken: string | null; poster: string };
 type Agent = { chainId: number; tokenId: string; name: string; imageUrl: string | null; category: string | null; owner?: string };
 
-const DELIVERY_OPTIONS = [1, 2, 3, 5, 7, 14, 30];
 const days = (n: number) => (n === 1 ? '1 day' : `${n} days`);
 
 /**
@@ -38,7 +38,7 @@ const days = (n: number) => (n === 1 ? '1 day' : `${n} days`);
  * One agent per proposal, because the signed proposal, the choice and the
  * hire each name one agent. Selecting an agent never calls it.
  */
-export function ProposalForm({ request }: { request: ProposalRequest }) {
+export function ProposalForm({ request, prefill = null }: { request: ProposalRequest; prefill?: (Omit<ProposalPrefill, 'deliverDays'> & { deliverDays: number | null }) | null }) {
   const router = useRouter();
   const { openConnect } = useConnect();
   const { address, canSign, sign } = useActiveSigner();
@@ -48,10 +48,28 @@ export function ProposalForm({ request }: { request: ProposalRequest }) {
   const limits = token ? budgetLimitsFor(token) : null;
   const budgetLabel = requestAmountLabel(request, request.budgetU);
 
-  const [agent, setAgent] = useState<Agent | null>(null);
-  const [note, setNote] = useState('');
-  const [price, setPrice] = useState('');
-  const [deliverDays, setDeliverDays] = useState(DELIVERY_OPTIONS.includes(request.deliverDays) ? request.deliverDays : 3);
+  /*
+   * A proposal prepared elsewhere (an assistant's prepare_proposal) opens
+   * filled in. Its agent is looked up the way "Add by ID" looks one up, so
+   * the owner sees which agent it is and who owns it; every field stays
+   * editable, and nothing is sent until the owner signs.
+   */
+  const prefilled = useQuery({
+    queryKey: ['proposal-prefill-agent', prefill?.agentChainId, prefill?.agentTokenId],
+    enabled: Boolean(prefill),
+    queryFn: async (): Promise<Agent> => {
+      const r = await fetch(`/api/builders/agent?chainId=${prefill!.agentChainId}&tokenId=${prefill!.agentTokenId}`, { cache: 'no-store' });
+      const body = (await r.json().catch(() => ({}))) as Agent & { error?: string };
+      if (!r.ok) throw new Error(body.error ?? 'That agent could not be found.');
+      return body;
+    },
+  });
+  /* `undefined` until the owner picks or clears one by hand; until then the prepared agent stands. */
+  const [picked, setAgent] = useState<Agent | null | undefined>(undefined);
+  const agent = picked === undefined ? (prefilled.data ?? null) : picked;
+  const [note, setNote] = useState(prefill?.note ?? '');
+  const [price, setPrice] = useState(prefill?.price ?? '');
+  const [deliverDays, setDeliverDays] = useState<number>(prefill?.deliverDays ?? ((DELIVERY_OPTIONS as readonly number[]).includes(request.deliverDays) ? request.deliverDays : 3));
   const [step, setStep] = useState<'write' | 'review'>('write');
   const [problems, setProblems] = useState<Partial<Record<'agent' | 'note' | 'price', string>>>({});
   const [busy, setBusy] = useState(false);
@@ -180,6 +198,13 @@ export function ProposalForm({ request }: { request: ProposalRequest }) {
 
   return (
     <div className="flex flex-col gap-5">
+      {prefill && (
+        <Notice tone="watch" title="Filled in for you">
+          {prefilled.isError
+            ? `A prepared proposal named agent ${prefill.agentChainId}:${prefill.agentTokenId}, which could not be found. Add the agent yourself.`
+            : 'These values came from the link you opened. Anyone can edit a link, so they say nothing about who prepared them. Check every field before you review and sign: nothing is sent until you do.'}
+        </Notice>
+      )}
       <AgentField agent={agent} verified={verified} onChange={setAgent} error={problems.agent} />
 
       <Field label="Your approach" hint="How it will do the work and what it will deliver. Say here if you would change anything in the request." error={problems.note}>

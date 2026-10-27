@@ -7,6 +7,18 @@ import { POST as prepareHire } from '@/app/api/hire/prepare/route';
 import { GET as jobDetail } from '@/app/api/jobs/[jobId]/route';
 import { GET as jobReportCheck } from '@/app/api/jobs/[jobId]/report-check/route';
 import { CHECK_DELIVERY, HIRE_TOOL_CHAIN, JOB_STATUS, PREPARE_BRIEF, PREPARE_HIRE } from '@/lib/assistant/tools';
+import { GET_REQUEST, PREPARE_PROPOSAL, PROPOSAL_TOOL_CHAIN, SEARCH_REQUESTS } from '@/lib/assistant/request-tools';
+import { GET as requestList } from '@/app/api/v1/requests/route';
+import { GET as requestOne } from '@/app/api/v1/requests/[id]/route';
+import { acceptsProposals, bidMessage, parseBidContent, requestAmountLabel, requestStatus, requestTokenOf, withinBudget } from '@/lib/briefs/model';
+import { DELIVERY_OPTIONS, filterRequests, plainNote, proposalLink, requestSummary } from '@/lib/briefs/public-view';
+import { requestHired } from '@/lib/briefs/hired-status';
+import { getBriefStore } from '@/lib/briefs/store';
+import { classify } from '@/lib/agents/categories';
+import { registryOwner } from '@/lib/registry/onchain';
+import { getAgent } from '@/lib/scan/client';
+import { displaySymbol } from '@/lib/network/tokens';
+import { getAddress } from 'viem';
 import { CATEGORIES } from '@/lib/agents/categories';
 import { integrationKit } from '@/lib/integration/live';
 import { AGENT_CARD_HTML } from '@/lib/mcp/agent-card-html';
@@ -435,6 +447,128 @@ function tools(request: Request): McpTool[] {
         };
       },
     },
+    /*
+     * The other side: work for an agent rather than an agent for a task.
+     * All three read. A proposal commits its owner's business, so it is
+     * sent only by the owner's wallet from the request's page; the third
+     * tool checks one and hands over the link, and writes nothing.
+     */
+    {
+      ...SEARCH_REQUESTS,
+      async run(args) {
+        const limit = Math.min(Math.max(Number(args.limit) || 8, 1), 20);
+        const forAgent = args.for_agent && typeof args.for_agent === 'object' ? (args.for_agent as { chain_id?: unknown; token_id?: unknown }) : null;
+        if (!forAgent) {
+          const url = new URL('/api/v1/requests', local);
+          if (typeof args.query === 'string' && args.query.trim()) url.searchParams.set('q', args.query.slice(0, 200));
+          if (typeof args.category === 'string') url.searchParams.set('category', args.category);
+          if (chain(args.chain_id)) url.searchParams.set('chain', String(args.chain_id));
+          if (args.include_closed === true) url.searchParams.set('status', 'all');
+          url.searchParams.set('limit', String(limit));
+          return read(await requestList(forward(url.href)));
+        }
+        const c = chain(forAgent.chain_id);
+        const t = token(forAgent.token_id);
+        if (!c || !t) return { data: { error: 'for_agent needs chain_id (56 or 97) and token_id.' }, isError: true };
+        /*
+         * Matched the way the builders' own alerts match: by the category
+         * the agent is listed under and the category the poster signed,
+         * never by reading either text, and never the owner's own requests.
+         */
+        const [owner, listed] = await Promise.all([registryOwner(c, t).catch(() => null), getAgent(c as 56 | 97, t).catch(() => null)]);
+        if (!owner) return { data: { error: `The registry has no agent ${c}/${t}, or did not answer. Check the id with get_agent.` }, isError: true };
+        const category = listed ? classify(listed) : 'unclassified';
+        if (category === 'unclassified') {
+          return { data: { agent: { chainId: c, tokenId: t, category: null }, total: 0, requests: [], note: 'Pokter does not list this agent under any category, so no request is matched to it. Search by words instead (query), or read the open requests without a filter.' } };
+        }
+        const store = getBriefStore();
+        const now = Date.now();
+        const found = filterRequests(store.all(), { query: typeof args.query === 'string' ? args.query : '', category, chainId: chain(args.chain_id), openOnly: args.include_closed !== true }, now).filter((brief) => brief.poster.toLowerCase() !== owner.toLowerCase());
+        return {
+          data: {
+            agent: { chainId: c, tokenId: t, name: listed?.name ?? null, category, owner },
+            total: found.length,
+            requests: found.slice(0, limit).map((brief) => {
+              const bids = store.bidsFor(brief.id);
+              return requestSummary(brief, { proposals: bids.length, hired: requestHired(brief, bids) }, origin, now);
+            }),
+            ...(found.length === 0 ? { note: 'No open request in this agent’s category right now. Requests are posted at any time; the board is at /requests.' } : {}),
+          },
+        };
+      },
+    },
+    {
+      ...GET_REQUEST,
+      async run(args) {
+        const id = typeof args.request_id === 'string' && /^[0-9a-fA-F-]{8,64}$/.test(args.request_id) ? args.request_id : null;
+        if (!id) return { data: { error: 'request_id is the request’s id, as search_requests returns it.' }, isError: true };
+        return read(await requestOne(forward(new URL(`/api/v1/requests/${id}`, local).href), { params: Promise.resolve({ id }) }));
+      },
+    },
+    {
+      ...PREPARE_PROPOSAL,
+      async run(args) {
+        const id = typeof args.request_id === 'string' && /^[0-9a-fA-F-]{8,64}$/.test(args.request_id) ? args.request_id : null;
+        const c = chain(args.agent_chain_id);
+        const t = token(args.agent_token_id);
+        const days = Number(args.deliver_days);
+        /* As plain text: what the owner reads in the form is what they sign. */
+        const note = typeof args.note === 'string' ? plainNote(args.note).trim() : '';
+        if (!id || !c || !t) return { data: { error: 'request_id, agent_chain_id (56 or 97) and agent_token_id are required.' }, isError: true };
+        if (typeof args.price !== 'number' || !(args.price > 0)) return { data: { error: 'price is required: what the agent will do it for, in whole units of the request’s token. Ask the owner.' }, isError: true };
+        if (!(DELIVERY_OPTIONS as readonly number[]).includes(days)) return { data: { error: `deliver_days must be one of ${DELIVERY_OPTIONS.join(', ')}.` }, isError: true };
+        if (!note) return { data: { error: 'note is required: how the agent will do the work. Buyers compare proposals on it.' }, isError: true };
+
+        const store = getBriefStore();
+        const brief = store.get(id);
+        if (!brief) return { data: { error: 'No such request.' }, isError: true };
+        if (!acceptsProposals(brief)) return { data: { error: `This request is not taking proposals (${requestStatus(brief).label}).` }, isError: true };
+        const asked = requestTokenOf(brief);
+        /* The same reading the proposal route applies, so a proposal prepared here is one it accepts. */
+        const parsed = parseBidContent({ agentChainId: c, agentTokenId: t, priceU: args.price, paymentToken: asked?.address ?? null, deliverDays: days, note }, brief);
+        if (!parsed.ok) return { data: { error: parsed.error }, isError: true };
+        if (!withinBudget(parsed.content, brief)) return { data: { error: `The price is above this request’s budget of ${requestAmountLabel(brief, brief.budgetU)}. Propose at or under it.` }, isError: true };
+
+        const owner = await registryOwner(c, t).catch(() => null);
+        if (!owner) return { data: { error: 'The registry did not answer for that agent, or it does not exist, so Pokter cannot say who may propose for it.' }, isError: true };
+        if (typeof args.owner_address === 'string' && /^0x[0-9a-fA-F]{40}$/.test(args.owner_address) && getAddress(args.owner_address) !== owner) {
+          return { data: { error: `Only the wallet the registry names as this agent’s owner can propose for it: ${owner}. ${args.owner_address} is not it, and its signature would be refused.`, owner }, isError: true };
+        }
+
+        const warnings: string[] = [];
+        if (owner.toLowerCase() === brief.poster.toLowerCase()) warnings.push('This wallet posted the request. The request page does not offer a proposal to its own poster.');
+        const record = await detail(c, t);
+        const blocker = (record?.hireBlocker as { reason?: string } | null | undefined)?.reason;
+        if (blocker) warnings.push(`The agent cannot be quoted right now: ${blocker} A chosen proposal is hired against a quote the agent signs, so this needs fixing before the poster chooses.`);
+        const signed = record?.price as { currency?: string | null } | null | undefined;
+        if (asked && signed?.currency && signed.currency.toLowerCase() !== asked.address.toLowerCase()) {
+          warnings.push(`The agent’s last signed price is in another token. Hired from this proposal, it must sign in ${displaySymbol(asked)} at or under the proposed price, or the hire stops before anything is funded.`);
+        }
+        const current = store.bidFor(id, c, t);
+        if (current) warnings.push(`Signing this replaces the agent’s current proposal on this request (${requestAmountLabel(brief, current.priceU)}, placed ${current.placedAt}).`);
+
+        const link = proposalLink(origin, id, { agentChainId: c as 56 | 97, agentTokenId: t, price: String(args.price), deliverDays: days as (typeof DELIVERY_OPTIONS)[number], note });
+        if (!link.noteInLink) warnings.push('The note is too long to carry in a link, so the link leaves it out: give the owner the note to paste into the form.');
+        return {
+          data: {
+            request: requestSummary(brief, { proposals: store.bidsFor(id).length, hired: false }, origin),
+            proposal: {
+              agent: { chainId: c, tokenId: t, name: typeof record?.name === 'string' ? record.name : null, page: `${origin}/agents/${c}/${t}` },
+              price: requestAmountLabel(brief, args.price),
+              deliverDays: days,
+              note,
+            },
+            signer: { wallet: owner, rule: 'The wallet the ERC-8004 registry names as the agent’s owner, read when the proposal is sent. The agent’s own wallet cannot sign it.' },
+            messageToSign: bidMessage({ ...parsed.content, chainId: brief.chainId, briefId: id, bidder: owner, placedAt: '<the moment the owner signs>' }),
+            warnings,
+            url: link.url,
+            noteInLink: link.noteInLink,
+            authorizes: 'Nothing. The link only fills in a form, and anyone can edit a link. The proposal exists once the agent’s owner signs it, and when it is sent Pokter checks again that the request is taking proposals, the price is in its token and within its budget, and the signer is the agent’s owner in the registry.',
+            next: 'The owner opens the link with the owner wallet connected, checks every field and signs. Nothing has been sent or stored: the proposal exists only once they sign, and it must reach Pokter within 10 minutes of signing. Never say a proposal was made until they have.',
+          },
+        };
+      },
+    },
     {
       name: 'integration_kit',
       title: 'What an agent needs to be hired',
@@ -448,7 +582,7 @@ function tools(request: Request): McpTool[] {
          * step here is a tool except the two that move money, which are the
          * owner's own and have no tool at all.
          */
-        return { data: { ...integrationKit(origin), hireFlow: HIRE_TOOL_CHAIN } };
+        return { data: { ...integrationKit(origin), hireFlow: HIRE_TOOL_CHAIN, proposalFlow: PROPOSAL_TOOL_CHAIN } };
       },
     },
   ];

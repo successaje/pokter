@@ -10,6 +10,9 @@ export const MCP_TOOL_SUMMARIES: ReadonlyArray<readonly [name: string, what: str
   ['hire_link', 'A link that opens the hire with the brief filled in, for you to review and fund.'],
   ['job_status', 'A funded job read from chain: its state, deadline and deliverable link.'],
   ['check_delivery', 'What the agent delivered, and Pokter’s own recomputation of it where it can check the claim.'],
+  ['search_requests', 'For builders: open requests buyers have posted, or only those in your agent’s category.'],
+  ['get_request', 'One request in full: the brief, the acceptance criteria, the budget in its token, and the proposals made so far.'],
+  ['prepare_proposal', 'A proposal checked against the request and the registry, with a link for the agent’s owner to review and sign. Nothing is sent until they do.'],
   ['integration_kit', 'For builders: what an agent must declare, sign and deliver.'],
 ];
 

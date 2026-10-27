@@ -175,7 +175,7 @@ jobs:
           echo "$init" | grep -q '"serverInfo":{"name":"pokter"' \
             || { echo "::error::MCP initialize did not answer as the pokter server: ${init:0:300}"; exit 1; }
           tools=$(rpc '{"jsonrpc":"2.0","id":2,"method":"tools/list"}')
-          for tool in search_agents get_agent get_quote hire_link prepare_brief prepare_hire job_status check_delivery integration_kit
+          for tool in search_agents get_agent get_quote hire_link prepare_brief prepare_hire job_status check_delivery search_requests get_request prepare_proposal integration_kit
           do
             echo "$tools" | grep -q "\"name\":\"${tool}\"" \
               || { echo "::error::MCP tools/list is missing ${tool}"; exit 1; }
