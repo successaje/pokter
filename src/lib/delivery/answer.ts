@@ -3,9 +3,10 @@
  *
  * Agents shape their results differently, but most say the same few
  * things under a handful of names: the result in a sentence (`answer`,
- * `summary`), when the data was read (`as_of`), where it came from
- * (`sources`) and what it does not cover (`assumptions`, `warning`,
- * `note`). Those lead; everything else follows as labelled fields.
+ * `summary`), a one-word judgement (`verdict`) and why (`reasons`), when
+ * the data was read (`as_of`), where it came from (`sources`) and what it
+ * does not cover (`assumptions`, `not_checked`). Those lead; everything
+ * else follows as labelled fields, the data behind the answer.
  *
  * All of it is untrusted text from the agent. It is returned as data and
  * rendered as text, never as markup, and nothing in it is followed.
@@ -15,6 +16,10 @@ export interface DeliveredAnswer {
   title: string | null;
   /** The result in the agent's own words, when it gave one. */
   result: string | null;
+  /** A short judgement ("Caution", "Safe"), when the agent gave one, with how it reads. */
+  verdict: { text: string; tone: AnswerTone } | null;
+  /** Why, one line each, with the agent's own level where it gave one. */
+  reasons: Array<{ text: string; tone: AnswerTone }>;
   /** When the agent says it read the data: a time, a block, or both. */
   asOf: { time: string | null; block: string | null } | null;
   sources: string[];
@@ -27,10 +32,52 @@ export interface DeliveredAnswer {
   generatedAt: string | null;
 }
 
+/** How a verdict or reason reads, from the agent's own word for it; null when it is not one Pokter recognises. */
+export type AnswerTone = 'ok' | 'watch' | 'bad' | null;
+
 const ASKED = ['question', 'task', 'subject', 'brief'];
 const RESULT = ['answer', 'summary', 'result', 'recommendation', 'conclusion'];
+const VERDICT = ['verdict', 'rating', 'risk_level', 'assessment', 'outcome', 'grade'];
+const REASONS = ['reasons', 'findings', 'why', 'rationale', 'flags', 'risks'];
 const SOURCES = ['sources', 'data_sources', 'source'];
-const LIMITS = ['limitations', 'assumptions', 'caveats', 'warning', 'warnings', 'note', 'notes'];
+const LIMITS = ['limitations', 'not_checked', 'notChecked', 'unchecked', 'out_of_scope', 'assumptions', 'caveats', 'warning', 'warnings', 'note', 'notes'];
+
+/*
+ * Words agents use for how something reads. Only these colour a verdict
+ * or a reason; anything else is shown in the agent's words, uncoloured,
+ * rather than Pokter guessing whether "Moderate" is good news.
+ */
+const TONES: Record<Exclude<AnswerTone, null>, string[]> = {
+  ok: ['ok', 'pass', 'passed', 'good', 'safe', 'low', 'healthy', 'fine', 'clear', 'info'],
+  watch: ['caution', 'warn', 'warning', 'medium', 'moderate', 'watch', 'review', 'risky'],
+  bad: ['bad', 'fail', 'failed', 'high', 'danger', 'dangerous', 'critical', 'unsafe', 'avoid', 'scam', 'honeypot'],
+};
+
+export function toneOf(word: unknown): AnswerTone {
+  if (typeof word !== 'string') return null;
+  const w = word.trim().toLowerCase();
+  for (const tone of ['bad', 'watch', 'ok'] as const) if (TONES[tone].includes(w)) return tone;
+  return null;
+}
+
+/** A verdict is a short judgement; a paragraph under that key is a result, not a verdict. */
+function verdictFrom(value: unknown): DeliveredAnswer['verdict'] {
+  const t = text(value);
+  return t && t.length <= 40 ? { text: t, tone: toneOf(t) } : null;
+}
+
+/** Reasons as lines, keeping a level the agent attached to each (`{ level, finding }`). */
+function reasonsFrom(value: unknown): DeliveredAnswer['reasons'] {
+  if (!Array.isArray(value)) return lines(value).map((t) => ({ text: t, tone: null }));
+  return value.flatMap((item) => {
+    if (typeof item === 'string') return item.trim() ? [{ text: item.trim(), tone: null }] : [];
+    if (!item || typeof item !== 'object') return [];
+    const o = item as Record<string, unknown>;
+    const said = text(o.finding) ?? text(o.text) ?? text(o.reason) ?? text(o.message) ?? text(o.detail) ?? text(o.description);
+    if (said) return [{ text: said, tone: toneOf(o.level ?? o.severity ?? o.status ?? o.tone) }];
+    return lines([item]).map((t) => ({ text: t, tone: null }));
+  });
+}
 const PLUMBING = new Set(['agent', 'agentid', 'chainid', 'job', 'deliveredat', 'title', 'as_of', 'asof']);
 
 const text = (value: unknown): string | null => (typeof value === 'string' && value.trim() ? value.trim() : null);
@@ -80,7 +127,7 @@ function asOfFrom(value: unknown): DeliveredAnswer['asOf'] {
 }
 
 export function readDeliveredAnswer(manifestText: string): DeliveredAnswer {
-  const empty: DeliveredAnswer = { asked: null, title: null, result: null, asOf: null, sources: [], limitations: [], fields: [], raw: null, producer: null, generatedAt: null };
+  const empty: DeliveredAnswer = { asked: null, title: null, result: null, verdict: null, reasons: [], asOf: null, sources: [], limitations: [], fields: [], raw: null, producer: null, generatedAt: null };
   let manifest: { response?: { content?: unknown }; metadata?: Record<string, unknown> };
   try {
     manifest = JSON.parse(manifestText) as typeof manifest;
@@ -107,14 +154,18 @@ export function readDeliveredAnswer(manifestText: string): DeliveredAnswer {
   const pick = (keys: string[]) => keys.find((key) => object![key] !== undefined && object![key] !== null && object![key] !== '');
   const askedKey = pick(ASKED);
   const resultKey = RESULT.find((key) => text(object![key]));
+  const verdictKey = VERDICT.find((key) => verdictFrom(object![key]));
+  const reasonsKey = pick(REASONS);
   const sourceKey = pick(SOURCES);
   const limitKeys = LIMITS.filter((key) => object![key] !== undefined && object![key] !== null && object![key] !== '');
-  const used = new Set([askedKey, resultKey, sourceKey, ...limitKeys].filter(Boolean) as string[]);
+  const used = new Set([askedKey, resultKey, verdictKey, reasonsKey, sourceKey, ...limitKeys].filter(Boolean) as string[]);
 
   return {
     asked: askedKey ? briefText(object[askedKey]) : null,
     title: text(object.title),
     result: resultKey ? text(object[resultKey]) : null,
+    verdict: verdictKey ? verdictFrom(object[verdictKey]) : null,
+    reasons: reasonsKey ? reasonsFrom(object[reasonsKey]) : [],
     asOf: asOfFrom(object.as_of ?? object.asOf),
     sources: sourceKey ? lines(object[sourceKey]) : [],
     limitations: limitKeys.flatMap((key) => lines(object![key])),

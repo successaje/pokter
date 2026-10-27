@@ -21,7 +21,7 @@ import { rememberJob } from '@/lib/wallet/activity';
 import { AgentAvatar } from '@/ui/Agent';
 import { Button, LinkButton } from '@/ui/Button';
 import { Breadcrumbs } from '@/ui/Controls';
-import { jobEvidencePath } from '@/lib/jobs/evidence-view';
+import { jobEvidencePath, utcWhen } from '@/lib/jobs/evidence-view';
 import { Address, Details, TxLink } from '@/ui/Data';
 import { EmptyState, Notice, Skeleton } from '@/ui/Feedback';
 import { Checkbox } from '@/ui/Field';
@@ -254,9 +254,14 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
           <div className="flex flex-col gap-1.5">
             <h1 className="t-h2">{job.agentName}</h1>
             <p className="text-[13px] text-ink-3">
-              Job <span className="t-readout">#{job.jobId}</span> · {chainLabel(job.chainId)} · hired {new Date(job.hiredAt).toLocaleString()}
+              Job <span className="t-readout">#{job.jobId}</span> · {chainLabel(job.chainId)} · hired {utcWhen(job.hiredAt) ?? 'at an unrecorded time'}
             </p>
-            {dispute ? <span className="text-sm font-medium text-watch">Disputed · voters deciding</span> : <PhaseLabel job={job} className="text-sm" />}
+            {/* The one date a delivered job turns on, beside its status rather than inside a paragraph further down. */}
+            {dispute ? (
+              <span className="text-sm font-medium text-watch">Disputed · voters deciding</span>
+            ) : (
+              <PhaseLabel job={job} className="text-sm" label={review && phase === 'review' ? (review.open ? `Delivered · review by ${review.closes}` : `Delivered · review closed ${review.closes}`) : undefined} />
+            )}
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -293,13 +298,14 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
       {(job.status === 'SUBMITTED' || job.status === 'COMPLETED' || job.status === 'REJECTED') && <ReportCheck job={job} />}
 
       {/* The one thing that matters now */}
-      <section aria-labelledby="now-title" className={cn('flex flex-col gap-4 rounded-[16px] border p-5 sm:p-6', meta.needsYou ? 'border-ink bg-raised shadow-lift' : 'border-rule bg-raised')}>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="flex flex-col gap-1">
-            <span className="t-label">{meta.needsYou ? 'Your move' : 'Status'}</span>
+      {/* "Your move" only to the wallet that can make it; anyone else is reading a status. */}
+      <section aria-labelledby="now-title" className={cn('flex flex-col gap-4 rounded-[16px] border p-5 sm:p-6', meta.needsYou && owned ? 'border-ink bg-raised shadow-lift' : 'border-rule bg-raised')}>
+        <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+          <div className="flex min-w-0 flex-1 basis-[22rem] flex-col gap-1">
+            <span className="t-label">{meta.needsYou && owned ? 'Your move' : 'Status'}</span>
             <h2 id="now-title" className="t-h3">{meta.next}</h2>
           </div>
-          <div className="text-right">
+          <div className="shrink-0 sm:text-right">
             <span className="t-label">Escrow</span>
             <p className="t-readout text-xl">{budgetOf(job)}</p>
           </div>
