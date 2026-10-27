@@ -72,7 +72,7 @@ Job 57102 belongs to another buyer and another agent, and was funded in $U.
 
 ### Not part of the session
 
-- Testnet USDT is supported and fork-tested but not turned on.
+- Testnet USDT was turned on afterwards, on 27 October 2026. It is a test token with no value, and it was not part of the session.
 - Testnet USDC is rejected by the testnet escrow, and USD1 has no testnet contract.
 
 ## The plan, as it was run
