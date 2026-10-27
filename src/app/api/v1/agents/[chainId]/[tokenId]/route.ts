@@ -7,7 +7,7 @@ import { dossierLadder } from '@/lib/agents/dossier-ladder';
 import { ALTANA_NETWORK } from '@/lib/altana/client';
 import { escrowOptionsForHire } from '@/lib/network/escrow';
 import { apiError, apiJson, apiOptions, apiRateLimit, originOf } from '@/lib/api/respond';
-import { currentHireBlockerWithCard, type BlockerSource } from '@/lib/hire/blocker-live';
+import { currentHireBlockerWithCard, currentPriceCheck, type BlockerSource } from '@/lib/hire/blocker-live';
 
 export const dynamic = 'force-dynamic';
 /*
@@ -84,6 +84,8 @@ export async function GET(
    * is the one case this endpoint used to answer with no blocker at all.
    */
   const blocker = await currentHireBlockerWithCard(agent, quote, payable, agent.services?.a2a?.endpoint);
+  const priceCheck = currentPriceCheck(agent, quote);
+  const generatedAt = new Date().toISOString();
 
   return apiJson({
     version: API_VERSION,
@@ -170,6 +172,21 @@ export async function GET(
     },
 
     /*
+     * The most recent price check, apart from the price below, which is the
+     * last one that succeeded. A buyer's failed request is not here: it can
+     * be about that buyer's brief, and its details are the buyer's.
+     */
+    priceCheck: priceCheck
+      ? {
+          at: priceCheck.at,
+          outcome: priceCheck.outcome,
+          source: priceCheck.source,
+          provenance: 'pokter-measured',
+          note: '`outcome` is `signed` or the failure code; `source` is `scheduled` (Pokter’s own check) or `buyer` (a signed quote a buyer’s brief got).',
+        }
+      : null,
+
+    /*
      * Null is a fact about the agent: it has never returned a signed quote.
      * `payable` is whether the escrow Pokter would fund the hire on settles
      * in the quoted token; a price nobody can pay is still a price, and is
@@ -242,7 +259,9 @@ export async function GET(
       diagnostic: `${origin}/compatibility`,
       methodology: `${origin}/methodology`,
     },
-    observedAt: new Date().toISOString(),
+    /* When this response was built. `observedAt` is the same, kept for older callers; a price's own time is `price.quotedAt`. */
+    generatedAt,
+    observedAt: generatedAt,
   },
   200,
   /*

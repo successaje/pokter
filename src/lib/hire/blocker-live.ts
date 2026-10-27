@@ -3,7 +3,7 @@ import 'server-only';
 import { getProbeStore } from '@/lib/history/store';
 import { readCardForPage } from '@/lib/agents/agent-card';
 import type { CardProblem } from '@/lib/agents/card-read';
-import { decideHireBlocker, type BlockerSource, type HireBlocker } from './blocker';
+import { decideHireBlocker, latestPriceCheck, type BlockerSource, type HireBlocker } from './blocker';
 
 export type { BlockerSource } from './blocker';
 
@@ -67,7 +67,8 @@ export async function currentHireBlockerWithCard(
   endpoint: string | null | undefined,
 ): Promise<(HireBlocker & { observedAt: string | null; from: BlockerSource }) | null> {
   /*
-   * A quote an escrow can pay settles it, so no card is read.
+   * A quote an escrow can pay, with nothing on record since, settles it,
+   * so no card is read.
    *
    * Checked before the read and not after it, because the blocker alone
    * cannot say which happened: `currentHireBlocker` answers null both for
@@ -78,16 +79,27 @@ export async function currentHireBlockerWithCard(
    * endpoint, whose result is then discarded, since the same quote makes
    * the second decision null too.
    */
-  if (quote && payable !== false) return null;
   /*
    * `from` comes back with the blocker rather than being assigned here. A
    * wrapper labelling everything that is not the card read as the sweep
    * would be guessing, and would be wrong as soon as the decision grows a
    * third source.
+   *
+   * The record is asked first, and it costs no request: a failure stored
+   * since the quote has to be able to show. This returned null on any
+   * payable quote before consulting it, so the rule that a newer failure
+   * outranks an older price held on the agent's page and not here.
    */
   const onRecord = currentHireBlocker(agent, quote, payable);
   if (onRecord) return onRecord;
+  if (quote && payable !== false) return null;
   const readAt = new Date().toISOString();
   const card = await readCardForPage(endpoint, agent.token_id).catch(() => null);
   return currentHireBlocker(agent, quote, payable, card ? { problem: card.problem, readAt } : null);
+}
+
+/** The most recent price check on record for an agent (`latestPriceCheck`), beside its last signed price. */
+export function currentPriceCheck(agent: { chain_id: number; token_id: string }, quote: { quotedAt: string } | null) {
+  const store = getProbeStore();
+  return latestPriceCheck({ quote, failed: store.quoteFailureFor(agent.chain_id, agent.token_id), brief: store.briefQuote(agent.chain_id, agent.token_id) });
 }

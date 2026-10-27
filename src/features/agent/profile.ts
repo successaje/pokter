@@ -43,8 +43,8 @@ import type { AgentMaturity } from '@/lib/agents/maturity';
 import { dossierLadder } from '@/lib/agents/dossier-ladder';
 import { readinessRows, type ReadinessRow } from '@/lib/agents/readiness';
 import { chainLabel } from '@/lib/network/presentation';
-import type { HireBlocker } from '@/lib/hire/blocker';
-import { currentHireBlocker } from '@/lib/hire/blocker-live';
+import type { HireBlocker, PriceCheckSource } from '@/lib/hire/blocker';
+import { currentHireBlocker, currentPriceCheck } from '@/lib/hire/blocker-live';
 import { clipAtWord } from '@/lib/ui/clip';
 import { agentReadings, type PlatformBenchmark } from '@/lib/benchmark/platform';
 import { currentPlatformBenchmark } from '@/lib/benchmark/platform-server';
@@ -184,6 +184,8 @@ export interface AgentProfile {
    * signed price, or was never asked.
    */
   hireBlocker: (HireBlocker & { observedAt: string | null }) | null;
+  /** The most recent price check, beside the last signed price (`latestPriceCheck`). */
+  priceCheck: { at: string; outcome: string; source: PriceCheckSource } | null;
   /** Each observation on its own, with its scope and age (see `readinessRows`). */
   readiness: ReadinessRow[];
   hireable: boolean;
@@ -415,6 +417,7 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
     escrowTokens,
     corrections: getProbeStore().correctionsFor(agent.chain_id, agent.token_id),
     hireBlocker: currentHireBlocker(agent, d.quote, payable, { problem: cardRead.problem, readAt: cardReadAt }),
+    priceCheck: currentPriceCheck(agent, d.quote),
     readiness: readinessRows({
       now: Date.now(),
       live: { answered: answeredNow, medianMs: live.medianMs },

@@ -4,6 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
+import { catalogueChanged } from '@/lib/catalogue-version';
 import { readBriefQuote, writeBriefQuote } from '@/lib/history/brief-quote-query';
 import { readLastProbedAt, readProbeTotals } from '@/lib/history/stats-query';
 import type { CorrectableProbe, ProbeCorrection } from './corrections';
@@ -382,6 +383,7 @@ class SqliteProbeStore implements ProbeStore {
 
   recordQuotes(quotes: QuoteRecord[]): void {
     if (quotes.length === 0) return;
+    catalogueChanged();
 
     const upsert = this.db.prepare(
       `INSERT INTO quotes
@@ -544,6 +546,7 @@ class SqliteProbeStore implements ProbeStore {
 
   recordQuoteOutcomes(failed: QuoteFailureRecord[], quoted: { chainId: number; tokenId: string }[]): void {
     if (failed.length === 0 && quoted.length === 0) return;
+    catalogueChanged();
     const upsert = this.db.prepare(
       `INSERT INTO quote_failures (chain_id, token_id, code, detail, seller_reason, observed_at) VALUES (?, ?, ?, ?, ?, ?)
        ON CONFLICT (chain_id, token_id) DO UPDATE SET code = excluded.code, detail = excluded.detail, seller_reason = excluded.seller_reason, observed_at = excluded.observed_at`,
@@ -569,6 +572,7 @@ class SqliteProbeStore implements ProbeStore {
 
   /* Both in `brief-quote-query`, so the write's own rule can be executed in a test. */
   noteBriefQuote(chainId: number, tokenId: string, quote: { payable: boolean; at?: string }): void {
+    catalogueChanged();
     writeBriefQuote(this.db, chainId, tokenId, { quotedAt: quote.at ?? new Date().toISOString(), payable: quote.payable });
   }
 
