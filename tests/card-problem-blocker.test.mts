@@ -8,6 +8,7 @@ import type { AddressInfo } from 'node:net';
 import { blockerCodeForCardProblem, readCardThrough, type CardProblem } from '../src/lib/agents/card-read';
 import { classifyQuoteError } from '../src/lib/hire/failure';
 import { decideHireBlocker, hireBlocker } from '../src/lib/hire/blocker';
+import { NO_ENDPOINT_DETAIL } from '../src/lib/hire/no-endpoint';
 
 /*
  * hwayongjin.agent (56:300282): never in the sweep's roster, so its page had
@@ -232,7 +233,7 @@ test('the missing-interface sentence claims only what was read', () => {
 
 test('the other no-endpoint cases keep their own words', () => {
   assert.match(hireBlocker({ code: 'no-endpoint', protocols: ['mcp'] })?.reason ?? '', /only an MCP endpoint/);
-  assert.match(hireBlocker({ code: 'no-endpoint', protocols: ['a2a'] })?.reason ?? '', /no HTTPS JSON-RPC interface/);
+  assert.match(hireBlocker({ code: 'no-endpoint', detail: NO_ENDPOINT_DETAIL.cardWithoutJsonRpc, protocols: ['a2a'] })?.reason ?? '', /no HTTPS JSON-RPC interface/);
   assert.match(hireBlocker({ code: 'no-price-skill' })?.reason ?? '', /no negotiate skill/);
 });
 

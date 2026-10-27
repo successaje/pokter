@@ -58,7 +58,7 @@ export async function prepareAgent(target: { chainId: number; tokenId: string; c
   const { chainId, tokenId } = target;
   const agent = await getAgent(chainId as ChainId, tokenId);
   const endpoint = agent.services?.a2a?.endpoint?.replace('{agentId}', tokenId);
-  if (!endpoint) throw new NotAskableError('The agent publishes no A2A endpoint, so a brief cannot be sent to it.');
+  if (!endpoint) throw new NotAskableError('No A2A endpoint found for the agent in the registry data Pokter reads, so a brief cannot be sent to it.');
 
   const card = await readAgentCard(endpoint);
   const skill = pickWorkSkill(card?.skills, target.category);

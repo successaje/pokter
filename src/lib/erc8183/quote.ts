@@ -11,6 +11,7 @@ import { decimalsFor, settlementChainOf } from '@/lib/network/tokens';
 import { readA2AReply } from '@/lib/a2a/reply';
 import { classifyQuoteError, quoteFailure, type QuoteFailure } from '@/lib/hire/failure';
 import { jsonRpcEndpoint } from '@/lib/a2a/card';
+import { NO_ENDPOINT_DETAIL } from '@/lib/hire/no-endpoint';
 import { POKTER_TERMS } from './terms';
 
 /**
@@ -184,17 +185,19 @@ export async function requestQuote(
     onFailure?.(failure);
     return null;
   };
-  if (!endpoint || !agent.agent_wallet) return fail(quoteFailure('no-endpoint'));
+  /* Nothing was read for either: each is a fact about the registry data, said as one. */
+  if (!endpoint) return fail(quoteFailure('no-endpoint', { detail: NO_ENDPOINT_DETAIL.registryNoA2a }));
+  if (!agent.agent_wallet) return fail(quoteFailure('no-endpoint', { detail: NO_ENDPOINT_DETAIL.registryNoWallet }));
 
   try {
     const card = await readAgentCard(endpoint);
 
     const skills = Array.isArray(card?.skills) ? card.skills : [];
     const negotiateSkill = negotiationSkillOf(skills);
-    if (!negotiateSkill) return fail(quoteFailure(card ? 'no-price-skill' : 'no-endpoint'));
+    if (!negotiateSkill) return fail(card ? quoteFailure('no-price-skill') : quoteFailure('no-endpoint', { detail: NO_ENDPOINT_DETAIL.cardWithoutInterface }));
     // The card's JSON-RPC interface, in either card format (see `jsonRpcEndpoint`).
     const serviceUrl = jsonRpcEndpoint(card);
-    if (!serviceUrl) return fail(quoteFailure('no-endpoint', { detail: 'no HTTPS JSON-RPC interface on its card' }));
+    if (!serviceUrl) return fail(quoteFailure('no-endpoint', { detail: NO_ENDPOINT_DETAIL.cardWithoutJsonRpc }));
 
     const rpcId = crypto.randomUUID();
     const payload = await withPublicEndpoint(serviceUrl, async (service) => {

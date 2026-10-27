@@ -35,6 +35,7 @@ const BLOCKER_SOURCE: Record<BlockerSource, string> = {
   sweep: 'The latest sweep’s read-only price request to the agent.',
   brief: 'A signed quote Pokter got for a buyer’s own brief, which no enabled escrow settles.',
   card: 'Pokter’s own read of the agent card, made for this request because no sweep has priced this agent.',
+  registry: 'The registry data Pokter reads for this agent (the indexer’s copy of its registration). No agent card was read: that data names no endpoint to read one from.',
 };
 
 /**
@@ -148,7 +149,8 @@ export async function GET(
           transient: blocker.transient,
           fix: `https://pokter.xyz${blocker.fix.href}`,
           observedAt: blocker.observedAt,
-          provenance: 'pokter-measured',
+          /* The registry case is what the registration declares, not something Pokter measured. */
+          provenance: blocker.from === 'registry' ? 'declared' : 'pokter-measured',
           source: BLOCKER_SOURCE[blocker.from],
         }
       : null,
