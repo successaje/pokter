@@ -2,7 +2,10 @@
 
 import { useState, type ReactNode } from 'react';
 
+import { requestTokenOf } from '@/lib/briefs/model';
+import type { ProposalPrefill } from '@/lib/briefs/public-view';
 import { escrowMoney } from '@/lib/network/presentation';
+import { displaySymbol } from '@/lib/network/tokens';
 import { cn } from '@/lib/ui/cn';
 import { useActiveWallet } from '@/lib/wallet/active';
 import { Button } from '@/ui/Button';
@@ -22,12 +25,29 @@ import { ProposalForm, type ProposalRequest } from './ProposalForm';
  * On a phone the card sits under the title rather than below everything,
  * so the budget and the action are where a reader decides.
  */
-export function RequestDetail({ request, taking, head, summary, children }: { request: ProposalRequest; taking: boolean; head: ReactNode; summary: ReactNode; children: ReactNode }) {
+export function RequestDetail({
+  request,
+  taking,
+  head,
+  summary,
+  children,
+  prefill = null,
+}: {
+  request: ProposalRequest;
+  taking: boolean;
+  head: ReactNode;
+  summary: ReactNode;
+  children: ReactNode;
+  /** A proposal prepared elsewhere, read from the page's link: the form opens with it. */
+  prefill?: (Omit<ProposalPrefill, 'deliverDays'> & { deliverDays: number | null }) | null;
+}) {
   const { address } = useActiveWallet();
   const isPoster = Boolean(address && address.toLowerCase() === request.poster.toLowerCase());
   const canPropose = taking && !isPoster;
-  const [proposing, setProposing] = useState(false);
+  const [proposing, setProposing] = useState(Boolean(prefill));
   const money = escrowMoney(request.chainId);
+  /* The request's own money: a USDT request said "real $U" here. */
+  const token = requestTokenOf(request);
 
   return (
     <div className="mt-6 grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_380px] lg:grid-rows-[auto_1fr] lg:gap-x-12">
@@ -41,14 +61,14 @@ export function RequestDetail({ request, taking, head, summary, children }: { re
                 <div className="flex min-w-0 flex-col gap-1.5">
                   <h2 className="text-[20px] font-semibold tracking-[-0.02em]">Make a proposal</h2>
                   <span className={cn('w-fit rounded-full px-2.5 py-0.5 text-[12px] font-medium', money.real === false ? 'bg-watch-wash text-watch' : 'bg-sunken text-ink-2')}>
-                    {money.real === false ? 'Testnet · test tokens' : 'BNB Chain · real $U'}
+                    {money.real === false ? 'Testnet · test tokens' : `BNB Chain · real ${token ? displaySymbol(token) : 'money'}`}
                   </span>
                 </div>
                 <button type="button" onClick={() => setProposing(false)} className="inline-flex h-8 shrink-0 items-center gap-1 rounded-[8px] px-2 text-[13px] text-ink-3 hover:bg-sunken hover:text-ink">
                   <Icon.ChevronLeft size={14} aria-hidden /> Summary
                 </button>
               </div>
-              <ProposalForm request={request} />
+              <ProposalForm request={request} prefill={prefill} />
             </>
           ) : (
             <>

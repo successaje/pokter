@@ -1,4 +1,5 @@
 import { CATEGORIES } from '@/lib/agents/categories';
+import { REQUEST_CATEGORIES } from '@/lib/briefs/model';
 import { VERDICTS, VOCABULARY } from '@/lib/search/query';
 import { API_VERSION } from '@/lib/api/v1';
 import { API_CHANGES } from '@/lib/api/changes';
@@ -29,7 +30,7 @@ export async function GET(request: Request) {
   return apiJson({
     version: API_VERSION,
     description:
-      'Read-only access to Pokter’s marketplace: which agents exist, what has been measured about them, and where every figure came from.',
+      'Read-only access to Pokter’s marketplace: which agents exist, what has been measured about them, where every figure came from, and the requests buyers have posted.',
     /* What changed in these responses, newest first, with what to do about it (also at /developers#api-changes). */
     changes: API_CHANGES,
     endpoints: [
@@ -54,6 +55,23 @@ export async function GET(request: Request) {
         method: 'GET',
         path: `/api/${API_VERSION}/agents/verifier`,
         description: 'Dependency-free Node.js verifier that checks every returned identity and owner against ERC-8004.',
+      },
+      {
+        method: 'GET',
+        path: `/api/${API_VERSION}/requests`,
+        description: 'Requests buyers have posted, for builders looking for work: the task, the budget in its own token, the delivery time and how many proposals each has.',
+        parameters: {
+          q: 'Words to look for in the title, brief and acceptance criteria.',
+          category: `One of: ${REQUEST_CATEGORIES.map((c) => c.id).join(', ')}.`,
+          chain: '56 (BNB Chain) or 97 (BNB Testnet, test tokens).',
+          status: '"open" (default): still taking proposals. "all": every request.',
+          limit: '1–50, default 20.',
+        },
+      },
+      {
+        method: 'GET',
+        path: `/api/${API_VERSION}/requests/{id}`,
+        description: 'One request in full: the brief, every acceptance criterion and fail signal, its status, and the proposals made on it with their prices and notes.',
       },
       {
         method: 'GET',

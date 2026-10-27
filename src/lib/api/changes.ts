@@ -28,6 +28,19 @@ export interface ApiChange {
 export const API_CHANGES: ApiChange[] = [
   {
     date: '2026-10-27',
+    release: 'v556',
+    kind: 'added',
+    surfaces: ['GET /api/v1/requests', 'GET /api/v1/requests/{id}', 'MCP search_requests', 'MCP get_request', 'MCP prepare_proposal', 'MCP integration_kit'],
+    summary: 'Requests buyers have posted can be read, and a proposal prepared for its owner to sign.',
+    details: [
+      '`GET /api/v1/requests` lists requests (open ones unless `status=all`), filtered by `q`, `category` and `chain`, each with its budget in its own token (`budget.amount`, `budget.symbol`, `budget.token`), delivery time, closing date, status and number of proposals. `GET /api/v1/requests/{id}` adds the brief, the acceptance criteria, the fail signals and the proposals, without their signatures.',
+      'MCP `search_requests` (with `for_agent` to match an agent’s category), `get_request` and `prepare_proposal` are read-only. `prepare_proposal` checks a proposal against the request and the ERC-8004 owner and returns a link that opens it on the request’s page for the owner to sign; it sends and stores nothing.',
+      '`integration_kit` adds `proposalFlow`, who does each step of winning a request. No existing field was removed or changed.',
+    ],
+    migrate: null,
+  },
+  {
+    date: '2026-10-27',
     release: 'v549',
     kind: 'added',
     surfaces: ['GET /api/v1/agents', 'GET /api/v1/agents/{chainId}/{tokenId}', 'MCP get_agent', 'MCP search_agents'],

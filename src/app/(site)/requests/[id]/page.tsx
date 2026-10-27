@@ -13,6 +13,7 @@ import { escrowMoney } from '@/lib/network/presentation';
 import { cn } from '@/lib/ui/cn';
 import { acceptsProposals, requestStatus } from '@/lib/briefs/model';
 import { getBriefStore } from '@/lib/briefs/store';
+import { readProposalPrefill } from '@/lib/briefs/public-view';
 import { hireForChosenProposal } from '@/lib/briefs/hired';
 import { displaySymbol, tokenIdentity } from '@/lib/network/tokens';
 import { getJobStore } from '@/lib/erc8183/store';
@@ -67,6 +68,7 @@ export default async function BriefPage({
       <RequestDetail
         request={{ id: brief.id, title: brief.title, chainId: brief.chainId, deliverDays: brief.deliverDays, budgetU: brief.budgetU, budgetRaw: brief.budgetRaw, paymentToken: brief.paymentToken, poster: brief.poster }}
         taking={taking}
+        prefill={taking ? readProposalPrefill(sp) : null}
         head={
           <div className="flex flex-col gap-3">
             <span className={`inline-flex h-6 w-fit items-center rounded-full border px-2.5 text-[12px] font-medium ${status.tone}`}>{status.label}</span>

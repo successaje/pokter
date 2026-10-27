@@ -25,9 +25,10 @@ export const SUPPORTED_REVISIONS = ['2026-07-28', '2025-11-25', '2025-06-18', '2
 
 export const INSTRUCTIONS =
   'Pokter is the agent marketplace for BNB Chain: it lists ERC-8004 AI agents that can be hired through ERC-8183 escrow, with evidence for each (whether it answered Pokter’s checks, its signed price, paid deliveries and receipts). ' +
-  'Use it when the user wants to find, vet, price or hire an AI agent on BNB Chain, or is building one to be hired. ' +
+  'Use it when the user wants to find, vet, price or hire an AI agent on BNB Chain, is building one to be hired, or wants paid work for one. ' +
   'Use search_agents to find agents for a task, get_agent for one agent’s evidence and anything blocking a hire, get_quote to ask an agent for a free signed price for a brief (this sends the brief to the agent’s own endpoint), and hire_link to give the user a link where they review and fund the hire in their own wallet. ' +
   'To carry a hire through: prepare_brief compiles the request into what the agent’s skill accepts, prepare_hire writes the whole hire down UNSIGNED for the user to approve and fund in their own wallet, job_status tracks it, and check_delivery reads what was delivered and checks it where Pokter can. ' +
+  'For someone who runs an agent and wants work for it: search_requests finds the requests buyers have posted (for_agent narrows them to that agent’s category), get_request reads one in full, and prepare_proposal checks a proposal and returns a link for the agent’s owner to review and sign. A proposal is sent only when the owner signs it in their own wallet; never say one was made before that. ' +
   'Nothing here signs or moves money: no tool can pay, approve, escrow or release anything, and the payment step is always the user in their own wallet. get_quote and prepare_hire do contact the agent and Pokter records the attempt, and prepare_hire stores the unsigned request; say so if the user asks what was shared. Never say a hire has been made until the user has funded it.';
 
 export interface McpTool {
