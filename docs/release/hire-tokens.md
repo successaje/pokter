@@ -1,12 +1,12 @@
 # Hiring in verified tokens
 
-Status on 27 October 2026: **live on BNB Chain.** Binance-Peg USDT, Binance-Peg USDC and USD1 are turned on for the mainnet escrow, one at a time, each only after the previous one passed an owner-led session with real funds. Testnet stays $U only. Settlement of the six session jobs becomes possible on 2 November 2026. The jobs, results and times are in `docs/release/test-session.md` ("Outcome").
+Status on 27 October 2026: **live on BNB Chain.** Binance-Peg USDT, Binance-Peg USDC and USD1 are turned on for the mainnet escrow, one at a time, each only after the previous one passed an owner-led session with real funds. Testnet USDT was turned on afterwards, on 27 October 2026. Settlement of the six session jobs becomes possible on 2 November 2026. The jobs, results and times are in `docs/release/test-session.md` ("Outcome").
 
 | Stage | State |
 | --- | --- |
 | Code-complete | **Yes.** Released with every new currency off in #322 (release v541, 26 October 2026). An independent review's findings are resolved (section 8). |
 | Validated with real funds | **Funding, delivery and recovery: yes**, for all three tokens, on six mainnet jobs (two per token) that passed every check against the escrow. **Settlement: pending.** It is possible from 2 November 2026, 20:39–22:22 UTC, depending on the job. |
-| Production-enabled | **Yes on BNB Chain:** Binance-Peg USDT (#323, release v542), Binance-Peg USDC (#325, v544), USD1 (#326, v545). **Testnet USDT: no.** It is supported and fork-tested but not turned on. |
+| Production-enabled | **Yes on BNB Chain:** Binance-Peg USDT (#323, release v542), Binance-Peg USDC (#325, v544), USD1 (#326, v545). **Testnet USDT: yes**, since 27 October 2026, after the mainnet session. It is a test token with no value. |
 
 ## 1. Supported currencies, from evidence
 
@@ -25,7 +25,7 @@ A token can be hired in only when every check passes. There is one registry (`sr
 | USDC | 56 | `0x8AC7…580d` | 18 | **Binance-Peg USD Coin, not issued by Circle.** Circle lists no BNB Smart Chain deployment. Note 18 decimals, unlike Circle's 6 | yes | 24/24 | yes, since v544 |
 | USD1 | 56 | `0x8d0D…8B0d` | 18 | Issuer: World Liberty Financial. docs.worldlibertyfinancial.com lists this address for BNB Smart Chain | yes | 24/24 | yes, since v545 |
 | $U | 97 | `0xc70B…5565` | 18 | Test token: the testnet escrow's default; no issuer lists it | default | 23/23 (the "$U untouched" step does not apply) | always |
-| USDT | 97 | `0x3376…4dDd` | 18 | Test token with no value; no issuer lists it | yes | 24/24 | no |
+| USDT | 97 | `0x3376…4dDd` | 18 | Test token with no value; no issuer lists it | yes | 24/24 | yes, since 27 October 2026 |
 
 **How the pegs are named.** Wherever a currency is chosen or confirmed, the BNB Chain pegs are called **Binance-Peg USDT** and **Binance-Peg USDC**, never plain "USDT" or "USDC". That covers the hire page's currency choice, the review, the payment confirmation and fund button, a request's "Paid in" choice, the request page, and the limit and shortage messages. The chain and the full contract address are shown beside the name (`tokenIdentity`). They are not presented as interchangeable with Tether's or Circle's own coins.
 
