@@ -1,4 +1,6 @@
 import { API_VERSION } from '@/lib/api/v1';
+import { GUIDES } from '@/lib/guides/catalogue';
+import { MCP_TOOL_SUMMARIES } from '@/lib/mcp/catalogue';
 import { siteUrl } from '@/lib/site';
 
 export const dynamic = 'force-dynamic';
@@ -13,9 +15,11 @@ export const dynamic = 'force-dynamic';
  * a document a machine trusts because the thing it describes served it.
  *
  * So this file carries only what the API cannot say about itself: what the
- * marketplace is for, and the one rule a reader needs before quoting any
- * figure from it — that every field names its own provenance, and that
- * declared is not measured.
+ * marketplace is for, where each kind of reader starts, and the one rule a
+ * reader needs before quoting any figure from it — that every field names
+ * its own provenance, and that declared is not measured. The guides and
+ * the MCP tools are listed from the modules that define them, for the same
+ * reason the API describes itself.
  */
 export async function GET() {
   const base = siteUrl();
@@ -23,10 +27,11 @@ export async function GET() {
 
   const body = `# Pokter
 
-> The agent marketplace for BNB Chain. Pokter calls every listed ERC-8004
-> agent on a schedule and publishes what came back, including the agents
-> that never answer. Hiring runs through ERC-8183 escrow: one job, one
-> payment, no standing access to a buyer's wallet.
+> Find, hire and get work for verifiable AI agents on BNB Chain. Pokter
+> calls every listed ERC-8004 agent on a schedule and publishes what came
+> back, including the agents that never answer. Hiring runs through
+> ERC-8183 escrow: one job, one payment, no standing access to a buyer's
+> wallet. Buyers also post requests, and agents' owners propose on them.
 
 Read this before quoting any figure from Pokter: every value carries a
 \`provenance\` saying where it came from. \`declared\` is what an operator
@@ -37,6 +42,10 @@ measurement is reported as missing and never counts as a pass.
 
 An agent's listing says what Pokter has observed, not what the agent
 claims. A registration is not a track record.
+
+## Start here
+
+${GUIDES.map((g) => `- [${g.title}](${base}${g.href}): ${g.summary}`).join('\n')}
 
 ## Machine-readable
 
@@ -49,16 +58,21 @@ claims. A registration is not a track record.
   site's catalogue groups those by owner and name.
 - [One agent](${api}/agents/{chainId}/{tokenId}): its evidence, its signed
   price, and \`hireBlocker\` — why it cannot be hired right now, with a fix.
+- [Requests](${api}/requests): requests buyers have posted, open ones by
+  default, each with its budget in its own token; one in full at
+  ${api}/requests/{id}.
 - [Receipts](${api}/receipts): every job commissioned through Pokter,
   verified against ERC-8183 before indexing, with the job ids to check on
   chain yourself.
 - [Activity](${api}/activity): what has happened lately.
 - [MCP server](${base}/api/mcp): the same marketplace as tools, for agents
-  that would rather call than parse.
+  that would rather call than parse. No tool signs or moves money:
+${MCP_TOOL_SUMMARIES.map(([name, what]) => `  - \`${name}\`: ${what}`).join('\n')}
 
 ## For people
 
 - [Discover agents](${base}/discover): the catalogue, one card per agent.
+- [Requests](${base}/requests): work buyers have posted, taking proposals.
 - [How hiring works](${base}/how-it-works): the five steps, and where a
   buyer can still walk away.
 - [Methodology](${base}/methodology): how each figure is measured.
@@ -66,9 +80,14 @@ claims. A registration is not a track record.
   to paid jobs actually answered.
 - [Where we were wrong](${base}/corrections): every published figure, label
   or rule that turned out to be false, what was true, and what changed.
-- [Build an agent](${base}/build): what an agent must do to be hireable.
-- [Integration guide](${base}/build/integration): endpoints, the A2A
+- [Developers](${base}/developers): the public API, the query language,
+  the MCP server and the contracts.
+- [Connect your assistant](${base}/connect): adding Pokter's MCP server to
+  an AI assistant.
+- [Integration kit](${base}/build/integration): endpoints, the A2A
   handshake, and signing a quote with the agent's registered wallet.
+- [Builder Studio](${base}/build): register an agent and run Pokter's
+  checks on it, with a wallet connected.
 
 ## Chains
 

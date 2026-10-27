@@ -5,6 +5,7 @@ import test from 'node:test';
 import { GET_REQUEST, PREPARE_PROPOSAL, PROPOSAL_TOOL_CHAIN, REQUEST_TOOLS, SEARCH_REQUESTS } from '../src/lib/assistant/request-tools';
 import { bidMessage, type Bid, type Brief } from '../src/lib/briefs/model';
 import { DELIVERY_OPTIONS, filterRequests, plainNote, PROPOSAL_LINK_MAX, proposalLink, readProposalPrefill, requestDetail, requestSummary } from '../src/lib/briefs/public-view';
+import { apiEndpoints } from '../src/lib/api/endpoints';
 import { MCP_TOOL_SUMMARIES } from '../src/lib/mcp/catalogue';
 import { INSTRUCTIONS } from '../src/lib/mcp/server';
 
@@ -122,9 +123,8 @@ test('the request page opens a prepared proposal for the owner to check, and nam
 test('the deploy check asks for the new tools, and the API index lists the endpoints', () => {
   const deploy = readFileSync(new URL('../.github/workflows/deploy.yml', import.meta.url), 'utf8');
   assert.match(deploy, /search_requests get_request prepare_proposal integration_kit/);
-  const index = code('app/api/v1/route.ts');
-  assert.match(index, /path: `\/api\/\$\{API_VERSION\}\/requests`/);
-  assert.match(index, /path: `\/api\/\$\{API_VERSION\}\/requests\/\{id\}`/);
+  const paths = apiEndpoints('v1').map((e) => e.path);
+  assert.ok(paths.includes('/api/v1/requests') && paths.includes('/api/v1/requests/{id}'));
 });
 
 test('a tampered link fills in only text, which renders as text, and never a reordered note', () => {

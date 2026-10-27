@@ -1,5 +1,5 @@
 import { CATEGORIES } from '@/lib/agents/categories';
-import { REQUEST_CATEGORIES } from '@/lib/briefs/model';
+import { apiEndpoints } from '@/lib/api/endpoints';
 import { VERDICTS, VOCABULARY } from '@/lib/search/query';
 import { API_VERSION } from '@/lib/api/v1';
 import { API_CHANGES } from '@/lib/api/changes';
@@ -33,78 +33,7 @@ export async function GET(request: Request) {
       'Read-only access to Pokter’s marketplace: which agents exist, what has been measured about them, where every figure came from, and the requests buyers have posted.',
     /* What changed in these responses, newest first, with what to do about it (also at /developers#api-changes). */
     changes: API_CHANGES,
-    endpoints: [
-      {
-        method: 'GET',
-        path: `/api/${API_VERSION}/agents`,
-        description: 'Search and list agents.',
-        parameters: {
-          q: 'Marketplace query, e.g. "is:live has:probes>10". Same language as the site search.',
-          category: `One of: ${CATEGORIES.map((c) => c.id).join(', ')}.`,
-          limit: '1–100, default 25.',
-          offset: 'Default 0. Ordering is by token id and is stable across requests.',
-        },
-      },
-      {
-        method: 'GET',
-        path: `/api/${API_VERSION}/agents/{chainId}/{tokenId}`,
-        description:
-          'One agent with its full evidence, including decoded attestations and the measurers behind them.',
-      },
-      {
-        method: 'GET',
-        path: `/api/${API_VERSION}/agents/verifier`,
-        description: 'Dependency-free Node.js verifier that checks every returned identity and owner against ERC-8004.',
-      },
-      {
-        method: 'GET',
-        path: `/api/${API_VERSION}/requests`,
-        description: 'Requests buyers have posted, for builders looking for work: the task, the budget in its own token, the delivery time and how many proposals each has.',
-        parameters: {
-          q: 'Words to look for in the title, brief and acceptance criteria.',
-          category: `One of: ${REQUEST_CATEGORIES.map((c) => c.id).join(', ')}.`,
-          chain: '56 (BNB Chain) or 97 (BNB Testnet, test tokens).',
-          status: '"open" (default): still taking proposals. "all": every request.',
-          limit: '1–50, default 20.',
-        },
-      },
-      {
-        method: 'GET',
-        path: `/api/${API_VERSION}/requests/{id}`,
-        description: 'One request in full: the brief, every acceptance criterion and fail signal, its status, and the proposals made on it with their prices and notes.',
-      },
-      {
-        method: 'GET',
-        path: `/api/${API_VERSION}/activity`,
-        description: 'Privacy-preserving aggregate job and settlement activity, reconciled from ERC-8183.',
-      },
-      {
-        method: 'GET',
-        path: `/api/${API_VERSION}/receipts`,
-        description:
-          'Every job Pokter brokered, as identifiers anyone can check against the escrow contract: chain, job id, status, amount and an explorer link. The counts above are a claim; these are the things the claim is about.',
-      },
-      {
-        method: 'GET',
-        path: `/api/${API_VERSION}/receipts/verifier`,
-        description: 'Dependency-free Node.js verifier that checks every indexed receipt directly against its ERC-8183 escrow.',
-      },
-      {
-        method: 'GET',
-        path: `/api/${API_VERSION}/evaluators/schema`,
-        description: 'Schema, example and independence rules for ERC-8004 evaluator attestations.',
-      },
-      {
-        method: 'GET',
-        path: `/api/${API_VERSION}/evaluators/starter`,
-        description: 'Dependency-free Node.js starter that measures a protocol handshake and prepares an ERC-8004 feedback call without signing it.',
-      },
-      {
-        method: 'GET',
-        path: `/api/${API_VERSION}/evaluators/challenge`,
-        description: 'Mainnet agents ready for unrelated measurement, with verified independent-evidence gaps and prefilled starter commands.',
-      },
-    ],
+    endpoints: apiEndpoints(API_VERSION),
     enums: {
       categories: CATEGORIES.map((c) => ({ id: c.id, label: c.label })),
       verdicts: VERDICTS,
