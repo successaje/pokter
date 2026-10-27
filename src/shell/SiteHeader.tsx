@@ -50,7 +50,8 @@ export function SiteHeader() {
           scrolled ? 'bg-[color-mix(in_oklab,var(--paper)_88%,transparent)] backdrop-blur-md' : 'bg-paper',
         )}
       >
-        <div className={cn('frame flex items-center gap-6 transition-[height] duration-300 ease-out', scrolled ? 'h-14' : 'h-16')}>
+        {/* A narrower gap on phones: with a wallet connected, 24px here was part of a 13px overflow at 375px. */}
+        <div className={cn('frame flex items-center gap-3 transition-[height] duration-300 ease-out sm:gap-6', scrolled ? 'h-14' : 'h-16')}>
           <Wordmark />
           {/*
             Shown only while every hire really is test money.
