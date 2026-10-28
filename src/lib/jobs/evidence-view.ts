@@ -54,9 +54,8 @@ export const JOB_STATUS_WORDS: Record<string, { label: string; meaning: string }
 
 /**
  * The status in words. `paidToCourier`: the escrow's provider is Pokter's
- * courier, not the agent, so a settled job paid Pokter. "Completed, agent
- * paid" was said of jobs 97/1586 and 97/1587, whose escrow paid Pokter's
- * operator key while the agents, Sluicegate and Keel, received nothing.
+ * courier, not the agent, so a settled job paid Pokter and is never called
+ * "agent paid".
  */
 export function jobStatusWords(status: string, paidToCourier = false): { label: string; meaning: string } {
   if (paidToCourier && status === 'COMPLETED') {

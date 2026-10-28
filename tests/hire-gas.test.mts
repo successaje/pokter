@@ -6,11 +6,10 @@ import { failedOnChain, gasLimitFor } from '../src/lib/wallet/gas';
 import { walletActionError } from '../src/lib/wallet/errors';
 
 /*
- * Testnet transaction 0x60758a67…7da2, 27 October 2026: a wallet sent
- * createJob with a 900,000 gas limit, it used 886,648 and failed; the same
- * call 38 seconds later used 948,798 and created job 1673.
+ * A createJob call that needs about 949,000 gas: sent with a 900,000 limit
+ * it uses 886,648 and fails; with enough gas it uses 948,798.
  */
-const ACCOUNT = '0xf5506b65e71601991895cd40bd2e875f29cca0da';
+const ACCOUNT = '0x00000000000000000000000000000000000000a1';
 const ESCROW = '0xa206c0517B6371C6638CD9e4a42Cc9f02A33B0DE';
 
 test('Pokter sets the gas limit from the network’s estimate, with 30% headroom', async () => {
@@ -24,7 +23,7 @@ test('Pokter sets the gas limit from the network’s estimate, with 30% headroom
 });
 
 test('a failed step says whether it ran out of gas or was refused', () => {
-  assert.equal(failedOnChain('creating', 886_648n, 900_000n), 'CREATING_OUT_OF_GAS', 'the 27 October failure');
+  assert.equal(failedOnChain('creating', 886_648n, 900_000n), 'CREATING_OUT_OF_GAS', 'used nearly all of its limit');
   assert.equal(failedOnChain('funding', 900_000n, 900_000n), 'FUNDING_OUT_OF_GAS');
   assert.equal(failedOnChain('funding', 120_000n, 900_000n), 'FUNDING_REVERTED', 'stopped short: refused');
   assert.equal(failedOnChain('creating', 886_648n, null), 'CREATING_REVERTED', 'with no limit read, never a guessed cause');

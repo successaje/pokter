@@ -67,7 +67,7 @@ export function taskOf(description: string): string {
   return description;
 }
 
-/** A site's domain from a bare domain or a URL ("marque.trade", "https://marque.trade/x"); null for anything else. */
+/** A site's domain from a bare domain or a URL ("example.com", "https://example.com/x"); null for anything else. */
 function siteDomain(value: string): string | null {
   const text = value.trim().toLowerCase();
   const host = /^https?:\/\//.test(text) ? (() => { try { return new URL(text).hostname; } catch { return ''; } })() : text;
@@ -76,13 +76,8 @@ function siteDomain(value: string): string | null {
 
 /**
  * Where a job's record says it was made: its `client_ref` field, else
- * "via example.com" in its task.
- *
- * Only the task was read, so jobs whose record carries
- * `"client_ref":"marque.trade"` (56/57030 and 56/57037) were shown as "Not
- * recorded" while the record named the marketplace plainly. A
- * `client_ref` that is not a site's domain (an order number, say) names
- * nothing and is not used.
+ * "via example.com" in its task. A `client_ref` that is not a site's domain
+ * (an order number, say) names nothing and is not used.
  */
 export function marketplaceFromRecord(description: string): string | null {
   const ref = recordFields(description)?.client_ref;

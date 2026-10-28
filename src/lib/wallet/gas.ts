@@ -7,12 +7,10 @@ const GAS_HEADROOM_TENTHS = 13n;
  * The gas limit Pokter asks the wallet to use: the network's estimate for
  * this exact call, with 30% headroom.
  *
- * The limit was left to the wallet. On 27 October 2026 one sent createJob
- * with 900,000 when the call takes about 949,000 (the job stores the signed
- * quote), so creating the job ran out of gas and failed on chain (testnet
- * transaction 0x60758a67…7da2). The buyer's retry worked only because the
- * wallet chose differently the second time. The headroom covers state that
- * moves between the estimate and the block.
+ * Left to the wallet, a call can be sent with a default limit below what it
+ * needs (creating a job stores the signed quote and takes close to a
+ * million gas), run out of gas and fail on chain. The headroom covers state
+ * that moves between the estimate and the block.
  *
  * Left to the wallet, as before, when the estimate itself fails: that
  * means the call would fail now, and the wallet's own check says so with

@@ -115,12 +115,10 @@ export function walletActionError(error: unknown, action: string): string {
   /*
    * A step that reached the chain and failed there.
    *
-   * These were single tokens ("CREATING_REVERTED"), so they fell through to
-   * "the wallet gave no reason we can translate. Check the selected network
-   * and wallet balance": wrong on both counts for a job creation that ran
-   * out of gas on 27 October 2026, whose buyer retried and succeeded.
-   * Each now says which transaction failed, how, and that it alone was
-   * undone; earlier steps that succeeded are not claimed undone.
+   * These are single tokens ("CREATING_OUT_OF_GAS", "FUNDING_REVERTED"),
+   * which would otherwise fall through to the generic "no reason we can
+   * translate". Each says which transaction failed, how, and that it alone
+   * was undone; earlier steps that succeeded are not claimed undone.
    */
   const failed = /\b([A-Z]+)_(OUT_OF_GAS|REVERTED)\b/.exec(message);
   const what = failed ? FAILED_STEP[failed[1]] : undefined;

@@ -25,7 +25,7 @@ test('the chain settles a step the wallet never answers, once the buyer’s nonc
   const result = await raceWithChain(never<string>(), {
     nonceBefore: 7,
     nonceNow: async () => nonce,
-    landed: async () => (landed ? { jobId: 1675n } : null),
+    landed: async () => (landed ? { jobId: 42n } : null),
     requireNonce: true,
     pollMs: 0,
   }, async () => {
@@ -34,7 +34,7 @@ test('the chain settles a step the wallet never answers, once the buyer’s nonc
     if (polls === 3) landed = true;
     await tick();
   });
-  assert.deepEqual(result, { kind: 'chain', landed: { jobId: 1675n } });
+  assert.deepEqual(result, { kind: 'chain', landed: { jobId: 42n } });
 });
 
 test('the wallet’s answer still wins when it comes first, and a refusal still stops the step', async () => {
@@ -89,10 +89,10 @@ test('a quick wallet check has a time limit, and a silent wallet is trusted only
 test('a reload offers to finish the attempt’s own unfunded job while the escrow still allows it', () => {
   const now = 1_793_200_000;
   const attempt = { fundableUntil: null };
-  assert.equal(finishableJob(attempt, { outcome: 'not-funded', jobId: '1675', detail: '', expiredAt: now + 3_600 }, now), '1675');
-  assert.equal(finishableJob(attempt, { outcome: 'not-funded', jobId: '1675', detail: '', expiredAt: now - 1 }, now), null, 'past its deadline it cannot be funded');
+  assert.equal(finishableJob(attempt, { outcome: 'not-funded', jobId: '42', detail: '', expiredAt: now + 3_600 }, now), '42');
+  assert.equal(finishableJob(attempt, { outcome: 'not-funded', jobId: '42', detail: '', expiredAt: now - 1 }, now), null, 'past its deadline it cannot be funded');
   assert.equal(finishableJob(attempt, { outcome: 'not-funded', jobId: null, detail: '' }, now), null, 'no job was created');
-  assert.equal(finishableJob(attempt, { outcome: 'funded', jobId: '1675' } as never, now), null);
+  assert.equal(finishableJob(attempt, { outcome: 'funded', jobId: '42' } as never, now), null);
 });
 
 test('a paused wallet is explained, not reported as an unknown error', () => {

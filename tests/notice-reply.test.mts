@@ -44,13 +44,13 @@ test('an acknowledgement is an acceptance, and keeps the deliverable URL it name
       kind: 'message',
       role: 'agent',
       messageId: 'm',
-      parts: [{ kind: 'data', data: { received: true, job_id: 57071, deliverable_url: 'https://www.mandatemarkets.com/api/escrow/jobs/57071/deliverable', estimated_completion_seconds: 60 } }],
+      parts: [{ kind: 'data', data: { received: true, job_id: 57071, deliverable_url: 'https://seller.example/api/escrow/jobs/57071/deliverable', estimated_completion_seconds: 60 } }],
     },
   };
   assert.deepEqual(readNoticeReply(noticeReplyData(mandate)), {
     status: 'accepted',
     reason: null,
-    deliverableUrl: 'https://www.mandatemarkets.com/api/escrow/jobs/57071/deliverable',
+    deliverableUrl: 'https://seller.example/api/escrow/jobs/57071/deliverable',
   });
   for (const status of ['received', 'processing', 'in_progress', 'FUNDED', 'queued']) {
     assert.equal(readNoticeReply({ job_id: 1, status })?.status, 'accepted', status);
