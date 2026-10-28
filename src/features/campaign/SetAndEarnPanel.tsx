@@ -3,6 +3,7 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { isAddress } from 'viem';
 
+import { campaignHeadline, campaignSteps, type CampaignCheck } from '@/lib/campaign/check-state';
 import type { CampaignProgressReport } from '@/lib/campaign/progress-server';
 import { registrationKey, REGISTRATION_EVENT, subscribeToRegistration } from '@/lib/campaign/registration';
 import { cn } from '@/lib/ui/cn';
@@ -14,8 +15,8 @@ import { Button, LinkButton } from '@/ui/Button';
 import { Notice, Skeleton } from '@/ui/Feedback';
 import { Checkbox, Input } from '@/ui/Field';
 import { Icon } from '@/ui/icons';
+import { CheckMark, CheckWords } from './CheckMark';
 
-type StepState = 'done' | 'partial' | 'todo' | 'unknown';
 
 /**
  * The top of the Set and Earn page: where this wallet stands on each of
@@ -199,37 +200,26 @@ function Steps({ report, rulesUrl }: { report: CampaignProgressReport; rulesUrl:
   };
 
   const h = report.hires;
-  const hireState: StepState = h.distinctAgents >= 3 && h.marketplacesStatus === 'met' ? 'done' : h.distinctAgents > 0 ? 'partial' : 'todo';
   const inWindow = report.build?.find((a) => a.inWindow === true) ?? null;
-  const buildState: StepState = report.build === null ? 'unknown' : inWindow ? 'done' : 'todo';
   const a = report.adoption;
-  const adoptionDone = Boolean(a && a.independentWallets >= 3 && a.actions >= 5 && a.activeDays >= 3);
-  const adoptionState: StepState = !inWindow ? 'todo' : adoptionDone ? 'done' : a && (a.independentWallets || a.actions) ? 'partial' : 'todo';
-  const states: StepState[] = [registered ? 'done' : 'todo', hireState, buildState, adoptionState];
-  const done = states.filter((s) => s === 'done').length;
-  const started = states.filter((s) => s === 'partial').length;
-  /* How full each segment is, so one agent of three shows as a third, not as nothing. */
-  const part = (value: number, target: number) => Math.min(value, target) / target;
-  const fills = [
-    registered ? 1 : 0,
-    hireState === 'done' ? 1 : Math.min(0.95, part(h.distinctAgents, 3)),
-    buildState === 'done' ? 1 : 0,
-    adoptionState === 'done' ? 1 : a ? Math.min(0.95, (part(a.independentWallets, 3) + part(a.actions, 5) + part(a.activeDays, 3)) / 3) : 0,
-  ];
+  /* Each step is verified, not yet met, or something Pokter cannot verify (`check-state.ts`). */
+  const steps = campaignSteps(report, registered);
+  const [registerStep, hireStep, buildStep, adoptionStep] = steps;
 
   return (
     <div className="flex flex-col">
       <div className="flex flex-col gap-2 px-5 pt-5">
         <div className="flex items-baseline justify-between">
           <span className="text-[13.5px] font-medium">
-            {done === 4 ? 'Everything Pokter can see is done' : `${done} of 4 done${started ? ` · ${started} in progress` : ''}`}
+            {campaignHeadline(steps)}
           </span>
           <span className="text-[12px] text-ink-3">BNB Chain decides who qualifies</span>
         </div>
         <div className="grid grid-cols-4 gap-1.5" aria-hidden>
-          {fills.map((fill, i) => (
-            <span key={i} className="h-1.5 overflow-hidden rounded-full bg-sunken">
-              <span className="block h-full rounded-full bg-ok transition-[width] duration-500" style={{ width: `${Math.round(fill * 100)}%` }} />
+          {/* How full each segment is, so one agent of three shows as a third; amber where Pokter cannot verify the rest. */}
+          {steps.map((step) => (
+            <span key={step.id} className="h-1.5 overflow-hidden rounded-full bg-sunken">
+              <span className={cn('block h-full rounded-full transition-[width] duration-500', step.state === 'cannot-verify' ? 'bg-watch' : 'bg-ok')} style={{ width: `${Math.round(step.progress * 100)}%` }} />
             </span>
           ))}
         </div>
@@ -238,9 +228,9 @@ function Steps({ report, rulesUrl }: { report: CampaignProgressReport; rulesUrl:
       <ol className="ruled mt-2 px-5">
         <Step
           n={1}
-          state={states[0]}
+          state={registerStep.state}
           title="Register this wallet with BNB Chain"
-          status={registered ? 'Marked as registered by you. Pokter cannot see BNB Chain’s form.' : 'Actions from an unregistered wallet do not count, including earlier ones.'}
+          status={registered ? 'Marked as registered by you. Pokter can’t see BNB Chain’s form, so it can’t verify this.' : 'Actions from an unregistered wallet do not count, including earlier ones.'}
           action={
             <div className="flex flex-col items-end gap-1.5">
               <a href={rulesUrl} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 text-[13px] font-medium text-ink hover:underline">
@@ -252,7 +242,7 @@ function Steps({ report, rulesUrl }: { report: CampaignProgressReport; rulesUrl:
         />
         <Step
           n={2}
-          state={states[1]}
+          state={hireStep.state}
           title="Hire three different agents"
           status={
             <>
@@ -274,14 +264,14 @@ function Steps({ report, rulesUrl }: { report: CampaignProgressReport; rulesUrl:
             </>
           }
           action={
-            <LinkButton href="/discover?hireable=1" size="s" intent={hireState === 'done' ? 'secondary' : 'primary'}>
+            <LinkButton href="/discover?hireable=1" size="s" intent={hireStep.state === 'verified' ? 'secondary' : 'primary'}>
               Find an agent
             </LinkButton>
           }
         />
         <Step
           n={3}
-          state={states[2]}
+          state={buildStep.state}
           title="Build and list an agent of your own"
           status={
             report.build === null
@@ -293,14 +283,14 @@ function Steps({ report, rulesUrl }: { report: CampaignProgressReport; rulesUrl:
                   : 'No agent is registered to this wallet yet.'
           }
           action={
-            <LinkButton href="/build" size="s" intent={buildState === 'done' ? 'secondary' : 'primary'}>
+            <LinkButton href="/build" size="s" intent={buildStep.state === 'verified' ? 'secondary' : 'primary'}>
               Builder Studio
             </LinkButton>
           }
         />
         <Step
           n={4}
-          state={states[3]}
+          state={adoptionStep.state}
           title="Get it hired and active"
           status={
             !inWindow ? (
@@ -313,6 +303,11 @@ function Steps({ report, rulesUrl }: { report: CampaignProgressReport; rulesUrl:
                   <Meter value={a?.activeDays ?? 0} target={3} label="active days" />
                 </span>
                 {a?.actionsBlockedReason && <span className="block text-watch">{a.actionsBlockedReason}</span>}
+                {adoptionStep.state === 'cannot-verify' && (
+                  <span className="block">
+                    Counted, not verified: Pokter does not check whether these actions fit the agent&rsquo;s category or whether the hirers are independent. BNB Chain decides.
+                  </span>
+                )}
               </>
             )
           }
@@ -330,20 +325,15 @@ function Steps({ report, rulesUrl }: { report: CampaignProgressReport; rulesUrl:
   );
 }
 
-function Step({ n, state, title, status, action }: { n: number; state: StepState; title: string; status: React.ReactNode; action: React.ReactNode }) {
+function Step({ n, state, title, status, action }: { n: number; state: CampaignCheck; title: string; status: React.ReactNode; action: React.ReactNode }) {
   return (
     <li className="flex flex-col gap-3 py-4 sm:flex-row sm:items-start">
-      <span
-        className={cn(
-          'grid size-7 shrink-0 place-items-center rounded-full text-[12px] font-semibold',
-          state === 'done' ? 'bg-ok text-paper' : state === 'partial' ? 'border-2 border-ok text-ok' : 'border border-rule-strong text-ink-3',
-        )}
-        aria-label={state === 'done' ? 'Done' : state === 'partial' ? 'In progress' : state === 'unknown' ? 'Could not check' : 'Not yet'}
-      >
-        {state === 'done' ? <Icon.Check size={14} aria-hidden /> : n}
-      </span>
+      <CheckMark state={state} n={n} className="size-7" />
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <span className="text-[15px] font-semibold">{title}</span>
+        <span className="flex flex-wrap items-baseline gap-x-2">
+          <span className="text-[15px] font-semibold">{title}</span>
+          <CheckWords state={state} />
+        </span>
         <span className="text-[13px] leading-snug text-ink-2">{status}</span>
       </div>
       <div className="shrink-0 sm:pt-0.5">{action}</div>
@@ -360,10 +350,9 @@ function Meter({ value, target, label }: { value: number; target: number; label:
           <span key={i} className={cn('size-2 rounded-full', i < shown ? 'bg-ok' : 'bg-sunken ring-1 ring-rule-strong')} />
         ))}
       </span>
-      <span className="t-readout text-[12.5px] text-ink">
-        {value} of {target}
-      </span>
-      <span className="text-[12.5px] text-ink-3">{label}</span>
+      {/* Past the target, the count and the target are two facts: "21 of 3" reads as a typo. */}
+      <span className="t-readout text-[12.5px] text-ink">{value > target ? value : `${value} of ${target}`}</span>
+      <span className="text-[12.5px] text-ink-3">{value > target ? `${label} · ${target} needed` : label}</span>
     </span>
   );
 }

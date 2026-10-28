@@ -6,7 +6,8 @@ import { CAMPAIGN_END_LABEL, CAMPAIGN_RULES_URL } from '@/lib/campaign/window';
 import { chainLabel } from '@/lib/network/presentation';
 import { lookupQuest, type QuestLookup } from '@/lib/quest/lookup';
 import { POKTER_MARKETPLACE } from '@/lib/quest/progress';
-import { cn } from '@/lib/ui/cn';
+import type { CampaignCheck } from '@/lib/campaign/check-state';
+import { CheckMark, CheckWords } from '@/features/campaign/CheckMark';
 import { shortAddress } from '@/lib/ui/format';
 import { Icon } from '@/ui/icons';
 
@@ -27,20 +28,15 @@ const STATUS_LABEL: Record<string, string> = {
 
 const placeName = (m: string) => (m === POKTER_MARKETPLACE ? 'Pokter' : m);
 
-function Check({ done, title, children }: { done: boolean | 'maybe'; title: string; children: React.ReactNode }) {
+function Check({ state, title, children }: { state: CampaignCheck; title: string; children: React.ReactNode }) {
   return (
     <div className="flex items-start gap-3 rounded-[14px] border border-rule bg-raised p-5">
-      <span
-        className={cn(
-          'mt-0.5 grid size-6 shrink-0 place-items-center rounded-full',
-          done === true ? 'bg-ok text-paper' : done === 'maybe' ? 'bg-watch-wash text-ink' : 'border border-rule-strong text-ink-3',
-        )}
-        aria-hidden
-      >
-        {done === true ? <Icon.Check size={13} /> : <Icon.Dash size={12} />}
-      </span>
+      <CheckMark state={state} className="mt-0.5" />
       <div className="flex min-w-0 flex-col gap-1">
-        <p className="font-medium">{title}</p>
+        <p className="flex flex-wrap items-baseline gap-x-2">
+          <span className="font-medium">{title}</span>
+          <CheckWords state={state} />
+        </p>
         <div className="text-[13.5px] leading-relaxed text-ink-2">{children}</div>
       </div>
     </div>
@@ -52,12 +48,13 @@ function Result({ data }: { data: QuestLookup }) {
   return (
     <div className="flex flex-col gap-6">
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-        <Check done={summary.agentsMet} title={`${Math.min(summary.distinctAgents, 3)} of 3 different agents hired`}>
+        <Check state={summary.agentsMet ? 'verified' : 'not-yet'} title={`${Math.min(summary.distinctAgents, 3)} of 3 different agents hired`}>
           {summary.hires === 0
             ? 'No funded hire from this wallet on either network since the campaign opened.'
             : `${summary.hires} funded hire${summary.hires === 1 ? '' : 's'}, ${summary.distinctAgents} different agent${summary.distinctAgents === 1 ? '' : 's'}.`}
         </Check>
-        <Check done={summary.marketplaces === 'met' ? true : summary.marketplaces === 'likely' ? 'maybe' : false} title="At least two marketplaces">
+        {/* Named by the jobs' own records; where a record names no marketplace, Pokter cannot verify the second one. */}
+        <Check state={summary.marketplaces === 'met' ? 'verified' : summary.marketplaces === 'likely' ? 'cannot-verify' : 'not-yet'} title="At least two marketplaces">
           {summary.marketplaces === 'met' && `The records name ${summary.namedMarketplaces.map(placeName).join(' and ')}.`}
           {summary.marketplaces === 'likely' &&
             `The records name ${placeName(summary.namedMarketplaces[0])}; ${summary.unattributed} other hire${summary.unattributed === 1 ? '' : 's'} do not say where they were made, so a second marketplace is possible but not shown.`}
