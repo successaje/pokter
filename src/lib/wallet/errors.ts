@@ -40,6 +40,18 @@ function rpcDetail(error: unknown): string | null {
   return detail || null;
 }
 
+/** The steps that can fail on chain, as a buyer or seller would name them. */
+const FAILED_STEP: Record<string, string> = {
+  CREATING: 'the transaction that creates the job',
+  REGISTERING: 'the transaction that registers the job with the escrow’s policy',
+  BUDGETING: 'the transaction that sets the job’s budget',
+  APPROVING: 'the approval that lets the escrow take the payment',
+  FUNDING: 'the transaction that funds the escrow',
+  SUBMIT: 'the delivery transaction',
+  REVOKE: 'the transaction that revokes the approval',
+  BATCH: 'the batched transaction',
+};
+
 export function walletActionError(error: unknown, action: string): string {
   const candidate = error as { shortMessage?: unknown; message?: unknown };
   const raw =
@@ -89,6 +101,24 @@ export function walletActionError(error: unknown, action: string): string {
 
   if (/SWAP_REVERTED/.test(message)) {
     return `${action} tried to swap for the missing $U and the swap failed on chain. Nothing was funded into escrow.`;
+  }
+
+  /*
+   * A step that reached the chain and failed there.
+   *
+   * These were single tokens ("CREATING_REVERTED"), so they fell through to
+   * "the wallet gave no reason we can translate. Check the selected network
+   * and wallet balance": wrong on both counts for a job creation that ran
+   * out of gas on 27 October 2026, whose buyer retried and succeeded.
+   * Each now says which transaction failed, how, and that it alone was
+   * undone; earlier steps that succeeded are not claimed undone.
+   */
+  const failed = /\b([A-Z]+)_(OUT_OF_GAS|REVERTED)\b/.exec(message);
+  const what = failed ? FAILED_STEP[failed[1]] : undefined;
+  if (failed && what) {
+    return failed[2] === 'OUT_OF_GAS'
+      ? `${action} stopped: ${what} ran out of gas, so the network undid it. That transaction changed nothing, and only its network fee was spent. Try again.`
+      : `${action} stopped: the contract refused ${what}, so the network undid it. That transaction changed nothing, and only its network fee was spent. Try again, and if it is refused again, reload the page: the price or the job may have changed.`;
   }
 
   /*

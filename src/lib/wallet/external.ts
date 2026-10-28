@@ -27,6 +27,7 @@ import { describeFundingOutcome, fundingOutcome, retrySafe, type FundingOutcome 
 import { jobCreatedFromReceipt } from '@/lib/wallet/external-receipt';
 import { checkPurchaseIntent, type PurchaseIntent } from '@/lib/hire/purchase-intent';
 import { assertEscrowSupportsToken, buildTokenHireCalls, confirmJobToken, nonDefaultHireToken, readJobPaymentToken } from '@/lib/erc8183/hire-calls';
+import { failedOnChain, gasLimitFor } from '@/lib/wallet/gas';
 
 export type HireStep =
   | 'connecting' | 'swapping' | 'creating' | 'registering' | 'budgeting'
@@ -149,6 +150,13 @@ function clients(chainId: number = WALLET_NETWORK.chainId) {
       pollingInterval: RECEIPT_POLL_MS,
     }),
   };
+}
+
+type ReadClient = ReturnType<typeof clients>['read'];
+
+async function failureOf(read: Pick<ReadClient, 'getTransaction'>, step: string, hash: Hex, gasUsed: bigint): Promise<string> {
+  const sent = await read.getTransaction({ hash }).catch(() => null);
+  return failedOnChain(step, gasUsed, sent?.gas ?? null);
 }
 
 export async function connectExternalWallet(): Promise<Address> {
@@ -274,12 +282,15 @@ export async function revokeExternalWalletAllowance(
   await assertAccount(expectedAccount);
   const { wallet, read } = clients(chainId);
   const addresses = correctedErc8183Addresses(chainId);
-  const hash = await wallet.sendTransaction({
+  const revoke = {
     account: expectedAccount, to: (token ?? addresses.paymentToken) as Address,
     data: encodeFunctionData({
       abi: erc20Abi, functionName: 'approve',
       args: [addresses.commerce as Address, 0n],
-    }), chain: null,
+    }),
+  };
+  const hash = await wallet.sendTransaction({
+    ...revoke, ...(await gasLimitFor(read, revoke)), chain: null,
   });
   const receipt = await read.waitForTransactionReceipt({ hash });
   if (receipt.status !== 'success') throw new Error('REVOKE_REVERTED');
@@ -469,8 +480,9 @@ export async function settleFromExternalWallet(input: {
     throw new Error(explainSettleRevert(reason, input.action));
   }
 
+  const settle = { account: input.account, to: target as Address, data };
   const hash = await wallet.sendTransaction({
-    account: input.account, to: target as Address, data, chain: null,
+    ...settle, ...(await gasLimitFor(read, settle)), chain: null,
   });
   const receipt = await read.waitForTransactionReceipt({ hash });
   if (receipt.status !== 'success') throw new Error('The escrow transaction reverted.');
@@ -532,10 +544,10 @@ export async function reclaimFromExternalWallet(input: {
 
   const call = buildClaimRefundCall(chainId, input.jobId);
   const { wallet, read } = clients(chainId);
+  const refund = { account: input.account, to: call.to as Address, data: call.data as Hex };
   const hash = await wallet.sendTransaction({
-    account: input.account,
-    to: call.to as Address,
-    data: call.data as Hex,
+    ...refund,
+    ...(await gasLimitFor(read, refund)),
     chain: null,
   });
   const receipt = await read.waitForTransactionReceipt({ hash });
@@ -626,8 +638,9 @@ async function acquireShortfall({
 
   report({ step: 'swapping' });
   const swap = buildSwapTransaction(quote, addresses.paymentToken as Address, account);
+  const swapCall = { account, to: swap.to, data: swap.data, value: swap.value };
   const hash = await wallet.sendTransaction({
-    account, to: swap.to, data: swap.data, value: swap.value, chain: null,
+    ...swapCall, ...(await gasLimitFor(read, swapCall)), chain: null,
   });
   const receipt = await read.waitForTransactionReceipt({ hash });
   if (receipt.status !== 'success') throw new Error('SWAP_REVERTED');
@@ -866,13 +879,15 @@ export async function hireFromExternalWallet(input: ExternalHireInput): Promise<
 
   const send = async (step: HireStep, to: Address, data: Hex, jobId?: bigint) => {
     await ensureChain(chainId); await assertAccount(account); report({ step, jobId });
+    /* Estimated before the prompt, so the wallet opens on a limit the call fits in. */
+    const gas = await gasLimitFor(read, { account, to, data });
     ask(step as Parameters<typeof ask>[0]);
-    const hash = await wallet.sendTransaction({ account, to, data, chain: null });
+    const hash = await wallet.sendTransaction({ account, to, data, ...gas, chain: null });
     /* Reported before waiting: a receipt that never comes must not lose the hash. */
     report({ step, jobId, sentHash: hash });
     /* A wallet that speeds up or replaces it hands back another hash; that one is recorded too. */
     const receipt = await read.waitForTransactionReceipt({ hash, onReplaced: (replacement) => report({ step, jobId, sentHash: replacement.transaction.hash }) });
-    if (receipt.status !== 'success') throw new Error(`${step.toUpperCase()}_REVERTED`);
+    if (receipt.status !== 'success') throw new Error(await failureOf(read, step, receipt.transactionHash, receipt.gasUsed));
     report({ step, jobId, hash });
     return { hash, receipt };
   };
@@ -982,7 +997,8 @@ export async function submitExternalDeliverable(input: {
     deliverable: input.deliverable,
     optParams: stringToHex(JSON.stringify({ deliverable_url: input.deliverableUrl })),
   });
-  const hash = await wallet.sendTransaction({ account: input.account, to: call.to as Address, data: call.data, chain: null });
+  const submit = { account: input.account, to: call.to as Address, data: call.data as Hex };
+  const hash = await wallet.sendTransaction({ ...submit, ...(await gasLimitFor(read, submit)), chain: null });
   let receipt;
   try {
     receipt = await read.waitForTransactionReceipt({ hash });
@@ -1113,12 +1129,13 @@ export async function resumeExternalFunding(input: {
   const routerAbi = [{ type: 'function', name: 'registerJob', stateMutability: 'nonpayable', inputs: [{ type: 'uint256' }, { type: 'address' }], outputs: [] }] as const;
   const send = async (step: 'registering' | 'budgeting' | 'approving' | 'funding', to: Address, data: Hex) => {
     await ensureChain(chainId); await assertAccount(account);
+    const gas = await gasLimitFor(read, { account, to, data });
     input.beforePrompt(step);
     report({ step, jobId: input.jobId });
-    const hash = await wallet.sendTransaction({ account, to, data, chain: null });
+    const hash = await wallet.sendTransaction({ account, to, data, ...gas, chain: null });
     report({ step, jobId: input.jobId, sentHash: hash });
     const receipt = await read.waitForTransactionReceipt({ hash, onReplaced: (replacement) => report({ step, jobId: input.jobId, sentHash: replacement.transaction.hash }) });
-    if (receipt.status !== 'success') throw new Error(`${step.toUpperCase()}_REVERTED`);
+    if (receipt.status !== 'success') throw new Error(await failureOf(read, step, receipt.transactionHash, receipt.gasUsed));
     return hash;
   };
   /* A read-only call: succeeds only if the transaction would. */
