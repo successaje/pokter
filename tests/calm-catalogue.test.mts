@@ -46,6 +46,29 @@ test('Discover and the full listing share one filter bar: tasks, then the buyer 
   assert.doesNotMatch(row, /scrollIntoView\(/);
 });
 
+test('every number beside a filter is what clicking it would show, and a filter that would show nothing is not a link', () => {
+  const search = code('features/discover/search.ts');
+  /* One test per signal, used by the results and by its count. */
+  for (const signal of ['hireable', 'priced', 'outsideDelivery', 'checked', 'answering']) {
+    assert.match(search, new RegExp(`${signal}: \\(e\\) => !params\\.${signal} \\|\\| SIGNAL_TESTS\\.${signal}\\(e\\)`), `${signal} filters by its test`);
+    assert.match(search, new RegExp(`${signal}: ifOn\\('${signal}', SIGNAL_TESTS\\.${signal}\\)`), `${signal} counts by the same test`);
+  }
+  /* Under every other rule that is on, per agent, as the results are. */
+  assert.match(search, /const ifOn = \(skip: keyof typeof rules, test: \(e: SearchableAgent\) => boolean\) => perAgent\(applying\(pool, skip\)\.filter\(test\)\)\.items\.length;/);
+  assert.match(search, /measured: ifOn\('evidence', EVIDENCE_TESTS\.measured\)/);
+  assert.match(search, /evidence: \(e\) => params\.evidence === 'any' \|\| EVIDENCE_TESTS\[params\.evidence\]\(e\)/);
+
+  const bar = code('features/discover/FilterBar.tsx');
+  assert.match(bar, /count=\{filterCounts\[signal\.key\]\}/, 'the pills count from filterCounts');
+  assert.match(bar, /count=\{counts\[signal\.key\]\}/, 'and so does the panel');
+  assert.doesNotMatch(bar, /collections/, 'never the catalogue-wide figures');
+  assert.match(bar, /const dead = \(on: boolean, count\?: number\) => !on && count === 0;/);
+  assert.equal(bar.match(/if \(dead\(on, count\)\)/g)?.length, 4, 'tasks, signals, panel toggles and evidence choices alike');
+  for (const page of ['app/(site)/discover/page.tsx', 'app/(site)/agents/page.tsx']) {
+    assert.match(code(page), /filterCounts=\{result\.filterCounts\}/, page);
+  }
+});
+
 test('a card names the registration network only when it differs from where the hire settles', () => {
   const card = code('features/agents/AgentCard.tsx');
   assert.match(card, /\{row\.hireChainId !== row\.chainId && <RegisteredNetwork/);

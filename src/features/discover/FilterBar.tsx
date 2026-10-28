@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { cn } from '@/lib/ui/cn';
 import { discoverHref, type DiscoverParams } from './params';
 import { FiltersButton, PillRow, SortSelect } from './DiscoverControls';
+import type { FilterCounts } from './search';
 import { chainLabel } from '@/lib/network/presentation';
 import { Icon } from '@/ui/icons';
 
@@ -14,9 +15,25 @@ import { Icon } from '@/ui/icons';
  * would have disagreed inside a release: the counts, the labels and the
  * vocabulary each have a reason behind them that is not visible from the
  * markup.
+ *
+ * A filter whose count is 0 and that is off is shown, dimmed, but is not a
+ * link: clicking it could only show nothing.
  */
 
+const DEAD = 'None under the filters that are on';
+
+/** Off, and nothing would show if it were on. */
+const dead = (on: boolean, count?: number) => !on && count === 0;
+
 function FilterLink({ href, on, children, count }: { href: string; on: boolean; children: React.ReactNode; count?: number }) {
+  if (dead(on, count)) {
+    return (
+      <span aria-disabled="true" title={DEAD} className="flex h-9 items-center justify-between gap-3 rounded-[8px] px-2.5 text-[13.5px] text-ink-3 opacity-60">
+        <span className="flex items-center gap-2">{children}</span>
+        <span className="t-readout text-[11.5px]">0</span>
+      </span>
+    );
+  }
   return (
     <Link
       href={href}
@@ -34,8 +51,8 @@ function FilterLink({ href, on, children, count }: { href: string; on: boolean; 
 }
 
 function Toggle({ href, on, label, hint, count }: { href: string; on: boolean; label: string; hint: string; count?: number }) {
-  return (
-    <Link href={href} scroll={false} role="switch" aria-checked={on} className="group flex items-start gap-3 rounded-[8px] px-2.5 py-2 hover:bg-sunken">
+  const inside = (
+    <>
       <span className={cn('relative mt-0.5 h-[18px] w-8 shrink-0 rounded-full transition-colors motion-reduce:transition-none', on ? 'bg-ink' : 'bg-rule-strong')}>
         <span className={cn('absolute top-[2px] size-[14px] rounded-full bg-raised transition-[left] duration-200 motion-reduce:transition-none', on ? 'left-[16px]' : 'left-[2px]')} />
       </span>
@@ -46,20 +63,38 @@ function Toggle({ href, on, label, hint, count }: { href: string; on: boolean; l
         </span>
         <span className="text-[12px] leading-snug text-ink-3">{hint}</span>
       </span>
+    </>
+  );
+  if (dead(on, count)) {
+    return (
+      <span role="switch" aria-checked={false} aria-disabled="true" title={DEAD} className="flex items-start gap-3 rounded-[8px] px-2.5 py-2 opacity-50">
+        {inside}
+      </span>
+    );
+  }
+  return (
+    <Link href={href} scroll={false} role="switch" aria-checked={on} className="group flex items-start gap-3 rounded-[8px] px-2.5 py-2 hover:bg-sunken">
+      {inside}
     </Link>
   );
 }
 
-export function Pill({ href, on, children }: { href: string; on: boolean; children: React.ReactNode }) {
+const PILL = 'inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[13px] font-medium transition-colors';
+
+export function Pill({ href, on, count, children }: { href: string; on: boolean; count?: number; children: React.ReactNode }) {
+  if (dead(on, count)) {
+    return (
+      <span aria-disabled="true" title={DEAD} className={cn(PILL, 'cursor-default border-rule text-ink-3 opacity-60')}>
+        {children}
+      </span>
+    );
+  }
   return (
     <Link
       href={href}
       scroll={false}
       aria-current={on ? 'true' : undefined}
-      className={cn(
-        'inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[13px] font-medium transition-colors',
-        on ? 'border-ink bg-ink text-paper' : 'border-rule-strong text-ink-2 hover:border-ink hover:text-ink',
-      )}
+      className={cn(PILL, on ? 'border-ink bg-ink text-paper' : 'border-rule-strong text-ink-2 hover:border-ink hover:text-ink')}
     >
       {children}
     </Link>
@@ -70,8 +105,6 @@ export function Tally({ n, on }: { n: number; on: boolean }) {
   return <span className={cn('t-readout text-[11.5px]', on ? 'text-paper/70' : 'text-ink-3')}>{n}</span>;
 }
 
-type Collections = { hireable: number; priced: number; answering: number; checked: number; outsideDelivery: number; corroborated: number };
-
 /** The buyer signals, named once for the row and the panel. Each one narrows; any number can be on. */
 const SIGNALS = [
   { key: 'hireable', label: 'Hireable via escrow', hint: 'Answering, and payable through escrow' },
@@ -79,10 +112,17 @@ const SIGNALS = [
   { key: 'outsideDelivery', label: 'Outside buyer delivered', hint: 'Settled work funded outside Pokter’s team' },
   { key: 'checked', label: 'Correctness checked', hint: 'Passed the latest check for its category' },
   { key: 'answering', label: 'Answered this week', hint: 'Replied to a Pokter probe in 7 days' },
-] as const satisfies ReadonlyArray<{ key: keyof Collections & keyof DiscoverParams; label: string; hint: string }>;
+] as const satisfies ReadonlyArray<{ key: keyof FilterCounts & keyof DiscoverParams; label: string; hint: string }>;
 
 /** A buyer signal on the row: a pill that shows a check while it is on, and explains itself on hover. */
-function SignalPill({ href, on, label, hint }: { href: string; on: boolean; label: string; hint: string }) {
+function SignalPill({ href, on, label, hint, count }: { href: string; on: boolean; label: string; hint: string; count: number }) {
+  if (dead(on, count)) {
+    return (
+      <span role="switch" aria-checked={false} aria-disabled="true" title={`${hint}. ${DEAD}.`} className={cn(PILL, 'cursor-default border-rule text-ink-3 opacity-60')}>
+        {label} <Tally n={0} on={false} />
+      </span>
+    );
+  }
   return (
     <Link
       href={href}
@@ -90,13 +130,10 @@ function SignalPill({ href, on, label, hint }: { href: string; on: boolean; labe
       role="switch"
       aria-checked={on}
       title={hint}
-      className={cn(
-        'inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[13px] font-medium transition-colors',
-        on ? 'border-ink bg-ink text-paper' : 'border-rule-strong text-ink-2 hover:border-ink hover:text-ink',
-      )}
+      className={cn(PILL, on ? 'border-ink bg-ink text-paper' : 'border-rule-strong text-ink-2 hover:border-ink hover:text-ink')}
     >
       {on && <Icon.Check size={13} aria-hidden />}
-      {label}
+      {label} <Tally n={count} on={on} />
     </Link>
   );
 }
@@ -119,14 +156,14 @@ export function activeFilterChips(p: DiscoverParams): Array<{ label: string; hre
  * and what each filter means), and the sort. Tasks choose one; signals
  * narrow, any number at once, and show a check while on.
  *
- * Counts stay with the tasks and in the panel. The signal counts are over
- * the whole catalogue, so on a pill under a chosen task they would claim
- * more than clicking shows; the heading below says how many remain.
+ * Every number beside a filter is what clicking it would show, under
+ * everything else that is on (`filterCounts`), so a pill under a chosen task
+ * never promises the whole catalogue.
  *
  * On a phone each row is one line that scrolls sideways, rather than seven
  * rows of pills above the first result.
  */
-export function FilterBar({ p, counts, allTasks, collections }: { p: DiscoverParams; counts: Array<{ id: string; label: string; count: number }>; allTasks: number; collections: Collections }) {
+export function FilterBar({ p, counts, allTasks, filterCounts }: { p: DiscoverParams; counts: Array<{ id: string; label: string; count: number }>; allTasks: number; filterCounts: FilterCounts }) {
   const chips = activeFilterChips(p);
   return (
     <div className="flex flex-col gap-3" role="group" aria-label="Filters">
@@ -135,7 +172,7 @@ export function FilterBar({ p, counts, allTasks, collections }: { p: DiscoverPar
           All tasks <Tally n={allTasks} on={!p.category} />
         </Pill>
         {counts.map((c) => (
-          <Pill key={c.id} href={discoverHref({ category: c.id as DiscoverParams['category'] }, p)} on={p.category === c.id}>
+          <Pill key={c.id} href={discoverHref({ category: c.id as DiscoverParams['category'] }, p)} on={p.category === c.id} count={c.count}>
             {c.label} <Tally n={c.count} on={p.category === c.id} />
           </Pill>
         ))}
@@ -143,11 +180,11 @@ export function FilterBar({ p, counts, allTasks, collections }: { p: DiscoverPar
       <div className="flex flex-wrap items-center gap-2">
         <PillRow label="Buyer signals" className="max-sm:w-[calc(100%+2rem)]">
           {SIGNALS.map((signal) => (
-            <SignalPill key={signal.key} href={discoverHref({ [signal.key]: !p[signal.key] }, p)} on={p[signal.key]} label={signal.label} hint={signal.hint} />
+            <SignalPill key={signal.key} href={discoverHref({ [signal.key]: !p[signal.key] }, p)} on={p[signal.key]} label={signal.label} hint={signal.hint} count={filterCounts[signal.key]} />
           ))}
         </PillRow>
         <FiltersButton>
-          <Filters p={p} collections={collections} />
+          <Filters p={p} counts={filterCounts} />
         </FiltersButton>
         {chips.map((chip) => (
           <Link
@@ -168,24 +205,24 @@ export function FilterBar({ p, counts, allTasks, collections }: { p: DiscoverPar
 }
 
 /** The panel behind All filters: everything that narrows the results within a task, each with what it means. */
-export function Filters({ p, collections }: { p: DiscoverParams; collections: Collections }) {
+export function Filters({ p, counts }: { p: DiscoverParams; counts: FilterCounts }) {
   return (
     <div className="flex flex-col gap-7">
       <section className="flex flex-col gap-1" aria-label="Buyer signals">
         <h2 className="t-label mb-1.5 px-2.5">Buyer signals</h2>
         {SIGNALS.map((signal) => (
-          <Toggle key={signal.key} href={discoverHref({ [signal.key]: !p[signal.key] }, p)} on={p[signal.key]} label={signal.label} count={collections[signal.key]} hint={signal.hint} />
+          <Toggle key={signal.key} href={discoverHref({ [signal.key]: !p[signal.key] }, p)} on={p[signal.key]} label={signal.label} count={counts[signal.key]} hint={signal.hint} />
         ))}
       </section>
       <section className="flex flex-col gap-1" aria-label="Evidence">
         <h2 className="t-label mb-1.5 px-2.5">Evidence</h2>
-        <FilterLink href={discoverHref({ evidence: 'any' }, p)} on={p.evidence === 'any'}>
+        <FilterLink href={discoverHref({ evidence: 'any' }, p)} on={p.evidence === 'any'} count={counts.anyEvidence}>
           Any
         </FilterLink>
-        <FilterLink href={discoverHref({ evidence: 'measured' }, p)} on={p.evidence === 'measured'}>
+        <FilterLink href={discoverHref({ evidence: 'measured' }, p)} on={p.evidence === 'measured'} count={counts.measured}>
           Measured by Pokter
         </FilterLink>
-        <FilterLink href={discoverHref({ evidence: 'corroborated' }, p)} on={p.evidence === 'corroborated'} count={collections.corroborated}>
+        <FilterLink href={discoverHref({ evidence: 'corroborated' }, p)} on={p.evidence === 'corroborated'} count={counts.corroborated}>
           Has published attestations
         </FilterLink>
       </section>

@@ -71,7 +71,7 @@ export default async function AllAgentsPage({ searchParams }: { searchParams: Pr
       </header>
 
       <div className="mt-8 flex flex-col gap-6">
-        <FilterBar p={base} counts={result.categoryCounts} allTasks={result.allTasksCount} collections={result.collections} />
+        <FilterBar p={base} counts={result.categoryCounts} allTasks={result.allTasksCount} filterCounts={result.filterCounts} />
 
         <section aria-label="Results" className="min-w-0">
 

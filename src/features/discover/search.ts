@@ -37,10 +37,34 @@ export interface DiscoverResult {
   recent: FindRow[];
   /** Sizes of the curated shortcuts, over everything listed. */
   collections: { hireable: number; priced: number; answering: number; checked: number; outsideDelivery: number; corroborated: number };
+  /**
+   * What turning each filter on would show, under everything else that is
+   * on now (the task, the words, the network, the other filters): the
+   * number beside a filter, the same rule as the task counts.
+   */
+  filterCounts: FilterCounts;
   unreachable: boolean;
   /** Category labels on a chain where a registry read failed, so results there may be missing. */
   incomplete: string[];
 }
+
+export type Signal = 'hireable' | 'priced' | 'outsideDelivery' | 'checked' | 'answering';
+export type FilterCounts = Record<Signal | 'measured' | 'corroborated' | 'anyEvidence', number>;
+
+/** What each buyer signal requires of an agent, used for the results and for the counts beside each signal. */
+const SIGNAL_TESTS: Record<Signal, (e: SearchableAgent) => boolean> = {
+  hireable: (e) => offersDirectHire(e),
+  priced: (e) => e.listing.quote != null,
+  outsideDelivery: (e) => (e.history?.outsideTeam.completed ?? 0) > 0,
+  checked: (e) => e.tested === true,
+  answering: (e) => answeredThisWeek(e),
+};
+
+/** The evidence choices other than "any". */
+const EVIDENCE_TESTS: Record<'measured' | 'corroborated', (e: SearchableAgent) => boolean> = {
+  measured: (e) => e.record.totalProbes > 0,
+  corroborated: (e) => e.listing.attestationCount > 0,
+};
 
 function textTerms(q: string) {
   return Array.from(new Set(q.toLowerCase().split(/[^a-z0-9$%.-]+/).filter((t) => t.length > 2 && !STOP.has(t))));
@@ -182,12 +206,12 @@ export async function discover(params: DiscoverParams): Promise<DiscoverResult> 
   const rules: Record<'category' | 'chain' | 'hireable' | 'answering' | 'priced' | 'checked' | 'outsideDelivery' | 'evidence', (e: SearchableAgent) => boolean> = {
     category: (e) => !params.category || e.listing.category === params.category,
     chain: (e) => params.chain === 'any' || String(e.listing.agent.chain_id) === params.chain,
-    hireable: (e) => !params.hireable || offersDirectHire(e),
-    answering: (e) => !params.answering || answeredThisWeek(e),
-    priced: (e) => !params.priced || e.listing.quote != null,
-    checked: (e) => !params.checked || e.tested === true,
-    outsideDelivery: (e) => !params.outsideDelivery || (e.history?.outsideTeam.completed ?? 0) > 0,
-    evidence: (e) => (params.evidence === 'measured' ? e.record.totalProbes > 0 : params.evidence === 'corroborated' ? e.listing.attestationCount > 0 : true),
+    hireable: (e) => !params.hireable || SIGNAL_TESTS.hireable(e),
+    answering: (e) => !params.answering || SIGNAL_TESTS.answering(e),
+    priced: (e) => !params.priced || SIGNAL_TESTS.priced(e),
+    checked: (e) => !params.checked || SIGNAL_TESTS.checked(e),
+    outsideDelivery: (e) => !params.outsideDelivery || SIGNAL_TESTS.outsideDelivery(e),
+    evidence: (e) => params.evidence === 'any' || EVIDENCE_TESTS[params.evidence](e),
   };
   const applying = (items: SearchableAgent[], skip?: keyof typeof rules) =>
     items.filter((e) => (Object.keys(rules) as Array<keyof typeof rules>).every((key) => key === skip || rules[key](e)));
@@ -211,6 +235,23 @@ export async function discover(params: DiscoverParams): Promise<DiscoverResult> 
     ...CATEGORIES.map((c) => ({ id: c.id, label: c.label, count: forTasks.filter((e) => e.listing.category === c.id).length })),
     ...(unclassified > 0 ? [{ id: 'unclassified' as const, label: 'Unclassified', count: unclassified }] : []),
   ];
+
+  /*
+   * Each filter's count is what clicking it would show: every other rule as
+   * it is, this one turned on. Counted over the whole catalogue instead, a
+   * pill under a chosen task said 93 where clicking showed 21.
+   */
+  const ifOn = (skip: keyof typeof rules, test: (e: SearchableAgent) => boolean) => perAgent(applying(pool, skip).filter(test)).items.length;
+  const filterCounts: FilterCounts = {
+    hireable: ifOn('hireable', SIGNAL_TESTS.hireable),
+    priced: ifOn('priced', SIGNAL_TESTS.priced),
+    outsideDelivery: ifOn('outsideDelivery', SIGNAL_TESTS.outsideDelivery),
+    checked: ifOn('checked', SIGNAL_TESTS.checked),
+    answering: ifOn('answering', SIGNAL_TESTS.answering),
+    anyEvidence: ifOn('evidence', () => true),
+    measured: ifOn('evidence', EVIDENCE_TESTS.measured),
+    corroborated: ifOn('evidence', EVIDENCE_TESTS.corroborated),
+  };
 
   const rows = findRows(shown);
   const distinct = (items: SearchableAgent[]) => distinctAgentCount(items.map((e) => e.listing.agent));
@@ -250,6 +291,7 @@ export async function discover(params: DiscoverParams): Promise<DiscoverResult> 
     reading,
     advanced,
     categoryCounts,
+    filterCounts,
     collections: {
       // Each card's count is what clicking it shows: one rule, one agent each.
       ...catalogueCounts(entries),
