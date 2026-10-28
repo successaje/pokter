@@ -103,3 +103,18 @@ test('paid checks record the block Pokter read the reference at', () => {
   assert.match(v3, /const at = \{ block: input\.reading\.block\.toString\(\), readAt: input\.readAt \};/);
   assert.equal(v3.match(/\.\.\.at \}/g)?.length, 6, 'every row that names Pokter’s reading');
 });
+
+test('a verdict is compared by its class, as the grader reads it, and the answer says how it was read', () => {
+  const suite = STATIC_SUITES['token-safety'];
+  const [fail, caution] = suite.scenarios;
+  const c = answerComparison(run(suite.id, [
+    result(fail.id, { verdict: 'FAIL' }, { verdict: 'Avoid' }, true, 'correct'),
+    result(caution.id, { verdict: 'CAUTION' }, { verdict: 'Caution' }, true, 'correct'),
+    result('wrong', { verdict: 'CAUTION' }, { verdict: 'safe' }, false, 'wrong'),
+  ]))!;
+  assert.deepEqual(c.rows.map((r) => [r.answer, r.difference, r.result.label]), [
+    ['verdict Avoid (read as FAIL)', 'None', 'Matched'],
+    ['verdict Caution', 'None', 'Matched'],
+    ['verdict safe (read as PASS)', 'verdict differs', 'Did not match'],
+  ]);
+});
