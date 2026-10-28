@@ -124,7 +124,7 @@ test('the hire hook plans from the signed quote it funds, and records the token 
   assert.match(hook, /budgetRaw: outcome\.budgetRaw,\s*paymentToken: outcome\.paymentToken,\s*tokenConfirmed: outcome\.tokenConfirmed/);
   const wallet = readFileSync('src/lib/wallet/external.ts', 'utf8');
   assert.match(wallet, /if \(!tokenHire && await supportsAtomicBatch\(account, chainId\)\)/, 'no batch for another token');
-  assert.match(wallet, /report\(\{ step, jobId, sentHash: hash \}\);\s*(?:\/\*[^]*?\*\/\s*)?const receipt = await read\.waitForTransactionReceipt\(\{ hash, onReplaced/, 'the hash is reported before waiting');
+  assert.match(wallet, /report\(\{ step, jobId, sentHash: hash \}\);\s*(?:\/\*[^]*?\*\/\s*)?const confirmed = await raceWithChain\(read\.waitForTransactionReceipt\(\{ hash, onReplaced/, 'the hash is reported before waiting');
 });
 
 test('a funded hire records the confirmed token; one whose token read failed is recorded with the token unknown', () => {
@@ -379,6 +379,6 @@ test('the hire hook drives every attempt as its owner and settles only through t
   assert.ok(!/journal\.close|journal\.note|journal\.begin/.test(hook), 'nothing writes the journal outside the coordinator');
   const wallet = readFileSync('src/lib/wallet/external.ts', 'utf8');
   assert.match(wallet, /ask\('batch'\);\s*const callsId/);
-  assert.match(wallet, /ask\(step as Parameters<typeof ask>\[0\]\);\s*const hash = await wallet\.sendTransaction/);
+  assert.match(wallet, /ask\(step as Parameters<typeof ask>\[0\]\);\s*const sending = wallet\.sendTransaction/);
   assert.match(wallet, /input\.beforePrompt\?\.\('swapping'\);\s*await acquireShortfall/);
 });

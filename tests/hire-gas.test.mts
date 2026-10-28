@@ -47,5 +47,5 @@ test('every transaction the external wallet sends carries Pokter’s limit', () 
   assert.ok(sends >= 7);
   assert.equal(external.match(/gasLimitFor\(read, /g)?.length, sends, 'one estimate per send');
   assert.doesNotMatch(external, /`\$\{step\.toUpperCase\(\)\}_REVERTED`/, 'a failed step is classified, not assumed refused');
-  assert.equal(external.match(/throw new Error\(await failureOf\(read, step, receipt\.transactionHash, receipt\.gasUsed\)\)/g)?.length, 2, 'both hire paths');
+  assert.equal(external.match(/throw new Error\(await failureOf\(read, step, (?:receipt|confirmed\.value)\.transactionHash, (?:receipt|confirmed\.value)\.gasUsed\)\)/g)?.length, 2, 'both hire paths');
 });

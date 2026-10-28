@@ -28,6 +28,8 @@ import { jobCreatedFromReceipt } from '@/lib/wallet/external-receipt';
 import { checkPurchaseIntent, type PurchaseIntent } from '@/lib/hire/purchase-intent';
 import { assertEscrowSupportsToken, buildTokenHireCalls, confirmJobToken, nonDefaultHireToken, readJobPaymentToken } from '@/lib/erc8183/hire-calls';
 import { failedOnChain, gasLimitFor } from '@/lib/wallet/gas';
+import { stepEffects } from '@/lib/wallet/step-effects';
+import { confirmWalletStill, raceWithChain, type StepLanded } from '@/lib/wallet/step-watch';
 
 export type HireStep =
   | 'connecting' | 'swapping' | 'creating' | 'registering' | 'budgeting'
@@ -157,6 +159,50 @@ type ReadClient = ReturnType<typeof clients>['read'];
 async function failureOf(read: Pick<ReadClient, 'getTransaction'>, step: string, hash: Hex, gasUsed: bigint): Promise<string> {
   const sent = await read.getTransaction({ hash }).catch(() => null);
   return failedOnChain(step, gasUsed, sent?.gas ?? null);
+}
+
+/**
+ * Whether the wallet announced a network or account change while a hire
+ * runs. A wallet that stops answering is trusted to be where it was only
+ * if it never said it moved (`confirmWalletStill`).
+ */
+function followWallet(): { changed: () => boolean; stop: () => void } {
+  let changed = false;
+  const injected = provider() as InjectedProvider & {
+    on?: (event: string, listener: () => void) => void;
+    removeListener?: (event: string, listener: () => void) => void;
+  };
+  const mark = () => {
+    changed = true;
+  };
+  try {
+    injected.on?.('chainChanged', mark);
+    injected.on?.('accountsChanged', mark);
+  } catch {
+    /* A wallet without events is judged by its answers alone. */
+  }
+  return {
+    changed: () => changed,
+    stop: () => {
+      try {
+        injected.removeListener?.('chainChanged', mark);
+        injected.removeListener?.('accountsChanged', mark);
+      } catch {
+        /* Nothing to remove. */
+      }
+    },
+  };
+}
+
+/** Before each prompt: still on this hire's network and account, with no wait longer than `WALLET_CHECK_MS`. */
+function walletCheck(chainId: number, account: Address, followed: { changed: () => boolean }) {
+  return () => confirmWalletStill({
+    chainId,
+    account,
+    request: (method) => provider().request({ method }),
+    switchChain: () => ensureChain(chainId),
+    changed: followed.changed,
+  });
 }
 
 export async function connectExternalWallet(): Promise<Address> {
@@ -877,38 +923,63 @@ export async function hireFromExternalWallet(input: ExternalHireInput): Promise<
     return { jobId: predictedJobId, expiredAt, transactionHash, callsId, atomic: true, paymentToken: payToken, budgetRaw: budget, tokenConfirmed };
   }
 
-  const send = async (step: HireStep, to: Address, data: Hex, jobId?: bigint) => {
-    await ensureChain(chainId); await assertAccount(account); report({ step, jobId });
+  const followed = followWallet();
+  const stillThere = walletCheck(chainId, account, followed);
+  const effects = stepEffects(read, addresses.commerce as Address, account);
+  /*
+   * One step: checked, prompted, and settled by the wallet's answer or by
+   * the step's effect on chain, whichever comes first (`raceWithChain`).
+   * The hash is null when the chain answered before the wallet did.
+   */
+  const send = async (step: HireStep, to: Address, data: Hex, jobId: bigint | undefined, landed: () => Promise<StepLanded | null>, requireNonce = false) => {
+    await stillThere(); report({ step, jobId });
     /* Estimated before the prompt, so the wallet opens on a limit the call fits in. */
     const gas = await gasLimitFor(read, { account, to, data });
+    const nonceBefore = await read.getTransactionCount({ address: account, blockTag: 'latest' }).catch(() => null);
+    const watch = { nonceBefore, nonceNow: () => read.getTransactionCount({ address: account, blockTag: 'latest' }), landed, requireNonce, pollMs: RECEIPT_POLL_MS };
     ask(step as Parameters<typeof ask>[0]);
-    const hash = await wallet.sendTransaction({ account, to, data, ...gas, chain: null });
+    const sending = wallet.sendTransaction({ account, to, data, ...gas, chain: null });
+    const answered = await raceWithChain(sending, watch);
+    if (answered.kind === 'chain') {
+      report({ step, jobId: answered.landed.jobId ?? jobId });
+      return { hash: null, receipt: null, landed: answered.landed };
+    }
+    const hash = answered.value;
     /* Reported before waiting: a receipt that never comes must not lose the hash. */
     report({ step, jobId, sentHash: hash });
     /* A wallet that speeds up or replaces it hands back another hash; that one is recorded too. */
-    const receipt = await read.waitForTransactionReceipt({ hash, onReplaced: (replacement) => report({ step, jobId, sentHash: replacement.transaction.hash }) });
+    const confirmed = await raceWithChain(read.waitForTransactionReceipt({ hash, onReplaced: (replacement) => report({ step, jobId, sentHash: replacement.transaction.hash }) }), watch);
+    if (confirmed.kind === 'chain') {
+      report({ step, jobId: confirmed.landed.jobId ?? jobId, hash });
+      return { hash, receipt: null, landed: confirmed.landed };
+    }
+    const receipt = confirmed.value;
     if (receipt.status !== 'success') throw new Error(await failureOf(read, step, receipt.transactionHash, receipt.gasUsed));
     report({ step, jobId, hash });
-    return { hash, receipt };
+    return { hash, receipt, landed: null };
   };
 
-  const created = await send('creating', predicted[0].to as Address, predicted[0].data!);
-  const jobId = jobCreatedFromReceipt(created.receipt, addresses.commerce as Address,
-    account, input.provider);
-  const calls = hireCalls(jobId);
-  await send('registering', calls[1].to as Address, calls[1].data!, jobId);
-  await send('budgeting', calls[2].to as Address, calls[2].data!, jobId);
-  if (allowance < budget) {
-    if (allowance > 0n) await send('approving', payToken,
-      encodeFunctionData({ abi: erc20Abi, functionName: 'approve',
-        args: [addresses.commerce as Address, 0n] }), jobId);
-    await send('approving', calls[3].to as Address, calls[3].data!, jobId);
+  try {
+    const created = await send('creating', predicted[0].to as Address, predicted[0].data!, undefined, effects.created(predictedJobId, input.provider, description));
+    const jobId = created.landed?.jobId ?? jobCreatedFromReceipt(created.receipt!, addresses.commerce as Address,
+      account, input.provider);
+    const calls = hireCalls(jobId);
+    await send('registering', calls[1].to as Address, calls[1].data!, jobId, await effects.registered(calls[1].to as Address, calls[1].data!), true);
+    await send('budgeting', calls[2].to as Address, calls[2].data!, jobId, effects.budgeted(jobId, budget));
+    if (allowance < budget) {
+      if (allowance > 0n) await send('approving', payToken,
+        encodeFunctionData({ abi: erc20Abi, functionName: 'approve',
+          args: [addresses.commerce as Address, 0n] }), jobId, effects.approved(payToken, 0n));
+      await send('approving', calls[3].to as Address, calls[3].data!, jobId, effects.approved(payToken, budget));
+    }
+    const funded = await send('funding', calls[4].to as Address, calls[4].data!, jobId, effects.funded(jobId));
+    report({ step: 'confirming', jobId, hash: funded.hash ?? undefined });
+    const { tokenConfirmed } = await verifyFundedJob({ chainId, jobId, account, provider: input.provider, budget, description, ...(tokenHire ? { token: payToken } : {}) });
+    report({ step: 'done', jobId, hash: funded.hash ?? undefined });
+    return { jobId, expiredAt, transactionHash: funded.hash, callsId: null, atomic: false, paymentToken: payToken, budgetRaw: budget, tokenConfirmed };
+  } finally {
+    followed.stop();
   }
-  const funded = await send('funding', calls[4].to as Address, calls[4].data!, jobId);
-  report({ step: 'confirming', jobId, hash: funded.hash });
-  const { tokenConfirmed } = await verifyFundedJob({ chainId, jobId, account, provider: input.provider, budget, description, ...(tokenHire ? { token: payToken } : {}) });
-  report({ step: 'done', jobId, hash: funded.hash });
-  return { jobId, expiredAt, transactionHash: funded.hash, callsId: null, atomic: false, paymentToken: payToken, budgetRaw: budget, tokenConfirmed };
 }
 
 export interface ExternalBalances {
@@ -1127,33 +1198,46 @@ export async function resumeExternalFunding(input: {
     { type: 'function', name: 'fund', stateMutability: 'nonpayable', inputs: [{ type: 'uint256' }, { type: 'uint256' }, { type: 'bytes' }], outputs: [] },
   ] as const;
   const routerAbi = [{ type: 'function', name: 'registerJob', stateMutability: 'nonpayable', inputs: [{ type: 'uint256' }, { type: 'address' }], outputs: [] }] as const;
-  const send = async (step: 'registering' | 'budgeting' | 'approving' | 'funding', to: Address, data: Hex) => {
-    await ensureChain(chainId); await assertAccount(account);
+  const followed = followWallet();
+  const stillThere = walletCheck(chainId, account, followed);
+  const effects = stepEffects(read, addresses.commerce as Address, account);
+  /* As in `hireFromExternalWallet`: settled by the wallet's answer or the step's effect on chain, whichever comes first. */
+  const send = async (step: 'registering' | 'budgeting' | 'approving' | 'funding', to: Address, data: Hex, landed: () => Promise<StepLanded | null>, requireNonce = false): Promise<Hex | null> => {
+    await stillThere();
     const gas = await gasLimitFor(read, { account, to, data });
+    const nonceBefore = await read.getTransactionCount({ address: account, blockTag: 'latest' }).catch(() => null);
+    const watch = { nonceBefore, nonceNow: () => read.getTransactionCount({ address: account, blockTag: 'latest' }), landed, requireNonce, pollMs: RECEIPT_POLL_MS };
     input.beforePrompt(step);
     report({ step, jobId: input.jobId });
-    const hash = await wallet.sendTransaction({ account, to, data, ...gas, chain: null });
+    const answered = await raceWithChain(wallet.sendTransaction({ account, to, data, ...gas, chain: null }), watch);
+    if (answered.kind === 'chain') return null;
+    const hash = answered.value;
     report({ step, jobId: input.jobId, sentHash: hash });
-    const receipt = await read.waitForTransactionReceipt({ hash, onReplaced: (replacement) => report({ step, jobId: input.jobId, sentHash: replacement.transaction.hash }) });
-    if (receipt.status !== 'success') throw new Error(await failureOf(read, step, receipt.transactionHash, receipt.gasUsed));
+    const confirmed = await raceWithChain(read.waitForTransactionReceipt({ hash, onReplaced: (replacement) => report({ step, jobId: input.jobId, sentHash: replacement.transaction.hash }) }), watch);
+    if (confirmed.kind === 'chain') return hash;
+    if (confirmed.value.status !== 'success') throw new Error(await failureOf(read, step, confirmed.value.transactionHash, confirmed.value.gasUsed));
     return hash;
   };
   /* A read-only call: succeeds only if the transaction would. */
   const simulate = (to: Address, data: Hex) => (read as unknown as { call: (a: { account: Address; to: Address; data: Hex }) => Promise<unknown> }).call({ account, to, data });
   const register = encodeFunctionData({ abi: routerAbi, functionName: 'registerJob', args: [input.jobId, addresses.policy as Address] });
-  const unregistered = await simulate(addresses.router as Address, register).then(() => true).catch(() => false);
-  if (unregistered) await send('registering', addresses.router as Address, register);
-  if (job.budget !== input.budget) await send('budgeting', addresses.commerce as Address, encodeFunctionData({ abi: commerceAbi, functionName: 'setBudget', args: [input.jobId, input.budget, '0x'] }));
-  const allowance = (await read.readContract({ address: input.token, abi: erc20Abi, functionName: 'allowance', args: [account, addresses.commerce as Address] })) as bigint;
-  if (allowance < input.budget) {
-    if (allowance > 0n) await send('approving', input.token, encodeFunctionData({ abi: erc20Abi, functionName: 'approve', args: [addresses.commerce as Address, 0n] }));
-    await send('approving', input.token, encodeFunctionData({ abi: erc20Abi, functionName: 'approve', args: [addresses.commerce as Address, input.budget] }));
+  try {
+    const unregistered = await simulate(addresses.router as Address, register).then(() => true).catch(() => false);
+    if (unregistered) await send('registering', addresses.router as Address, register, await effects.registered(addresses.router as Address, register), true);
+    if (job.budget !== input.budget) await send('budgeting', addresses.commerce as Address, encodeFunctionData({ abi: commerceAbi, functionName: 'setBudget', args: [input.jobId, input.budget, '0x'] }), effects.budgeted(input.jobId, input.budget));
+    const allowance = (await read.readContract({ address: input.token, abi: erc20Abi, functionName: 'allowance', args: [account, addresses.commerce as Address] })) as bigint;
+    if (allowance < input.budget) {
+      if (allowance > 0n) await send('approving', input.token, encodeFunctionData({ abi: erc20Abi, functionName: 'approve', args: [addresses.commerce as Address, 0n] }), effects.approved(input.token, 0n));
+      await send('approving', input.token, encodeFunctionData({ abi: erc20Abi, functionName: 'approve', args: [addresses.commerce as Address, input.budget] }), effects.approved(input.token, input.budget));
+    }
+    const fund = encodeFunctionData({ abi: commerceAbi, functionName: 'fund', args: [input.jobId, input.budget, '0x'] });
+    /* Simulated first: a fund that would revert is not put in front of the wallet. */
+    await simulate(addresses.commerce as Address, fund);
+    const funded = await send('funding', addresses.commerce as Address, fund, effects.funded(input.jobId));
+    const { tokenConfirmed } = await verifyFundedJob({ chainId, jobId: input.jobId, account, provider: input.provider, budget: input.budget, description: input.description, token: input.token });
+    report({ step: 'done', jobId: input.jobId, hash: funded ?? undefined });
+    return { jobId: input.jobId, expiredAt: job.expiredAt, transactionHash: funded, callsId: null, atomic: false, paymentToken: input.token, budgetRaw: input.budget, tokenConfirmed };
+  } finally {
+    followed.stop();
   }
-  const fund = encodeFunctionData({ abi: commerceAbi, functionName: 'fund', args: [input.jobId, input.budget, '0x'] });
-  /* Simulated first: a fund that would revert is not put in front of the wallet. */
-  await simulate(addresses.commerce as Address, fund);
-  const funded = await send('funding', addresses.commerce as Address, fund);
-  const { tokenConfirmed } = await verifyFundedJob({ chainId, jobId: input.jobId, account, provider: input.provider, budget: input.budget, description: input.description, token: input.token });
-  report({ step: 'done', jobId: input.jobId, hash: funded });
-  return { jobId: input.jobId, expiredAt: job.expiredAt, transactionHash: funded, callsId: null, atomic: false, paymentToken: input.token, budgetRaw: input.budget, tokenConfirmed };
 }
