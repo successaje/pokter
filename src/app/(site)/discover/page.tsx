@@ -103,7 +103,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
     async (row) => [row.key, (await deliveryTimes(row.chainId, row.tokenId).catch(() => null))?.medianMs ?? null] as const,
   );
   const deliveryByKey = new Map(timed);
-  const activity = outsideActivity();
+  const activity = await outsideActivity();
   /* The newest few requests still taking proposals. */
   const now = renderedAt();
   const open = requestRows(now)
