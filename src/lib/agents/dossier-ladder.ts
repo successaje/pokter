@@ -4,9 +4,8 @@ import { agentHistory } from '@/lib/agent/credited-history';
 import { deriveMaturity, type AgentMaturity } from '@/lib/agents/maturity';
 import { getAssayStore, type AssayRun } from '@/lib/assay/store';
 import { assayForCategory, type AssayDefinition } from '@/lib/assay/catalog';
-import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import type { AgentEconomicHistory } from '@/lib/erc8183/economic-history';
-import { quotePayableWith } from '@/lib/erc8183/payable';
+import { quotePayableOn } from '@/lib/erc8183/payable';
 import { getJobStore } from '@/lib/erc8183/store';
 import type { AgentDossier } from '@/lib/marketplace';
 import { escrowOptionsForHire } from '@/lib/network/escrow';
@@ -29,7 +28,7 @@ export interface DossierLadder {
 export function dossierLadder(d: AgentDossier, escrowChain: number, { liveAnswered }: { liveAnswered?: boolean } = {}): DossierLadder {
   const { agent, category, record } = d;
   const escrowOptions = escrowOptionsForHire(d.quote?.currency);
-  const payable = d.quote ? quotePayableWith(d.quote.currency, correctedErc8183Addresses(escrowChain).paymentToken) : null;
+  const payable = d.quote ? quotePayableOn(escrowChain, d.quote.currency) : null;
   const history = agentHistory(getJobStore().byAgent(agent.chain_id, agent.token_id));
   const definition = assayForCategory(category);
   const categoryCheck = definition

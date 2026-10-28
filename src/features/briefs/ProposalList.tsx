@@ -1,6 +1,8 @@
 import Link from 'next/link';
 
+import { requestAmountLabel, requestTokenOf } from '@/lib/briefs/model';
 import { formatQuotedPrice } from '@/lib/erc8183/pricing';
+import { formatAmount } from '@/lib/network/tokens';
 import { VERDICT_LABEL } from '@/lib/proof/engine';
 import { jobHref } from '@/lib/jobs/href';
 import { cn } from '@/lib/ui/cn';
@@ -31,12 +33,36 @@ export function ProposalList({
   hire = null,
 }: {
   cards: ProposalCard[];
-  request: { id: string; poster: string; chainId: number; deliverDays: number; budgetU: number; state: 'open' | 'awarded' | 'cancelled'; awardedBidId: string | null };
+  request: {
+    id: string;
+    poster: string;
+    chainId: number;
+    deliverDays: number;
+    budgetU: number;
+    budgetRaw: string;
+    /** The request's token; null on a request from before tokens, which is $U. Every proposal on it is in it. */
+    paymentToken: string | null;
+    state: 'open' | 'awarded' | 'cancelled';
+    awardedBidId: string | null;
+  };
   now: number;
   /** The job the chosen proposal became, when the poster has hired it (`hireForProposal`). */
   hire?: { jobId: string; chainId: number; returned: boolean } | null;
 }) {
-  const unit = request.chainId === 97 ? 'test $U' : '$U';
+  const token = requestTokenOf(request);
+  const testnet = request.chainId === 97;
+  /* How far under budget, from the exact amounts in the request's one token. */
+  const under = (priceRaw: string): string | null => {
+    if (!token) return null;
+    try {
+      const diff = BigInt(request.budgetRaw) - BigInt(priceRaw);
+      if (diff <= 0n) return null;
+      const label = formatAmount(request.chainId, token.address, diff)?.label;
+      return label ? `${testnet ? 'test ' : ''}${label}` : null;
+    } catch {
+      return null;
+    }
+  };
   /* Laid out by the room the list has, not the window: the proposal panel beside it may be open or closed. */
   return (
     <div className="@container">
@@ -44,7 +70,7 @@ export function ProposalList({
         {cards.map(({ bid, name, imageUrl, row, bidder }) => {
           const chosen = request.awardedBidId === bid.id;
           const later = bid.deliverDays > request.deliverDays;
-          const saving = request.budgetU - bid.priceU;
+          const saving = under(bid.priceRaw);
           const long = bid.note.length > 200;
           return (
             <li key={bid.id} className={cn('flex flex-col gap-3.5 rounded-[16px] border p-4', chosen ? 'border-ok/40 bg-ok-wash' : 'border-rule bg-raised')}>
@@ -71,7 +97,8 @@ export function ProposalList({
 
               <div className="flex items-baseline justify-between gap-3 border-y border-rule py-2.5">
                 <span className="t-readout text-[16px] text-ink">
-                  {bid.priceU.toFixed(2)} {unit}
+                  {requestAmountLabel(request, bid.priceU)}
+                  {testnet && <span className="text-[12px] text-ink-3"> · test</span>}
                 </span>
                 <span className={cn('text-right text-[12.5px]', later ? 'font-medium text-watch' : 'text-ink-3')}>
                   {days(bid.deliverDays)} after hiring{later ? ` · asked ${days(request.deliverDays)}` : ''}
@@ -116,8 +143,9 @@ export function ProposalList({
                   </li>
                   <li>
                     {row.priceState === 'signed' && row.priceU !== null ? (
+                      /* In the quote's own money, which may not be the request's; an unrecorded currency is said to be unknown. */
                       <>
-                        Last signed price <span className="font-medium text-ink">{formatQuotedPrice(row.priceU)}</span>
+                        Last signed escrow quote <span className="font-medium text-ink">{row.priceRaw ? row.priceLabel : formatQuotedPrice(row.priceU, row.priceCurrency)}</span>
                       </>
                     ) : (
                       'No signed price yet'
@@ -131,7 +159,7 @@ export function ProposalList({
               <div className="mt-auto flex flex-col gap-2.5 pt-1">
                 <span className="text-[12px] text-ink-3">
                   By {bidder?.name ?? shortAddress(bid.bidder)} · {ago(bid.placedAt, now)}
-                  {saving > 0.004 ? ` · ${saving.toFixed(2)} ${unit} under budget` : ''}
+                  {saving ? ` · ${saving} under budget` : ''}
                 </span>
                 {chosen && hire && !hire.returned ? (
                   /* Hired already: the job is the next place to look, and a second "Hire and fund" would fund it twice. */

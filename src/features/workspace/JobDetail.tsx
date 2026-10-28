@@ -5,9 +5,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
 import type { HiredJob } from '@/lib/erc8183/types';
-import { formatUnits } from 'viem';
 
-import { formatQuotedPrice } from '@/lib/erc8183/pricing';
+import { jobAmountLabel } from '@/lib/erc8183/job-amount';
 import { jobTimeline } from '@/lib/jobs/timeline';
 import { useJobActions } from '@/lib/jobs/useJobActions';
 import { disputeSummary, reviewWindowSummary, settleOpensAt } from '@/lib/erc8183/settle-window';
@@ -22,6 +21,7 @@ import { rememberJob } from '@/lib/wallet/activity';
 import { AgentAvatar } from '@/ui/Agent';
 import { Button, LinkButton } from '@/ui/Button';
 import { Breadcrumbs } from '@/ui/Controls';
+import { jobEvidencePath, utcWhen } from '@/lib/jobs/evidence-view';
 import { Address, Details, TxLink } from '@/ui/Data';
 import { EmptyState, Notice, Skeleton } from '@/ui/Feedback';
 import { Checkbox } from '@/ui/Field';
@@ -156,9 +156,12 @@ function SellerAnswerNotice({ job, answer }: { job: HiredJob; answer: SellerAnsw
   );
 }
 
-/** The escrowed amount, as the buyer agreed it. */
-function escrowedAmount(job: HiredJob): string {
-  return formatQuotedPrice(Number(formatUnits(BigInt(job.budgetRaw), 18)));
+/**
+ * The escrowed amount, as the buyer agreed it, in the job's own token. A job
+ * whose token has not been read says so rather than being called $U.
+ */
+export function escrowedAmount(job: HiredJob): string {
+  return jobAmountLabel(job);
 }
 
 function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: boolean; connected: boolean }) {
@@ -251,9 +254,14 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
           <div className="flex flex-col gap-1.5">
             <h1 className="t-h2">{job.agentName}</h1>
             <p className="text-[13px] text-ink-3">
-              Job <span className="t-readout">#{job.jobId}</span> · {chainLabel(job.chainId)} · hired {new Date(job.hiredAt).toLocaleString()}
+              Job <span className="t-readout">#{job.jobId}</span> · {chainLabel(job.chainId)} · hired {utcWhen(job.hiredAt) ?? 'at an unrecorded time'}
             </p>
-            {dispute ? <span className="text-sm font-medium text-watch">Disputed · voters deciding</span> : <PhaseLabel job={job} className="text-sm" />}
+            {/* The one date a delivered job turns on, beside its status rather than inside a paragraph further down. */}
+            {dispute ? (
+              <span className="text-sm font-medium text-watch">Disputed · voters deciding</span>
+            ) : (
+              <PhaseLabel job={job} className="text-sm" label={review && phase === 'review' ? (review.open ? `Delivered · review by ${review.closes}` : `Delivered · review closed ${review.closes}`) : undefined} />
+            )}
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -265,7 +273,11 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
 
       {!owned && (
         <Notice tone="neutral" title={connected ? 'This job was funded by a different wallet' : 'Read-only'}>
-          You can see its public record. Only the wallet that funded it can release, dispute or reclaim the escrow.
+          You can see its public record. Only the wallet that funded it can release, dispute or reclaim the escrow. To share it, send its{' '}
+          <Link href={jobEvidencePath(job)} className="underline underline-offset-2">
+            evidence page
+          </Link>
+          , which anyone can read and which shows a buyer&rsquo;s brief only for Pokter&rsquo;s own test jobs.
         </Notice>
       )}
 
@@ -273,7 +285,7 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
       {(job.status === 'SUBMITTED' || job.status === 'COMPLETED' || job.status === 'REJECTED') && (
         <section aria-labelledby="answer-title" className="flex flex-col gap-4 rounded-[16px] border border-rule-strong bg-raised p-5 sm:p-6">
           <h2 id="answer-title" className="t-h3">The answer</h2>
-          <JobAnswer job={job} deliverableUrl={a.deliverableUrl ?? null} verify={{ run: () => void a.verifyReceipt(), busy: a.busy === 'verify', verified: a.receiptVerified }} />
+          <JobAnswer job={job} owned={owned} deliverableUrl={a.deliverableUrl ?? null} verify={{ run: () => void a.verifyReceipt(), busy: a.busy === 'verify', verified: a.receiptVerified }} />
         </section>
       )}
 
@@ -286,13 +298,14 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
       {(job.status === 'SUBMITTED' || job.status === 'COMPLETED' || job.status === 'REJECTED') && <ReportCheck job={job} />}
 
       {/* The one thing that matters now */}
-      <section aria-labelledby="now-title" className={cn('flex flex-col gap-4 rounded-[16px] border p-5 sm:p-6', meta.needsYou ? 'border-ink bg-raised shadow-lift' : 'border-rule bg-raised')}>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="flex flex-col gap-1">
-            <span className="t-label">{meta.needsYou ? 'Your move' : 'Status'}</span>
+      {/* "Your move" only to the wallet that can make it; anyone else is reading a status. */}
+      <section aria-labelledby="now-title" className={cn('flex flex-col gap-4 rounded-[16px] border p-5 sm:p-6', meta.needsYou && owned ? 'border-ink bg-raised shadow-lift' : 'border-rule bg-raised')}>
+        <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+          <div className="flex min-w-0 flex-1 basis-[22rem] flex-col gap-1">
+            <span className="t-label">{meta.needsYou && owned ? 'Your move' : 'Status'}</span>
             <h2 id="now-title" className="t-h3">{meta.next}</h2>
           </div>
-          <div className="text-right">
+          <div className="shrink-0 sm:text-right">
             <span className="t-label">Escrow</span>
             <p className="t-readout text-xl">{budgetOf(job)}</p>
           </div>
@@ -444,7 +457,12 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
         <aside className="flex flex-col gap-5">
           <div className="flex flex-col gap-3 rounded-[14px] border border-rule bg-raised p-5 text-sm">
             <span className="t-label">The job</span>
-            <p className="whitespace-pre-line break-words text-[13.5px] leading-relaxed text-ink-2">{job.task}</p>
+            {/* The brief is the buyer's: shown to the wallet that funded it, as on the public evidence page. */}
+            {owned ? (
+              <p className="whitespace-pre-line break-words text-[13.5px] leading-relaxed text-ink-2">{job.task}</p>
+            ) : (
+              <p className="text-[13.5px] leading-relaxed text-ink-3">The brief is shown to the wallet that funded this job.</p>
+            )}
             <Details summary="On-chain details">
               <dl className="flex flex-col gap-2 text-[13px]">
                 <div className="flex justify-between gap-2">

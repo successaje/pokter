@@ -88,7 +88,7 @@ test('a delivery with no recorded submitter counts as neither', () => {
 test('an operator hiring their own agent is not outside demand', () => {
   const wallet = '0xf9Ad22cAA6C179Eee86806FA10176e845ea8e982';
   const self = { ...job('COMPLETED'), client: wallet, provider: wallet } as unknown as HiredJob;
-  const real = { ...job('COMPLETED'), client: '0x0b306a358aEF8c391779bCC62a8253aaBF524993' } as unknown as HiredJob;
+  const real = { ...job('COMPLETED'), client: '0x00000000000000000000000000000000000000B2' } as unknown as HiredJob;
   const h = summariseEconomicHistory([self, real]);
   assert.equal(h.selfHire, 1);
   assert.equal(h.outsideTeam.jobs, 1, 'the self-hire must not count as demand');

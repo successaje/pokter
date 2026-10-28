@@ -5,7 +5,7 @@ import { notFound } from 'next/navigation';
 import { WithdrawRequest } from '@/features/briefs/BriefActions';
 import { RequestDetail } from '@/features/briefs/RequestDetail';
 import { ago } from '@/features/briefs/RequestRow';
-import { requestCategoryLabel, type Brief } from '@/lib/briefs/model';
+import { amountText, requestCategoryLabel, requestTokenOf, type Brief } from '@/lib/briefs/model';
 import { proposalCards } from '@/features/briefs/proposal-cards';
 import { ProposalList } from '@/features/briefs/ProposalList';
 import { closingDate, RequestTerms } from '@/features/briefs/RequestTerms';
@@ -13,7 +13,9 @@ import { escrowMoney } from '@/lib/network/presentation';
 import { cn } from '@/lib/ui/cn';
 import { acceptsProposals, requestStatus } from '@/lib/briefs/model';
 import { getBriefStore } from '@/lib/briefs/store';
-import { hireForProposal } from '@/lib/briefs/hired';
+import { readProposalPrefill } from '@/lib/briefs/public-view';
+import { hireForChosenProposal } from '@/lib/briefs/hired';
+import { displaySymbol, tokenIdentity } from '@/lib/network/tokens';
 import { getJobStore } from '@/lib/erc8183/store';
 import { Address } from '@/ui/Data';
 import { AvatarImage } from '@/ui/AvatarImage';
@@ -45,7 +47,7 @@ export default async function BriefPage({
   const poster = publicIdentity(brief.poster);
   const chosenBid = brief.awardedBidId ? bids.find((bid) => bid.id === brief.awardedBidId) : undefined;
   const hire = chosenBid
-    ? hireForProposal(getJobStore().byClient(brief.poster), { poster: brief.poster, chainId: brief.chainId, agentChainId: chosenBid.agentChainId, agentTokenId: chosenBid.agentTokenId, placedAt: chosenBid.placedAt })
+    ? hireForChosenProposal(getJobStore().byClient(brief.poster), brief, chosenBid)
     : null;
   const hired = hire && !hire.returned ? hire : null;
   const said = requestStatus({ ...brief, hired: Boolean(hired) });
@@ -64,8 +66,9 @@ export default async function BriefPage({
       )}
 
       <RequestDetail
-        request={{ id: brief.id, title: brief.title, chainId: brief.chainId, deliverDays: brief.deliverDays, budgetU: brief.budgetU, poster: brief.poster }}
+        request={{ id: brief.id, title: brief.title, chainId: brief.chainId, deliverDays: brief.deliverDays, budgetU: brief.budgetU, budgetRaw: brief.budgetRaw, paymentToken: brief.paymentToken, poster: brief.poster }}
         taking={taking}
+        prefill={taking ? readProposalPrefill(sp) : null}
         head={
           <div className="flex flex-col gap-3">
             <span className={`inline-flex h-6 w-fit items-center rounded-full border px-2.5 text-[12px] font-medium ${status.tone}`}>{status.label}</span>
@@ -117,7 +120,7 @@ export default async function BriefPage({
             <ProposalList
               cards={await proposalCards(bids)}
               now={renderedAt()}
-              request={{ id: brief.id, poster: brief.poster, chainId: brief.chainId, deliverDays: brief.deliverDays, budgetU: brief.budgetU, state: brief.state, awardedBidId: brief.awardedBidId }}
+              request={{ id: brief.id, poster: brief.poster, chainId: brief.chainId, deliverDays: brief.deliverDays, budgetU: brief.budgetU, budgetRaw: brief.budgetRaw, paymentToken: brief.paymentToken, state: brief.state, awardedBidId: brief.awardedBidId }}
               hire={hire}
             />
           )}
@@ -139,12 +142,18 @@ function renderedAt(): number {
 function RequestSummary({ brief, proposals, now }: { brief: Brief; proposals: number; now: number }) {
   const money = escrowMoney(brief.chainId);
   const testnet = money.real === false;
+  /* The request's own token; a request from before tokens is $U. Unknown is said, not shown as $U. */
+  const token = requestTokenOf(brief);
+  const symbol = token ? displaySymbol(token) : 'unknown token';
   const category = requestCategoryLabel(brief.category);
   const days = (n: number) => (n === 1 ? '1 day' : `${n} days`);
   const rows: Array<[string, React.ReactNode]> = [
     ['Posted', ago(brief.postedAt, now)],
     ['Posted at', `${new Date(brief.postedAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })} UTC`],
-    ['Network', <span key="n" className={cn(testnet && 'text-watch')}>{testnet ? 'BNB Testnet · test tokens' : 'BNB Chain · real $U'}</span>],
+    ['Network', <span key="n" className={cn(testnet && 'text-watch')}>{testnet ? 'BNB Testnet · test tokens' : `BNB Chain · real ${symbol}`}</span>],
+    ...(token && !token.offered
+      ? ([['Paid in', <span key="t" className="t-readout wrap-anywhere text-[12px]">{tokenIdentity(token)}{token.disclosure ? ` · ${token.disclosure}` : ''}</span>]] as Array<[string, React.ReactNode]>)
+      : []),
     ['Delivery', `${days(brief.deliverDays)} after hiring`],
     ['Proposals close', brief.closesAt ? closingDate(brief.closesAt) : 'When one is chosen'],
     ['Proposals', String(proposals)],
@@ -156,7 +165,7 @@ function RequestSummary({ brief, proposals, now }: { brief: Brief; proposals: nu
       <div className="flex flex-col gap-1">
         <span className="t-label">Proposed budget</span>
         <span className="t-readout text-[34px] leading-none tracking-[-0.02em] text-ink">
-          {brief.budgetU.toFixed(2)} <span className="text-[18px] text-ink-2">{testnet ? 'test $U' : '$U'}</span>
+          {amountText(brief.budgetU)} <span className="text-[18px] text-ink-2">{testnet ? `test ${symbol}` : symbol}</span>
         </span>
       </div>
       <dl className="ruled rounded-[12px] border border-rule bg-paper px-4 text-[13px]">

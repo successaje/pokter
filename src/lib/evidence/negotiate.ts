@@ -3,6 +3,7 @@ import 'server-only';
 import { hashMessage, keccak256, parseUnits, toBytes, type Address } from 'viem';
 
 import { adminSigner } from '@/lib/altana/client';
+import { hireTokenAt, requireDecimals } from '@/lib/network/tokens';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { canonicalJson } from '@/lib/erc8183/negotiation';
 import { EVIDENCE_AGENT } from '@/lib/evidence/agent';
@@ -111,8 +112,18 @@ export async function signEvidenceQuote(input: {
   taskDescription: string;
   deliverables?: string;
   qualityStandards?: string;
+  /**
+   * The token to price in, when not the escrow default. Must be a token
+   * Pokter offers on this chain (`hireTokenAt`): USDT only while USDT
+   * hiring is on. See `evidenceQuoteToken` for when one is asked for.
+   */
+  currency?: string;
 }): Promise<SignedQuote> {
   const addresses = correctedErc8183Addresses(input.chainId);
+  const priced = input.currency ? hireTokenAt(input.chainId, input.currency) : null;
+  if (input.currency && !priced) throw new Error(`Evidence quotes are not priced in ${input.currency} on chain ${input.chainId}.`);
+  const currency = priced?.address ?? (addresses.paymentToken as string);
+  const decimals = priced?.decimals ?? requireDecimals(input.chainId, addresses.paymentToken);
   const negotiatedAt = Math.floor(Date.now() / 1000);
   const expiresAt = negotiatedAt + QUOTE_TTL_SECONDS;
 
@@ -123,8 +134,8 @@ export async function signEvidenceQuote(input: {
    * on when it sends its terms along with the task.
    */
   const terms = {
-    price: parseUnits(String(EVIDENCE_AGENT.priceU), 18).toString(),
-    currency: addresses.paymentToken as string,
+    price: parseUnits(String(EVIDENCE_AGENT.priceU), decimals).toString(),
+    currency,
     deliverables:
       input.deliverables ??
       "Pokter's measured record for the named ERC-8004 agent, with the provenance of each field.",
@@ -166,3 +177,4 @@ export async function signEvidenceQuote(input: {
     provider_sig: signature,
   };
 }
+

@@ -7,7 +7,7 @@ const team = teamAddressSet(['0x60EF148485c2a5119fa52ca13c52e9fd98f28e87']);
 
 test('team membership ignores address case', () => {
   assert.equal(fundedByTeam({ client: '0x60ef148485c2a5119fa52ca13c52e9fd98f28e87' }, team), true);
-  assert.equal(fundedByTeam({ client: '0x494ae5cf2729e662cc05dbd63d2107d707fd00de' }, team), false);
+  assert.equal(fundedByTeam({ client: '0x00000000000000000000000000000000000000b1' }, team), false);
 });
 
 test('a job with no recorded funder is a legacy operator hire', () => {
@@ -30,5 +30,5 @@ test('the published team wallets are valid and counted as the team', () => {
   assert.equal(fundedByTeam({ client: '0xce515e144c33edbd1c3320fde0de6373315885ed' }, published), true);
   assert.equal(fundedByTeam({ client: '0xdab12cf15f4385188be62bda9f00877af4c1b32f' }, published), true);
   // Outside builders' wallets are not the team's.
-  assert.equal(fundedByTeam({ client: '0x494ae5cf2729e662cc05dbd63d2107d707fd00de' }, published), false);
+  assert.equal(fundedByTeam({ client: '0x00000000000000000000000000000000000000b1' }, published), false);
 });

@@ -1,16 +1,17 @@
 import type { Metadata } from 'next';
 import { X402Island } from '@/features/x402/X402Island';
+import { PayPerCallDeclared } from '@/features/x402/PayPerCallDeclared';
 import { x402Enabled } from '@/lib/x402/flags';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { Suspense, type ReactNode } from 'react';
 
-import { chainLabel, explorerBaseFor } from '@/lib/network/presentation';
-import { formatQuotedPrice } from '@/lib/erc8183/pricing';
+import { CHAIN_ID, chainLabel, explorerBaseFor } from '@/lib/network/presentation';
 import { cn } from '@/lib/ui/cn';
 import { formatDelivery, formatMs, shortAddress } from '@/lib/ui/format';
 import type { ChainId } from '@/lib/scan/types';
 import { commissionTaskTemplates, templatesFromSkills } from '@/lib/hire/taskTemplates';
+import { jobEvidencePath } from '@/lib/jobs/evidence-view';
 import { clipAtWord } from '@/lib/ui/clip';
 import { FollowButton, SaveButton, ShareButton } from '@/features/agent/AgentActions';
 import { HirePanel, MobileHireBar } from '@/features/agent/HirePanel';
@@ -26,6 +27,8 @@ import { LinkButton } from '@/ui/Button';
 import { Breadcrumbs } from '@/ui/Controls';
 import { Address, Details, Facts, Readout } from '@/ui/Data';
 import { CategoryCheck } from '@/features/agent/CategoryCheck';
+import { AnswerCheckSummary } from '@/features/agent/AnswerComparison';
+import { answerComparison } from '@/lib/assay/comparison';
 import { TestAgentPanel } from '@/features/proofrun/TestAgentPanel';
 import { EmailLinkNotice } from '@/features/workspace/EmailLinkNotice';
 import { EmptyState } from '@/ui/Feedback';
@@ -41,6 +44,7 @@ import { siteUrl } from '@/lib/site';
 import { StructuredProfile } from '@/features/agent/StructuredProfile';
 import { TradesForYouCard } from '@/features/trading/TradesForYouCard';
 import { structuredProfile } from '@/features/agent/structured';
+import { hireBlocker } from '@/lib/hire/blocker';
 
 export const dynamic = 'force-dynamic';
 
@@ -113,7 +117,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
     p.record.totalProbes === 0 ? 'Not measured by Pokter yet' : `answered ${p.record.totalAnswered} of ${p.record.totalProbes} probes`;
   // The evidence step, the same word the page leads with; availability follows in the description.
   const title = `${p.name} — ${p.maturity.label}`;
-  const description = `${p.summary} ${p.maturity.label}. Availability ${p.verdict.label.toLowerCase()}: ${measured}.`.slice(0, 300);
+  const description = `${p.summary} ${p.maturity.label}. Availability: ${p.verdict.label.toLowerCase()}, ${measured}.`.slice(0, 300);
   const url = `/agents/${p.chainId}/${p.tokenId}`;
   return { title, description, alternates: { canonical: url }, openGraph: { title, description, url, type: 'profile' } };
 }
@@ -328,6 +332,7 @@ export default async function AgentPage({ params, searchParams }: { params: Para
   const declaredTemplates = templatesFromSkills(p.skills);
   const templates = declaredTemplates.length > 0 ? declaredTemplates : commissionTaskTemplates(p.category?.id ?? 'unclassified');
   const explorer = explorerBaseFor(p.chainId);
+  const checkComparison = answerComparison(p.categoryCheck?.run ?? null);
 
   /*
    * The only page that says what a particular agent is, and until now the
@@ -471,6 +476,8 @@ export default async function AgentPage({ params, searchParams }: { params: Para
               </h2>
             </div>
             <HeadlineStats p={p} />
+            {/* The answer check in two lines, the full comparison one click away in Evidence. */}
+            {checkComparison && <AnswerCheckSummary label={p.categoryCheck!.definition.label} comparison={checkComparison} />}
             {/* The five questions a buyer arrives with, each labelled with
                 who answered it. The operator's description lives here now,
                 under "What it does", with the same unverified label. */}
@@ -560,7 +567,7 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                 <Link href="/methodology#maturity" className="text-[12.5px] font-medium text-ink-2 hover:text-ink hover:underline">How each step is earned</Link>
               </div>
               <MaturityLadder maturity={p.maturity} />
-              <p className="text-[11.5px] leading-relaxed text-ink-3">Each step is something Pokter has seen this agent do. Availability ({p.verdict.label}) is judged separately, from Pokter&rsquo;s probes and third-party attestations.</p>
+              <p className="text-[11.5px] leading-relaxed text-ink-3">Each step is something Pokter has seen this agent do. Availability ({p.verdict.label.toLowerCase()}) is judged separately, from Pokter&rsquo;s probes and third-party attestations, and says nothing about whether its answers are right.</p>
             </div>
             {p.sample && (
               <div id="sample" className="scroll-mt-32 flex flex-col gap-3">
@@ -573,7 +580,11 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                 <div className="overflow-hidden rounded-[12px] border border-rule bg-raised">
                   <div className="flex flex-wrap items-center justify-between gap-2 border-b border-rule px-5 py-3 text-[12.5px] text-ink-3">
                     <span>
-                      Job <span className="t-readout">#{p.sample.jobId}</span> · {p.sample.status.toLowerCase()}
+                      <Link href={jobEvidencePath(p.sample)} className="underline decoration-rule-strong underline-offset-2 hover:text-ink hover:decoration-ink">
+                        Job <span className="t-readout">#{p.sample.jobId}</span>
+                      </Link>{' '}
+                      · {p.sample.status.toLowerCase()}
+                      {p.sample.funder === 'team' ? ' · Pokter’s test hire' : p.sample.funder === 'outside' ? ' · an outside buyer’s job, answer published by the buyer' : p.sample.funder === 'self' ? ' · a self-hire, brief not shown' : ''}
                       {p.sample.kind === 'relayed'
                         ? ' · carried by Pokter’s delivery agent: the task went to this agent and its answer is shown unchanged'
                         : p.sample.kind === 'lifecycle'
@@ -618,6 +629,12 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                 <TrialPanel agent={{ chainId: p.chainId, tokenId: p.tokenId, name: p.name }} defaultTask={templates[0]?.task ?? 'Produce a read-only assessment. State every assumption and data source; execute no transaction.'} />
               </div>
             )}
+            {/* While x402 is off: what the registration declares, as a route Pokter does not take payments on. Streamed, so a slow registration never holds the page. */}
+            {!x402Enabled() && p.chainId === 56 && (
+              <Suspense fallback={null}>
+                <PayPerCallDeclared chainId={p.chainId} tokenId={p.tokenId} />
+              </Suspense>
+            )}
             {/* Off unless the operator turns x402 on; then only for agents on the one network it supports. */}
             {x402Enabled() && p.chainId === 56 && (
               <div id="pay-per-call" className="scroll-mt-32 flex flex-col gap-3 rounded-[14px] border border-rule bg-raised p-5 sm:p-6">
@@ -655,7 +672,11 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                 </dl>
               </div>
               <ClaimVsObserved p={p} />
-              {p.categoryCheck && <CategoryCheck definition={p.categoryCheck.definition} run={p.categoryCheck.run} agentKey={`${p.chainId}:${p.tokenId}`} />}
+              {p.categoryCheck && (
+                <div id="answer-check" className="scroll-mt-32">
+                  <CategoryCheck definition={p.categoryCheck.definition} run={p.categoryCheck.run} agentKey={`${p.chainId}:${p.tokenId}`} />
+                </div>
+              )}
               {/*
                 ProofRun, on the agents it can actually check.
                 Offered only to `health-factor` agents: the scenarios are
@@ -807,7 +828,9 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                         <span className="flex min-w-0 flex-col gap-0.5">
                           <span className="flex flex-wrap items-baseline gap-x-2">
                             <span className="font-medium">{JOB_STATE[job.status] ?? job.status}</span>
-                            <span className="t-readout text-[11.5px] text-ink-3">#{job.jobId}</span>
+                            <Link href={jobEvidencePath(job)} className="t-readout text-[11.5px] text-ink-3 underline decoration-rule-strong underline-offset-2 hover:text-ink hover:decoration-ink" title={`Job #${job.jobId}: what the escrow records and Pokter's check of the delivery`}>
+                              #{job.jobId}
+                            </Link>
                             {/* Said on the row, not inferred from a total: a job a
                                 Pokter wallet delivered is not the agent's work. */}
                             {job.byOperator && <span className="text-[11.5px] text-watch">Pokter&rsquo;s wallet delivered this</span>}
@@ -817,7 +840,7 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                           </span>
                         </span>
                         <span className="flex shrink-0 flex-col items-end gap-1">
-                          <span className="t-readout text-[13px]">{formatQuotedPrice(job.budgetU)}</span>
+                          <span className="t-readout text-[13px]">{job.amountLabel}</span>
                           {/* Named for what it opens. A transaction is a receipt;
                               the escrow's read page is not, and calling it one
                               would be the claim this list exists to avoid. */}
@@ -880,12 +903,39 @@ export default async function AgentPage({ params, searchParams }: { params: Para
             {p.quote ? (
               <Facts
                 rows={[
-                  { label: 'Signed price', value: <span className="t-readout">{p.quote.label}</span> },
+                  { label: p.quote.current ? 'Escrow quote' : 'Last signed escrow quote', value: <span className="t-readout">{p.quote.label}</span> },
+                  /* The money, said once and plainly: a hire is funded in the
+                     token the agent signed, so a buyer holding only $U has to
+                     learn that here and not at the wallet. */
+                  ...(p.pricesIn ? [{ label: 'Prices in', value: p.pricesIn.currencies.map((c) => c.symbol).join(', '), hint: p.pricesIn.sentence }] : []),
                   { label: 'Signed by', value: <Address address={p.quote.signer} chainExplorer={false} />, hint: 'Recovered from the signature; must match the registered agent wallet' },
                   { label: 'Signed', value: new Date(p.quote.quotedAt).toUTCString().slice(5, 22) + ' UTC' },
                   { label: 'Valid until', value: p.quote.expiresAt ? `${new Date(p.quote.expiresAt).toUTCString().slice(5, 22)} UTC${p.quote.current ? '' : ' (expired; Pokter asks for a fresh signed quote when you hire, and stops if it is above your budget)'}` : 'No expiry stated' },
-                  { label: 'Payable by this escrow', value: p.quote.payable === false ? <span className="text-bad">No, wrong token</span> : <span className="text-ok">Yes</span> },
-                  { label: 'Network fee', value: 'Covered by Pokter for passkey wallets where available; otherwise a few cents of BNB' },
+                  /* The newest check beside the price it may have overtaken: a signed price shown alone read as current after a later check failed. */
+                  ...(p.priceCheck && Date.parse(p.priceCheck.at) > Date.parse(p.quote.quotedAt)
+                    ? [
+                        {
+                          label: 'Last price check',
+                          value: `${new Date(p.priceCheck.at).toUTCString().slice(5, 22)} UTC · ${p.priceCheck.source === 'buyer' ? 'a buyer’s request' : 'Pokter’s scheduled check'} · ${p.priceCheck.outcome === 'signed' ? 'signed a price' : 'no signed price'}`,
+                          hint: p.priceCheck.outcome === 'signed' ? undefined : hireBlocker({ code: p.priceCheck.outcome })?.reason,
+                        },
+                      ]
+                    : []),
+                  {
+                    label: 'Payable by this escrow',
+                    value: p.quote.payable === false
+                      ? <span className="text-bad">No: signed in {p.quote.symbol ?? 'a token Pokter has not verified'}</span>
+                      : <span className="text-ok">Yes, in {p.quote.symbol ?? 'its signed token'}</span>,
+                    hint: p.escrowTokens.length
+                      ? `The ${chainLabel(p.escrow.chainId)} escrow funds hires in ${p.escrowTokens.map((t) => t.symbol).join(', ')}.`
+                      : undefined,
+                  },
+                  /* Pokter tops up gas only for a passkey wallet, which acts on CHAIN_ID and funds $U alone; every other hire's fee is the buyer's. */
+                  {
+                    label: 'Network fee',
+                    value: `A few cents of ${p.escrow.chainId === 56 ? 'BNB' : 'tBNB'}, paid by your wallet`,
+                    hint: p.escrow.chainId === CHAIN_ID && (p.quote.symbol ?? '$U') === '$U' ? 'Pokter tops it up for a passkey wallet that runs short.' : undefined,
+                  },
                 ]}
               />
             ) : (

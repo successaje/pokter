@@ -2,14 +2,22 @@ import type { MetadataRoute } from 'next';
 
 import { listMarketplace } from '@/lib/marketplace';
 import { CATEGORIES } from '@/lib/agents/categories';
+import { acceptsProposals } from '@/lib/briefs/model';
+import { getBriefStore } from '@/lib/briefs/store';
+import { getJobStore } from '@/lib/erc8183/store';
+import { jobEvidencePath, wasDelivered } from '@/lib/jobs/evidence-view';
+import { GUIDES } from '@/lib/guides/catalogue';
 import { siteUrl } from '@/lib/site';
 
 /**
- * Static routes plus every indexed agent.
+ * Static routes plus every indexed agent, and every request still taking
+ * proposals.
  *
  * Agent pages are the reason this exists: they are the only pages carrying
  * evidence about a specific agent, and without a sitemap nothing outside
- * Pokter can find them.
+ * Pokter can find them. The three guides are the public starting points
+ * and come first after the home page; the requests board, the integration
+ * kit and the MCP pages were missing until a review found them absent.
  */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = siteUrl();
@@ -17,12 +25,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const fixed = [
     { path: '', priority: 1 },
+    { path: '/guides', priority: 0.9 },
+    ...GUIDES.map((g) => ({ path: g.href, priority: 0.9 })),
     { path: '/discover', priority: 0.9 },
+    { path: '/requests', priority: 0.8 },
     { path: '/how-it-works', priority: 0.8 },
     { path: '/methodology', priority: 0.8 },
     { path: '/corrections', priority: 0.5 },
     { path: '/build', priority: 0.7 },
     { path: '/developers', priority: 0.7 },
+    { path: '/build/integration', priority: 0.7 },
+    { path: '/mcp', priority: 0.7 },
+    { path: '/connect', priority: 0.6 },
     { path: '/evaluators', priority: 0.7 },
     { path: '/evaluators/challenge', priority: 0.7 },
     { path: '/compare', priority: 0.5 },
@@ -69,8 +83,34 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     agents = [];
   }
 
+  /* Open requests only: one that has stopped taking proposals is not work anybody can win. */
+  let requests: MetadataRoute.Sitemap = [];
+  try {
+    requests = getBriefStore()
+      .all('open')
+      .filter((brief) => acceptsProposals(brief))
+      .map((brief) => ({ url: `${base}/requests/${brief.id}`, lastModified: new Date(brief.postedAt), priority: 0.6 }));
+  } catch {
+    requests = [];
+  }
+
+  /*
+   * Every delivered job Pokter commissioned, as evidence: what the escrow
+   * records and Pokter's check of the delivery. A buyer's brief is on the
+   * page only for Pokter's own test jobs (see `briefIsPublic`).
+   */
+  let jobs: MetadataRoute.Sitemap = [];
+  try {
+    jobs = getJobStore()
+      .all()
+      .filter((job) => wasDelivered(job.status))
+      .map((job) => ({ url: `${base}${jobEvidencePath(job)}`, lastModified: new Date(job.statusCheckedAt), priority: 0.4 }));
+  } catch {
+    jobs = [];
+  }
+
   const seen = new Set<string>();
-  return [...fixed, ...categories, ...agents].filter((entry) =>
+  return [...fixed, ...categories, ...agents, ...requests, ...jobs].filter((entry) =>
     seen.has(entry.url) ? false : (seen.add(entry.url), true),
   );
 }

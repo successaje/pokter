@@ -25,6 +25,8 @@
  * claim worth checking on every build.
  */
 
+import { enabledHireTokens } from '@/lib/network/tokens';
+
 export interface AssistantToolSpec {
   name: string;
   title: string;
@@ -104,14 +106,28 @@ export const PREPARE_HIRE: AssistantToolSpec = {
         type: 'integer',
         enum: [56, 97],
         description:
-          'The escrow the OWNER authorised: 56 for BNB Chain, which spends real $U, or 97 for BNB Testnet, which spends test tokens. Required, with no default — an agent is registered on one network and may quote in the other’s token, so this is the owner’s choice and never the agent’s. A quote that settles anywhere else is refused.',
+          'The escrow the OWNER authorised: 56 for BNB Chain, which spends real money (in $U, or in payment_token when given), or 97 for BNB Testnet, which spends test tokens. Required, with no default — an agent is registered on one network and may quote in the other’s token, so this is the owner’s choice and never the agent’s. A quote that settles anywhere else is refused.',
       },
       max_budget: {
         type: 'number',
         exclusiveMinimum: 0,
         description:
-          'The most the OWNER has authorised for this one job, in whole $U on escrow_chain_id — real $U on 56, test $U on 97. Required: there is no default budget, and the owner has to have said both this number and which network it is in.',
+          'The most the OWNER has authorised for this one job, in whole units of the escrow chain’s $U (real $U on 56, test $U on 97), or of payment_token when it is given — 5 then means five of that token, never five $U. Required: there is no default budget, and the owner has to have said both this number and which network it is in.',
       },
+      /*
+       * Only in the schema while USDT hiring is on, so the published tool is
+       * byte-for-byte what it was until then.
+       */
+      ...(enabledHireTokens().size > 0
+        ? {
+            payment_token: {
+              type: 'string',
+              pattern: '^0x[0-9a-fA-F]{40}$',
+              description:
+                'The token the OWNER authorised, by contract address, when it is not $U. It must be a token Pokter has turned on for hiring on escrow_chain_id (integration_kit lists them). Omit it for $U. An agent that prices in another token is prepared only when this names exactly that token, and max_budget is then counted in it; a price in any other money than the one named here is refused, never converted.',
+            },
+          }
+        : {}),
       request_id: {
         type: 'string',
         maxLength: 64,

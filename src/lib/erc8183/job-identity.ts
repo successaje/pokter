@@ -3,6 +3,7 @@ import 'server-only';
 import { getAddress } from 'viem';
 
 import { decodePokterJobEnvelope, decodeReferenceJobDescription } from '@/lib/erc8183/job-envelope';
+import { jobPaymentTokenOnChain } from '@/lib/erc8183/job-onchain';
 import { getJobStore } from '@/lib/erc8183/store';
 import type { HiredJob, JobStatusName } from '@/lib/erc8183/types';
 
@@ -52,6 +53,14 @@ export async function indexIfMissing(input: {
   const identity = await jobIdentity(input.onchain.description, input.onchain.provider, input.chainId);
   if (!identity) return false;
   const now = new Date().toISOString();
+  /*
+   * The job's token, read from the escrow. A row written without it is
+   * labelled "currency not yet read" everywhere and left out of every $U
+   * figure, so a job indexed here would otherwise sit as unknown until the
+   * currency backfill. Null when the chain did not answer: recorded as
+   * unknown, never as $U.
+   */
+  const paymentToken = await jobPaymentTokenOnChain(input.chainId, input.jobId);
   const job: HiredJob = {
     id: `${input.chainId}:${input.jobId}`,
     jobId: input.jobId,
@@ -65,6 +74,7 @@ export async function indexIfMissing(input: {
     provider: input.onchain.provider as `0x${string}`,
     task: identity.task,
     budgetRaw: input.onchain.budget.toString(),
+    paymentToken,
     expiredAt: new Date(Number(input.onchain.expiredAt) * 1000).toISOString(),
     hiredAt: now,
     hireTxHash: null,

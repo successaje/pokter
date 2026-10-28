@@ -3,6 +3,7 @@ import 'server-only';
 import type { Listing } from '@/lib/marketplace';
 import type { TrackRecord } from '@/lib/history/record';
 import { VERDICT_LABEL, type Verdict } from '@/lib/proof/engine';
+import { wirePrice, type WirePrice } from '@/lib/find/price';
 
 /**
  * The public read schema, version 1.
@@ -43,6 +44,9 @@ function measured<T>(
   return { value, provenance, source };
 }
 
+/* The price shape is defined beside the label it shares a reading with (`lib/find/price`). */
+export { wirePrice, type WirePrice } from '@/lib/find/price';
+
 export interface AgentSummary {
   chainId: number;
   tokenId: string;
@@ -58,7 +62,8 @@ export interface AgentSummary {
    * What the agent quoted for itself, or null when it has never named a price.
    * Null is a fact about the agent, not a missing field.
    */
-  price: Measured<{ amountU: number; currency: string; quotedAt: string; expiresAt: string | null; current: boolean | null; payable: boolean | null } | null>;
+  /** `route` is always 'escrow': every price here is an ERC-8183 escrow quote, never a pay-per-call price. Added; nothing else changed. */
+  price: Measured<(WirePrice & { quotedAt: string; expiresAt: string | null; current: boolean | null; payable: boolean | null; route: 'escrow' }) | null>;
   availability: Measured<number | null>;
   probes: Measured<{ total: number; answered: number; observedDays: number }>;
   attestations: Measured<number>;
@@ -123,17 +128,17 @@ export function toAgentSummary(
     price: measured(
       listing.quote
         ? {
-            amountU: listing.quote.priceU,
-            currency: listing.quote.currency,
+            ...wirePrice(listing.quote),
             quotedAt: listing.quote.quotedAt,
             expiresAt: listing.quote.expiresAt ?? null,
             // An expired price read beside `payable: true` looked like terms a buyer could take.
             current: listing.quote.expiresAt ? Date.parse(listing.quote.expiresAt) > Date.now() : null,
             payable: listing.quotePayable ?? null,
+            route: 'escrow',
           }
         : null,
       'attested',
-      'Quoted by the agent and signed by its registered wallet. Null means it has never returned a signed quote. `current` says whether it is still within its stated expiry (null when none is stated); a hire asks for a fresh quote either way. `payable` says whether an enabled escrow settles in the quoted token.',
+      'Quoted by the agent and signed by its registered wallet, in the token named by `currency` (`symbol`, `decimals`, on `settlementChainId`). `amount` is exact, in whole units of that token; `priceRaw` is the signed integer. `amountU` is kept for older callers and is null unless the price is in $U. Null means it has never returned a signed quote. `current` says whether it is still within its stated expiry (null when none is stated); a hire asks for a fresh quote either way. `payable` says whether an enabled escrow settles in the quoted token.',
     ),
     availability: measured(
       uptime,
@@ -174,6 +179,9 @@ export interface Page<T> {
   total: number;
   limit: number;
   offset: number;
+  /** When this response was built. */
+  generatedAt: string;
+  /** The same as `generatedAt`, kept for older callers: it never meant when anything in `items` was observed. */
   observedAt: string;
 }
 
@@ -181,12 +189,14 @@ export function page<T>(
   items: T[],
   { total, limit, offset }: { total: number; limit: number; offset: number },
 ): Page<T> {
+  const generatedAt = new Date().toISOString();
   return {
     version: API_VERSION,
     items,
     total,
     limit,
     offset,
-    observedAt: new Date().toISOString(),
+    generatedAt,
+    observedAt: generatedAt,
   };
 }

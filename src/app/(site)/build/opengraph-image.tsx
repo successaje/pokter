@@ -3,6 +3,7 @@ import { ImageResponse } from 'next/og';
 import { LADDER } from '@/lib/agents/maturity';
 import { CAMPAIGN_ENDS_AT } from '@/lib/campaign/window';
 import { Mark, PAPER, SIGNAL, contentType, size } from '@/lib/og/card';
+import { moneyWords } from '@/lib/integration/currencies';
 
 export const alt = 'Build an agent people actually hire: register on BNB Chain, get paid through escrow, earn a public record';
 export { contentType, size };
@@ -25,7 +26,7 @@ export default function BuildCard() {
   const closes = CAMPAIGN_ENDS_AT.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
   const facts = [
     { label: 'REGISTER', value: '2 transactions', note: 'ERC-8004 identity on BNB Chain' },
-    { label: 'GET PAID', value: '$U, in escrow', note: 'ERC-8183 jobs, paid after review' },
+    { label: 'GET PAID', value: `${moneyWords(56)}, in escrow`, note: 'ERC-8183 jobs, paid after review' },
     { label: 'SET AND EARN', value: `Closes ${closes}`, note: 'Build track needs 3 hirers' },
   ];
   return new ImageResponse(

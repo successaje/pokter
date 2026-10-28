@@ -1,4 +1,7 @@
 import { NextResponse } from 'next/server';
+
+import { defaultHireToken, escrowMoney, paymentTokenAt } from '@/lib/network/tokens';
+import { nonDefaultHireToken } from '@/lib/erc8183/hire-token';
 import { parseUnits } from 'viem';
 import { getErc8183Job } from '@altananetwork/sdk';
 
@@ -22,6 +25,7 @@ import { requireDecimals } from '@/lib/network/tokens';
 import { getAgent } from '@/lib/scan/client';
 import type { ChainId } from '@/lib/scan/types';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
+import { withRegisteredWallet } from '@/lib/registry/live-agent';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 40;
@@ -134,7 +138,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   if (!Number.isFinite(maxBudget) || maxBudget < BUDGET_MIN || maxBudget > BUDGET_MAX) {
     return NextResponse.json(
       {
-        error: `maxBudget is required and must be a number: the most the owner has authorised for this job, between ${BUDGET_MIN} and ${BUDGET_MAX} in whole $U on chain ${escrowChain}${escrowChain === 56 ? ' (real funds)' : ' (test tokens)'}. Pokter sets no budget of its own.`,
+        error: `maxBudget is required and must be a number: the most the owner has authorised for this job, between ${BUDGET_MIN} and ${BUDGET_MAX} in whole units of the money the owner authorised on chain ${escrowChain} — $U, or the token named in paymentToken${escrowChain === 56 ? ' (real funds)' : ' (test tokens)'}. Pokter sets no budget of its own.`,
         layer: 'input',
         code: 'no-owner-budget',
       },
@@ -160,6 +164,12 @@ export async function POST(request: Request): Promise<NextResponse> {
    * nothing on it ever asks for one.
    */
   const ownerAddress = typeof body.owner === 'string' && /^0x[0-9a-fA-F]{40}$/.test(body.owner) ? body.owner : null;
+  /*
+   * The money the owner authorised, when it is not $U: an address, never a
+   * symbol. Only a non-$U price needs it, and one without it is refused
+   * below. `maxBudget` is then counted in this token.
+   */
+  const ownerToken = typeof body.paymentToken === 'string' && /^0x[0-9a-fA-F]{40}$/.test(body.paymentToken) ? body.paymentToken : null;
   if (!ownerAddress) {
     return NextResponse.json(
       {
@@ -174,15 +184,18 @@ export async function POST(request: Request): Promise<NextResponse> {
   const mandateKey = typeof body.requestId === 'string' ? body.requestId.slice(0, 64) : null;
   const uncertainJobId = typeof body.possiblyFundedJobId === 'string' && /^\d{1,18}$/.test(body.possiblyFundedJobId) ? body.possiblyFundedJobId : null;
 
-  const agent = await getAgent(chainId, tokenId).catch(() => null);
-  if (!agent) return NextResponse.json({ error: 'No such agent.' }, { status: 404 });
+  const indexed = await getAgent(chainId, tokenId).catch(() => null);
+  if (!indexed) return NextResponse.json({ error: 'No such agent.' }, { status: 404 });
+  /* As the registry names its wallet now, as the quote route reads it (`registeredAgentWallet`). */
+  const agent = await withRegisteredWallet(indexed);
 
   /*
    * Where escrow may pay, from the registry record and from nowhere else.
    *
-   * `requestQuote` will not even ask an agent that lists no wallet, and it
-   * verifies the signature against this address, so a quote that exists
-   * implies this is present and that `quote.signer` equals it. Both are
+   * `requestQuote` verifies the signature against the registered wallet:
+   * this one when the index has it, else the registry's own
+   * `getAgentWallet`. This route still requires the index's, so a quote
+   * that exists here implies `quote.signer` equals it. Both are
    * asserted again below, at the point the money is described: the property
    * is what makes the provider in a prepared request trustworthy, and a
    * change to the quote path must not be able to redirect payment silently.
@@ -292,7 +305,7 @@ export async function POST(request: Request): Promise<NextResponse> {
    * other one has declined the hire the owner asked for.
    */
   if (quotedBody.escrowChainId !== escrowChain) {
-    const real = (id: number) => (id === 56 ? 'real $U on BNB Chain' : 'test $U on BNB Testnet');
+    const real = (id: number) => escrowMoney(id, paymentTokenAt(id, quote.currency) ?? defaultHireToken(id));
     return NextResponse.json(
       {
         error: `${agent.name || `Agent #${tokenId}`} signed a price that settles on chain ${quotedBody.escrowChainId} (${real(quotedBody.escrowChainId)}), and the owner authorised chain ${escrowChain} (${real(escrowChain)}). Nothing was prepared. Ask the owner for chain ${quotedBody.escrowChainId} explicitly if that is what they want.`,
@@ -308,9 +321,41 @@ export async function POST(request: Request): Promise<NextResponse> {
   const escrowChainId = escrowChain;
 
   const addresses = correctedErc8183Addresses(escrowChainId);
+  /*
+   * The token is the one the seller signed. A $U price is prepared as it
+   * always was. Another token's price is prepared only when that token is
+   * turned on for hiring and the owner named exactly it: otherwise the agent
+   * priced money the owner did not authorise, which is refused, never
+   * prepared in $U.
+   */
+  let quotedToken: ReturnType<typeof nonDefaultHireToken>;
+  try {
+    quotedToken = nonDefaultHireToken(escrowChainId, quote.currency);
+  } catch (error) {
+    return NextResponse.json({ error: (error as Error).message, layer: 'payment', code: 'token-not-offered', retryable: false }, { status: 409 });
+  }
+  if (quotedToken && (!ownerToken || ownerToken.toLowerCase() !== quotedToken.address.toLowerCase())) {
+    return NextResponse.json(
+      {
+        error: `${agent.name || `Agent #${tokenId}`} signed a price in ${quotedToken.symbol} (${quotedToken.address}), and the owner ${ownerToken ? `authorised ${ownerToken}` : 'named no token, which means $U'}. Nothing was prepared. Ask the owner whether to pay in ${quotedToken.symbol}, then pass payment_token ${quotedToken.address} with a ceiling in ${quotedToken.symbol}.`,
+        layer: 'payment',
+        code: 'token-not-in-mandate',
+        retryable: false,
+        quotedToken: quotedToken.address,
+      },
+      { status: 409 },
+    );
+  }
+  if (!quotedToken && ownerToken && ownerToken.toLowerCase() !== addresses.paymentToken.toLowerCase()) {
+    return NextResponse.json(
+      { error: `The owner authorised ${ownerToken}, and ${agent.name || `Agent #${tokenId}`} signed a price in $U. Nothing was prepared.`, layer: 'payment', code: 'token-not-in-mandate', retryable: false },
+      { status: 409 },
+    );
+  }
+  const hireTokenAddress = (quotedToken?.address ?? addresses.paymentToken) as `0x${string}`;
   let decimals: number;
   try {
-    decimals = requireDecimals(escrowChainId, addresses.paymentToken);
+    decimals = requireDecimals(escrowChainId, hireTokenAddress);
   } catch (error) {
     /* A token Pokter has not verified has no safe scale, so no amount can be
        stated: `lib/network/tokens` refuses rather than assume eighteen. */
@@ -332,7 +377,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     /* Pokter's own token for the chain the owner named, not the agent's
        echo of it. The mandate below asserts the quoted currency is this
        token; the key must not be a string the counterparty spells. */
-    token: addresses.paymentToken,
+    token: hireTokenAddress,
     owner: ownerAddress,
     task: payload,
   };
@@ -466,13 +511,13 @@ export async function POST(request: Request): Promise<NextResponse> {
       maxAmountRaw: parseUnits(String(maxBudget), decimals).toString(),
       chainId: escrowChainId,
       escrow: addresses.commerce,
-      token: addresses.paymentToken,
+      token: hireTokenAddress,
       task: payload,
     },
     escrow: {
       chainId: escrowChainId,
       commerce: addresses.commerce,
-      paymentToken: addresses.paymentToken,
+      paymentToken: hireTokenAddress,
       decimals,
       testnet: escrowChainId === 97,
       label: networkOf(escrowChainId)?.label ?? `chain ${escrowChainId}`,

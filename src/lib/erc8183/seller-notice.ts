@@ -9,6 +9,8 @@ import { readJson, withPublicEndpoint } from '@/lib/proof/prober';
 import { getAgent } from '@/lib/scan/client';
 import type { ChainId } from '@/lib/scan/types';
 import { jsonRpcEndpoint } from '@/lib/a2a/card';
+import { a2aUserMessage } from '@/lib/a2a/message';
+import { registeredAgentWallet } from '@/lib/registry/live-agent';
 
 export const SELLER_ANSWER_TIMEOUT_MS = 50_000;
 
@@ -28,7 +30,9 @@ async function askSeller(input: {
   provider: string;
 }): Promise<{ status: SellerNoticeStatus; reason: string | null; deliverableUrl: string | null }> {
   const agent = await getAgent(input.agentChainId, input.tokenId);
-  if (agent.agent_wallet?.toLowerCase() !== input.provider) {
+  /* The wallet the registry names now, as the hire that funded the job read it (`registeredAgentWallet`): the indexer's copy can trail it. */
+  const registered = await registeredAgentWallet(agent);
+  if (registered?.toLowerCase() !== input.provider.toLowerCase()) {
     return { status: 'unreachable', reason: 'The registry agent and the funded job do not name the same provider.', deliverableUrl: null };
   }
   const cardEndpoint = agent.services?.a2a?.endpoint?.replace('{agentId}', input.tokenId);
@@ -49,11 +53,7 @@ async function askSeller(input: {
         id: rpcId,
         method: 'message/send',
         params: {
-          message: {
-            role: 'user',
-            messageId: crypto.randomUUID(),
-            parts: [{ kind: 'data', data: { skill: 'notify_funded', job_id: Number(input.jobId) } }],
-          },
+          message: a2aUserMessage([{ kind: 'data', data: { skill: 'notify_funded', job_id: Number(input.jobId) } }]),
           configuration: { acceptedOutputModes: ['application/json'], blocking: true },
         },
       }),

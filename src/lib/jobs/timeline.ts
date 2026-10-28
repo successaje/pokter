@@ -31,8 +31,17 @@ export function jobTimeline(job: HiredJob): JobTimelineStep[] {
     {
       id: 'created', label: 'Commissioned',
       state: reached > 0 ? 'complete' : 'current',
-      source: job.hireTxHash ? 'onchain' : 'pending',
-      detail: job.hireTxHash ? 'Creation was included in the verified hiring transaction.' : 'No creation transaction hash is stored on this device.',
+      /*
+       * A job past creation exists on chain whether or not Pokter recorded
+       * the transaction that made it. Marked pending, a delivered job read
+       * as an unfinished payment; the missing link is only a missing link.
+       */
+      source: job.hireTxHash || reached > 0 ? 'onchain' : 'pending',
+      detail: job.hireTxHash
+        ? 'Creation was included in the verified hiring transaction.'
+        : reached > 0
+          ? 'Transaction link unavailable. The job exists on chain; the transaction that created it was not recorded.'
+          : 'Not created yet.',
       transactionHash: job.hireTxHash,
     },
     {

@@ -5,12 +5,17 @@ import { useEffect, useMemo, useState } from 'react';
 import { formatEther, formatUnits } from 'viem';
 
 import { BUDGET_MAX, BUDGET_MIN, useHire, type HireAgent, type ProviderChoice } from '@/lib/hire/useHire';
+import { jobAmountLabel } from '@/lib/erc8183/job-amount';
+import { paymentCopy } from '@/lib/hire/payment-copy';
+import { displaySymbol, formatAmount, hireTokenAt, requestToken, tokenIdentity, tokenName } from '@/lib/network/tokens';
+import { currencyChoices, type CurrencyChoices, type CurrencyEvidence } from '@/lib/hire/currency-choice';
 import { FAUCETS, chainLabel, explorerBaseFor } from '@/lib/network/presentation';
 import { jobHref } from '@/lib/jobs/href';
 import { useGasSponsorship } from '@/lib/wallet/sponsor-client';
+import { WALLET_NETWORK } from '@/lib/wallet/passkey';
 import { cn } from '@/lib/ui/cn';
 import { shortAddress } from '@/lib/ui/format';
-import { formatBudget } from '@/lib/erc8183/pricing';
+import { formatBudget, formatQuotedRaw } from '@/lib/erc8183/pricing';
 import { deadlineTerms, deliverySecondsFor, describeSeconds } from '@/lib/erc8183/deadline';
 import { serviceModeOf } from '@/lib/hire/service-mode';
 import { readDisputeWindow } from '@/lib/wallet/external';
@@ -64,6 +69,10 @@ export interface HireFlowProps {
   agent: HireAgent & { imageUrl: string | null; key: string };
   providers: ProviderChoice[];
   signedQuoteU: number | null;
+  /** The currency of the listing's last signed price; names the money before a fresh quote is taken. */
+  quoteCurrency?: string | null;
+  /** What Pokter has seen this agent quote or be funded in on this escrow chain: history, offered as such. */
+  currencyEvidence?: CurrencyEvidence[];
   suggestedU: number | null;
   /** The newest signed price, expired. Used as the budget default. */
   lastSignedU?: number | null;
@@ -82,10 +91,12 @@ export interface HireFlowProps {
   answeredTasks?: AnsweredTask[];
   /** A brief to start from, from the link (`?task=`). */
   initialTask?: string | null;
+  /** A currency to ask the agent to price in, from the link (`?pay=`). */
+  initialCurrency?: string | null;
   /** The proposal chosen on a request, when the hire comes from one (`?proposal=`). */
   proposal?: ProposalForHire | null;
   /** The networks this agent can be hired on, and how to switch between them (`HireNetworks`). */
-  network?: { options: Array<{ chainId: number; deliveredByAgent: boolean }>; onChange: (chainId: number) => void };
+  network?: { options: Array<{ chainId: number; deliveredByAgent: boolean }>; onChange: (chainId: number) => void; /** A network being handed over to, while its page loads. */ switchingTo?: number | null };
 }
 
 /**
@@ -103,9 +114,11 @@ const EXTERNAL_STEPS: Array<{ id: string; label: string; hint: string }> = [
   { id: 'connecting', label: 'Checking your wallet', hint: 'Making sure the right account and network are selected.' },
   /*
     Only reached when the wallet is short on $U. The step list is the same
-    for everybody, so this sits dormant for a funded wallet rather than
+    for every $U hire, so this sits dormant for a funded wallet rather than
     being conditionally spliced in — a progress list whose length changes
     while it is on screen is worse than one with a step that never lights.
+    A hire in another token never swaps, and its currency is fixed before
+    the list appears, so the step is left out of it.
   */
   { id: 'swapping', label: 'Swapping for the missing $U', hint: 'One prompt. Spends BNB up to the quoted maximum and refunds the rest.' },
   { id: 'creating', label: 'Creating the job', hint: 'Approve in your wallet. This records the job and its terms.' },
@@ -115,6 +128,25 @@ const EXTERNAL_STEPS: Array<{ id: string; label: string; hint: string }> = [
   { id: 'funding', label: 'Funding escrow', hint: 'The payment moves into escrow, not to the agent.' },
   { id: 'confirming', label: 'Waiting for confirmation', hint: 'Usually a few seconds on BNB Chain.' },
 ];
+
+/** The steps that wait on the buyer's wallet. */
+const WALLET_PROMPTS = new Set(['swapping', 'creating', 'registering', 'budgeting', 'approving', 'funding']);
+/** How long one wallet step may take before the page says what it is waiting for. */
+const WALLET_STEP_PATIENCE_MS = 20_000;
+
+/**
+ * Whether the current wallet step has been waiting longer than a prompt
+ * usually takes. Resets whenever the step changes.
+ */
+function useWaitingOnWallet(step: string | null): boolean {
+  const [late, setLate] = useState<string | null>(null);
+  useEffect(() => {
+    if (!step || !WALLET_PROMPTS.has(step)) return;
+    const timer = setTimeout(() => setLate(step), WALLET_STEP_PATIENCE_MS);
+    return () => clearTimeout(timer);
+  }, [step]);
+  return late !== null && late === step;
+}
 
 function Progress({ steps, current }: { steps: Array<{ id: string; label: string; hint?: string }>; current: string }) {
   const index = steps.findIndex((s) => s.id === current);
@@ -142,6 +174,81 @@ function Progress({ steps, current }: { steps: Array<{ id: string; label: string
   );
 }
 
+/*
+ * The currency to ask this agent for, from what Pokter has seen it do here.
+ *
+ * "Agent's default" asks for nothing, and the agent prices in its own money;
+ * asking for $U by name is a different request, kept apart. Currencies seen
+ * before (its last signed quote, jobs funded through Pokter) are offered as
+ * history, never as what it accepts. The rest wait behind "Ask for another
+ * currency", unclaimed either way. One currency known is shown plainly,
+ * without implying it is the only one.
+ */
+function CurrencyChoice({ choices, preferredToken, onChange }: {
+  choices: CurrencyChoices;
+  preferredToken: string | null;
+  onChange: (token: string | null) => void;
+}) {
+  const same = (a: string | null | undefined, b: string | null | undefined) => Boolean(a && b && a.toLowerCase() === b.toLowerCase());
+  const [askOther, setAskOther] = useState(false);
+  /* A currency from the link that Pokter has not seen this agent use is still shown, as asked. */
+  const expanded = askOther || choices.unknown.some((c) => same(c.token.address, preferredToken));
+  const listed = [...choices.seen, ...(expanded ? choices.unknown : [])];
+  const chosen = listed.find((c) => same(c.token.address, preferredToken)) ?? null;
+  const defaultWords = choices.lastSigned
+    ? `Its last signed quote here was in ${tokenName(choices.lastSigned)}. That is provisional: a fresh quote is requested for this brief before anything is paid.`
+    : 'Pokter has not seen it sign a price here; it chooses when it signs a quote for this brief.';
+  const askLink = !expanded && choices.unknown.length > 0 && (
+    <button type="button" onClick={() => setAskOther(true)} className="self-start text-[12.5px] text-ink-2 underline underline-offset-2">
+      Ask for another currency
+    </button>
+  );
+
+  if (listed.length <= 1 && !chosen) {
+    /* One currency known, or none: said plainly, as what was seen, never as the only one it takes. */
+    const known = choices.seen[0];
+    return (
+      <div className="flex flex-col gap-1.5" role="group" aria-label="Currency to ask for">
+        <span className="text-[13px] text-ink-2">Currency: the agent’s default{known ? `, seen in ${tokenName(known.token)}` : ''}</span>
+        <span className="text-[12px] text-ink-3">
+          {known
+            ? `${tokenName(known.token)}: ${known.seen}. That is history, not a promise; a fresh quote is requested for this brief, and the agent may answer in its own currency.`
+            : defaultWords}
+        </span>
+        {askLink}
+      </div>
+    );
+  }
+
+  const pill = (on: boolean) => cn('rounded-full border px-3 py-1 text-[13px]', on ? 'border-ink bg-ink text-raised' : 'border-rule-strong text-ink-2');
+  return (
+    <div className="flex flex-col gap-1.5" role="group" aria-label="Currency to ask for">
+      <span className="text-[13px] text-ink-2">Ask the agent to price in</span>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" aria-pressed={preferredToken === null} onClick={() => onChange(null)} className={pill(preferredToken === null)}>
+          Agent’s default
+        </button>
+        {listed.map((c) => (
+          <button key={c.token.address} type="button" aria-pressed={same(c.token.address, preferredToken)} onClick={() => onChange(c.token.address)} className={pill(same(c.token.address, preferredToken))}>
+            {tokenName(c.token)}
+          </button>
+        ))}
+      </div>
+      <span className="text-[12px] text-ink-3">
+        {!chosen
+          ? `The agent prices in its own currency. ${defaultWords}`
+          : /* The asked-for money in full: name, chain, contract, and what it is not. */
+            `Asking for ${tokenIdentity(chosen.token)}${chosen.token.disclosure ? ` (${chosen.token.disclosure})` : ''}. ${
+              chosen.seen
+                ? `Seen before: ${chosen.seen}. That is history, not a promise.`
+                : 'Pokter has not seen this agent price in it.'
+            } A fresh quote is requested; the agent may answer in another currency, or not at all. You see its price, in its money, before anything is paid.`}
+      </span>
+      {askLink}
+    </div>
+  );
+}
+
 export function HireFlow(props: HireFlowProps) {
   /*
    * In the sheet, the step's actions are pinned to the bottom edge, where
@@ -158,9 +265,12 @@ export function HireFlow(props: HireFlowProps) {
   const actionRow = props.embedded ? 'sticky -bottom-5 z-10 -mx-5 -mb-5 border-t border-rule bg-raised px-5 py-3' : '';
   /* A chosen proposal applies on the network its request named, and nowhere else. */
   const proposalHere = Boolean(props.proposal && props.proposal.chainId === props.escrow.chainId);
+  /* The proposal's money: the request's token (a request written before tokens is $U by construction). */
+  const proposalToken = proposalHere ? requestToken(props.escrow.chainId, props.proposal!.paymentToken) : null;
+  const proposalSymbol = proposalToken ? displaySymbol(proposalToken) : '$U';
   /* The chosen proposal's own delivery time reaches the job's deadline, not just the notice above it. */
   const deliverySeconds = deliverySecondsFor(proposalHere ? props.proposal!.deliverDays : null);
-  const hire = useHire({ agent: props.agent, providers: props.providers, signedQuoteU: props.signedQuoteU, suggestedU: props.suggestedU, lastSignedU: props.lastSignedU ?? null, riskWarnings: props.warnings, declaredSkills: props.declaredSkills, escrowChainId: props.escrow.chainId, initialTask: props.initialTask ?? null, proposalU: proposalHere ? props.proposal!.priceU : null, deliverySeconds });
+  const hire = useHire({ agent: props.agent, providers: props.providers, signedQuoteU: props.signedQuoteU, suggestedU: props.suggestedU, lastSignedU: props.lastSignedU ?? null, riskWarnings: props.warnings, declaredSkills: props.declaredSkills, escrowChainId: props.escrow.chainId, initialTask: props.initialTask ?? null, initialCurrency: props.initialCurrency ?? null, proposalU: proposalHere ? props.proposal!.priceU : null, proposal: proposalHere && proposalToken ? { paymentToken: proposalToken.address, priceRaw: props.proposal!.priceRaw } : null, deliverySeconds });
   // A task declared as JSON must have its required inputs before it can be funded.
   // Read against the layout of the template the buyer started from, so a
   // value of the wrong type is not re-read as a different kind of field.
@@ -206,10 +316,44 @@ export function HireFlow(props: HireFlowProps) {
 
   // The agent's signed price only binds when the agent itself delivers.
   // The quote signed for this brief on the way to Review wins over the listing's older one.
+  /*
+   * The money this agent prices in, before a fresh quote names it: the listed
+   * quote's token when it is one Pokter funds here, otherwise $U as before.
+   */
+  const listedToken = hireTokenAt(escrowChainId, props.quoteCurrency ?? null);
+  const priceSymbol = hire.hireToken?.symbol ?? (listedToken && !listedToken.offered ? listedToken.symbol : '$U');
   const priceFloor = hire.provider?.relationship === 'registry-agent' ? (hire.reviewQuote?.priceU ?? props.signedQuoteU) : null;
+  /* A price signed in another token is funded exactly, in that token, under that token's own limits (the plan checks them). */
+  const signedTokenPrice = priceSymbol !== '$U';
+  /*
+   * Why the passkey option is closed for this hire, said in the connect
+   * sheet before anyone makes a wallet that cannot fund it. A passkey
+   * wallet acts only on WALLET_NETWORK and funds only $U; a mainnet $U hire
+   * used to offer it, and the buyer learnt otherwise after creating one.
+   */
+  const passkeyBlocked =
+    escrowChainId !== WALLET_NETWORK.chainId
+      ? `This hire is paid with real funds on ${networkLabel}, and a passkey wallet acts only on ${chainLabel(WALLET_NETWORK.chainId)}. Use a browser or phone wallet.`
+      : signedTokenPrice
+        ? `A passkey wallet funds $U only, and this hire is in ${priceSymbol}. Use a browser or phone wallet.`
+        : null;
+  /* The signed amount exactly as signed, from its raw units: never a float that could round. */
+  const signedAmountLabel = !hire.reviewQuote
+    ? null
+    : hire.hireToken
+      ? (() => {
+          /* In the token's full name ("Binance-Peg USDT"), exactly as signed, from raw units. */
+          const f = formatAmount(hire.hireToken.chainId, hire.hireToken.address, hire.reviewQuote.intent.amountRaw);
+          return f ? `${f.amount} ${tokenName(hire.hireToken)}` : formatQuotedRaw(hire.reviewQuote.intent.currency, hire.reviewQuote.intent.amountRaw);
+        })()
+      : formatQuotedRaw(hire.reviewQuote.intent.currency, hire.reviewQuote.intent.amountRaw);
   const minBudget = Math.max(BUDGET_MIN, priceFloor ?? 0);
-  const budgetError =
-    priceFloor !== null && priceFloor > BUDGET_MAX
+  /* A signed-token hire has no budget: it funds exactly the signed amount, so there is nothing here to be wrong. */
+  const budgetError = !hire.plan.ok
+    ? hire.plan.message
+    : hire.plan.signedAmount || signedTokenPrice
+    ? null
+    : priceFloor !== null && priceFloor > BUDGET_MAX
       ? `This agent signed a price of ${priceFloor} $U, above Pokter's ${BUDGET_MAX} $U per-job limit, so it cannot be hired here yet.`
       : !hire.budgetValid
         ? `Between ${BUDGET_MIN} and ${BUDGET_MAX} $U.`
@@ -217,7 +361,19 @@ export function HireFlow(props: HireFlowProps) {
           ? `The agent signed a price of ${priceFloor} $U. A lower budget will be refused.`
           : null;
 
+  /* The payment screen's words, from the plan the transaction is built from. */
+  const pay = hire.plan.ok
+    ? paymentCopy(hire.plan, {
+        networkLabel,
+        testnet,
+        walletMode: hire.active.mode,
+        balanceRaw: hire.funding.token?.ok ? hire.funding.token.raw : null,
+        swapHasNoPool: Boolean(hire.swapPlan && hire.swapPlan.maxNativeIn === 0n),
+        nativeSymbol,
+      })
+    : null;
   const busy = hire.state === 'hiring';
+  const waitingOnWallet = useWaitingOnWallet(busy && hire.active.mode === 'external' ? hire.externalStep : null);
   const done = hire.state === 'hired' && hire.job;
   const failure = hire.state === 'error' && hire.error ? explainFailure(hire.error, hire.errorLayer) : null;
 
@@ -302,7 +458,7 @@ export function HireFlow(props: HireFlowProps) {
             <div>
               <h1 className="t-h2">Job #{job.jobId} is funded</h1>
               <p className="text-sm text-ink-2">
-                {formatUnits(BigInt(job.budgetRaw), 18)} $U is in escrow. {props.agent.name} is paid only after it delivers and the review window passes without a successful dispute.
+                {jobAmountLabel(job)} is in escrow. {props.agent.name} is paid only after it delivers and the review window passes without a successful dispute.
               </p>
             </div>
           </div>
@@ -378,12 +534,17 @@ export function HireFlow(props: HireFlowProps) {
           </div>
           <div className="rounded-[14px] border border-rule bg-raised p-5">
             {hire.active.mode === 'external' ? (
-              <Progress steps={[{ id: 'quote', label: 'Getting the agent’s signed quote', hint: 'The price for this exact task, signed by its wallet.' }, ...EXTERNAL_STEPS]} current={hire.externalStep ?? 'quote'} />
+              <Progress steps={[{ id: 'quote', label: 'Getting the agent’s signed quote', hint: 'The price for this exact task, signed by its wallet.' }, ...(hire.hireToken ? EXTERNAL_STEPS.filter((s) => s.id !== 'swapping') : EXTERNAL_STEPS)]} current={hire.externalStep ?? 'quote'} />
             ) : (
               <Progress steps={passkeySteps} current={passkeyCurrent} />
             )}
           </div>
           {hire.externalJobId !== null && <p className="text-[13px] text-ink-3">Job #{hire.externalJobId.toString()} created on chain.</p>}
+          {waitingOnWallet && (
+            <Notice tone="watch" title="Waiting for your wallet">
+              If you have approved this step, Pokter is watching the chain and carries on as soon as the transaction lands. There is no need to refresh or start again. If no request appeared, open your wallet app or browser extension and look for it there.
+            </Notice>
+          )}
         </div>
       </Shell>
     );
@@ -392,6 +553,54 @@ export function HireFlow(props: HireFlowProps) {
   return (
     <Shell agent={props.agent} step={step} testnet={testnet} embedded={props.embedded}>
       <ConversionBeacon event="hire_opened" chainId={props.agent.chainId} tokenId={props.agent.tokenId} escrowChainId={escrowChainId} />
+      {/* On every step: an unresolved attempt blocks funding wherever the buyer is. */}
+          {hire.pendingAttempt && (
+        <Notice
+          tone="watch"
+          title={hire.resumableJobId ? `Job ${hire.resumableJobId} is waiting to be funded` : 'An earlier funding attempt is being checked'}
+          action={
+            <div className="flex flex-wrap gap-2">
+              {hire.resumableJobId && (
+                <Button size="s" busy={hire.state === 'hiring'} onClick={() => void hire.resumeFunding()}>
+                  Finish funding job {hire.resumableJobId}
+                </Button>
+              )}
+              {hire.resumableJobId && (
+                <Button size="s" intent="secondary" busy={hire.reconciling} onClick={() => void hire.startOver()}>Start a new hire instead</Button>
+              )}
+              <Button size="s" intent="secondary" busy={hire.reconciling} onClick={() => void hire.recheckFunding()}>Check again</Button>
+            </div>
+          }
+        >
+          {hire.reconcileNote ?? 'It may have gone through, so nothing new is funded from this wallet until the chain says how it ended.'}
+          {' '}
+          {[
+            hire.pendingAttempt.jobId ? `Job ${hire.pendingAttempt.jobId}` : hire.pendingAttempt.predictedJobId ? `Expected job ${hire.pendingAttempt.predictedJobId}` : null,
+            hire.pendingAttempt.callsId ? `batch ${hire.pendingAttempt.callsId.slice(0, 10)}…` : null,
+            ...hire.pendingAttempt.txHashes.map((h) => `transaction ${shortAddress(h)}`),
+          ].filter(Boolean).join(' · ')}
+        </Notice>
+      )}
+      {!hire.pendingAttempt && hire.reconcileNote && <Notice tone="ok" title="The earlier attempt is resolved">{hire.reconcileNote}</Notice>}
+      {/* Another device's attempt for this wallet, from the server. Blocking only with chain evidence that the wallet acted. */}
+      {hire.remoteOpen && (
+        <Notice
+          tone="watch"
+          title={hire.remoteOpen.blocking ? 'This wallet is funding a hire on another device' : 'Another device started a hire from this wallet'}
+          action={
+            <div className="flex flex-wrap gap-2">
+              {!hire.remoteOpen.blocking && (
+                <Button size="s" intent="secondary" onClick={() => hire.acknowledgeRemote()}>I’ve checked; continue here</Button>
+              )}
+              <Button size="s" intent="secondary" onClick={() => void hire.recheckRemote()}>Check again</Button>
+            </div>
+          }
+        >
+          {hire.remoteOpen.blocking
+            ? `The chain shows that attempt acted (${[hire.remoteOpen.attempt.jobId ? `job ${hire.remoteOpen.attempt.jobId}` : null, ...hire.remoteOpen.attempt.txHashes.slice(0, 2).map((h) => `transaction ${shortAddress(h)}`)].filter(Boolean).join(', ')}), so it may still pay. Nothing new is funded from this wallet until it is funded or can no longer pay; finish it on that device, or reject any pending request in your wallet.`
+            : `It began ${new Date(hire.remoteOpen.attempt.startedAt).toLocaleString()} and has not sent anything yet. If it is still open there, finishing both would be two hires. Confirm only once you have checked that device or your wallet.`}
+        </Notice>
+      )}
       {failure && (
         <Notice tone="bad" title={failure.title} className="mb-6" action={step !== 'pay' ? undefined : <span className="text-[12.5px] text-ink-2">Check the details below and confirm again to retry.</span>}>
           {failure.body}
@@ -410,19 +619,23 @@ export function HireFlow(props: HireFlowProps) {
           */}
           <div className="flex flex-col gap-2">
             {network.options.length > 1 && (
-              <div role="radiogroup" aria-label="Network" className="grid grid-cols-2 gap-1 rounded-[10px] border border-rule bg-sunken p-1">
+              <div role="radiogroup" aria-label="Network" aria-busy={network.switchingTo != null} className="grid grid-cols-2 gap-1 rounded-[10px] border border-rule bg-sunken p-1">
                 {network.options.map((option) => {
                   const selected = option.chainId === escrowChainId;
+                  const switching = network.switchingTo === option.chainId;
                   return (
                     <button
                       key={option.chainId}
                       type="button"
                       role="radio"
                       aria-checked={selected}
+                      disabled={network.switchingTo != null}
                       onClick={() => network.onChange(option.chainId)}
-                      className={cn('h-9 rounded-[7px] text-sm font-medium transition-colors', selected ? 'bg-raised text-ink shadow-sm' : 'text-ink-3 hover:text-ink')}
+                      className={cn('h-9 rounded-[7px] text-sm font-medium transition-colors disabled:cursor-wait', selected ? 'bg-raised text-ink shadow-sm' : switching ? 'text-ink' : 'text-ink-3 hover:text-ink')}
                     >
-                      {option.chainId === 56 ? 'BNB Chain' : 'Testnet'}
+                      {switching ? (
+                        <span className="inline-flex items-center gap-1.5"><Spinner size={12} />Switching…</span>
+                      ) : option.chainId === 56 ? 'BNB Chain' : 'Testnet'}
                     </button>
                   );
                 })}
@@ -430,8 +643,21 @@ export function HireFlow(props: HireFlowProps) {
             )}
             <p className="text-[13px] text-ink-2">
               {network.options.length <= 1 && <>{networkLabel} · </>}
-              {testnet ? 'Test tokens' : 'Real $U'} · {deliveredByAgent ? `Delivered by ${props.agent.name}` : relayBlocked ? 'No one can deliver here' : 'Delivery relayed by Pokter'}
+              {testnet ? 'Test tokens' : `Real ${priceSymbol}`} · {deliveredByAgent ? `Delivered by ${props.agent.name}` : relayBlocked ? 'No one can deliver here' : 'Delivery relayed by Pokter'}
             </p>
+            {/*
+              Which money to ask the agent to price in, before it is asked. Only
+              where more than one token is offered on this escrow, and only for
+              an agent that signs its own price. A preference, not a conversion:
+              the agent signs in what it accepts, and that is what is funded.
+            */}
+            {hire.currencyOptions.length > 1 && hire.provider?.relationship === 'registry-agent' && !proposalHere && (
+              <CurrencyChoice
+                choices={currencyChoices(escrowChainId, hire.currencyOptions, props.currencyEvidence ?? [])}
+                preferredToken={hire.preferredToken}
+                onChange={hire.setPreferredToken}
+              />
+            )}
           </div>
 
           {props.proposal && (
@@ -448,7 +674,7 @@ export function HireFlow(props: HireFlowProps) {
               }
             >
               {proposalHere
-                ? `You chose a proposal of ${props.proposal.priceU} $U, delivered within ${props.proposal.deliverDays === 1 ? '1 day' : `${props.proposal.deliverDays} days`} of hiring. The brief below is your request. Before anything is funded, the agent signs a quote for it, and you see it on the next step.`
+                ? `You chose a proposal of ${props.proposal.priceU} ${proposalSymbol}, delivered within ${props.proposal.deliverDays === 1 ? '1 day' : `${props.proposal.deliverDays} days`} of hiring. The brief below is your request. Before anything is funded, the agent signs a quote for it, and you see it on the next step.`
                 : network.options.some((o) => o.chainId === props.proposal!.chainId)
                   ? `That proposal was made for ${chainLabel(props.proposal.chainId)}. Switch back to hire at the price you chose.`
                   : `That proposal was made for ${chainLabel(props.proposal.chainId)}, where this agent cannot be hired right now. Hiring here is a new price, not the one you chose.`}
@@ -479,7 +705,8 @@ export function HireFlow(props: HireFlowProps) {
               />
             )}
             <p id="task-hint" className="flex justify-between gap-3 text-[12.5px] text-ink-3">
-              <span>Your brief is public on-chain. Don’t include secrets.</span>
+              {/* Both halves of what is public, said before anything is funded: the brief and the answer's link are on chain whatever Pokter shows; Pokter's own pages show the answer only once the buyer publishes it. */}
+              <span>Your brief is public on chain, and so is the link to the agent’s answer. Don’t include secrets. Pokter shows the answer on its own pages only if you publish it after delivery.</span>
               <span className="t-readout shrink-0">{hire.task.length}/2000</span>
             </p>
           </div>
@@ -564,7 +791,7 @@ export function HireFlow(props: HireFlowProps) {
           <Details summary="How this works">
             <div className="flex flex-col gap-2.5 text-[13px] leading-relaxed text-ink-2">
               <p>{examples.source === 'card' ? `The examples come from ${props.agent.name}’s own card. A wallet in them is replaced with [wallet address] for you to fill.` : examples.source === 'answered' ? `The examples are briefs ${props.agent.name} returned an answer to in earlier paid jobs. That shows the wording was understood, not that the answer was right.` : `${props.agent.name}’s card publishes no example request, so the examples are Pokter’s generic wording, not a format this agent is known to support. If it cannot use a brief, it declines to quote and nothing is paid.`}</p>
-              <p>{testnet ? (deliveredByAgent ? `On testnet you pay in test tokens with no value, and ${props.agent.name} delivers from its own wallet.` : relayBlocked ? `${relayBlocked}.` : `On testnet you pay in test tokens with no value. Pokter’s delivery agent carries your brief to ${props.agent.name} and returns its answer unchanged; if it does not answer, nothing is delivered and you reclaim the escrow after the deadline.`) : `On BNB Chain you pay in real $U from your own wallet, and ${props.agent.name} is paid at its signed price once it delivers and the review window passes.`}</p>
+              <p>{testnet ? (deliveredByAgent ? `On testnet you pay in test tokens with no value, and ${props.agent.name} delivers from its own wallet.` : relayBlocked ? `${relayBlocked}.` : `On testnet you pay in test tokens with no value. Pokter’s delivery agent carries your brief to ${props.agent.name} and returns its answer unchanged; if it does not answer, nothing is delivered and you reclaim the escrow after the deadline.`) : `On BNB Chain you pay in real ${priceSymbol} from your own wallet, and ${props.agent.name} is paid at its signed price once it delivers and the review window passes.`}</p>
               <p>Your brief is stored with the job on chain, where anyone can read it. The price, the delivery deadline and the escrow rules are on the next step, before anything is signed.</p>
               {/* The choice the line at the top summarises, offered only when another way would work. */}
               {usableProviders > 1 && <ProviderChoices providers={props.providers} selected={hire.providerAddress} onSelect={hire.setProviderAddress} />}
@@ -830,7 +1057,7 @@ export function HireFlow(props: HireFlowProps) {
                     without saying where from, and the faucet that hands
                     out both tokens is already known to this codebase.
                   */}
-                  Your wallet is {formatBudget(Number(formatUnits(hire.swapPlan.shortfallRaw, 18)))}{' '}
+                  Your wallet is {formatBudget(Number(formatUnits(hire.swapPlan.shortfallRaw, hire.plan.ok ? hire.plan.decimals : 18)))}{' '}
                   short, and there is no pool to buy $U from on {networkLabel}.
                   {faucets?.paymentTokenBot ? (
                     <>
@@ -855,7 +1082,7 @@ export function HireFlow(props: HireFlowProps) {
                 </>
               ) : (
                 <>
-                  Your wallet is {formatBudget(Number(formatUnits(hire.swapPlan.shortfallRaw, 18)))}{' '}
+                  Your wallet is {formatBudget(Number(formatUnits(hire.swapPlan.shortfallRaw, hire.plan.ok ? hire.plan.decimals : 18)))}{' '}
                   short, so the first prompt spends up to{' '}
                   <span className="t-readout">
                     {trimNative(hire.swapPlan.maxNativeIn)} {nativeSymbol}
@@ -872,6 +1099,20 @@ export function HireFlow(props: HireFlowProps) {
           )}
 
           <div className="flex flex-col gap-1.5">
+            {/*
+              A USDT price funds exactly what was signed, so there is no budget
+              to choose: the field would be a number in $U that is never used.
+              The signed amount is shown in its own money instead.
+            */}
+            {hire.hireToken && hire.authority ? (
+              <>
+                <span className="text-sm font-medium">Price for this job</span>
+                <p className="t-readout text-lg">{signedAmountLabel ?? `${hire.authority.budgetU} ${hire.hireToken.symbol}`}</p>
+                {/* Which money exactly: name, chain and contract, so a peg is never taken for the issuer's coin. */}
+                <p className="t-readout wrap-anywhere text-[12px] text-ink-3">{tokenIdentity(hire.hireToken)}{hire.hireToken.disclosure ? ` · ${hire.hireToken.disclosure}` : ''}</p>
+              </>
+            ) : (
+            <>
             <label htmlFor="budget" className="text-sm font-medium">
               Budget for this job
             </label>
@@ -895,20 +1136,49 @@ export function HireFlow(props: HireFlowProps) {
               <span id="budget-hint" className={cn('text-[12.5px]', budgetError ? 'text-bad' : 'text-ink-3')}>
                 {budgetError
                   ?? (props.signedQuoteU !== null
-                    ? `Signed price ${props.signedQuoteU} $U`
+                    ? `Escrow quote ${props.signedQuoteU} ${priceSymbol}`
                     : props.lastSignedU != null
                       /* Expired, which almost every stored quote is: they last
                          fifteen minutes. Saying so beats hiding the number the
                          hire will be measured against. */
-                      ? `Last signed price ${props.lastSignedU} $U · a fresh quote is signed when you hire`
+                      ? `Last signed escrow quote ${props.lastSignedU} ${priceSymbol} · a fresh quote is requested before payment`
                       : props.suggestedU !== null
-                        ? `Suggested ${props.suggestedU} $U · no signed price`
-                        : 'No signed price; you set it')}
+                        ? `Suggested escrow budget ${props.suggestedU} $U · no signed quote`
+                        : 'No signed escrow quote; you set the budget')}
               </span>
             </div>
+            </>
+            )}
+            {/*
+              The agent was asked for one currency and signed in another. Its
+              price, in its money, is what would be funded, and only once the
+              buyer says so: nothing is converted or relabelled.
+            */}
+            {hire.currencyMismatch && (
+              <Notice
+                tone="watch"
+                title="The agent quoted in another currency"
+                action={
+                  <>
+                    {hire.currencyConfirmed ? (
+                      <span className="self-center text-[12.5px] text-ink-2">Continuing with {hire.currencyMismatch.quoted}.</span>
+                    ) : (
+                      <Button size="s" onClick={hire.confirmQuotedCurrency}>{`Continue with ${hire.currencyMismatch.quoted}`}</Button>
+                    )}
+                    <Button size="s" intent="ghost" onClick={() => setStep('describe')} icon={<Icon.ChevronLeft size={14} />}>Back</Button>
+                  </>
+                }
+              >
+                You requested {hire.currencyMismatch.requested}; the agent quoted {hire.currencyMismatch.quoted}.
+              </Notice>
+            )}
             <p className="text-[12.5px] text-ink-3">
-              {hire.reviewQuote
-                ? `The agent signed ${hire.reviewQuote.priceU} $U for this exact task.${proposalHere && hire.reviewQuote.priceU > props.proposal!.priceU ? ` That is more than the ${props.proposal!.priceU} $U it proposed on your request, so you can go back and choose another proposal.` : ''} A budget below that is refused before any payment.`
+              {hire.hireTokenError
+                ? hire.hireTokenError
+                : hire.reviewQuote && hire.hireToken && hire.authority
+                ? `The agent signed ${signedAmountLabel ?? `${hire.authority.budgetU} ${hire.hireToken.symbol}`} for this exact task. That exact amount is what is funded, in ${tokenName(hire.hireToken)}, and nothing else is converted or added.`
+                : hire.reviewQuote
+                ? `The agent signed ${hire.reviewQuote.priceU} ${priceSymbol} for this exact task.${proposalHere && hire.reviewQuote.priceU > props.proposal!.priceU ? ` That is more than the ${props.proposal!.priceU} ${proposalSymbol} it proposed on your request, so you can go back and choose another proposal.` : ''} A budget below that is refused before any payment.`
                 : hire.needsQuote
                   ? 'The agent is asked to sign a quote for this exact task before funding. If its price is above your budget, the hire stops before any payment.'
                   : 'Delivery is relayed by Pokter, so the budget is yours to set, and nothing the agent quotes is charged on top of it.'}
@@ -924,18 +1194,20 @@ export function HireFlow(props: HireFlowProps) {
                 ...(hire.reviewQuote
                   ? [[
                       'Agent accepted',
-                      `This exact brief, for ${hire.reviewQuote.priceU} $U${testnet ? ' (test token)' : ''} on ${networkLabel}, signed by its registered wallet${hire.reviewQuote.expiresAt ? `. Valid until ${new Date(hire.reviewQuote.expiresAt * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}; renewed if it lapses, and you are asked again if the price changes` : ''}`,
+                      `This exact brief, for ${hire.hireToken && hire.authority ? (signedAmountLabel ?? `${hire.authority.budgetU} ${hire.hireToken.symbol}`) : `${hire.reviewQuote.priceU} ${priceSymbol}`}${testnet ? ' (test token)' : ''} on ${networkLabel}, signed by its registered wallet${hire.reviewQuote.expiresAt ? `. Valid until ${new Date(hire.reviewQuote.expiresAt * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}; renewed if it lapses, and you are asked again if the price changes` : ''}`,
                     ]]
                   : []),
                 ['Service', `${service.label}. ${service.basis}`],
                 ['You receive', service.deliverable],
-                ['You pay', `${Number.isFinite(hire.budget) ? hire.budget : '—'} $U${testnet ? ' (test token)' : ''}`],
+                ['You pay', hire.hireToken && hire.authority
+                  ? `${signedAmountLabel ?? `${hire.authority.budgetU} ${hire.hireToken.symbol}`}${testnet ? ' (test token)' : ''}, exactly the signed price`
+                  : `${Number.isFinite(hire.budget) ? hire.budget : '—'} $U${testnet ? ' (test token)' : ''}`],
                 ['Held by', `ERC-8183 escrow on ${networkLabel}`],
                 ['Agent is paid', 'After it delivers and the review window passes without a successful dispute'],
                 ['If the delivery is wrong', 'Dispute it on the job page before the review window closes. The escrow does not judge quality itself: the escrow policy’s voters decide a dispute, not Pokter. Delivery and payment are separate steps; nothing is paid at delivery'],
                 ['Deadline', deadline?.deadline ?? `${describeSeconds(deliverySeconds)} for the agent to deliver, plus the escrow’s review window on ${networkLabel}`],
                 ['If nothing is delivered', deadline?.reclaim ?? 'You reclaim the full amount after the deadline'],
-                ['Network fee', hire.active.mode === 'external' || hire.active.passkeyUnsupported || !testnet ? `A few cents of ${nativeSymbol}, paid by your wallet` : sponsored && !hire.funding.paymentLow ? 'Covered by Pokter if your wallet is short of gas' : `About 0.002 ${nativeSymbol}`],
+                ['Network fee', hire.active.mode === 'external' || hire.active.passkeyUnsupported || !testnet || signedTokenPrice ? `A few cents of ${nativeSymbol}, paid by your wallet` : sponsored && !hire.funding.paymentLow ? 'Covered by Pokter if your wallet is short of gas' : `About 0.002 ${nativeSymbol}`],
               ].map(([k, v]) => (
                 <div key={k} className="grid grid-cols-1 gap-1 px-4 py-3 sm:grid-cols-[180px_minmax(0,1fr)]">
                   <dt className="text-ink-3">{k}</dt>
@@ -949,7 +1221,7 @@ export function HireFlow(props: HireFlowProps) {
             <Details summary="What this hire can and cannot do">
               <ul className="flex flex-col gap-1.5 text-[13px] text-ink-2">
                 <li className="flex gap-2">
-                  <Icon.Check size={15} className="mt-0.5 shrink-0 text-ok" /> Move exactly {hire.authority.budgetU} $U into the escrow contract <span className="t-readout">{shortAddress(props.escrow.commerce)}</span>
+                  <Icon.Check size={15} className="mt-0.5 shrink-0 text-ok" /> Move exactly {signedAmountLabel ?? `${hire.authority.budgetU} ${hire.authority.tokenSymbol}`} into the escrow contract <span className="t-readout">{shortAddress(props.escrow.commerce)}</span>
                 </li>
                 {hire.authority.prohibited.map((p) => (
                   <li key={p} className="flex gap-2">
@@ -990,7 +1262,7 @@ export function HireFlow(props: HireFlowProps) {
             </Button>
           </div>
           {/* Said where the notices above do not already say it. */}
-          {hire.fundBlock && hire.fundBlock.code !== 'request-changed' && hire.fundBlock.code !== 'check-unverified' && (
+          {hire.fundBlock && hire.fundBlock.code !== 'request-changed' && hire.fundBlock.code !== 'check-unverified' && hire.fundBlock.code !== 'currency-not-confirmed' && (
             <p className="-mt-4 text-right text-[12.5px] text-ink-3">{hire.fundBlock.message}</p>
           )}
         </div>
@@ -1012,19 +1284,29 @@ export function HireFlow(props: HireFlowProps) {
             </Notice>
           )}
 
+          {!hire.plan.ok && (
+            <Notice
+              tone="bad"
+              title="This hire cannot be funded this way"
+              action={hire.plan.code === 'wallet-cannot-fund-token' ? <Button size="s" intent="secondary" onClick={() => openConnect('to fund this job', passkeyBlocked ? { passkeyUnavailable: passkeyBlocked } : undefined)}>Connect a browser wallet</Button> : undefined}
+            >
+              {hire.plan.message}
+            </Notice>
+          )}
+
           {!hire.active.address ? (
             <div className="flex flex-col items-start gap-4 rounded-[14px] border border-rule bg-raised p-5">
               <p className="text-sm text-ink-2">{hire.lockReason ?? 'Connect a wallet to fund this job.'}</p>
               {/* Switches to this hire's escrow, which is not necessarily the site's default network the connect dialog offers. */}
               <Button
-                onClick={() => (hire.active.wrongChain ? switchChain({ chainId: escrowChainId === 56 ? 56 : 97 }) : openConnect('to fund this job'))}
+                onClick={() => (hire.active.wrongChain ? switchChain({ chainId: escrowChainId === 56 ? 56 : 97 }) : openConnect('to fund this job', passkeyBlocked ? { passkeyUnavailable: passkeyBlocked } : undefined))}
                 busy={switching}
                 icon={<Icon.Wallet size={16} />}
               >
-                {hire.active.wrongChain ? `Switch to ${networkLabel}` : hire.active.passkeyUnsupported ? 'Connect a browser wallet' : 'Connect a wallet'}
+                {hire.active.wrongChain ? `Switch to ${networkLabel}` : hire.active.passkeyUnsupported || passkeyBlocked ? 'Connect a browser wallet' : 'Connect a wallet'}
               </Button>
               <p className="text-[12.5px] text-ink-3">
-                {testnet ? 'A passkey wallet takes about ten seconds to make, and needs no extension.' : `This hire is paid in real $U on ${networkLabel}, from a browser or mobile wallet.`}
+                {pay ? pay.connectNote : testnet ? 'A passkey wallet takes about ten seconds to make, and needs no extension.' : `This hire is paid in real ${priceSymbol} on ${networkLabel}, from a browser or mobile wallet.`}
               </p>
             </div>
           ) : (
@@ -1043,19 +1325,11 @@ export function HireFlow(props: HireFlowProps) {
                     stopped on a step the interface had just guaranteed.
                   */}
                   <Balance
-                    label="$U to pay with"
-                    value={hire.funding.token?.ok ? Number(formatUnits(hire.funding.token.raw, hire.funding.token.decimals)).toFixed(2) : '—'}
+                    label={pay?.balanceLabel ?? `${priceSymbol} to pay with`}
+                    value={pay?.balanceValue ?? '—'}
                     ok={hire.funding.paymentReady}
                     known={hire.funding.paymentKnown}
-                    note={
-                      !hire.funding.paymentLow
-                        ? undefined
-                        : hire.swapPlan && hire.swapPlan.maxNativeIn === 0n
-                          ? `Short, and there is no pool to buy $U from on ${networkLabel}.`
-                          : hire.active.mode === 'passkey'
-                            ? `Short. Pokter will swap ${nativeSymbol} for the difference if you hold enough.`
-                            : 'Short of the budget.'
-                    }
+                    note={hire.funding.paymentLow ? pay?.shortNote ?? undefined : undefined}
                   />
                   <Balance
                     label={`${nativeSymbol} for the fee`}
@@ -1065,7 +1339,12 @@ export function HireFlow(props: HireFlowProps) {
                     note={hire.funding.gasLow ? (hire.active.mode === 'passkey' && sponsored && !hire.funding.paymentLow ? 'Low. Pokter will cover the fee.' : hire.active.mode === 'passkey' && sponsored ? 'Low. Pokter covers it once the wallet holds the budget in $U.' : 'Too low for the network fee.') : undefined}
                   />
                 </div>
-                {testnet && faucets && (hire.funding.paymentLow || hire.funding.gasLow) && (
+                {pay?.topUp === 'add-token' && (
+                  <p className="text-[12.5px] text-ink-3">
+                    Add at least {pay.amountLabel} to this wallet, on {networkLabel}, then come back: the balance above refreshes.{testnet && faucets ? <> Gas: the <a href={faucets.native} className="link" target="_blank" rel="noreferrer noopener">{nativeSymbol} faucet</a>.</> : null}
+                  </p>
+                )}
+                {pay?.topUp !== 'add-token' && testnet && faucets && (hire.funding.paymentLow || hire.funding.gasLow) && (
                   <p className="text-[12.5px] text-ink-3">
                     Test tokens: ask{' '}
                     <a href={faucets.paymentTokenBot?.url ?? faucets.paymentToken} className="link" target="_blank" rel="noreferrer noopener">
@@ -1083,16 +1362,18 @@ export function HireFlow(props: HireFlowProps) {
               <div className="flex flex-col gap-4 rounded-[14px] border-2 border-ink bg-raised p-5">
                 <span className="t-label">You are about to</span>
                 <p className="text-[15px] leading-relaxed">
-                  Pay <strong className="t-readout">{hire.budget} $U</strong> into the escrow contract <span className="t-readout text-[13px]">{shortAddress(props.escrow.commerce)}</span> on {networkLabel}, for one job delivered by <span className="t-readout text-[13px]">{shortAddress(hire.providerAddress)}</span>.
+                  Pay <strong className="t-readout">{pay?.amountLabel ?? '—'}</strong>{/* On testnet the amount already says "test token"; the disclosure matters for a bridged peg on mainnet. */ hire.plan.ok && hire.plan.token ? <span className="text-ink-3 wrap-anywhere"> ({tokenIdentity(hire.plan.token)}{!testnet && hire.plan.token.disclosure ? `; ${hire.plan.token.disclosure}` : ''})</span> : null} into the escrow contract <span className="t-readout text-[13px]">{shortAddress(props.escrow.commerce)}</span> on {networkLabel}, for one job delivered by <span className="t-readout text-[13px]">{shortAddress(hire.providerAddress)}</span>.
                 </p>
                 <p className="text-[13px] text-ink-3">
                   {hire.active.mode === 'passkey'
                     ? 'You will confirm with your passkey (Face ID, Touch ID or PIN). If a swap is needed, that is one extra confirmation.'
-                    : 'Your wallet will ask you to approve the job’s transactions, either as one batch or a few in a row. A signature for the quote is not a payment; only the funding transaction moves money.'}
+                    : hire.plan.ok && !hire.plan.atomicAllowed
+                      ? `Your wallet will ask you to approve the job’s transactions one at a time, including an approval of exactly ${hire.plan.amountLabel}. A signature for the quote is not a payment; only the funding transaction moves money.`
+                      : 'Your wallet will ask you to approve the job’s transactions, either as one batch or a few in a row. A signature for the quote is not a payment; only the funding transaction moves money.'}
                 </p>
                 <Checkbox checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} label="I’ve checked the amount, network and recipient" />
-                <Button intent="signal" size="l" onClick={() => void hire.commission()} disabled={!confirmed || !hire.riskAccepted || Boolean(budgetError) || Boolean(hire.fundBlock)} className="w-full">
-                  Fund escrow · {hire.budget} $U
+                <Button intent="signal" size="l" onClick={() => void hire.commission()} disabled={!confirmed || !hire.riskAccepted || Boolean(budgetError) || Boolean(hire.fundBlock) || !pay || Boolean(hire.pendingAttempt)} className="w-full">
+                  {pay?.buttonLabel ?? 'Fund escrow'}
                 </Button>
                 {hire.fundBlock && <p className="text-[12.5px] text-bad">{hire.fundBlock.message}</p>}
               </div>

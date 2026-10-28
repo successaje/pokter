@@ -3,6 +3,7 @@ import { getErc8183DeliverableUrl, getErc8183Job } from '@altananetwork/sdk';
 
 import { ALTANA_NETWORK, IS_TESTNET } from '@/lib/altana/client';
 import { decodePokterJobEnvelope } from '@/lib/erc8183/job-envelope';
+import { jobPaymentTokenOnChain } from '@/lib/erc8183/job-onchain';
 import { getJobStore } from '@/lib/erc8183/store';
 import type { HiredJob } from '@/lib/erc8183/types';
 
@@ -56,6 +57,8 @@ export async function POST(request: Request): Promise<NextResponse> {
       const deliverableUrl = ['SUBMITTED', 'COMPLETED'].includes(onchain.statusName)
         ? await getErc8183DeliverableUrl(ALTANA_NETWORK, BigInt(jobId)).catch(() => undefined)
         : undefined;
+      /* The job's token from the escrow, so a backfilled row is never "currency not yet read" when the chain can say. Null stays null. */
+      const paymentToken = existing?.paymentToken ?? (await jobPaymentTokenOnChain(ALTANA_NETWORK.chainId, jobId));
       const indexed: HiredJob = {
         id: existing?.id ?? `${ALTANA_NETWORK.chainId}:${jobId}`,
         jobId, chainId: ALTANA_NETWORK.chainId, isTestnet: IS_TESTNET,
@@ -67,6 +70,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         client: onchain.client,
         task: envelope.task,
         budgetRaw: onchain.budget.toString(),
+        paymentToken,
         expiredAt: new Date(Number(onchain.expiredAt) * 1000).toISOString(),
         hiredAt: existing?.hiredAt ?? now,
         hireTxHash: existing?.hireTxHash ?? null,

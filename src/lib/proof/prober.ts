@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { MCP_PROTOCOL_VERSION, probeIsEvidence, probeTarget } from '@/lib/proof/probe-target';
+import { awaitsAgent, MCP_PROTOCOL_VERSION, probeIsEvidence, probeTarget, uncallableStatus } from '@/lib/proof/probe-target';
 
 export { MCP_PROTOCOL_VERSION, probeTarget };
 
@@ -14,7 +14,8 @@ import type { AttestationMethod } from './attestation';
 import { readRpcResponse } from '@/lib/protocol/stream';
 import { deadlineSignal } from '@/lib/net/bounded';
 import { listMcpTools, type McpTool } from '@/lib/mcp/probe';
-import { isAgentCard, jsonRpcEndpoint } from '@/lib/a2a/card';
+import { isAgentCard, jsonRpcInterface } from '@/lib/a2a/card';
+import { negotiationSkillOf } from '@/lib/erc8183/courier-parse';
 
 /**
  * Pokter as a measurer.
@@ -39,12 +40,35 @@ export interface ProbeResult {
   detail: string;
   /** Read-only capabilities observed during the protocol handshake. */
   capabilities?: string[];
+  /**
+   * The skill a price request would be sent to, chosen exactly as the
+   * requester chooses it (`negotiationSkillOf`, by id), or null. The list
+   * above is by display name, and a card's `{ id: 'negotiate', name:
+   * 'Negotiate price' }` is quoted by id: judging readiness from the name
+   * told such a builder it had no negotiate skill.
+   */
+  negotiationSkill?: string | null;
+  /** Skill ids, then names where a skill has no id, for naming a misnamed pricing skill. */
+  skillIds?: string[];
+  /** The A2A version of the JSON-RPC interface Pokter would call, when the card states one. */
+  a2aVersion?: string | null;
   /** The A2A card says its endpoint needs credentials (see `cardRequiresAuth`). */
   requiresAuth?: boolean;
   /** MCP tools as declared, input schemas included (see `listMcpTools`). */
   tools?: McpTool[];
+  /**
+   * On a failed probe, when the endpoint answered with something that means
+   * it cannot be called at all: it needs credentials (401, 403), or it is
+   * not an agent endpoint (JSON that is no agent card, or an MCP address that
+   * refuses an MCP request with 405). Unset when the endpoint simply did not
+   * answer, which may change.
+   */
+  uncallable?: 'credentials' | 'not-an-agent-endpoint';
+  /** On a failed probe, the endpoint is a listing with no agent bound to it yet (`awaitsAgent`), which binding one changes. */
+  awaitingAgent?: true;
   at: string;
 }
+
 
 export interface LiveReading {
   endpoint: string | null;
@@ -294,6 +318,7 @@ async function probeAt(
           capabilities: listing.tools.map((tool) => tool.name),
           tools: listing.tools,
           requiresAuth: false,
+          ...(listing.ok ? {} : { uncallable: uncallableStatus(listing.status, 'mcp') }),
           at,
         },
       };
@@ -314,6 +339,7 @@ async function probeAt(
           latencyMs,
           status: response.status,
           detail: `Endpoint answered ${response.status} ${response.statusText}.`,
+          uncallable: uncallableStatus(response.status, 'a2a'),
           at,
         },
       };
@@ -340,17 +366,21 @@ async function probeAt(
       // Either card format: a top-level url (to v0.3) or supportedInterfaces (current).
       if (!isAgentCard(body)) {
         return {
-          result: {
-            ok: false,
-            latencyMs,
-            status: response.status,
-            detail: 'Endpoint returned JSON, but not a valid A2A agent card.',
-            at,
-          },
+          result: awaitsAgent(body)
+            ? { ok: false, latencyMs, status: response.status, detail: 'Endpoint is a listing with no agent bound to it yet.', awaitingAgent: true, at }
+            : {
+                ok: false,
+                latencyMs,
+                status: response.status,
+                detail: 'Endpoint returned JSON, but not a valid A2A agent card.',
+                uncallable: 'not-an-agent-endpoint',
+                at,
+              },
           body,
         };
       }
-      const callable = jsonRpcEndpoint(body);
+      const callable = jsonRpcInterface(body);
+      const skills = Array.isArray(body.skills) ? body.skills : [];
       return {
         result: {
           ok: true,
@@ -358,6 +388,9 @@ async function probeAt(
           status: response.status,
           detail: `A2A capability handshake succeeded${capabilities.length ? ` with ${capabilities.length} declared skills` : ''}.${callable ? '' : ' Its card offers no HTTPS JSON-RPC interface, which is the one Pokter calls, so it cannot be quoted or hired here.'}`,
           capabilities,
+          negotiationSkill: negotiationSkillOf(skills),
+          skillIds: skills.map((skill) => asObject(skill)?.id ?? asObject(skill)?.name).filter((id): id is string => typeof id === 'string'),
+          a2aVersion: callable?.version ?? null,
           requiresAuth: cardRequiresAuth(body),
           at,
         },

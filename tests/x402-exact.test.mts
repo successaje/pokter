@@ -9,7 +9,7 @@ import { authorizationMismatch, authorizationTypedData, changedTerms, chooseX402
 
 const fixture = (name: string) => JSON.parse(readFileSync(new URL(`./fixtures/x402/${name}-challenge-2026-10-24.json`, import.meta.url), 'utf8'));
 const BRAIN = 'https://agent.brainonbnb.com/answer?service=health_factor';
-const MANDATE = 'https://www.mandatemarkets.com/api/x402/house/guard-1';
+const USD1_SELLER = 'https://seller.example/api/x402/guard';
 const buyer = privateKeyToAccount('0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d');
 const NOW = 1_761_300_000;
 const NONCE = ('0x' + 'ab'.repeat(32)) as `0x${string}`;
@@ -23,8 +23,8 @@ test('from Brain on BNB’s real challenge, the U by EIP-3009 option is chosen, 
   assert.equal(choice.terms.version, 2);
 });
 
-test('Mandate’s real challenge offers only USD1, which Pokter does not pay: said, with what was offered', () => {
-  const choice = chooseX402Option(MANDATE, fixture('mandate'));
+test('a real challenge offering only USD1, which Pokter does not pay: said, with what was offered', () => {
+  const choice = chooseX402Option(USD1_SELLER, fixture('usd1-only'));
   assert.equal(choice.ok, false);
   assert.match(!choice.ok ? choice.reason : '', /exact scheme, paid in U on BNB Chain by EIP-3009/);
   assert.deepEqual(!choice.ok ? choice.offered.map((o) => o.method) : [], ['eip3009']);

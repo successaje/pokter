@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 
+import { BUDGET_MAX, BUDGET_MIN } from '@/lib/hire/budget-limits';
 import { STATIC_SUITES, type StaticAssayCategory } from '@/lib/assay/category-suites';
 import { checkBrief, hfCheckBrief, v3CheckBrief, V3_SUITE_ID } from '@/lib/assay/paid-brief';
 import { currentV3Sample, fixtureJobsForAgent, gradePaidCategoryCheck, gradePaidHealthFactorCheck, gradePaidV3Check } from '@/lib/assay/paid-run';
@@ -12,6 +13,7 @@ import { noticeSeller } from '@/lib/erc8183/seller-notice';
 import { ALTANA_NETWORK } from '@/lib/altana/client';
 import { getAgent } from '@/lib/scan/client';
 import type { ChainId } from '@/lib/scan/types';
+import { registeredAgentWallet } from '@/lib/registry/live-agent';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -58,7 +60,8 @@ export async function POST(request: Request): Promise<NextResponse> {
   if (typeof category !== 'string' || !(category === 'health-factor' || category === 'rebalancing' || category in STATIC_SUITES)) {
     return NextResponse.json({ error: `category must be health-factor, rebalancing, or one of ${Object.keys(STATIC_SUITES).join(', ')}.` }, { status: 400 });
   }
-  const budgetU = typeof body.budgetU === 'number' && body.budgetU > 0 && body.budgetU <= 5 ? body.budgetU : 0.1;
+  /* Fixtures fund $U through `hireAgent`, within the same $U range as any hire. */
+  const budgetU = typeof body.budgetU === 'number' && body.budgetU >= BUDGET_MIN && body.budgetU <= BUDGET_MAX ? body.budgetU : 0.1;
   const apply = body.apply === true;
   /*
    * Fund a scenario again even though it has been hired before.
@@ -109,8 +112,14 @@ export async function POST(request: Request): Promise<NextResponse> {
   const agent = await getAgent(chainId as ChainId, tokenId).catch(() => null);
   if (!agent) return NextResponse.json({ error: `Could not read agent ${agentKey} from the registry.` }, { status: 404 });
 
-  const provider = (agent.agent_wallet ?? agent.owner_address) as `0x${string}` | undefined;
-  if (!provider) return NextResponse.json({ error: 'The agent publishes no wallet an escrow could pay.' }, { status: 400 });
+  /*
+   * The registry's agent wallet, as every hire route pays (`registeredAgentWallet`).
+   * This fell back to the NFT owner, which is not a wallet the agent signs
+   * or delivers from: a paid check would have funded someone the agent's
+   * runtime never answers for.
+   */
+  const provider = (await registeredAgentWallet(agent)) as `0x${string}` | null;
+  if (!provider) return NextResponse.json({ error: 'The registry names no agent wallet for it, so there is no wallet an escrow may pay.' }, { status: 409 });
 
   // What is already hired, so a re-run tops up rather than paying twice.
   const already = fixtureJobsForAgent({ chainId, tokenId }, suite.id);

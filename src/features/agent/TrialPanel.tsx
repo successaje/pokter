@@ -1,9 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { formatUnits } from 'viem';
 
-import { formatQuotedPrice } from '@/lib/erc8183/pricing';
+import { formatQuotedRaw } from '@/lib/erc8183/pricing';
 import { shortAddress } from '@/lib/ui/format';
 import { Button } from '@/ui/Button';
 import { Notice } from '@/ui/Feedback';
@@ -70,9 +69,18 @@ export function TrialPanel({ agent, defaultTask }: { agent: { chainId: number; t
   const terms = obj(response?.terms);
   const accepted = response?.accepted === true;
   const priceRaw = terms?.price ?? terms?.amount;
+  /*
+   * In the token the agent named, from its own decimals. This assumed
+   * eighteen decimals and $U, so a USDT quote read as $U. A missing or
+   * non-address currency is said to be unknown, never filled in.
+   */
+  const termsCurrency = typeof terms?.currency === 'string' ? terms.currency : null;
   let price: string | null = null;
   try {
-    if (typeof priceRaw === 'string' || typeof priceRaw === 'number') price = formatQuotedPrice(Number(formatUnits(BigInt(priceRaw), 18)));
+    if (typeof priceRaw === 'string' || typeof priceRaw === 'number') {
+      const raw = BigInt(priceRaw);
+      price = raw === 0n ? 'Free' : formatQuotedRaw(termsCurrency, raw);
+    }
   } catch {
     price = null;
   }

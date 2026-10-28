@@ -52,18 +52,46 @@ export function AccountButton({ compact }: { compact?: boolean }) {
   }
 
   const lowGas = w.balances.native !== null && w.balances.native < 0.002;
+  /*
+   * $U always, and any other offered token only when this wallet holds some:
+   * a USDT line reading zero beside every $U balance is noise, but a buyer
+   * who holds USDT should see it as spendable. Each in its own decimals.
+   */
+  const extraTokens = w.balances.tokens.filter((t) => !t.isDefault && t.amount !== null && t.amount > 0);
 
   return (
-    <div ref={layer} className="relative">
+    /*
+     * In the header (compact) the menu is placed against the header on a
+     * phone, 16px from each edge, as the search panel is, and against this
+     * button from sm. Anchored to the button on a phone, a 20rem menu ran
+     * off the left edge once the button sat further left.
+     */
+    <div ref={layer} className={compact ? 'sm:relative' : 'relative'}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-haspopup="dialog"
+        /* The address may be shortened or hidden on a phone; the name always carries it. */
+        aria-label={`Wallet ${shortAddress(w.address)}`}
         className={cn(buttonClass('secondary', 's'), 'gap-2 pl-2.5')}
       >
         <span aria-hidden className={cn('size-1.5 rounded-full', w.mode === 'passkey' || w.mode === 'external' ? 'bg-ok' : 'bg-watch')} />
-        <span className="t-readout text-[12.5px]">{shortAddress(w.address)}</span>
+        {/*
+          In the header (compact), the address narrows with the screen: the
+          full short form from sm, its last four characters from 360px, and
+          only the dot below that. At 375px the full form pushed the header
+          13px past the screen's edge. The menu shows the address in full,
+          with a copy button.
+        */}
+        {compact ? (
+          <span aria-hidden className="t-readout hidden text-[12.5px] min-[360px]:inline">
+            <span className="sm:hidden">…{w.address.slice(-4)}</span>
+            <span className="hidden sm:inline">{shortAddress(w.address)}</span>
+          </span>
+        ) : (
+          <span className="t-readout text-[12.5px]">{shortAddress(w.address)}</span>
+        )}
         <Icon.ChevronDown size={14} className={cn('text-ink-3 transition-transform', open && 'rotate-180')} />
       </button>
 
@@ -71,7 +99,10 @@ export function AccountButton({ compact }: { compact?: boolean }) {
         <div
           role="dialog"
           aria-label="Your wallet"
-          className="anim-rise absolute right-0 top-[calc(100%+8px)] z-50 w-[20rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-[14px] border border-rule bg-raised shadow-float"
+          className={cn(
+            'anim-rise absolute top-[calc(100%+8px)] z-50 overflow-hidden rounded-[14px] border border-rule bg-raised shadow-float',
+            compact ? 'inset-x-4 sm:inset-x-auto sm:right-0 sm:w-[20rem]' : 'right-0 w-[20rem] max-w-[calc(100vw-2rem)]',
+          )}
         >
           <div className="flex items-center justify-between gap-3 border-b border-rule px-4 py-3">
             <div className="flex min-w-0 flex-col">
@@ -87,6 +118,11 @@ export function AccountButton({ compact }: { compact?: boolean }) {
               <span className="t-readout text-xl">
                 {amount(w.balances.payment)} <span className="text-[13px] text-ink-3">$U</span>
               </span>
+              {extraTokens.map((t) => (
+                <span key={t.address} className="t-readout text-[13px] text-ink-2">
+                  {amount(t.amount)} <span className="text-ink-3">{t.symbol}</span>
+                </span>
+              ))}
             </div>
             <div className="flex flex-col gap-0.5 bg-raised px-4 py-3">
               <span className="t-label">Network fee</span>

@@ -7,7 +7,7 @@ import { RememberDiscoverResults } from '@/features/discover/ReturnToResults';
 
 import { AgentCard, AgentRow, MiniAgentCard } from '@/features/agents/AgentCard';
 import { CompareToggle, CompareTray } from '@/features/compare/CompareControls';
-import { DiscoverSearch, MobileFilters } from '@/features/discover/DiscoverControls';
+import { DiscoverSearch } from '@/features/discover/DiscoverControls';
 import { ManyQuotes } from '@/features/discover/ManyQuotes';
 import { comparisonCandidates } from '@/lib/hire/compare-quotes';
 import { discoverHref, PAGE_SIZE, parseDiscoverParams } from '@/features/discover/params';
@@ -15,7 +15,7 @@ import { discover } from '@/features/discover/search';
 import { CatalogueTools } from '@/features/discover/CatalogueTools';
 import { RequestRow } from '@/features/briefs/RequestRow';
 import { requestRows } from '@/features/briefs/request-rows';
-import { FilterBar, Filters, MobileFilterBlock } from '@/features/discover/FilterBar';
+import { FilterBar } from '@/features/discover/FilterBar';
 import { deliveryTimes, DELIVERY_LOOKUP_CONCURRENCY } from '@/lib/agent/delivery-times';
 import { mapWithConcurrency } from '@/lib/concurrency';
 import { outsideActivity } from '@/lib/erc8183/outside-activity';
@@ -103,7 +103,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
     async (row) => [row.key, (await deliveryTimes(row.chainId, row.tokenId).catch(() => null))?.medianMs ?? null] as const,
   );
   const deliveryByKey = new Map(timed);
-  const activity = outsideActivity();
+  const activity = await outsideActivity();
   /* The newest few requests still taking proposals. */
   const now = renderedAt();
   const open = requestRows(now)
@@ -111,8 +111,6 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
     .sort((x, y) => Date.parse(y.postedAt) - Date.parse(x.postedAt));
   const openTotal = open.length;
   const openRequests = open.slice(0, 4);
-  // The ones under "More filters" on a phone: the block above it shows the rest.
-  const moreFilters = [p.answering, p.evidence !== 'any', p.chain !== 'any'].filter(Boolean).length;
   const activeFilters = [p.category, p.hireable, p.answering, p.priced, p.checked, p.outsideDelivery, p.evidence !== 'any', p.chain !== 'any'].filter(Boolean).length;
 
   return (
@@ -188,11 +186,17 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
           <DiscoverSearch params={base} />
         </div>
         {activity.funded > 0 && (
-          <ul className="grid grid-cols-2 gap-x-6 gap-y-3 text-[13px] sm:order-1 sm:flex sm:flex-wrap sm:items-baseline sm:gap-x-7 sm:gap-y-2">
+          <ul aria-label="Across all of Pokter, not just these results" className="grid grid-cols-2 gap-x-6 gap-y-3 text-[13px] sm:order-1 sm:flex sm:flex-wrap sm:items-baseline sm:gap-x-7 sm:gap-y-2">
+            {/*
+              Marketplace-wide, and said so: under a category filter, "8
+              outside deliveries" sat above one Health Factor result and read
+              as that category's record.
+            */}
+            <li className="t-label col-span-2 self-center sm:col-span-1">Across Pokter</li>
             {[
               { value: activity.funded, label: 'outside jobs funded', note: 'Funded through Pokter\u2019s escrow by a buyer that is not Pokter, on either chain.' },
               { value: activity.open, label: 'open now', note: 'Funded or delivered and not yet settled: the escrow is still holding the money.' },
-              { value: activity.answered, label: 'outside deliveries', note: 'Settled with the agent\u2019s own answer, with lifecycle demonstrations and self-hires taken out.' },
+              { value: activity.answered, label: 'outside deliveries', note: `Settled with the agent\u2019s own answer and paid to the agent, with lifecycle demonstrations and self-hires taken out${activity.viaCourier > 0 ? `; ${activity.viaCourier} more carried by Pokter\u2019s courier, which the escrow paid instead` : ''}.` },
             ].map((stat) => (
               <li key={stat.label} className="flex items-baseline gap-1.5" title={stat.note}>
                 <span className="t-readout font-medium text-ink">{stat.value}</span>
@@ -208,7 +212,9 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
       {result.reading && result.total > 0 && (
         <div className="anim-fade mt-6 flex flex-col gap-2 rounded-[12px] border border-rule bg-raised px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-ink-2">
-            {result.reading.byName ? (
+            {result.reading.byId ? (
+              <>The agent with ID &ldquo;{p.q}&rdquo; comes first{result.total > 1 ? ', then other matches' : ''}.</>
+            ) : result.reading.byName ? (
               <>Agents whose names match &ldquo;{p.q}&rdquo; come first{result.reading.categoryLabel ? `, then ${result.reading.categoryLabel} agents` : ''}{result.reading.terms.length ? ', then agents whose descriptions use your words' : ''}.</>
             ) : result.reading.categoryLabel ? (
               <>
@@ -245,18 +251,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
       )}
 
       <div className="mt-8 flex flex-col gap-6">
-        <FilterBar p={base} counts={result.categoryCounts} allTasks={result.allTasksCount} collections={result.collections} />
-        <MobileFilterBlock
-          p={base}
-          counts={result.categoryCounts}
-          allTasks={result.allTasksCount}
-          collections={result.collections}
-          more={
-            <MobileFilters count={moreFilters} label="More filters" pill>
-              <Filters p={base} counts={result.categoryCounts} allTasks={result.allTasksCount} />
-            </MobileFilters>
-          }
-        />
+        <FilterBar p={base} counts={result.categoryCounts} allTasks={result.allTasksCount} filterCounts={result.filterCounts} />
 
         <section aria-label="Results" className="min-w-0">
           {/* The top few that can be hired, asked for a price on these exact words. Only when there are words, and at least two to compare. */}

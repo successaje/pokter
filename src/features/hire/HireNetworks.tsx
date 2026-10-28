@@ -1,9 +1,10 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 
 import { recallBrief } from '@/lib/hire/brief-memory';
+import type { CurrencyEvidence } from '@/lib/hire/currency-choice';
 import type { ProviderChoice } from '@/lib/hire/useHire';
 import { deliversItself } from './delivery';
 import { HireFlow, type HireFlowProps } from './HireFlow';
@@ -15,6 +16,10 @@ export interface HireNetwork {
   providers: ProviderChoice[];
   signedQuoteU: number | null;
   lastSignedU: number | null;
+  /** The currency of the listing's last signed price, so the page can name its money before a fresh quote. */
+  quoteCurrency?: string | null;
+  /** The currencies Pokter has seen this agent quote or be funded in, on this network. */
+  currencyEvidence?: CurrencyEvidence[];
   suggestedU: number | null;
   warnings: string[];
   /** The agent's own registration on this chain, hired there instead of through Pokter's relay. */
@@ -45,14 +50,23 @@ export function HireNetworks({ networks, initialChainId, initialTask, ...shared 
   const [linkTask, setLinkTask] = useState(initialTask ?? null);
   const router = useRouter();
   const current = networks.find((n) => n.chainId === chainId) ?? networks[0];
+  /*
+   * Handing over to another registration loads another page, which takes
+   * seconds while its terms are read. It ran with no sign of it: the switch
+   * stayed where it was until the page arrived, and a second click raced the
+   * first. The target says it is switching, and nothing else is chosen meanwhile.
+   */
+  const [switching, startSwitch] = useTransition();
+  const [target, setTarget] = useState<number | null>(null);
 
   const choose = (next: number) => {
-    if (next === current.chainId || !networks.some((n) => n.chainId === next)) return;
+    if (switching || next === current.chainId || !networks.some((n) => n.chainId === next)) return;
     const handoff = networks.find((n) => n.chainId === next)?.handoff;
     if (handoff) {
       /* Another registration is another page; the brief goes with the buyer. */
       const task = recallBrief(shared.agent)?.task ?? linkTask ?? '';
-      router.replace(`/hire/${handoff.chainId}/${handoff.tokenId}?escrow=${next}${task.trim() ? `&task=${encodeURIComponent(task)}` : ''}`);
+      setTarget(next);
+      startSwitch(() => router.replace(`/hire/${handoff.chainId}/${handoff.tokenId}?escrow=${next}${task.trim() ? `&task=${encodeURIComponent(task)}` : ''}`));
       return;
     }
     setChainId(next);
@@ -71,12 +85,15 @@ export function HireNetworks({ networks, initialChainId, initialTask, ...shared 
       providers={current.providers}
       signedQuoteU={current.signedQuoteU}
       lastSignedU={current.lastSignedU}
+      quoteCurrency={current.quoteCurrency ?? null}
+      currencyEvidence={current.currencyEvidence ?? []}
       suggestedU={current.suggestedU}
       warnings={current.warnings}
       escrowOptions={networks.map((n) => n.chainId)}
       network={{
         options: networks.map((n) => ({ chainId: n.chainId, deliveredByAgent: Boolean(n.handoff) || deliversItself(n.providers) })),
         onChange: choose,
+        switchingTo: switching ? target : null,
       }}
     />
   );

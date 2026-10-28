@@ -2,8 +2,7 @@
 
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import { formatUnits } from 'viem';
-
+import { jobAmountLabel } from '@/lib/erc8183/job-amount';
 import type { HiredJob } from '@/lib/erc8183/types';
 import { cn } from '@/lib/ui/cn';
 import { formatElapsed } from '@/lib/ui/format';
@@ -14,6 +13,7 @@ import { Button, LinkButton } from '@/ui/Button';
 import { EmptyState, Skeleton } from '@/ui/Feedback';
 import { Icon } from '@/ui/icons';
 import { jobPhase, PHASE } from './hooks';
+import { jobNextStep } from './phase';
 import { jobHref } from '@/lib/jobs/href';
 
 const DOT = { ok: 'bg-ok', watch: 'bg-watch', info: 'bg-info', bad: 'bg-bad', none: 'bg-rule-strong' } as const;
@@ -32,19 +32,24 @@ export function PageHeader({ title, description, action, label }: { title: strin
   );
 }
 
-export function PhaseLabel({ job, className }: { job: HiredJob; className?: string }) {
+export function PhaseLabel({ job, className, label }: { job: HiredJob; className?: string; label?: string }) {
   const phase = PHASE[jobPhase(job)];
   return (
     <span className={cn('inline-flex items-center gap-1.5 text-[13px] font-medium', TEXT[phase.tone], className)}>
       <span className={cn('size-1.5 rounded-full', DOT[phase.tone], phase.tone === 'info' && 'pulse')} aria-hidden />
-      {phase.label}
+      {label ?? phase.label}
     </span>
   );
 }
 
+/**
+ * A job's budget in the token it was funded in: "0.1 $U", "2 USDT", or
+ * "… base units (currency not yet read)" when the job's token is not known.
+ * Never "$U" by default — an unknown token is said to be unknown.
+ */
 export function budgetOf(job: HiredJob) {
   try {
-    return `${Number(formatUnits(BigInt(job.budgetRaw), 18)).toLocaleString('en-US', { maximumFractionDigits: 4 })} $U`;
+    return jobAmountLabel(job);
   } catch {
     return '—';
   }
@@ -57,7 +62,7 @@ export function timeLeft(job: HiredJob, now = Date.now()) {
 }
 
 export function JobRow({ job }: { job: HiredJob }) {
-  const phase = jobPhase(job);
+  const next = jobNextStep(job);
   return (
     <Link
       href={jobHref(job)}
@@ -72,7 +77,7 @@ export function JobRow({ job }: { job: HiredJob }) {
       </span>
       <span className="col-start-2 flex flex-col sm:col-start-auto">
         <PhaseLabel job={job} />
-        <span className="text-[12px] text-ink-3">{phase === 'working' ? timeLeft(job) : new Date(job.statusCheckedAt ?? job.hiredAt).toLocaleDateString()}</span>
+        <span className={cn('text-[12px]', next.act ? 'font-medium text-ink' : 'text-ink-3')}>{next.text}</span>
       </span>
       <span className="t-readout row-start-1 text-right text-[13px] sm:row-start-auto">{budgetOf(job)}</span>
       <Icon.ChevronRight size={16} className="hidden text-ink-3 transition-transform group-hover:translate-x-0.5 sm:block" />

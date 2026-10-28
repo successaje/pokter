@@ -1,3 +1,5 @@
+import { fundingEvidence } from './funding-evidence';
+import { isDollarUJob, serializableTotals, totalsByToken } from './job-amount';
 import type { HiredJob, JobStatusName } from './types';
 
 export type ProofNetwork = 'all' | 'mainnet' | 'testnet';
@@ -21,11 +23,19 @@ export interface ProductionProofSummary {
   completionRate: number | null;
   uniqueKnownBuyers: number;
   repeatKnownBuyers: number;
-  /** Distinct agents, one per agent however many chains it is registered on. */
+  /** Jobs the escrow proves were funded with money (`fundingEvidence`): the hires. */
+  fundedHires: number;
+  /** Created and never funded, or funded with no money: jobs, not hires. */
+  notFunded: number;
+  /** Rejected jobs: `reject` also closes a job that was never funded, so funding is not proven. */
+  fundingUnproven: number;
+  /** Distinct agents with a funded hire, one per agent however many chains it is registered on. */
   agentsHired: number;
   /** Distinct registry identities (chain and token id) behind `agentsHired`. */
   agentRegistrationsHired: number;
   completedValueRaw: string;
+  /** Completed value per chain and token. */
+  completedByToken: ReturnType<typeof serializableTotals>;
   outsideTeamJobs: number;
   /**
    * Of the outside-funded jobs, the ones whose buyer and seller are the same
@@ -64,9 +74,30 @@ export interface ProductionProofSummary {
    * The escrow fact stays available, and nothing is removed from the rows.
    */
   lifecycleDemoJobs: number;
+  /**
+   * Settled jobs whose escrow paid Pokter's courier: the "Try free on
+   * testnet" courier is the on-chain provider for an agent with no signed
+   * price, relays the agent's answer, and is paid in its place. A job paid
+   * to a Pokter agent's own registered wallet is not one (`courierPaidTest`).
+   *
+   * Counted apart from the agents' own paid work, and labelled on each row,
+   * so the figure and the escrow agree about who was paid.
+   */
+  courierDeliveries: number;
   answeredDeliveries: number;
+  /** Delivered and still inside the review window or awaiting settlement: answered, not yet settled. */
+  inReview: number;
   /** Accepted jobs whose buyer was the seller, not counted as answered deliveries. */
   completedSelfHires: number;
+  /**
+   * Jobs that delivered the agent's answer, settled or not: the work done,
+   * before the question of who was paid. Lifecycle demos carry no answer
+   * and are left out; courier jobs and self-hires carry one and are in.
+   * Rejected deliveries are not, because the escrow refunded the buyer.
+   */
+  answersDelivered: number;
+  answersSettled: number;
+  answersAwaitingSettlement: number;
   byStatus: Record<JobStatusName, number>;
   lastCheckedAt: string | null;
 }
@@ -172,6 +203,8 @@ export function summarizeProductionProof(
    * useful work.
    */
   isLifecycleDemo: (job: HiredJob) => boolean = () => false,
+  /* Whether the escrow paid Pokter's courier in the agent's place (`courierPaidTest`). Absent means none known, as above. */
+  paidToCourier: (job: HiredJob) => boolean = () => false,
 ): ProductionProofSummary {
   const byStatus = Object.fromEntries(STATUSES.map((status) => [status, 0])) as Record<JobStatusName, number>;
   const buyers = new Map<string, number>();
@@ -184,12 +217,19 @@ export function summarizeProductionProof(
   let selfHireJobs = 0;
   let lifecycleDemoJobs = 0;
   let completedSelfHires = 0;
+  let courierDeliveries = 0;
+  let awaitingDemos = 0;
+  let fundedHires = 0;
+  let notFunded = 0;
+  let fundingUnproven = 0;
   let lastCheckedAt: string | null = null;
 
   for (const job of jobs) {
     byStatus[job.status] += 1;
     if (job.status === 'COMPLETED' && isLifecycleDemo(job)) lifecycleDemoJobs += 1;
     else if (job.status === 'COMPLETED' && isSelfHire(job)) completedSelfHires += 1;
+    else if (job.status === 'COMPLETED' && paidToCourier(job)) courierDeliveries += 1;
+    if (job.status === 'SUBMITTED' && isLifecycleDemo(job)) awaitingDemos += 1;
     const team = isTeamFunded(job);
     if (isSelfHire(job)) selfHireJobs += 1;
     if (team) teamJobs += 1;
@@ -199,15 +239,21 @@ export function summarizeProductionProof(
       const buyer = job.client.toLowerCase();
       buyers.set(buyer, (buyers.get(buyer) ?? 0) + 1);
     }
+    const funding = fundingEvidence(job);
+    if (funding === 'funded') fundedHires += 1;
+    else if (funding === 'not-funded') notFunded += 1;
+    else fundingUnproven += 1;
     const registration = `${job.agentChainId ?? job.chainId}:${job.agentTokenId}`;
-    registrations.add(registration);
+    /* An agent is hired by a funded job; a job created and never funded did not hire it. */
+    if (funding === 'funded') registrations.add(registration);
     const name = (job.agentName ?? '').trim().toLowerCase();
-    if (name && job.provider) {
+    if (funding === 'funded' && name && job.provider) {
       const names = registrationNames.get(registration) ?? new Set<string>();
       names.add(`${job.provider.toLowerCase()}|${name}`);
       registrationNames.set(registration, names);
     }
-    if (job.status === 'COMPLETED') completedValue += BigInt(job.budgetRaw);
+    /* $U only: a USDT job's value is in `completedByToken`, never added to a $U figure. */
+    if (job.status === 'COMPLETED' && isDollarUJob(job)) completedValue += BigInt(job.budgetRaw);
     if (!lastCheckedAt || job.statusCheckedAt > lastCheckedAt) lastCheckedAt = job.statusCheckedAt;
   }
 
@@ -222,19 +268,30 @@ export function summarizeProductionProof(
     completionRate: terminal > 0 ? byStatus.COMPLETED / terminal : null,
     uniqueKnownBuyers: buyers.size,
     repeatKnownBuyers: [...buyers.values()].filter((count) => count >= 2).length,
+    fundedHires,
+    notFunded,
+    fundingUnproven,
     agentsHired: distinctAgents(registrations, registrationNames),
     agentRegistrationsHired: registrations.size,
     completedValueRaw: completedValue.toString(),
+    completedByToken: serializableTotals(totalsByToken(jobs.filter((job) => job.status === 'COMPLETED'))),
     outsideTeamJobs,
     selfHireJobs,
     lifecycleDemoJobs,
     /*
-     * Accepted, carrying the agent's answer, and not a self-hire. A job whose
-     * buyer is its seller settles like any other and proves nothing about
-     * demand; an outside review counted 8 here where the strict figure was 7.
+     * Accepted, carrying the agent's answer, paid to the agent, and not a
+     * self-hire. A job whose buyer is its seller settles like any other and
+     * proves nothing about demand; an outside review counted 8 here where
+     * the strict figure was 7. A courier job is the agent's answer but
+     * Pokter's payment (`courierDeliveries`).
      */
-    answeredDeliveries: byStatus.COMPLETED - lifecycleDemoJobs - completedSelfHires,
+    courierDeliveries,
+    answeredDeliveries: byStatus.COMPLETED - lifecycleDemoJobs - completedSelfHires - courierDeliveries,
+    inReview: byStatus.SUBMITTED,
     completedSelfHires,
+    answersDelivered: byStatus.COMPLETED - lifecycleDemoJobs + byStatus.SUBMITTED - awaitingDemos,
+    answersSettled: byStatus.COMPLETED - lifecycleDemoJobs,
+    answersAwaitingSettlement: byStatus.SUBMITTED - awaitingDemos,
     outsideSelfHireJobs: jobs.filter((job) => !isTeamFunded(job) && isSelfHire(job)).length,
     outsideDemandJobs: jobs.filter((job) => !isTeamFunded(job) && !isSelfHire(job)).length,
     teamJobs,

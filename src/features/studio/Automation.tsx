@@ -9,6 +9,7 @@ import { AUTOMATION_SCOPES, DEFAULT_TOKEN_DAYS, TOKEN_DAY_CHOICES } from '@/lib/
 import { TOKEN_ENV_NAME, tokenEnvLine } from '@/lib/builders/automation-prompt';
 import { bidMessage } from '@/lib/briefs/model';
 import { formatQuotedPrice } from '@/lib/erc8183/pricing';
+import { requestToken } from '@/lib/network/tokens';
 import { shortAddress } from '@/lib/ui/format';
 import { cn } from '@/lib/ui/cn';
 import { useLiveSignMessage } from '@/lib/wallet/use-live-sign-message';
@@ -224,10 +225,26 @@ export interface StagedProposalRow {
   requestOpen: boolean;
   agentChainId: number;
   agentTokenId: string;
+  /** The amount, in whole units of `paymentToken` (named `priceU` from when every price was $U). */
   priceU: number;
+  /**
+   * The escrow chain of the request it answers, and the token the proposal
+   * is priced in. A staged proposal written before proposals carried a token
+   * was priced against a form that offered $U only, so a null token on a
+   * known chain reads as that chain's default (`requestToken`). Without a
+   * chain the money is not known and the row says so rather than "$U".
+   */
+  chainId?: number | null;
+  paymentToken?: string | null;
   deliverDays: number;
   note: string;
   preparedAt: string;
+}
+
+/** A staged proposal's price in its own token, or with the currency said to be unknown. */
+export function stagedPriceLabel(row: Pick<StagedProposalRow, 'priceU' | 'chainId' | 'paymentToken'>): string {
+  const token = row.chainId ? requestToken(row.chainId, row.paymentToken) : null;
+  return formatQuotedPrice(row.priceU, token?.address ?? null);
 }
 
 /**
@@ -275,10 +292,12 @@ export function StagedProposals({ proposals, owner }: { proposals: StagedProposa
         agentChainId: row.agentChainId,
         agentTokenId: row.agentTokenId,
         priceU: row.priceU,
+        paymentToken: row.paymentToken ?? null,
         deliverDays: row.deliverDays,
         note: row.note,
       };
-      const message = bidMessage({ ...content, briefId: row.requestId, bidder: owner, placedAt });
+      /* Signed in the request's token and on its chain, as the bids route checks it. */
+      const message = bidMessage({ ...content, ...(row.chainId ? { chainId: row.chainId } : {}), briefId: row.requestId, bidder: owner, placedAt });
       const signature = await signMessageAsync({ message, account: connected as `0x${string}` });
       const response = await fetch(`/api/briefs/${row.requestId}/bids`, {
         method: 'POST',
@@ -310,7 +329,7 @@ export function StagedProposals({ proposals, owner }: { proposals: StagedProposa
                 <span className="t-readout font-normal text-ink-3">{row.agentChainId}:{row.agentTokenId}</span>
               </p>
               <p className="text-[12.5px] text-ink-3">
-                {formatQuotedPrice(row.priceU)} · deliver in {row.deliverDays} days · staged {when(row.preparedAt)}
+                {stagedPriceLabel(row)} · deliver in {row.deliverDays} days · staged {when(row.preparedAt)}
               </p>
               <p className="mt-1 line-clamp-3 text-[13px] text-ink-2">{row.note}</p>
             </div>

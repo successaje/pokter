@@ -51,6 +51,7 @@ import { reviewCoordination, type Coordination } from '@/lib/proof/coordination'
 import type { WalletActivity } from '@/lib/activity/reading';
 import { assayForCategory } from '@/lib/assay/catalog';
 import type { SearchableAgent } from '@/lib/search/match';
+import { catalogueVersion } from '@/lib/catalogue-version';
 export { preferDistinctOwners };
 
 /**
@@ -765,6 +766,23 @@ export async function searchByName(
     ),
   );
   const found = dedupe(pages.flatMap((page) => page.items)).slice(0, limit);
+  return searchableFrom(found);
+}
+
+/**
+ * An agent typed by its ID ("56/342378", or "342378" on either network),
+ * read from the registry directly. Like a name search, it finds an agent
+ * that is in no category listing; a missing ID is an empty answer, not an
+ * error.
+ */
+export async function searchById(chainId: ChainId | null, tokenId: string): Promise<SearchableWithHistory[]> {
+  const chains = chainId === null ? LISTED_CHAINS : [chainId];
+  const found = await Promise.all(chains.map((chain) => getAgent(chain, tokenId).catch(() => null)));
+  return searchableFrom(found.filter((agent): agent is ScanAgentDetail => agent !== null));
+}
+
+/** Registry rows as Discover's entries, with the evidence Pokter keeps for each. */
+function searchableFrom(found: ScanAgent[]): SearchableWithHistory[] {
   if (found.length === 0) return [];
 
   const store = getProbeStore();
@@ -807,7 +825,7 @@ type SearchableWithStatus = {
 
 /** How long one built catalogue serves every request. Its stores change when the sweep runs, about every ten minutes. */
 export const CATALOGUE_FRESH_MS = 60_000;
-const catalogueCache = new Map<string, { at: number; value: Promise<SearchableWithStatus> }>();
+const catalogueCache = new Map<string, { at: number; version: number; value: Promise<SearchableWithStatus> }>();
 
 /**
  * The catalogue, shared across requests for a minute.
@@ -827,9 +845,10 @@ export function listSearchableWithStatus(options: { chainId?: ChainId; limit?: n
   const key = `${options.chainId ?? 'all'}:${options.limit ?? 'default'}`;
   const now = Date.now();
   const hit = catalogueCache.get(key);
-  if (hit && now - hit.at < CATALOGUE_FRESH_MS) return hit.value;
+  /* Fresh, and built since the last stored price check (`catalogueChanged`). */
+  if (hit && now - hit.at < CATALOGUE_FRESH_MS && hit.version === catalogueVersion()) return hit.value;
   const value = buildSearchableWithStatus(options);
-  catalogueCache.set(key, { at: now, value });
+  catalogueCache.set(key, { at: now, version: catalogueVersion(), value });
   value.catch(() => {
     if (catalogueCache.get(key)?.value === value) catalogueCache.delete(key);
   });
@@ -900,7 +919,47 @@ async function buildSearchableWithStatus(
     onChain: onChainOf(listing.agent, listing.category, wallets),
   })));
 
-  return { entries, unreachable, incomplete };
+  /*
+   * Agents that have signed a price for Pokter but that no category listing
+   * returned: their work fits none of the five categories Pokter evaluates,
+   * or the category search ranked them out. Stockroom, Bound, Lattice and
+   * Tidemark held signed quotes and appeared nowhere in hiring discovery or
+   * in the "signed a price" count. They are included as what they are: a
+   * registry row and a signed price, classified by the same rule as a name
+   * search (`searchableFrom`), so most read "Unclassified" and none claims
+   * an evaluation Pokter has not run.
+   */
+  const listed = new Set(all.map((l) => `${l.agent.chain_id}:${l.agent.token_id}`));
+  const signedElsewhere = store
+    .quotedAgents()
+    .filter((a) => !listed.has(`${a.chainId}:${a.tokenId}`) && (options.chainId === undefined || a.chainId === options.chainId));
+  /* Only ones Pokter would promote: this path exists to surface agents for hire, so an identity that says it is a test stays findable by its name or ID and is not added here (`isPromotableAgent`). */
+  const extra = searchableFrom((await signedAgentRows(signedElsewhere)).filter((agent) => isPromotableAgent(agent)));
+
+  return { entries: [...entries, ...extra], unreachable, incomplete };
+}
+
+/*
+ * Registry rows for signed agents outside the category listings, kept
+ * between catalogue builds: the catalogue rebuilds every minute, and these
+ * rows change far less often than that. A failed read is retried sooner.
+ */
+const SIGNED_ROW_TTL_MS = 30 * 60_000;
+const SIGNED_ROW_MISS_MS = 5 * 60_000;
+const SIGNED_ROW_LIMIT = 60;
+const signedRows = new Map<string, { agent: ScanAgentDetail | null; at: number }>();
+
+async function signedAgentRows(agents: Array<{ chainId: number; tokenId: string }>, now = Date.now()): Promise<ScanAgentDetail[]> {
+  const wanted = agents.filter((a) => a.chainId === BSC_MAINNET || a.chainId === BSC_TESTNET).slice(0, SIGNED_ROW_LIMIT);
+  const rows = await mapWithConcurrency(wanted, 6, async ({ chainId, tokenId }) => {
+    const key = `${chainId}:${tokenId}`;
+    const known = signedRows.get(key);
+    if (known && now - known.at < (known.agent ? SIGNED_ROW_TTL_MS : SIGNED_ROW_MISS_MS)) return known.agent;
+    const agent = await getAgent(chainId as ChainId, tokenId).catch(() => null);
+    signedRows.set(key, { agent, at: now });
+    return agent;
+  });
+  return rows.filter((agent): agent is ScanAgentDetail => agent !== null);
 }
 
 /**
@@ -924,10 +983,11 @@ export const suggestedBudgetFor = cache(async function suggestedBudgetFor(
   const quotes = getProbeStore().quotesFor(
     listings.map((l) => ({ chainId: l.agent.chain_id, tokenId: l.agent.token_id })),
   );
-  const priced: { category: string; priceU: number }[] = [];
+  /* Currency carried through: `suggestionsByCategory` keeps $U prices only. */
+  const priced: { category: string; priceU: number; currency: string | null }[] = [];
   for (const listing of listings) {
     const quote = quotes.get(`${listing.agent.chain_id}:${listing.agent.token_id}`);
-    if (quote) priced.push({ category, priceU: Number(quote.priceU) });
+    if (quote) priced.push({ category, priceU: Number(quote.priceU), currency: quote.currency ?? null });
   }
   const byCategory = suggestionsByCategory(priced);
   return byCategory.get(category) ?? catalogueSuggestion(byCategory);

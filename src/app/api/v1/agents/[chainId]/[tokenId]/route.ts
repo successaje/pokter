@@ -1,13 +1,13 @@
 import { getDossier } from '@/lib/marketplace';
 import type { ChainId } from '@/lib/scan/types';
-import { API_VERSION } from '@/lib/api/v1';
+import { API_VERSION, wirePrice } from '@/lib/api/v1';
 import { VERDICT_LABEL } from '@/lib/proof/engine';
 import { deliveryAdjustedVerdict } from '@/lib/search/match';
 import { dossierLadder } from '@/lib/agents/dossier-ladder';
 import { ALTANA_NETWORK } from '@/lib/altana/client';
 import { escrowOptionsForHire } from '@/lib/network/escrow';
 import { apiError, apiJson, apiOptions, apiRateLimit, originOf } from '@/lib/api/respond';
-import { currentHireBlockerWithCard, type BlockerSource } from '@/lib/hire/blocker-live';
+import { currentHireBlockerWithCard, currentPriceCheck, type BlockerSource } from '@/lib/hire/blocker-live';
 
 export const dynamic = 'force-dynamic';
 /*
@@ -35,6 +35,7 @@ const BLOCKER_SOURCE: Record<BlockerSource, string> = {
   sweep: 'The latest sweep’s read-only price request to the agent.',
   brief: 'A signed quote Pokter got for a buyer’s own brief, which no enabled escrow settles.',
   card: 'Pokter’s own read of the agent card, made for this request because no sweep has priced this agent.',
+  registry: 'The registry data Pokter reads for this agent (the indexer’s copy of its registration). No agent card was read: that data names no endpoint to read one from.',
 };
 
 /**
@@ -83,6 +84,8 @@ export async function GET(
    * is the one case this endpoint used to answer with no blocker at all.
    */
   const blocker = await currentHireBlockerWithCard(agent, quote, payable, agent.services?.a2a?.endpoint);
+  const priceCheck = currentPriceCheck(agent, quote);
+  const generatedAt = new Date().toISOString();
 
   return apiJson({
     version: API_VERSION,
@@ -148,7 +151,8 @@ export async function GET(
           transient: blocker.transient,
           fix: `https://pokter.xyz${blocker.fix.href}`,
           observedAt: blocker.observedAt,
-          provenance: 'pokter-measured',
+          /* The registry case is what the registration declares, not something Pokter measured. */
+          provenance: blocker.from === 'registry' ? 'declared' : 'pokter-measured',
           source: BLOCKER_SOURCE[blocker.from],
         }
       : null,
@@ -168,6 +172,21 @@ export async function GET(
     },
 
     /*
+     * The most recent price check, apart from the price below, which is the
+     * last one that succeeded. A buyer's failed request is not here: it can
+     * be about that buyer's brief, and its details are the buyer's.
+     */
+    priceCheck: priceCheck
+      ? {
+          at: priceCheck.at,
+          outcome: priceCheck.outcome,
+          source: priceCheck.source,
+          provenance: 'pokter-measured',
+          note: '`outcome` is `signed` or the failure code; `source` is `scheduled` (Pokter’s own check) or `buyer` (a signed quote a buyer’s brief got).',
+        }
+      : null,
+
+    /*
      * Null is a fact about the agent: it has never returned a signed quote.
      * `payable` is whether the escrow Pokter would fund the hire on settles
      * in the quoted token; a price nobody can pay is still a price, and is
@@ -175,8 +194,8 @@ export async function GET(
      */
     price: quote
       ? {
-          amountU: quote.priceU,
-          currency: quote.currency,
+          /* In its own token; `amountU` only when that token is $U (`wirePrice`). */
+          ...wirePrice(quote),
           signer: quote.signer,
           quotedAt: quote.quotedAt,
           expiresAt: quote.expiresAt ?? null,
@@ -191,8 +210,10 @@ export async function GET(
            * Where a hire would actually run is `hire`, below.
            */
           escrowChainId: payable === false ? null : escrowChain,
+          /* Additive: which payment route this price is for. Always escrow; pay-per-call (x402) prices are not reported here. */
+          route: 'escrow',
           provenance: 'attested',
-          source: 'Quoted by the agent and signed by its registered wallet.',
+          source: 'Quoted by the agent and signed by its registered wallet, in the token named by `currency`. `amount` is exact in that token; `amountU` is null unless it is $U.',
         }
       : null,
 
@@ -238,7 +259,9 @@ export async function GET(
       diagnostic: `${origin}/compatibility`,
       methodology: `${origin}/methodology`,
     },
-    observedAt: new Date().toISOString(),
+    /* When this response was built. `observedAt` is the same, kept for older callers; a price's own time is `price.quotedAt`. */
+    generatedAt,
+    observedAt: generatedAt,
   },
   200,
   /*

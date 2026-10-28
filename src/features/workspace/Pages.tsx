@@ -26,6 +26,9 @@ import { jobPhase, PHASE, useInbox, useMyJobs, useNow, useSavedAgents, useSavedA
 import { useRequestAlerts } from '@/features/briefs/useRequestAlerts';
 import { markRequestAlertRead, markRequestAlertsRead } from '@/lib/briefs/request-alerts';
 import { budgetOf, JobRow, NeedsWallet, PageHeader, PhaseLabel } from './parts';
+import { totalLines } from './totals';
+import { MoneyTotal } from '@/ui/MoneyTotal';
+import { approxTotalView } from '@/lib/money/approx-total';
 import { RecoverJob } from './RecoverJob';
 import { useReadSync } from './useReadSync';
 import { jobHref } from '@/lib/jobs/href';
@@ -50,7 +53,7 @@ const FILTERS: Array<{ id: string; label: string; phases: JobPhase[] | null; onl
 ];
 
 export function JobsPage() {
-  const { jobs, address } = useMyJobs();
+  const { jobs, address, ready, failed, retry } = useMyJobs();
   const sp = useSearchParams();
   const filter = FILTERS.find((f) => f.id === sp.get('filter')) ?? FILTERS[0];
   const now = useNow();
@@ -70,7 +73,7 @@ export function JobsPage() {
     <>
       <PageHeader
         title="My jobs"
-        description="Every job this wallet has funded through Pokter, read from this device and refreshed from chain when opened."
+        description="Every job this wallet has funded through Pokter, from Pokter’s record of the wallet and from this browser, refreshed from chain when you open one."
         action={
           <div className="flex items-center gap-2">
             <LinkButton href="/workspace/agents" intent="ghost" size="s">
@@ -89,7 +92,22 @@ export function JobsPage() {
         </p>
       )}
       <TabLinks label="Filter jobs" active={filter.id} tabs={counted.filter((f) => !f.onlyIfAny || f.count > 0 || f.id === filter.id).map((f) => ({ id: f.id, label: f.label, href: f.id === 'all' ? '/workspace/jobs' : `/workspace/jobs?filter=${f.id}`, count: f.count }))} className="mb-2" />
-      {shown.length === 0 ? (
+      {failed && jobs.length > 0 && (
+        <Notice tone="watch" title="Some jobs may be missing" className="mb-3" action={<Button size="s" intent="secondary" onClick={retry}>Try again</Button>}>
+          Pokter&rsquo;s record of this wallet could not be read just now, so only the jobs this browser remembers are shown.
+        </Notice>
+      )}
+      {!ready ? (
+        <div className="flex flex-col gap-2" aria-busy="true" aria-label="Loading your jobs">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="h-16 animate-pulse rounded-[12px] bg-sunken motion-reduce:animate-none" />
+          ))}
+        </div>
+      ) : failed && jobs.length === 0 ? (
+        <EmptyState tone="bad" title="Your jobs could not be loaded" className="mt-6" action={<Button intent="secondary" onClick={retry}>Try again</Button>}>
+          Pokter&rsquo;s record of this wallet did not answer just now. This only affects the list: your jobs, and any money in them, are unchanged in escrow. You can also recover a job by its number.
+        </EmptyState>
+      ) : shown.length === 0 ? (
         <EmptyState title={jobs.length === 0 ? 'No jobs yet' : 'Nothing here'} className="mt-6" action={jobs.length === 0 ? <LinkButton href="/discover">Find an agent</LinkButton> : undefined}>
           {jobs.length === 0 ? 'Hire an agent and its job appears here, with its deadline, delivery and settlement.' : 'No job is in this state right now.'}
         </EmptyState>
@@ -327,7 +345,8 @@ function ReadSyncRow({ sync }: { sync: ReturnType<typeof useReadSync> }) {
 
 /* ───────────────────────── Wallet ───────────────────────── */
 
-function SendForm({ native, payment, onSent }: { native: bigint; payment: bigint; onSent: () => void }) {
+/* Sends $U or gas. `paymentDecimals` is the registry's for $U on this chain, not a literal. */
+function SendForm({ native, payment, paymentDecimals, onSent }: { native: bigint; payment: bigint; paymentDecimals: number; onSent: () => void }) {
   const w = useWalletState();
   const signer = usePasskeySigner();
   const [token, setToken] = useState<SendableToken>('payment');
@@ -339,6 +358,7 @@ function SendForm({ native, payment, onSent }: { native: bigint; payment: bigint
   const raw = parseAmount(amount);
   const problem = describeSendProblem({ token, to, amount: raw, nativeBalance: native, paymentBalance: payment, nativeSymbol: NATIVE_SYMBOL, paymentSymbol: '$U' });
   const most = token === 'native' ? sendableNative(native) : payment;
+  const mostDecimals = token === 'native' ? 18 : paymentDecimals;
 
   return (
     <div className="flex flex-col gap-4">
@@ -346,11 +366,11 @@ function SendForm({ native, payment, onSent }: { native: bigint; payment: bigint
       <Field label="To address" hint="Double-check it. Transfers cannot be reversed.">
         {(props) => <Input {...props} value={to} onChange={(e) => setTo(e.target.value)} placeholder="0x…" className="t-readout" autoComplete="off" spellCheck={false} />}
       </Field>
-      <Field label="Amount" hint={`Up to ${Number(formatUnits(most, 18)).toLocaleString('en-US', { maximumFractionDigits: 5 })}${token === 'native' ? ' (a little is kept for the fee)' : ''}`}>
+      <Field label="Amount" hint={`Up to ${Number(formatUnits(most, mostDecimals)).toLocaleString('en-US', { maximumFractionDigits: 5 })}${token === 'native' ? ' (a little is kept for the fee)' : ''}`}>
         {(props) => (
           <div className="flex gap-2">
             <Input {...props} inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" className="t-readout" />
-            <Button intent="secondary" onClick={() => setAmount(formatUnits(most, 18))}>
+            <Button intent="secondary" onClick={() => setAmount(formatUnits(most, mostDecimals))}>
               Max
             </Button>
           </div>
@@ -404,14 +424,13 @@ export function WalletPage() {
     );
   }
   const phases = jobs.map((j) => ({ j, p: jobPhase(j, now) }));
-  // Real and test $U are never added together, as on the overview.
-  const sumOn = (filter: JobPhase[], chainId: number) =>
-    phases.filter(({ p, j }) => filter.includes(p) && j.chainId === chainId).reduce((s, { j }) => s + Number(formatUnits(BigInt(j.budgetRaw), 18)), 0);
-  const sum = (filter: JobPhase[]) => ({ real: sumOn(filter, 56), test: sumOn(filter, 97) });
+  // One line per chain and token, as on the overview: real and test money
+  // are never added together, nor $U and USDT, and a job whose token has not
+  // been read is counted as such rather than as $U.
+  const sum = (filter: JobPhase[]) => totalLines(phases.filter(({ p }) => filter.includes(p)).map(({ j }) => j));
   const fmt = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 4 });
-  const amounts = ({ real, test }: { real: number; test: number }) =>
-    real > 0 && test > 0 ? `${fmt(real)} $U · ${fmt(test)} test $U` : test > 0 ? `${fmt(test)} test $U` : `${fmt(real)} $U`;
-
+  /* The send form moves $U and gas only; its decimals come from the registry entry. */
+  const sendable = w.balances.tokens.find((t) => t.isDefault) ?? null;
   return (
     <>
       <PageHeader title="Wallet and payments" description={`What this wallet holds on ${w.balances.chainId === null ? NETWORK_LABEL : chainLabel(w.balances.chainId)}, the network it is on now, and where your job payments went on each network.`} />
@@ -423,11 +442,14 @@ export function WalletPage() {
           <AddressView address={w.address} />
           <span className="text-[12px] text-ink-3">{w.mode === 'passkey' ? 'A smart account secured by your passkey.' : 'Signs in your browser wallet.'}</span>
         </div>
-        <div className="flex flex-col gap-1 rounded-[14px] border border-rule bg-raised p-5">
-          <span className="t-label">$U</span>
-          <span className="t-readout text-2xl">{w.balances.payment === null ? '—' : fmt(w.balances.payment)}</span>
-          <span className="text-[12px] text-ink-3">Pays for jobs</span>
-        </div>
+        {/* Every token Pokter offers for a hire on this chain, each in its own decimals; $U first. */}
+        {(w.balances.tokens.length ? w.balances.tokens : [null]).map((t) => (
+          <div key={t?.address ?? 'payment'} className="flex flex-col gap-1 rounded-[14px] border border-rule bg-raised p-5">
+            <span className="t-label">{t?.symbol ?? '$U'}</span>
+            <span className="t-readout text-2xl">{t?.amount == null ? '—' : fmt(t.amount)}</span>
+            <span className="text-[12px] text-ink-3">{w.balances.chainId === 97 ? 'Pays for test jobs · no value' : 'Pays for jobs'}</span>
+          </div>
+        ))}
         <div className="flex flex-col gap-1 rounded-[14px] border border-rule bg-raised p-5">
           <span className="t-label">{NATIVE_SYMBOL}</span>
           <span className="t-readout text-2xl">{w.balances.native === null ? '—' : fmt(w.balances.native)}</span>
@@ -461,9 +483,14 @@ export function WalletPage() {
         </p>
       )}
 
-      {send && w.mode === 'passkey' && (
+      {send && w.mode === 'passkey' && sendable && (
         <section className="mt-6 max-w-md rounded-[14px] border border-rule bg-raised p-5">
-          <SendForm native={w.balances.native !== null ? parseUnits(String(w.balances.native), 18) : 0n} payment={w.balances.payment !== null ? parseUnits(String(w.balances.payment), 18) : 0n} onSent={w.refreshBalances} />
+          <SendForm
+            native={w.balances.native !== null ? parseUnits(String(w.balances.native), 18) : 0n}
+            payment={sendable.raw ?? 0n}
+            paymentDecimals={sendable.decimals}
+            onSent={w.refreshBalances}
+          />
         </section>
       )}
 
@@ -477,12 +504,19 @@ export function WalletPage() {
             ['Released to agents', sum(['settled'])],
             ['Returned to you', sum(['refunded', 'expired', 'rejected'])],
             ['In dispute', sum(['disputed'])],
-          ] as const).map(([label, value]) => (
-            <div key={label} className="rounded-[12px] border border-rule px-4 py-3">
-              <span className="t-label">{label}</span>
-              <p className="t-readout mt-1 text-lg">{amounts(value)}</p>
-            </div>
-          ))}
+          ] as const).map(([label, value]) => {
+            const total = approxTotalView(value);
+            return (
+              <div key={label} className="rounded-[12px] border border-rule px-4 py-3">
+                <span className="t-label">{label}</span>
+                {/* One figure; every exact amount on hover or tap, test tokens and unread currencies listed apart. */}
+                <p className="t-readout mt-1 text-lg">
+                  <MoneyTotal total={total} />
+                </p>
+                {total.caption && <p className="text-[12px] text-ink-3">{total.caption}</p>}
+              </div>
+            );
+          })}
         </div>
         {jobs.length === 0 ? (
           <p className="text-sm text-ink-3">No job payments yet.</p>

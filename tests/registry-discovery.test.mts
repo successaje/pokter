@@ -1,0 +1,135 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import test from 'node:test';
+
+import {
+  advanceCursor,
+  afterDiscoveryAttempt,
+  declaresCallableProtocol,
+  DISCOVERY_BACKOFF_MS,
+  DISCOVERY_MAX_PAGES,
+  DISCOVERY_OVERLAP_MS,
+  DISCOVERY_QUOTA,
+  newerThanCursor,
+} from '../src/lib/history/discovery';
+
+/*
+ * New registrations, found incrementally: a cursor, a queue, a quota and a
+ * backoff, never a scan of a registry of 360,000.
+ */
+
+const code = (path: string) => readFileSync(new URL(`../src/${path}`, import.meta.url), 'utf8');
+const at = (minutes: number) => new Date(Date.parse('2026-10-27T20:00:00Z') + minutes * 60_000).toISOString();
+
+test('only registrations declaring A2A or MCP are queued, however the registry spells them', () => {
+  assert.equal(declaresCallableProtocol(['A2A']), true);
+  assert.equal(declaresCallableProtocol(['Web', 'mcp']), true);
+  assert.equal(declaresCallableProtocol(['Web']), false, 'most mainnet registrations: a website only');
+  assert.equal(declaresCallableProtocol(null), false);
+  assert.equal(declaresCallableProtocol([]), false);
+});
+
+test('a run reads what arrived since the cursor, with an overlap for late indexing, and starts from now on its first run', () => {
+  const page = [{ created_at: at(30) }, { created_at: at(10) }, { created_at: at(-20) }, { created_at: at(-45) }];
+  const first = newerThanCursor(page, null);
+  assert.equal(first.fresh.length, 4, 'the first page only, no backfill');
+  assert.equal(first.reachedCursor, true);
+  const later = newerThanCursor(page, at(0));
+  assert.deepEqual(later.fresh.map((i) => i.created_at), [at(30), at(10), at(-20)], 'within the overlap behind the cursor');
+  assert.equal(later.reachedCursor, true, 'it reached past the window, so no further page');
+  const busy = newerThanCursor([{ created_at: at(50) }, { created_at: at(40) }], at(0));
+  assert.equal(busy.reachedCursor, false, 'a page all newer means read the next one');
+  assert.equal(DISCOVERY_OVERLAP_MS, 30 * 60_000);
+  assert.equal(advanceCursor(at(0), page), at(30));
+  assert.equal(advanceCursor(at(60), page), at(60), 'never moves backwards');
+  assert.equal(advanceCursor(null, []), null);
+});
+
+test('an agent that answers is promoted; one that does not is tried later and later, then left alone', () => {
+  const now = Date.parse('2026-10-27T20:00:00Z');
+  assert.deepEqual(afterDiscoveryAttempt(0, 'answered', now), { state: 'promoted', attempts: 1, nextAttemptAt: null });
+  assert.deepEqual(afterDiscoveryAttempt(0, 'no-endpoint', now), { state: 'dropped', attempts: 1, nextAttemptAt: null });
+  const waits: number[] = [];
+  let attempts = 0;
+  for (;;) {
+    const next = afterDiscoveryAttempt(attempts, 'no-answer', now);
+    attempts = next.attempts;
+    if (next.state === 'dropped') break;
+    waits.push((Date.parse(next.nextAttemptAt!) - now) / 3_600_000);
+  }
+  assert.deepEqual(waits, [1, 6, 24, 72, 168, 168, 168]);
+  assert.equal(attempts, DISCOVERY_BACKOFF_MS.length + 1, 'dropped on the try after the last wait');
+  const days = DISCOVERY_BACKOFF_MS.reduce((sum, ms) => sum + ms, 0) / 86_400_000;
+  assert.ok(days > 24 && days < 30, `about four weeks (${days.toFixed(1)} days)`);
+});
+
+test('the pass is bounded, keeps its tries out of the probe history, and runs late in the sweep', () => {
+  assert.equal(DISCOVERY_MAX_PAGES, 3);
+  assert.equal(DISCOVERY_QUOTA, 6);
+  const sweep = code('lib/history/sweep.ts');
+  const pass = sweep.slice(sweep.indexOf('export async function runDiscovery'));
+  assert.doesNotMatch(pass, /store\.record\(/, 'a discovery try never enters the probe history, so silence does not join the roster');
+  assert.match(sweep, /\.\.\.store\.discoveredAgents\(\)\.filter\(onThisChain\),/, 'an answering agent does');
+  assert.match(pass, /if \(!timeLeft\(\)\) \{\s*outcome\.unreached \+= 1;/);
+  const route = code('app/api/sweep/route.ts');
+  assert.match(route, /budget\.step\(\s*'discovery',/);
+  assert.ok(route.indexOf("budget.step(\n      'discovery'") > route.indexOf("budget.step('stuckJobs'"), 'after the steps that alert anyone');
+  assert.match(code('lib/history/scheduler.ts'), / · discovery /);
+  assert.match(code('app/(site)/methodology/page.tsx'), /New registrations are found as they arrive, not by scanning the registry\./);
+  /* "1 answered and are measured": each count agrees with its verb. */
+  const methodology = code('app/(site)/methodology/page.tsx');
+  assert.match(methodology, /answered and \{d\.promoted === 1 \? 'is' : 'are'\} measured/);
+  assert.match(methodology, /\{d\.queued === 1 \? 'is' : 'are'\} waiting/);
+  assert.match(methodology, /\{d\.dropped === 1 \? 'was' : 'were'\} left alone/);
+});
+
+test('an endpoint that answers it cannot be called is left alone at once; silence is retried', async () => {
+  const { uncallableStatus } = await import('../src/lib/proof/probe-target');
+  assert.equal(uncallableStatus(401, 'a2a'), 'credentials');
+  assert.equal(uncallableStatus(403, 'mcp'), 'credentials');
+  assert.equal(uncallableStatus(405, 'mcp'), 'not-an-agent-endpoint', 'refuses an MCP request: not an MCP endpoint');
+  /* A missing page, a server error or no answer may change, and says nothing. */
+  for (const status of [404, 405, 500, 502, null]) assert.equal(uncallableStatus(status, 'a2a'), undefined, String(status));
+
+  const { discoveryResult, afterDiscoveryAttempt } = await import('../src/lib/history/discovery');
+  assert.equal(discoveryResult({ answered: 1, probes: [{ ok: true }] }), 'answered');
+  assert.equal(discoveryResult({ answered: 0, probes: [{ ok: false, uncallable: 'not-an-agent-endpoint' }] }), 'not-callable');
+  assert.equal(discoveryResult({ answered: 0, probes: [{ ok: false, uncallable: 'credentials' }, { ok: false }] }), 'no-answer', 'one plain failure keeps it in the queue');
+  assert.equal(discoveryResult({ answered: 0, probes: [{ ok: false }] }), 'no-answer');
+  assert.equal(discoveryResult({ answered: 0 }), 'no-answer');
+  assert.equal(discoveryResult(null), 'no-answer');
+  assert.deepEqual(afterDiscoveryAttempt(0, 'not-callable', 0), { state: 'dropped', attempts: 1, nextAttemptAt: null });
+  assert.equal(afterDiscoveryAttempt(0, 'no-answer', 0).state, 'queued');
+
+  const prober = code('lib/proof/prober.ts');
+  assert.match(prober, /detail: 'Endpoint returned JSON, but not a valid A2A agent card\.',\s*uncallable: 'not-an-agent-endpoint',/);
+  assert.match(prober, /uncallable: uncallableStatus\(response\.status, 'a2a'\)/);
+  assert.match(prober, /\.\.\.\(listing\.ok \? \{\} : \{ uncallable: uncallableStatus\(listing\.status, 'mcp'\) \}\)/);
+  assert.match(code('lib/history/sweep.ts'), /const result: DiscoveryResult = !probeTarget\(agent\) \? 'no-endpoint' : discoveryResult\(await probe\(agent, \{ samples: 1, signal \}\)/);
+  assert.match(code('app/(site)/methodology/page.tsx'), /One whose endpoint answers that it cannot be called, because it needs credentials or is not an agent endpoint, is left alone at once\./);
+});
+
+test('a listing with no agent bound to it yet is tried weekly, four times, not left alone at once', async () => {
+  const { awaitsAgent } = await import('../src/lib/proof/probe-target');
+  assert.equal(awaitsAgent({ agentTokenId: '395512', name: 'n.agent', endpoint: null, status: 'UNBOUND' }), true, 'the listing record as published');
+  assert.equal(awaitsAgent({ status: 'unbound' }), true, 'no endpoint field at all');
+  assert.equal(awaitsAgent({ status: 'UNBOUND', endpoint: 'https://agent.example/a2a' }), false, 'an endpoint named: something to call, not a wait');
+  assert.equal(awaitsAgent({ status: 'BOUND', endpoint: null }), false);
+  assert.equal(awaitsAgent({ error: { code: 'NOT_FOUND' } }), false, 'no listing at all is not a wait');
+
+  const { discoveryResult, afterDiscoveryAttempt, DISCOVERY_UNBOUND_RETRIES, DISCOVERY_UNBOUND_RETRY_MS } = await import('../src/lib/history/discovery');
+  assert.equal(discoveryResult({ answered: 0, probes: [{ ok: false, awaitingAgent: true }] }), 'no-agent-yet');
+  assert.equal(discoveryResult({ answered: 0, probes: [{ ok: false, awaitingAgent: true }, { ok: false }] }), 'no-answer', 'one plain failure keeps the ordinary back-off');
+  assert.equal(DISCOVERY_UNBOUND_RETRY_MS, 7 * 86_400_000);
+  const now = Date.parse('2026-10-28T12:00:00Z');
+  for (let attempts = 0; attempts < DISCOVERY_UNBOUND_RETRIES + 1; attempts += 1) {
+    const next = afterDiscoveryAttempt(attempts, 'no-agent-yet', now);
+    if (attempts < DISCOVERY_UNBOUND_RETRIES) assert.deepEqual(next, { state: 'queued', attempts: attempts + 1, nextAttemptAt: '2026-11-04T12:00:00.000Z' });
+    else assert.deepEqual(next, { state: 'dropped', attempts: attempts + 1, nextAttemptAt: null }, 'still unbound after four weekly retries');
+  }
+
+  const prober = code('lib/proof/prober.ts');
+  assert.match(prober, /result: awaitsAgent\(body\)\s*\? \{ ok: false, latencyMs, status: response\.status, detail: 'Endpoint is a listing with no agent bound to it yet\.', awaitingAgent: true, at \}/);
+  assert.match(code('lib/history/scheduler.ts'), /\$\{d\.waiting \? `, \$\{d\.waiting\} waiting for an agent` : ''\}/);
+  assert.match(code('app/(site)/methodology/page.tsx'), /One whose endpoint is a listing with no agent bound to it yet is tried again weekly, four times, in case its owner binds one\./);
+});

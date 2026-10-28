@@ -2,7 +2,10 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
-import { MAINNET_ESCROW, NETWORK_LABEL, IS_TESTNET } from '@/lib/network/presentation';
+import { MAINNET_ESCROW, NETWORK_LABEL, IS_TESTNET, chainLabel } from '@/lib/network/presentation';
+import { enabledEscrowChains } from '@/lib/network/escrow';
+import { WALLET_NETWORK } from '@/lib/wallet/passkey';
+import { useGasSponsorship } from '@/lib/wallet/sponsor-client';
 import { Button } from '@/ui/Button';
 import { Notice } from '@/ui/Feedback';
 import { Icon } from '@/ui/icons';
@@ -12,8 +15,13 @@ import { useWalletState } from './useWalletState';
 import { connectErrorMessage } from '@/lib/wallet/errors';
 
 interface ConnectContextValue {
-  /** Opens the connect sheet. `reason` says why, in the person's terms. */
-  openConnect: (reason?: string) => void;
+  /**
+   * Opens the connect sheet. `reason` says why, in the person's terms.
+   * `passkeyUnavailable`, when set, is why a passkey wallet cannot do what is
+   * being connected for (a hire in a token it cannot fund): the option is
+   * shown disabled with that reason, before anyone creates one.
+   */
+  openConnect: (reason?: string, options?: { passkeyUnavailable?: string }) => void;
 }
 
 const ConnectContext = createContext<ConnectContextValue>({ openConnect: () => {} });
@@ -31,8 +39,10 @@ export function ConnectProvider({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const [session, setSession] = useState(0);
   const [reason, setReason] = useState<string | null>(null);
-  const openConnect = useCallback((why?: string) => {
+  const [passkeyUnavailable, setPasskeyUnavailable] = useState<string | null>(null);
+  const openConnect = useCallback((why?: string, options?: { passkeyUnavailable?: string }) => {
     setReason(why ?? null);
+    setPasskeyUnavailable(options?.passkeyUnavailable ?? null);
     setSession((n) => n + 1);
     setOpen(true);
   }, []);
@@ -42,12 +52,12 @@ export function ConnectProvider({ children }: { children: ReactNode }) {
   return (
     <ConnectContext.Provider value={value}>
       {children}
-      <ConnectSheet key={session} open={open} reason={reason} onClose={close} onReopen={reopen} />
+      <ConnectSheet key={session} open={open} reason={reason} passkeyUnavailable={passkeyUnavailable} onClose={close} onReopen={reopen} />
     </ConnectContext.Provider>
   );
 }
 
-function ConnectSheet({ open, reason, onClose, onReopen }: { open: boolean; reason: string | null; onClose: () => void; onReopen: () => void }) {
+function ConnectSheet({ open, reason, passkeyUnavailable, onClose, onReopen }: { open: boolean; reason: string | null; passkeyUnavailable: string | null; onClose: () => void; onReopen: () => void }) {
   const w = useWalletState();
   const [view, setView] = useState<'choose' | 'passkey'>('choose');
 
@@ -83,6 +93,7 @@ function ConnectSheet({ open, reason, onClose, onReopen }: { open: boolean; reas
   }, [open, signing, onClose]);
 
   const passkeyBusy = w.passkey.busy;
+  const sponsored = useGasSponsorship();
 
   return (
     <Sheet
@@ -118,9 +129,9 @@ function ConnectSheet({ open, reason, onClose, onReopen }: { open: boolean; reas
             badge={w.injectedAvailable || w.walletConnectAvailable ? 'Recommended' : undefined}
             detail={
               w.injectedAvailable
-                ? 'MetaMask, Rabby, Trust or any wallet in this browser. The same address works on every marketplace, so your activity counts everywhere, including for Set and Earn.'
+                ? `MetaMask, Rabby, Trust or any wallet in this browser. ${BROWSER_WALLET_REACH}`
                 : w.walletConnectAvailable
-                  ? 'Scan a code with Trust Wallet, MetaMask mobile or any WalletConnect wallet. The same address works on every marketplace.'
+                  ? `Scan a code with Trust Wallet, MetaMask mobile or any WalletConnect wallet. ${BROWSER_WALLET_REACH}`
                   : 'No wallet was found in this browser. Use a passkey wallet, or open Pokter in a browser that has one.'
             }
             onClick={() => (w.injectedAvailable ? w.connectInjected() : connectWalletConnect())}
@@ -135,10 +146,11 @@ function ConnectSheet({ open, reason, onClose, onReopen }: { open: boolean; reas
           <Option
             icon={<Icon.Key />}
             title="Passkey wallet"
-            detail="Face ID, Touch ID or your device PIN, nothing to install, and Pokter covers the fee for hires. Its address only works on Pokter, not on other marketplaces."
+            tag={PASSKEY_NETWORK_ONLY ? `${chainLabel(WALLET_NETWORK.chainId)} only` : undefined}
+            detail={`Face ID, Touch ID or your device PIN, with nothing to install. It funds ${IS_TESTNET ? 'test ' : ''}hires in $U${sponsored ? ', and Pokter tops up its network fee when it runs short' : ''}. Its address works only on Pokter.`}
             onClick={() => setView('passkey')}
-            disabled={w.ready && !w.passkey.supported}
-            disabledReason="This browser cannot create passkeys."
+            disabled={Boolean(passkeyUnavailable) || (w.ready && !w.passkey.supported)}
+            disabledReason={passkeyUnavailable ?? 'This browser cannot create passkeys.'}
           />
           {w.connectError && (
             <Notice tone="bad" title="The wallet did not connect">
@@ -181,11 +193,23 @@ function ConnectSheet({ open, reason, onClose, onReopen }: { open: boolean; reas
   );
 }
 
+/*
+ * A passkey wallet acts on one network. Where hires are also funded on
+ * another (BNB Chain beside BNB Testnet), the option says so up front, and
+ * the browser wallet says it is the one for those hires, so nobody makes a
+ * passkey wallet for a real-money hire and finds out after.
+ */
+const PASSKEY_NETWORK_ONLY = enabledEscrowChains().some((chainId) => chainId !== WALLET_NETWORK.chainId);
+const BROWSER_WALLET_REACH = PASSKEY_NETWORK_ONLY
+  ? `Needed for hires on ${chainLabel(enabledEscrowChains().find((chainId) => chainId !== WALLET_NETWORK.chainId) ?? 56)}, which use real funds, and for any token other than $U. It is the same address you use everywhere else.`
+  : 'It is the same address you use everywhere else, including for Set and Earn.';
+
 function Option({
   icon,
   title,
   detail,
   badge,
+  tag,
   onClick,
   busy,
   disabled,
@@ -195,6 +219,8 @@ function Option({
   title: string;
   detail: string;
   badge?: string;
+  /** A neutral limit, beside the title rather than in the sentence. */
+  tag?: string;
   onClick: () => void;
   busy?: boolean;
   disabled?: boolean;
@@ -212,9 +238,10 @@ function Option({
     >
       <span className="grid size-10 shrink-0 place-items-center rounded-[10px] bg-sunken text-ink">{icon}</span>
       <span className="flex min-w-0 flex-1 flex-col gap-1">
-        <span className="flex items-center gap-2 text-[15px] font-semibold">
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[15px] font-semibold">
           {title}
           {badge && <span className="rounded-full bg-signal-wash px-2 py-0.5 text-[11px] font-medium text-ink">{badge}</span>}
+          {tag && <span className="rounded-full border border-rule px-2 py-0.5 text-[11px] font-medium text-ink-2">{tag}</span>}
         </span>
         <span className="text-[13px] leading-snug text-ink-3">{disabled && disabledReason ? disabledReason : detail}</span>
       </span>

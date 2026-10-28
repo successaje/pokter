@@ -2,16 +2,18 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
-import { formatUnits } from 'viem';
 
 import { DeliveryInbox } from '@/features/studio/DeliveryInbox';
 import { RequestsForYourAgents } from '@/features/briefs/RequestsForYourAgents';
 import { FleetList } from '@/features/studio/FleetList';
-import { BuilderAlerts, DraftsList, OwnedAgents, SignOutStudio } from '@/features/studio/StudioClient';
+import { BuilderAlerts, DraftsList, SignOutStudio } from '@/features/studio/StudioClient';
+import { VerifyOwner } from '@/features/studio/VerifyOwner';
 import { loadFleet, studioOwner } from '@/features/studio/data';
 import { EmailLinkNotice } from '@/features/workspace/EmailLinkNotice';
 import { PageHeader, StatStrip } from '@/features/workspace/parts';
-import { earnedByNetwork } from '@/lib/builder/earnings';
+import { earnedByToken, earnedMoneyLines, earningsNote } from '@/lib/builder/earnings';
+import { approxTotalView } from '@/lib/money/approx-total';
+import { MoneyTotal } from '@/ui/MoneyTotal';
 import { chainLabel } from '@/lib/network/presentation';
 import { shareMetadata } from '@/lib/og/share';
 import { shortAddress } from '@/lib/ui/format';
@@ -38,18 +40,12 @@ export default async function BuildPage({ searchParams }: { searchParams: Promis
   return owner ? <Overview owner={owner} /> : <Start />;
 }
 
-function Actions({ owner }: { owner?: string }) {
+function Actions({ owner }: { owner: string }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {owner ? (
-        <LinkButton href={`/builders/${owner}`} intent="ghost" size="s" trailing={<Icon.ArrowUpRight size={13} />}>
-          Public profile
-        </LinkButton>
-      ) : (
-        <LinkButton href="/build/import" intent="secondary" size="s" icon={<Icon.Plug size={14} />}>
-          Import agent
-        </LinkButton>
-      )}
+      <LinkButton href={`/builders/${owner}`} intent="ghost" size="s" trailing={<Icon.ArrowUpRight size={13} />}>
+        Public profile
+      </LinkButton>
       <LinkButton href="/build/new" size="s" icon={<Icon.Plus size={14} />}>
         Create agent
       </LinkButton>
@@ -77,41 +73,53 @@ function SectionHead({ id, title, body, href, link }: { id: string; title: strin
 }
 
 /**
- * Before a wallet is verified: the same overview, honest about what it
- * cannot show yet. The figures read "—" rather than zero, because zero
- * would be a claim about agents Pokter has not been shown.
+ * Before a wallet is verified: the three ways in, side by side. This used
+ * to be the overview with every figure reading "—", which put four empty
+ * cards first and the choices a builder came to make in a corner. Verifying
+ * happens in place and reloads this page as the overview.
  */
 function Start() {
   return (
     <>
-      <PageHeader title="Overview" description="Status, jobs and earnings across every agent you own." action={<Actions />} />
+      <PageHeader title="Overview" description="The jobs, proposals and earnings of the agents you own, once Pokter knows which wallet owns them." />
       <Suspense>
         <EmailLinkNotice kind="builder" />
       </Suspense>
 
-      <StatStrip
-        stats={[
-          { label: 'Earnings', value: '—', note: 'lifetime, all agents' },
-          { label: 'Jobs · lifetime', value: '—', note: 'across your agents' },
-          { label: 'Answering now', value: '—', note: 'of your agents' },
-          { label: 'To deliver', value: '—', note: 'funded, waiting on you' },
-        ]}
-      />
-
-      <section aria-labelledby="owned-title" className="mt-12">
-        <SectionHead id="owned-title" title="Your agents" body="Status and lifetime figures for each agent you own." href="/build/import" link="Verify to manage" />
-        <OwnedAgents boxed />
-      </section>
+      <ul aria-label="Ways in" className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+        <Choice icon={<Icon.Key size={18} />} title="You already have agents" body="Verify the wallet that owns them, and this page becomes their overview.">
+          <VerifyOwner />
+        </Choice>
+        <Choice icon={<Icon.Plug size={18} />} title="Import one by its ID" body="Registered on ERC-8004 with another tool, such as BNB Agent Studio? Enter its ID. Pokter checks it the way a buyer’s hire would, then you sign to manage it.">
+          <LinkButton href="/build/import" intent="secondary" icon={<Icon.Plug size={14} />}>
+            Import an agent
+          </LinkButton>
+        </Choice>
+        <Choice icon={<Icon.Plus size={18} />} title="Create a new agent" body="Fill in a guided form, or let your AI assistant write it, then register it on chain from your own wallet.">
+          <LinkButton href="/build/new" intent="secondary" icon={<Icon.Plus size={14} />}>
+            Create an agent
+          </LinkButton>
+        </Choice>
+      </ul>
 
       <div className="mt-12 flex flex-col gap-10">
         <RequestsForYourAgents />
         <DraftsList />
       </div>
-
-      <p className="t-readout mt-12 text-[12px] leading-relaxed text-ink-3">
-        Figures load once you verify the wallet that owns your agents; signing moves no funds. Earnings are $U released on {chainLabel(56)}, with test tokens shown beside them and never counted.
-      </p>
     </>
+  );
+}
+
+function Choice({ icon, title, body, children }: { icon: React.ReactNode; title: string; body: string; children: React.ReactNode }) {
+  return (
+    <li className="flex flex-col gap-3 rounded-[16px] border border-rule bg-raised p-5 sm:p-6">
+      <span aria-hidden className="grid size-9 place-items-center rounded-[10px] bg-sunken text-ink">
+        {icon}
+      </span>
+      <h2 className="text-[17px] font-semibold tracking-[-0.01em]">{title}</h2>
+      <p className="text-[13.5px] leading-relaxed text-ink-2">{body}</p>
+      <div className="mt-auto pt-2">{children}</div>
+    </li>
   );
 }
 
@@ -119,8 +127,20 @@ function Start() {
 async function Overview({ owner }: { owner: string }) {
   const { agents, jobs, unavailable } = await loadFleet(owner);
   const toDeliver = jobs.filter((j) => j.status === 'FUNDED').length;
-  const earned = earnedByNetwork(jobs);
-  const amount = (raw: bigint) => Number(formatUnits(raw, 18)).toLocaleString('en-US', { maximumFractionDigits: 2 });
+  /*
+   * Active means the escrow still holds the money: funded and waiting for
+   * delivery, or delivered and waiting to be released. The overview listed
+   * every job under this heading, so paid and expired work, which needs
+   * nothing from anyone, sat where a builder looks for what to do next.
+   */
+  const active = jobs.filter((j) => j.status === 'FUNDED' || j.status === 'SUBMITTED');
+  /*
+   * One line per chain and token. Real money is the figure; test money and
+   * jobs whose token has not been read are shown beside it and never added
+   * in. $U and USDT are both real and both shown, never folded into one.
+   */
+  const earnedLines = earnedMoneyLines(earnedByToken(jobs));
+  const earned = approxTotalView(earnedLines);
   const missing = unavailable.map(chainLabel).join(' and ');
   const answering = agents.filter((a) => a.online).length;
 
@@ -146,7 +166,11 @@ async function Overview({ owner }: { owner: string }) {
 
       <StatStrip
         stats={[
-          { label: 'Earnings', value: `${amount(earned.real)} $U`, note: earned.test > 0n ? `+ ${amount(earned.test)} test, not counted` : `released on ${chainLabel(56)}` },
+          {
+            label: 'Earnings',
+            value: <MoneyTotal total={earned} />,
+            note: earningsNote(earnedLines),
+          },
           { label: 'Jobs · lifetime', value: jobs.length, note: `across ${agents.length} ${agents.length === 1 ? 'agent' : 'agents'}` },
           { label: 'Answering now', value: answering, note: unavailable.length > 0 ? `${missing} could not be read` : `of ${agents.length} ${agents.length === 1 ? 'agent' : 'agents'}` },
           { label: 'To deliver', value: toDeliver, note: toDeliver ? 'funded, waiting on you' : 'nothing waiting', tone: toDeliver ? 'watch' : undefined },
@@ -169,7 +193,14 @@ async function Overview({ owner }: { owner: string }) {
 
       <section aria-labelledby="work-title" className="mt-12">
         <SectionHead id="work-title" title="Active jobs" body="Funded work for your agents, and what each needs from you." href="/build/jobs" link="All jobs" />
-        <DeliveryInbox jobs={jobs} />
+        <DeliveryInbox
+          jobs={active}
+          empty={
+            jobs.length > 0 ? (
+              <p className="border-y border-rule py-5 text-[13.5px] text-ink-2">Nothing needs you right now. Paid and expired jobs are under All jobs.</p>
+            ) : undefined
+          }
+        />
       </section>
 
       <div className="mt-12 flex flex-col gap-10">

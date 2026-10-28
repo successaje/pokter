@@ -32,6 +32,7 @@ export function BuilderChecklist({ d, title = 'Before you publish' }: { d: Agent
     },
     capabilities: d.preflight?.capabilities ?? [],
     quoteCapability: Boolean(d.preflight?.quoteCapability),
+    priceLikeSkill: d.preflight?.priceLikeSkill ?? null,
     trial: { ran: Boolean(d.trial) || Boolean(d.trialError), ok: Boolean(d.trial?.ok), summary: d.trial?.summary ?? null, error: d.trialError },
   });
   return (

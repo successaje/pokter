@@ -81,7 +81,26 @@ export function negotiationSkillOf(skills: unknown[]): string | null {
     .map((skill) => object(skill))
     .map((skill) => (typeof skill?.id === 'string' ? skill.id : typeof skill?.name === 'string' ? skill.name : null))
     .filter((id): id is string => id !== null);
-  return ids.find((id) => id === 'negotiate') ?? ids.find((id) => /^negotiate[-_]/i.test(id)) ?? null;
+  return ids.find((id) => id === 'negotiate') ?? ids.find(isNegotiationSkill) ?? null;
+}
+
+/**
+ * Whether a skill id is one Pokter asks for a price through: `negotiate`,
+ * or `negotiate-…` / `negotiate_…`, the convention of BNB's agent SDK.
+ *
+ * The one rule, for the quote request and for the builder's preflight.
+ * Preflight said "declares a negotiation skill" for anything containing
+ * negotiate, quote or price, so a `get_quote` skill passed it and was then
+ * never asked: the builder was told one thing and the requester did another.
+ */
+export function isNegotiationSkill(id: string): boolean {
+  return id === 'negotiate' || /^negotiate[-_]/i.test(id);
+}
+
+/** A skill that sounds like pricing but is not one Pokter asks (`get_quote`, `price`), so its builder can be told why. */
+export function priceLikeSkill(ids: string[]): string | null {
+  if (ids.some(isNegotiationSkill)) return null;
+  return ids.find((id) => /(?:negotiat|quote|pric)/i.test(id)) ?? null;
 }
 
 export interface AgentAnswer {

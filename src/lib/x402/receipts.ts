@@ -42,6 +42,10 @@ export interface X402Call {
   httpStatus: number | null;
   /** The settlement transaction the seller reported, when it reported one. */
   settlementTx: string | null;
+  /** The authorization's `validBefore`, in seconds; null on rows written before it was kept. */
+  validBefore: number | null;
+  /** What the token said about this payment when Pokter last asked it (see reconcile.ts); null until asked. */
+  settlement: 'settled' | 'expired-unused' | null;
   responseText: string | null;
   error: string | null;
   createdAt: string;
@@ -71,6 +75,9 @@ export function ensureX402(db: DatabaseSync): void {
       updated_at     TEXT NOT NULL
     )
   `);
+  const columns = new Set((db.prepare('PRAGMA table_info(x402_calls)').all() as Array<{ name: string }>).map((c) => c.name));
+  if (!columns.has('valid_before')) db.exec('ALTER TABLE x402_calls ADD COLUMN valid_before INTEGER');
+  if (!columns.has('settlement')) db.exec('ALTER TABLE x402_calls ADD COLUMN settlement TEXT');
 }
 
 type Row = Record<string, unknown>;
@@ -87,6 +94,8 @@ const toCall = (r: Row): X402Call => ({
   agentTokenId: String(r.agent_token_id),
   httpStatus: r.http_status === null ? null : Number(r.http_status),
   settlementTx: (r.settlement_tx as string | null) ?? null,
+  validBefore: r.valid_before === null || r.valid_before === undefined ? null : Number(r.valid_before),
+  settlement: (r.settlement as X402Call['settlement']) ?? null,
   responseText: (r.response_text as string | null) ?? null,
   error: (r.error as string | null) ?? null,
   createdAt: String(r.created_at),
@@ -101,14 +110,14 @@ export function readX402Call(db: DatabaseSync, nonce: string): X402Call | null {
 /** Claim this nonce for one send. `existing` when it was already claimed: the caller must not send. */
 export function beginX402Call(
   db: DatabaseSync,
-  write: Omit<X402Call, 'state' | 'httpStatus' | 'settlementTx' | 'responseText' | 'error' | 'createdAt' | 'updatedAt'> & { at: string },
+  write: Omit<X402Call, 'state' | 'httpStatus' | 'settlementTx' | 'responseText' | 'error' | 'createdAt' | 'updatedAt' | 'validBefore' | 'settlement'> & { validBefore?: number; at: string },
 ): { begun: true } | { begun: false; existing: X402Call } {
   const inserted = db
     .prepare(
-      `INSERT OR IGNORE INTO x402_calls (nonce, state, endpoint, pay_to, asset, amount_raw, network, payer, agent_chain_id, agent_token_id, created_at, updated_at)
-       VALUES (?, 'sending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT OR IGNORE INTO x402_calls (nonce, state, endpoint, pay_to, asset, amount_raw, network, payer, agent_chain_id, agent_token_id, valid_before, created_at, updated_at)
+       VALUES (?, 'sending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-    .run(write.nonce.toLowerCase(), write.endpoint, write.payTo, write.asset, write.amountRaw, write.network, write.payer, write.agentChainId, write.agentTokenId, write.at, write.at);
+    .run(write.nonce.toLowerCase(), write.endpoint, write.payTo, write.asset, write.amountRaw, write.network, write.payer, write.agentChainId, write.agentTokenId, write.validBefore ?? null, write.at, write.at);
   if (Number(inserted.changes) === 1) return { begun: true };
   return { begun: false, existing: readX402Call(db, write.nonce)! };
 }
@@ -140,4 +149,26 @@ export function finishX402Call(
         .run(outcome.state, outcome.httpStatus, outcome.settlementTx, text, outcome.error, outcome.at, nonce.toLowerCase()).changes,
     ) === 1
   );
+}
+
+/**
+ * This wallet's earlier payments to this recipient whose outcome is not
+ * settled yet: refused, unknown or still sending, and not yet resolved on
+ * chain. While one remains, a new authorization to the same recipient is
+ * not sent, because the earlier one may still be taken.
+ */
+export function unresolvedX402Calls(db: DatabaseSync, payer: string, payTo: string): X402Call[] {
+  const rows = db
+    .prepare(
+      `SELECT * FROM x402_calls
+       WHERE lower(payer) = ? AND lower(pay_to) = ? AND state IN ('sending', 'refused', 'unknown') AND settlement IS NULL
+       ORDER BY created_at DESC LIMIT 10`,
+    )
+    .all(payer.toLowerCase(), payTo.toLowerCase()) as Row[];
+  return rows.map(toCall);
+}
+
+/** Record what the token said about a payment. Written once: the chain's answer does not change back. */
+export function recordX402Settlement(db: DatabaseSync, nonce: string, settlement: 'settled' | 'expired-unused', at: string): void {
+  db.prepare('UPDATE x402_calls SET settlement = ?, updated_at = ? WHERE nonce = ? AND settlement IS NULL').run(settlement, at, nonce.toLowerCase());
 }

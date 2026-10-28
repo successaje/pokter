@@ -8,7 +8,7 @@ import { buildAgentCard, networkOf } from '../src/lib/mcp/agent-card';
 const TOUCHSTONE = {
   name: 'Touchstone', chainId: 56, tokenId: '374115',
   ladder: { label: 'Delivered', steps: [{ label: 'Answers', earned: true }, { label: 'Priced', earned: true }, { label: 'Delivered', earned: true }, { label: 'Checked', earned: false }] },
-  price: { amountU: 0.05, current: true, payable: true },
+  price: { amountU: 0.05, priceRaw: '50000000000000000', currency: '0xcE24439F2D9C6a2289F741120FE202248B666666', current: true, payable: true },
   hire: { escrowChainId: 56 },
   hireBlocker: null,
   links: { html: 'https://pokter.xyz/agents/56/374115' },

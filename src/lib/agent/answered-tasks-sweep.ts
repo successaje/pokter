@@ -17,15 +17,15 @@ function within<T>(promise: Promise<T>, ms: number): Promise<T | null> {
   return Promise.race([promise.catch(() => null), new Promise<null>((resolve) => setTimeout(() => resolve(null), ms))]);
 }
 
-async function readDelivery(url: string): Promise<string | null> {
+async function readDelivery(url: string, ms: number): Promise<string | null> {
   return within(
     withPublicEndpoint(url, async (pinned) => {
-      const response = await pinned.fetch({ headers: { accept: 'application/json, text/plain;q=0.9' }, cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(8_000) });
+      const response = await pinned.fetch({ headers: { accept: 'application/json, text/plain;q=0.9' }, cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(Math.max(1, ms - 500)) });
       if (!response.ok) return null;
       const text = await response.text();
       return new TextEncoder().encode(text).byteLength > MAX_BYTES ? null : text;
     }),
-    10_000,
+    ms,
   );
 }
 
@@ -85,26 +85,33 @@ async function deliverableUrlFromSubmit(chainId: number, jobId: number): Promise
  * Bounded and cached because it reads other people's servers: a verdict is
  * stored once a job is delivered, refused or expired. A funded job, or a
  * delivery that could not be read, is looked at again every six hours.
+ *
+ * Every read is held to what is left of the budget as well as its own
+ * limit, so a slow node or delivery host costs this step its share and no
+ * more. A job the budget cut short is left for the next run rather than
+ * marked unreadable.
  */
 export async function checkAnsweredTasks({ budgetMs = 60_000 }: { budgetMs?: number } = {}): Promise<{ checked: number; answered: number }> {
   const store = getQuestStore();
   const jobs = store.jobsNeedingVerdict(PER_RUN, new Date(Date.now() - RECHECK_PENDING_MS).toISOString());
   // A share of the sweep's time, not all of it: what is left waits for the next run.
   const deadline = Date.now() + budgetMs;
+  const upTo = (ms: number) => Math.max(0, Math.min(ms, deadline - Date.now()));
   let answered = 0;
   let checked = 0;
   for (const job of jobs) {
-    if (Date.now() > deadline) break;
+    if (upTo(1) === 0) break;
     checked += 1;
     const network = altanaNetworkFor(job.chainId);
-    const onchain = await within(getErc8183Job(network, BigInt(job.jobId)), 10_000);
+    const onchain = await within(getErc8183Job(network, BigInt(job.jobId)), upTo(10_000));
     if (!onchain) continue;
     let verdict: AnswerVerdict;
     if (onchain.statusName === 'SUBMITTED' || onchain.statusName === 'COMPLETED') {
       const url =
-        (await within(deliverableUrlFromSubmit(job.chainId, job.jobId), 20_000)) ??
-        (await within(getErc8183DeliverableUrl(network, BigInt(job.jobId), { scanWindow: 5_000n, maxWindows: 300 }), 15_000));
-      const text = url ? await readDelivery(url) : null;
+        (await within(deliverableUrlFromSubmit(job.chainId, job.jobId), upTo(20_000))) ??
+        (await within(getErc8183DeliverableUrl(network, BigInt(job.jobId), { scanWindow: 5_000n, maxWindows: 300 }), upTo(15_000)));
+      const text = url && upTo(1) > 0 ? await readDelivery(url, upTo(10_000)) : null;
+      if (!text && upTo(1) === 0) break;
       verdict = text ? deliveryAnswered(text) : 'unreadable';
     } else if (onchain.statusName === 'EXPIRED' || onchain.statusName === 'REJECTED') {
       verdict = 'unanswered';

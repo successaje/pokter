@@ -8,6 +8,8 @@ import { decodePokterJobEnvelope, decodeReferenceJobDescription } from '@/lib/er
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 import type { HiredJob } from '@/lib/erc8183/types';
 import { getJobStore } from '@/lib/erc8183/store';
+import { jobAmountLabel } from '@/lib/erc8183/job-amount';
+import { jobPaymentTokenOnChain } from '@/lib/erc8183/job-onchain';
 import { estimatedFundedAt } from '@/lib/erc8183/dispute-window';
 import { logAndPublic } from '@/lib/api/public-error';
 
@@ -138,12 +140,14 @@ export async function GET(
         id: `${chainId}:${jobId}`,
         provider: onchain.provider,
         budgetRaw: onchain.budget.toString(),
+        /* The index's token when it has one, else the escrow's; unknown stays null, never $U. */
+        paymentToken: indexed.paymentToken ?? (await jobPaymentTokenOnChain(chainId, jobId)),
         expiredAt: new Date(Number(onchain.expiredAt) * 1000).toISOString(),
         status: onchain.statusName,
         statusCheckedAt: new Date().toISOString(),
         deliverableUrl: deliverable ?? indexed.deliverableUrl ?? null,
       };
-      return NextResponse.json({ job, client: onchain.client });
+      return NextResponse.json(jobResponse(job, onchain.client));
     }
 
     if (!envelope) {
@@ -171,6 +175,12 @@ export async function GET(
      * there is one, else an estimate from the deadline (`estimatedFundedAt`).
      */
     const known = getJobStore().all().find((j) => j.jobId === jobId && j.chainId === chainId);
+    /*
+     * The token is read from the escrow (`jobPaymentToken`) unless the index
+     * already has it. A row recorded without one would be labelled "currency
+     * not yet read" until the currency backfill reached it.
+     */
+    const paymentToken = known?.paymentToken ?? (await jobPaymentTokenOnChain(chainId, jobId));
     const hiredAt = known?.hiredAt ?? (await estimatedFundedAt(chainId, Number(onchain.expiredAt))).toISOString();
     const job: HiredJob = {
       id: `${chainId}:${jobId}`,
@@ -184,6 +194,7 @@ export async function GET(
       provider: onchain.provider,
       task: envelope.task,
       budgetRaw: onchain.budget.toString(),
+      paymentToken,
       expiredAt: new Date(Number(onchain.expiredAt) * 1000).toISOString(),
       hiredAt,
       hireTxHash: null,
@@ -210,11 +221,21 @@ export async function GET(
       store.record({ ...job, client: onchain.client });
     }
 
-    return NextResponse.json({ job, client: onchain.client });
+    return NextResponse.json(jobResponse(job, onchain.client));
   } catch (error) {
     return NextResponse.json(
       { error: `That job could not be read: ${logAndPublic('jobs/read', error)}` },
       { status: 502 },
     );
   }
+}
+
+/*
+ * The job, its funder, and its amount in the job's own money. `amount` is
+ * "2 USDT" or "0.1 $U", and "… base units (currency not yet read)" when the
+ * escrow did not answer for the token: a reader is never handed a bare
+ * `budgetRaw` to scale as eighteen-decimal $U.
+ */
+function jobResponse(job: HiredJob, client: string) {
+  return { job, client, paymentToken: job.paymentToken ?? null, amount: jobAmountLabel(job) };
 }

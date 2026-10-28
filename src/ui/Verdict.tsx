@@ -1,4 +1,4 @@
-import { VERDICT_LABEL, VERDICT_MEANING, type Verdict } from '@/lib/proof/engine';
+import { AVAILABILITY_LABEL, VERDICT_LABEL, VERDICT_MEANING, type Verdict } from '@/lib/proof/engine';
 import { cn } from '@/lib/ui/cn';
 
 /*
@@ -65,7 +65,7 @@ export function VerdictLabel({ verdict, className }: { verdict: Verdict; classNa
   return (
     <span className={cn('inline-flex items-center gap-1.5 text-[13px] font-medium', TONE_TEXT[VERDICT_TONE[verdict]], verdict === 'unproven' && 'text-ink-3', className)} title={VERDICT_MEANING[verdict]}>
       <VerdictGlyph verdict={verdict} />
-      {VERDICT_LABEL[verdict]}
+      {AVAILABILITY_LABEL[verdict]}
     </span>
   );
 }
@@ -87,9 +87,9 @@ export function VerdictChip({ verdict, className, prefix }: { verdict: Verdict; 
     >
       <VerdictGlyph verdict={verdict} />
       {prefix && <span className="font-normal opacity-75">{prefix}</span>}
-      {VERDICT_LABEL[verdict]}
+      {AVAILABILITY_LABEL[verdict]}
     </span>
   );
 }
 
-export { VERDICT_LABEL, VERDICT_MEANING };
+export { AVAILABILITY_LABEL, VERDICT_LABEL, VERDICT_MEANING };

@@ -1,6 +1,6 @@
 import { CATEGORIES, NO_CATEGORY } from '@/lib/agents/categories';
 import { FAUCETS, MAINNET_ESCROW, NATIVE_SYMBOL } from '@/lib/network/presentation';
-import { ESCROW_PAYMENT_TOKEN } from '@/lib/network/escrow';
+import { PREFERRED_CURRENCY_RULE, tokenListText } from '@/lib/integration/currencies';
 import { BUILT_WITH_KEY, BUILT_WITH_POKTER } from '@/lib/brand/built-with';
 import { CANONICAL_RULES, JOB_DEADLINE_FIELD, KIT_VERSION, TIMING } from '@/lib/integration/guide';
 import { PROPOSED_CONCEPT_COUNT } from '@/lib/builder/concepts';
@@ -175,13 +175,13 @@ function chainsSection(mainnetEscrow: boolean): string {
     return `WHICH CHAINS THIS AGENT LIVES ON
 - Identity: register the ERC-8004 agent on BNB Chain mainnet (56) or BNB Smart Chain Testnet (97). Pokter lists both.
 - Money: every escrow settles on ${ESCROW_CHAIN_NAME} (chain ${ESCROW_CHAIN_ID}), whichever chain the identity is on. Payment is a test token with no real value.
-- Therefore: quote in the payment token of chain ${ESCROW_CHAIN_ID} (${ESCROW_PAYMENT_TOKEN[97]}), and bind the quote's signing domain to chain ${ESCROW_CHAIN_ID}. A quote priced in mainnet currency, or signed for chain 56, verifies correctly and still cannot be paid from this escrow — the agent will reject or never receive the job, and the buyer waits out the deadline for nothing. Confirm the address against the kit's \`escrows\` before you use it, and do not guess it.
+- Therefore: quote in a payment token of chain ${ESCROW_CHAIN_ID} — ${tokenListText(97)} — and bind the quote's signing domain to chain ${ESCROW_CHAIN_ID}. A quote priced in mainnet currency, or signed for chain 56, verifies correctly and still cannot be paid from this escrow — the agent will reject or never receive the job, and the buyer waits out the deadline for nothing. Confirm the address against the kit's \`escrows\` before you use it, and do not guess it.
 - If the identity is on mainnet while escrow is on testnet, the agent cannot see the job at all and Pokter's own seller delivers on its behalf. Registering on chain ${ESCROW_CHAIN_ID} is what lets the agent earn its own record.`;
   }
   return `WHICH CHAINS THIS AGENT LIVES ON
 - Pokter lists ERC-8004 agents on BNB Chain mainnet (56) and BNB Smart Chain Testnet (97), and funds each hire on the escrow that can pay the agent's signed price. Choose one with me before writing code:
-  - Paid in real money: register the identity on chain 56, quote in mainnet $U (${ESCROW_PAYMENT_TOKEN[56]}), and bind the quote's signing domain to chain 56. Buyers hire it from a browser wallet and the agent is paid directly.
-  - Free to try: register on chain ${ESCROW_CHAIN_ID}, quote in testnet $U (${ESCROW_PAYMENT_TOKEN[97]}), and bind the signing domain to chain ${ESCROW_CHAIN_ID}. Payment is a test token with no real value.
+  - Paid in real money: register the identity on chain 56, quote in a token Pokter funds there — ${tokenListText(56)} — and bind the quote's signing domain to chain 56. Buyers hire it from a browser wallet and the agent is paid directly.
+  - Free to try: register on chain ${ESCROW_CHAIN_ID}, quote in a token Pokter funds there — ${tokenListText(97)} — and bind the signing domain to chain ${ESCROW_CHAIN_ID}. Payment is a test token with no real value.
 - Identity chain, quote token and signing domain must all name the same chain. The agent watches the escrow on its own chain, so a quote for the other chain verifies correctly and still cannot be paid there — the job is funded somewhere the agent never looks, and the buyer waits out the deadline for nothing.
 - An agent on mainnet that signs no price is hired on testnet, where Pokter's own seller carries the task to it. Signing a price is what lets it be hired, and paid, on its own chain.`;
 }
@@ -396,8 +396,9 @@ Identity and wallets
 
 The signed quote
 - \`negotiate\` must return a quote the agent has signed: the request and response it is agreeing to, a hash over both, that signature, the price, the currency address, an expiry, and the signing domain.
-- Price is an integer string in the payment token's smallest unit (18 decimals). Not a float, not a decimal string, not a human-readable amount.
-- Currency must be the payment token of an enabled escrow, or the hire is refused as payment-incompatible before the agent is ever called.
+- Price is an integer string in the smallest unit of the token you quote in, at that token's own decimals — the kit lists every token Pokter funds per escrow under \`escrows[].tokens\`, each with its decimals. Never assume 18. Not a float, not a decimal string, not a human-readable amount.
+- Currency must be one of the tokens Pokter funds on an enabled escrow, by address, or the hire is refused as payment-incompatible before the agent is ever called.
+- ${PREFERRED_CURRENCY_RULE}
 - \`negotiation_hash\` is a keccak256 over the canonical JSON of the agreed terms, and \`provider_sig\` is an EIP-191 signature over the **raw 32 bytes** of that hash, not over its hex string: \`signMessage({ message: { raw: negotiation_hash } })\`. Signing the string recovers to your wallet and still fails, because Pokter recovers against the bytes. Follow the kit's canonical rules exactly — key ordering, whitespace, escaping and the character substitutions — because a hash computed over nearly-canonical JSON is refused as terms-mismatch, and the signature over it is valid and useless.
 - A quote is short-lived. Return \`quote_expires_at\`, honour it, and refuse your own expired quotes.
 - If \`chain_id\` and \`verifying_contract\` are returned they must name the escrow Pokter funds on, or the hire is refused.

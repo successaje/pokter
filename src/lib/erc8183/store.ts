@@ -65,8 +65,46 @@ export interface SellerNotice {
  * without scanning the chain. `refreshJob` always re-reads from the kernel
  * rather than trusting a row here.
  */
+/** A funding attempt as the server keeps it, for other devices of the same wallet. */
+export interface RemoteAttemptRow {
+  publicId: string;
+  secretHash: string;
+  wallet: string;
+  chainId: number;
+  provider: string;
+  description: string;
+  token: string;
+  amountRaw: string;
+  predictedJobId: string | null;
+  jobId: string | null;
+  callsId: string | null;
+  txHashes: string[];
+  prompt: string | null;
+  fundableUntil: number | null;
+  /** True once the chain shows the wallet acted: a transaction it sent, or a job it is the client of. */
+  verified: boolean;
+  state: 'open' | 'closed';
+  closeReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface JobStore {
   record(job: HiredJob): void;
+  /**
+   * The token a job is bound to, from the escrow. Written once per row and
+   * never cleared: a later record that does not know the token keeps it.
+   */
+  setPaymentToken(chainId: number, jobId: string, token: string): number;
+  /** Rows whose token has not been read yet, for the backfill, in a stable order after `after` (a row id), at most `limit`. */
+  withoutPaymentToken(after?: string | null, limit?: number): HiredJob[];
+  /** Cross-device funding attempts (see `hire/remote-attempts`). */
+  openFundingAttempt(wallet: string, chainId: number): RemoteAttemptRow | null;
+  insertFundingAttempt(row: RemoteAttemptRow): boolean;
+  updateFundingAttempt(publicId: string, patch: Partial<Pick<RemoteAttemptRow, 'predictedJobId' | 'jobId' | 'callsId' | 'txHashes' | 'prompt' | 'fundableUntil' | 'verified'>>, at: string): void;
+  closeFundingAttempt(publicId: string, reason: string, at: string): boolean;
+  /** One line per job the currency backfill read, written or not: its audit trail. */
+  auditCurrencyBackfill(entry: { runId: string; chainId: number; jobId: string; token: string | null; outcome: string; detail: string | null; at: string }): void;
   all(): HiredJob[];
   byId(id: string): HiredJob | null;
   byAgent(chainId: number, tokenId: string): HiredJob[];
@@ -90,6 +128,14 @@ export interface JobStore {
   criteriaAgreement(negotiationHash: string): CriteriaAgreement | null;
   noticeFor(chainId: number, jobId: string): SellerNotice | null;
   notices(): SellerNotice[];
+  /**
+   * The funding wallet's latest signed choice about publishing a job's
+   * delivered answer (see answer-publication.ts). An older decision never
+   * replaces a newer one, so a replayed signature cannot undo a later
+   * choice.
+   */
+  recordAnswerPublication(input: { chainId: number; jobId: string; client: string; published: boolean; decidedAt: string; signature: string }): 'recorded' | 'stale';
+  answerPublication(chainId: number, jobId: string): { published: boolean; decidedAt: string; client: string } | null;
   /**
    * Who owned the hired agent when the job was funded, if Pokter saw it
    * close enough to the funding to say (see owner-at-job.ts).
@@ -172,7 +218,8 @@ const SCHEMA = `
     settle_tx_hash    TEXT,
     dispute_tx_hash   TEXT,
     reclaim_tx_hash   TEXT,
-    client            TEXT
+    client            TEXT,
+    payment_token     TEXT
   );
 
   CREATE INDEX IF NOT EXISTS idx_jobs_hired ON jobs (hired_at DESC);
@@ -219,6 +266,40 @@ const SCHEMA = `
 
   CREATE INDEX IF NOT EXISTS idx_job_owners_owner ON job_owners (owner);
 
+  CREATE TABLE IF NOT EXISTS funding_attempts (
+    public_id        TEXT PRIMARY KEY,
+    secret_hash      TEXT NOT NULL,
+    wallet           TEXT NOT NULL,
+    chain_id         INTEGER NOT NULL,
+    provider         TEXT NOT NULL,
+    description      TEXT NOT NULL,
+    token            TEXT NOT NULL,
+    amount_raw       TEXT NOT NULL,
+    predicted_job_id TEXT,
+    job_id           TEXT,
+    calls_id         TEXT,
+    tx_hashes        TEXT NOT NULL,
+    prompt           TEXT,
+    fundable_until   INTEGER,
+    verified         INTEGER NOT NULL DEFAULT 0,
+    state            TEXT NOT NULL,
+    close_reason     TEXT,
+    created_at       TEXT NOT NULL,
+    updated_at       TEXT NOT NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_funding_attempts_open ON funding_attempts (wallet, chain_id, state);
+
+  CREATE TABLE IF NOT EXISTS currency_backfill_audit (
+    run_id     TEXT NOT NULL,
+    chain_id   INTEGER NOT NULL,
+    job_id     TEXT NOT NULL,
+    token      TEXT,
+    outcome    TEXT NOT NULL,
+    detail     TEXT,
+    at         TEXT NOT NULL
+  );
+
   CREATE TABLE IF NOT EXISTS relay_probes (
     chain_id INTEGER NOT NULL,
     token_id TEXT NOT NULL,
@@ -226,6 +307,16 @@ const SCHEMA = `
     detail   TEXT NOT NULL,
     at       TEXT NOT NULL,
     PRIMARY KEY (chain_id, token_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS answer_publication (
+    chain_id   INTEGER NOT NULL,
+    job_id     TEXT NOT NULL,
+    client     TEXT NOT NULL,
+    published  INTEGER NOT NULL,
+    decided_at TEXT NOT NULL,
+    signature  TEXT NOT NULL,
+    PRIMARY KEY (chain_id, job_id)
   );
 `;
 
@@ -273,6 +364,7 @@ interface JobRow {
   dispute_tx_hash: string | null;
   reclaim_tx_hash: string | null;
   client: string | null;
+  payment_token?: string | null;
 }
 
 function toJob(row: JobRow): HiredJob {
@@ -298,6 +390,8 @@ function toJob(row: JobRow): HiredJob {
     disputeTxHash: row.dispute_tx_hash as `0x${string}` | null,
     reclaimTxHash: row.reclaim_tx_hash as `0x${string}` | null,
     ...(row.client ? { client: row.client as `0x${string}` } : {}),
+    /* Null stays null: a row whose token was never read is unknown, not $U. */
+    paymentToken: (row.payment_token as `0x${string}` | null | undefined) ?? null,
   };
 }
 
@@ -330,6 +424,8 @@ class SqliteJobStore implements JobStore {
       'ALTER TABLE jobs ADD COLUMN dispute_tx_hash TEXT',
       'ALTER TABLE jobs ADD COLUMN reclaim_tx_hash TEXT',
       'ALTER TABLE jobs ADD COLUMN client TEXT',
+      // Unknown until recorded at funding or read from the escrow; never defaulted.
+      'ALTER TABLE jobs ADD COLUMN payment_token TEXT',
       // Owners recorded before this column were read, not proven, and stay hidden until proven.
       'ALTER TABLE job_owners ADD COLUMN proof TEXT',
     ]) {
@@ -367,9 +463,10 @@ class SqliteJobStore implements JobStore {
            (id, job_id, chain_id, is_testnet, agent_chain_id, agent_token_id,
             agent_name, provider_label, provider, task, budget_raw, expired_at,
             hired_at, hire_tx_hash, status, status_checked_at, deliverable_url,
-            settle_tx_hash, dispute_tx_hash, reclaim_tx_hash, client)
+            settle_tx_hash, dispute_tx_hash, reclaim_tx_hash, client, payment_token)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                 COALESCE(?, (SELECT client FROM jobs WHERE id = ?)))`,
+                 COALESCE(?, (SELECT client FROM jobs WHERE id = ?)),
+                 COALESCE(?, (SELECT payment_token FROM jobs WHERE id = ?)))`,
       )
       .run(
         job.id,
@@ -395,7 +492,66 @@ class SqliteJobStore implements JobStore {
         // A caller that did not read the funder must not erase a known one.
         job.client ? job.client.toLowerCase() : null,
         job.id,
+        // Likewise the token: a caller that did not read it must not erase a known one.
+        job.paymentToken ?? null,
+        job.id,
       );
+  }
+
+  openFundingAttempt(wallet: string, chainId: number): RemoteAttemptRow | null {
+    const row = this.db.prepare("SELECT * FROM funding_attempts WHERE wallet = ? AND chain_id = ? AND state = 'open' ORDER BY created_at DESC LIMIT 1").get(wallet.toLowerCase(), chainId) as Record<string, unknown> | undefined;
+    return row ? toRemoteAttempt(row) : null;
+  }
+
+  /* Refused (false) while another attempt for the wallet and chain is open: one at a time, across devices. */
+  insertFundingAttempt(row: RemoteAttemptRow): boolean {
+    if (this.openFundingAttempt(row.wallet, row.chainId)) return false;
+    this.db
+      .prepare(
+        `INSERT OR IGNORE INTO funding_attempts (public_id, secret_hash, wallet, chain_id, provider, description, token, amount_raw, predicted_job_id, job_id, calls_id, tx_hashes, prompt, fundable_until, verified, state, close_reason, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', NULL, ?, ?)`,
+      )
+      .run(row.publicId, row.secretHash, row.wallet.toLowerCase(), row.chainId, row.provider, row.description, row.token, row.amountRaw, row.predictedJobId, row.jobId, row.callsId, JSON.stringify(row.txHashes), row.prompt, row.fundableUntil, row.verified ? 1 : 0, row.createdAt, row.updatedAt);
+    return this.openFundingAttempt(row.wallet, row.chainId)?.publicId === row.publicId;
+  }
+
+  updateFundingAttempt(publicId: string, patch: Partial<Pick<RemoteAttemptRow, 'predictedJobId' | 'jobId' | 'callsId' | 'txHashes' | 'prompt' | 'fundableUntil' | 'verified'>>, at: string): void {
+    const sets: string[] = [];
+    const args: Array<string | number | null> = [];
+    const put = (column: string, value: string | number | null) => {
+      sets.push(`${column} = ?`);
+      args.push(value);
+    };
+    if (patch.predictedJobId !== undefined) put('predicted_job_id', patch.predictedJobId);
+    if (patch.jobId !== undefined) put('job_id', patch.jobId);
+    if (patch.callsId !== undefined) put('calls_id', patch.callsId);
+    if (patch.txHashes !== undefined) put('tx_hashes', JSON.stringify(patch.txHashes));
+    if (patch.prompt !== undefined) put('prompt', patch.prompt);
+    if (patch.fundableUntil !== undefined) put('fundable_until', patch.fundableUntil);
+    /* Verified only ever becomes true: evidence on chain is not taken back. */
+    if (patch.verified) put('verified', 1);
+    put('updated_at', at);
+    this.db.prepare(`UPDATE funding_attempts SET ${sets.join(', ')} WHERE public_id = ? AND state = 'open'`).run(...args, publicId);
+  }
+
+  closeFundingAttempt(publicId: string, reason: string, at: string): boolean {
+    return Number(this.db.prepare("UPDATE funding_attempts SET state = 'closed', close_reason = ?, updated_at = ? WHERE public_id = ? AND state = 'open'").run(reason, at, publicId).changes) === 1;
+  }
+
+  auditCurrencyBackfill(entry: { runId: string; chainId: number; jobId: string; token: string | null; outcome: string; detail: string | null; at: string }): void {
+    this.db.prepare('INSERT INTO currency_backfill_audit (run_id, chain_id, job_id, token, outcome, detail, at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(entry.runId, entry.chainId, entry.jobId, entry.token, entry.outcome, entry.detail, entry.at);
+  }
+
+  setPaymentToken(chainId: number, jobId: string, token: string): number {
+    return Number(
+      this.db
+        .prepare('UPDATE jobs SET payment_token = ? WHERE chain_id = ? AND job_id = ? AND payment_token IS NULL')
+        .run(token, chainId, jobId).changes,
+    );
+  }
+
+  withoutPaymentToken(after: string | null = null, limit = 100_000): HiredJob[] {
+    return (this.db.prepare('SELECT * FROM jobs WHERE payment_token IS NULL AND id > ? ORDER BY id ASC LIMIT ?').all(after ?? '', limit) as unknown as JobRow[]).map(toJob);
   }
 
   all(): HiredJob[] {
@@ -531,6 +687,26 @@ class SqliteJobStore implements JobStore {
     return rows.map(toNotice);
   }
 
+  recordAnswerPublication(input: { chainId: number; jobId: string; client: string; published: boolean; decidedAt: string; signature: string }): 'recorded' | 'stale' {
+    const result = this.db
+      .prepare(
+        `INSERT INTO answer_publication (chain_id, job_id, client, published, decided_at, signature)
+         VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT (chain_id, job_id) DO UPDATE SET
+           client = excluded.client, published = excluded.published, decided_at = excluded.decided_at, signature = excluded.signature
+         WHERE excluded.decided_at > answer_publication.decided_at`,
+      )
+      .run(input.chainId, input.jobId, input.client.toLowerCase(), input.published ? 1 : 0, input.decidedAt, input.signature);
+    return Number(result.changes) > 0 ? 'recorded' : 'stale';
+  }
+
+  answerPublication(chainId: number, jobId: string): { published: boolean; decidedAt: string; client: string } | null {
+    const row = this.db
+      .prepare('SELECT published, decided_at, client FROM answer_publication WHERE chain_id = ? AND job_id = ?')
+      .get(chainId, jobId) as unknown as { published: number; decided_at: string; client: string } | undefined;
+    return row ? { published: row.published === 1, decidedAt: row.decided_at, client: row.client } : null;
+  }
+
   recordOwnerAt(input: { id: string; owner: string; fundedAt: string; proof: OwnerProof }): void {
     this.db
       .prepare('INSERT OR IGNORE INTO job_owners (id, owner, funded_at, recorded_at, proof) VALUES (?, ?, ?, ?, ?)')
@@ -639,3 +815,27 @@ export function openJobStore(path: string): JobStore {
 }
 
 
+
+function toRemoteAttempt(r: Record<string, unknown>): RemoteAttemptRow {
+  return {
+    publicId: String(r.public_id),
+    secretHash: String(r.secret_hash),
+    wallet: String(r.wallet),
+    chainId: Number(r.chain_id),
+    provider: String(r.provider),
+    description: String(r.description),
+    token: String(r.token),
+    amountRaw: String(r.amount_raw),
+    predictedJobId: (r.predicted_job_id as string | null) ?? null,
+    jobId: (r.job_id as string | null) ?? null,
+    callsId: (r.calls_id as string | null) ?? null,
+    txHashes: JSON.parse(String(r.tx_hashes ?? '[]')) as string[],
+    prompt: (r.prompt as string | null) ?? null,
+    fundableUntil: r.fundable_until === null || r.fundable_until === undefined ? null : Number(r.fundable_until),
+    verified: Number(r.verified) === 1,
+    state: r.state as 'open' | 'closed',
+    closeReason: (r.close_reason as string | null) ?? null,
+    createdAt: String(r.created_at),
+    updatedAt: String(r.updated_at),
+  };
+}

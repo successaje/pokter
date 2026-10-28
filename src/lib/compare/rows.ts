@@ -44,3 +44,32 @@ export function declaredProtocols(services: Record<string, unknown> | null | und
   const named = Object.keys(services ?? {}).length > 0 ? Object.keys(services ?? {}) : [...(supported ?? [])];
   return [...new Set(named.map((name) => (name.length <= 4 ? name.toUpperCase() : name.toLowerCase())))];
 }
+
+/**
+ * Percentages written with just enough precision to tell distinct rates
+ * apart, and the numbers to rank them by, rounded the same way.
+ *
+ * Two agents at 99.4% and 98.6% both read "99%" and one was marked Best:
+ * the page claimed a difference it did not show. Rates that differ get a
+ * decimal place (two at most) until they read differently; rates that
+ * read the same rank the same, so a displayed tie is a tie.
+ */
+export function distinctPercents(rates: ReadonlyArray<number | null>): { labels: Array<string | null>; ranked: Array<number | null> } {
+  const present = rates.filter((r): r is number => r !== null && Number.isFinite(r));
+  let digits = 0;
+  for (; digits < 2; digits += 1) {
+    const shown = new Set(present.map((r) => (r * 100).toFixed(digits)));
+    const actual = new Set(present);
+    if (shown.size === actual.size) break;
+  }
+  return {
+    labels: rates.map((r) => (r === null || !Number.isFinite(r) ? null : `${(r * 100).toFixed(digits)}%`)),
+    ranked: rates.map((r) => (r === null || !Number.isFinite(r) ? null : Number((r * 100).toFixed(digits)))),
+  };
+}
+
+/** A correctness result as a pass, a failure or neither, so it can be marked as plainly as availability is. */
+export function checkTone(check: { passed: number; total: number; status: string } | null): 'pass' | 'fail' | 'none' {
+  if (!check || check.total === 0 || check.status === 'not-askable' || check.status === 'paid-only') return 'none';
+  return check.passed === check.total ? 'pass' : 'fail';
+}

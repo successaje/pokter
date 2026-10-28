@@ -25,13 +25,15 @@ export async function POST(request: Request): Promise<NextResponse> {
   const snapshots = all.filter(({ listing }) => wanted.has(`${listing.agent.chain_id}:${listing.agent.token_id}`)).map((entry) => {
     const recent = entry.record.windows.find((window) => window.label === '24h');
     const quote = entry.listing.quote;
-    const currentPrice = quote && (!quote.expiresAt || Date.parse(quote.expiresAt) > Date.now()) ? quote.priceU : null;
+    const current = quote && (!quote.expiresAt || Date.parse(quote.expiresAt) > Date.now()) ? quote : null;
     return {
       chainId: entry.listing.agent.chain_id,
       tokenId: entry.listing.agent.token_id,
       evidence: verdictFor(entry),
       response: !recent || recent.probes === 0 ? 'unmeasured' : recent.answered > 0 ? 'responding' : 'not-responding',
-      priceU: currentPrice,
+      /* The number and the token it is in: a change of either is a change of price (`savedAgentChanges`). */
+      priceU: current ? current.priceU : null,
+      currency: current ? (current.currency ?? null) : null,
       checkedAt,
     };
   });

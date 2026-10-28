@@ -9,6 +9,7 @@ import type { PokterJobEnvelope } from './job-envelope';
 import { extractAnswer, isPaidOnlyRefusal, isQuoteReply, pickWorkSkill, type AgentAnswer, type SkillChoice } from './courier-parse';
 import { notAnAnswer, readA2AReply } from '@/lib/a2a/reply';
 import { jsonRpcEndpoint } from '@/lib/a2a/card';
+import { a2aUserMessage } from '@/lib/a2a/message';
 
 export interface CourierResult {
   answer: AgentAnswer;
@@ -58,7 +59,7 @@ export async function prepareAgent(target: { chainId: number; tokenId: string; c
   const { chainId, tokenId } = target;
   const agent = await getAgent(chainId as ChainId, tokenId);
   const endpoint = agent.services?.a2a?.endpoint?.replace('{agentId}', tokenId);
-  if (!endpoint) throw new NotAskableError('The agent publishes no A2A endpoint, so a brief cannot be sent to it.');
+  if (!endpoint) throw new NotAskableError('No A2A endpoint found for the agent in the registry data Pokter reads, so a brief cannot be sent to it.');
 
   const card = await readAgentCard(endpoint);
   const skill = pickWorkSkill(card?.skills, target.category);
@@ -131,11 +132,7 @@ export async function sendPreparedBrief(
         id: rpcId,
         method: 'message/send',
         params: {
-          message: {
-            role: 'user',
-            messageId: crypto.randomUUID(),
-            parts: outboundParts({ task: brief.text, briefData }, { dataOnly }),
-          },
+          message: a2aUserMessage(outboundParts({ task: brief.text, briefData }, { dataOnly })),
           configuration: { acceptedOutputModes: ['application/json', 'text/plain'], blocking: true },
         },
       }),

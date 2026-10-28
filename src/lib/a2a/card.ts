@@ -56,9 +56,30 @@ export function a2aInterfaces(card: unknown): A2AInterface[] {
   });
 }
 
+/**
+ * The HTTPS JSON-RPC interface Pokter calls, or null when the card offers
+ * none.
+ *
+ * Pokter speaks A2A 0.3 (`message/send`). Where a card offers JSON-RPC at
+ * more than one version, the one it states as 0.x, or states none for, is
+ * chosen over a newer one listed first, so Pokter asks in a version the
+ * card says it understands. A card offering only 1.x is still returned,
+ * with its version, so a caller can say that Pokter does not yet speak it
+ * (`a2aVersionUnsupported`) rather than report a bare failure.
+ */
+export function jsonRpcInterface(card: unknown): A2AInterface | null {
+  const callable = a2aInterfaces(card).filter((i) => JSONRPC.test(i.binding) && i.url.startsWith('https://'));
+  return callable.find((i) => !a2aVersionUnsupported(i.version)) ?? callable[0] ?? null;
+}
+
 /** The HTTPS JSON-RPC endpoint Pokter can call, or null when the card offers none. */
 export function jsonRpcEndpoint(card: unknown): string | null {
-  return a2aInterfaces(card).find((i) => JSONRPC.test(i.binding) && i.url.startsWith('https://'))?.url ?? null;
+  return jsonRpcInterface(card)?.url ?? null;
+}
+
+/** Whether a stated A2A version is one Pokter does not speak yet: 1.0 and later changed the wire format. */
+export function a2aVersionUnsupported(version: string | null | undefined): boolean {
+  return typeof version === 'string' && /^\s*v?[1-9]\d*(?:\.|$)/i.test(version);
 }
 
 /** Whether a body is an agent card at all, in either format. */

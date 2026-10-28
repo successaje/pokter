@@ -4,6 +4,7 @@ import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 import { runX402Call, type CallOutcome } from '@/lib/x402/call';
 import type { X402Terms } from '@/lib/x402/exact';
 import { X402_DISABLED, x402Enabled } from '@/lib/x402/flags';
+import { readAuthorizationOnChain } from '@/lib/x402/reconcile';
 import { x402Db } from '@/lib/x402/receipts-db';
 import { readX402Terms, sendX402, x402EndpointFor } from '@/lib/x402/seller';
 
@@ -17,6 +18,7 @@ const STATUS: Record<CallOutcome['kind'], number> = {
   unknown: 504,
   'not-sent': 502,
   'in-flight': 409,
+  unresolved: 409,
   'terms-changed': 409,
   unavailable: 503,
   invalid: 400,
@@ -52,6 +54,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     body: payload,
     readFresh: () => readX402Terms(endpoint),
     send: (headers, sent) => sendX402(endpoint, headers, sent),
+    readAuthorization: readAuthorizationOnChain,
   });
   return NextResponse.json(outcome, { status: STATUS[outcome.kind], headers: { 'cache-control': 'no-store' } });
 }

@@ -72,7 +72,7 @@ test('it says delivery is an on-chain submit, not an HTTP response', () => {
 test('it names the escrow chain and forbids quoting in the wrong currency', () => {
   const prompt = createAgentBuildPrompt({ ...BASE });
   assert.match(prompt, /chain 97/);
-  assert.match(prompt, /quote in the payment token of chain 97/);
+  assert.match(prompt, /quote in a payment token of chain 97 — \$U \(0x[0-9a-fA-F]{40}, 18 decimals\)/);
   assert.match(prompt, /signed for chain 56, verifies correctly and still cannot be paid/);
   assert.match(prompt, /do not guess it/);
 });
@@ -232,7 +232,10 @@ test('it closes the protocol gaps a paid job actually runs through', () => {
   assert.match(prompt, /Write the bytes once, store them, and serve the stored copy/);
 
   // Price units and the signing domain.
-  assert.match(prompt, /integer string in the payment token's smallest unit \(18 decimals\)/);
+  assert.match(prompt, /integer string in the smallest unit of the token you quote in, at that token's own decimals/);
+  assert.match(prompt, /Never assume 18/);
+  assert.match(prompt, /preferred_currency: \{ chain_id, token \}/);
+  assert.doesNotMatch(prompt, /smallest unit \(18 decimals\)/);
   assert.match(prompt, /refused as payment-incompatible/);
   assert.match(prompt, /refuse your own expired quotes/);
 
@@ -403,8 +406,8 @@ test('it plans for a second wallet to test a hire from', () => {
 
 test('with mainnet hires open, it offers both chains with their exact tokens', () => {
   const prompt = createAgentBuildPrompt({ ...BASE }, { mainnetEscrow: true });
-  assert.match(prompt, /register the identity on chain 56, quote in mainnet \$U \(0xcE24439F2D9C6a2289F741120FE202248B666666\)/);
-  assert.match(prompt, /quote in testnet \$U \(0xc70B8741B8B07A6d61E54fd4B20f22Fa648E5565\)/);
+  assert.match(prompt, /register the identity on chain 56, quote in a token Pokter funds there — \$U \(0xcE24439F2D9C6a2289F741120FE202248B666666, 18 decimals\)/);
+  assert.match(prompt, /quote in a token Pokter funds there — \$U \(0xc70B8741B8B07A6d61E54fd4B20f22Fa648E5565, 18 decimals\)/);
   assert.match(prompt, /must all name the same chain/);
   assert.match(prompt, /needs real BNB for gas on chain 56/);
   assert.doesNotMatch(prompt, /every escrow settles on/);

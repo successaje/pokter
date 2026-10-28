@@ -1,4 +1,5 @@
-import { getAddress } from 'viem';
+import type { PreferredCurrency } from './currency-preference';
+import { enabledHireTokens, hireTokenAt, offeredTokens, type HireTokenSet } from './tokens';
 
 /**
  * Which escrow a hire is funded on.
@@ -19,7 +20,7 @@ import { getAddress } from 'viem';
 
 export type EscrowChainId = 56 | 97;
 
-/** The token each ERC-8183 deployment settles in. */
+/** The token each ERC-8183 deployment defaults to: what `createJob` (no token argument) funds. */
 export const ESCROW_PAYMENT_TOKEN: Record<EscrowChainId, `0x${string}`> = {
   56: '0xcE24439F2D9C6a2289F741120FE202248B666666',
   97: '0xc70B8741B8B07A6d61E54fd4B20f22Fa648E5565',
@@ -46,17 +47,20 @@ export function isEscrowChain(chainId: number, enabled: EscrowChainId[] = enable
   return (enabled as number[]).includes(chainId);
 }
 
-function sameAddress(a: string, b: string): boolean {
-  try {
-    return getAddress(a) === getAddress(b);
-  } catch {
-    return false;
-  }
-}
-
-/** The enabled escrow that settles in this token, or null when none does. */
-export function escrowChainForCurrency(currency: string, enabled: EscrowChainId[] = enabledEscrowChains()): EscrowChainId | null {
-  return enabled.find((chainId) => sameAddress(currency, ESCROW_PAYMENT_TOKEN[chainId])) ?? null;
+/**
+ * The enabled escrow that settles in this token, or null when none does.
+ *
+ * Matched by address against the tokens Pokter offers on each chain
+ * (`offeredTokens`): $U always, and any eligible token turned on in
+ * `NEXT_PUBLIC_HIRE_TOKENS`. With none on this is exactly the old rule,
+ * one default token per escrow.
+ */
+export function escrowChainForCurrency(
+  currency: string,
+  enabled: EscrowChainId[] = enabledEscrowChains(),
+  tokens: HireTokenSet = enabledHireTokens(),
+): EscrowChainId | null {
+  return enabled.find((chainId) => hireTokenAt(chainId, currency, tokens) !== null) ?? null;
 }
 
 /**
@@ -142,7 +146,21 @@ export function escrowOptionsForHire(
 export function settlementHint(
   agent: { chain_id: number },
   enabled: EscrowChainId[] = enabledEscrowChains(),
+  tokens: HireTokenSet = enabledHireTokens(),
+  /** The buyer's preferred currency for this quote, already checked as fundable (`currency-preference`). */
+  preferredCurrency: PreferredCurrency | null = null,
 ) {
   const preferred = isEscrowChain(agent.chain_id, enabled) ? agent.chain_id : enabled[0];
-  return { chain_id: preferred, escrow_chains: enabled };
+  const ask = preferredCurrency ? { preferred_currency: preferredCurrency } : {};
+  if (tokens.size === 0) return { chain_id: preferred, escrow_chains: enabled, ...ask };
+  /*
+   * With other tokens on, the hint also says which money Pokter can fund on
+   * each escrow, by address, so a seller that can price in several picks one
+   * that pays. Still outside `terms`: it changes nothing a seller signs, and
+   * the currency the seller does sign is the one the job is funded in.
+   */
+  const currencies = enabled.flatMap((chainId) =>
+    offeredTokens(chainId, tokens).map((t) => ({ chain_id: chainId, token: t.address, symbol: t.symbol, decimals: t.decimals })),
+  );
+  return { chain_id: preferred, escrow_chains: enabled, currencies, ...ask };
 }

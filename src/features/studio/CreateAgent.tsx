@@ -407,12 +407,18 @@ function StepTest({ d }: { d: AgentDraft }) {
               </div>
               <div>
                 <dt className="t-label">Signed quotes</dt>
-                <dd className={cn('mt-1', p.quoteCapability ? 'text-ok' : 'text-watch')}>{p.quoteCapability ? 'Declares negotiate. A signed quote for an exact task is checked after you publish' : 'No negotiate skill: Pokter cannot get a signed price, so buyers cannot hire it yet'}</dd>
+                <dd className={cn('mt-1', p.quoteCapability ? 'text-ok' : 'text-watch')}>{p.quoteCapability ? 'Declares negotiate. A signed quote for an exact task is checked after you publish' : p.priceLikeSkill ? `Declares “${p.priceLikeSkill}”, but Pokter asks for a price only through a skill named negotiate` : 'No negotiate skill: Pokter cannot get a signed price, so buyers cannot hire it yet'}</dd>
               </div>
               <div>
                 <dt className="t-label">HTTP status</dt>
                 <dd className="t-readout mt-1">{p.status ?? '—'}</dd>
               </div>
+              {p.a2aVersionNote && (
+                <div className="sm:col-span-2">
+                  <dt className="t-label">A2A version</dt>
+                  <dd className="mt-1 text-watch">{p.a2aVersionNote}</dd>
+                </div>
+              )}
             </dl>
             <Details summary="What Pokter refused to do while checking (safety)">
               <ul className="grid grid-cols-1 gap-1.5 text-[12.5px] text-ink-2 sm:grid-cols-2">

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { isAddress, isHex, type Address, type Hex } from 'viem';
 
-import { briefMessage, readBriefContent, type Brief } from '@/lib/briefs/model';
+import { briefMessage, parseBriefContent, type Brief } from '@/lib/briefs/model';
 import { getBriefStore } from '@/lib/briefs/store';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 import { signedByWallet, walletCanBeChecked } from '@/lib/wallet/signed-by';
@@ -44,8 +44,10 @@ export async function POST(request: Request): Promise<NextResponse> {
   const poster = String(body.poster ?? '');
   const signature = String(body.signature ?? '');
   const postedAt = String(body.postedAt ?? '');
-  const content = readBriefContent(body.content);
-  if (!isAddress(poster) || !isHex(signature) || !content || Number.isNaN(Date.parse(postedAt))) {
+  const read = parseBriefContent(body.content);
+  if (!read.ok) return NextResponse.json({ error: read.error }, { status: 400 });
+  const content = read.content;
+  if (!isAddress(poster) || !isHex(signature) || Number.isNaN(Date.parse(postedAt))) {
     return NextResponse.json({ error: 'The brief payload is invalid.' }, { status: 400 });
   }
 

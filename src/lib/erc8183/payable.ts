@@ -1,5 +1,8 @@
 import { getAddress } from 'viem';
 
+import { chainLabel } from '@/lib/network/presentation';
+import { displaySymbol, hireTokenAt, paymentTokenAt, settlementChainOf, type HireTokenSet } from '@/lib/network/tokens';
+
 /**
  * Whether a quoted price is in money a given escrow can actually pay.
  *
@@ -25,6 +28,16 @@ export function quotePayableWith(
   }
 }
 
+/**
+ * Whether a quoted price is in money the escrow on `chainId` can be funded
+ * with by Pokter: a token it offers there. $U always; another token only
+ * when it is eligible and turned on. With none on this is
+ * `quotePayableWith(currency, default)`.
+ */
+export function quotePayableOn(chainId: number, currency: string, tokens?: HireTokenSet): boolean {
+  return hireTokenAt(chainId, currency, tokens) !== null;
+}
+
 /** BNB Chain mainnet $U, the token most sellers quote in. */
 const MAINNET_U = '0xcE24439F2D9C6a2289F741120FE202248B666666';
 
@@ -32,6 +45,11 @@ const MAINNET_U = '0xcE24439F2D9C6a2289F741120FE202248B666666';
  * Why a signed price cannot be paid here, in words a buyer can act on:
  * what the price is in, what that means for a job funded here, and what to
  * do instead. Mainnet $U is named because it is nearly every case.
+ *
+ * Any other token is named too, from the registry by its own chain. "In a
+ * token" told a buyer looking at a USDT price nothing they could act on;
+ * the symbol and network do. A token Pokter has not verified is said to be
+ * one, rather than given a symbol it may only claim.
  */
 export function unpayablePriceNote(currency: string, escrowIsTestnet: boolean): string {
   let mainnetU = false;
@@ -40,7 +58,13 @@ export function unpayablePriceNote(currency: string, escrowIsTestnet: boolean): 
   } catch {
     mainnetU = false;
   }
-  const what = mainnetU ? 'in mainnet $U' : 'in a token';
+  const chainId = settlementChainOf(currency);
+  const token = chainId === null ? null : paymentTokenAt(chainId, currency);
+  const what = mainnetU
+    ? 'in mainnet $U'
+    : token && chainId !== null
+      ? `in ${displaySymbol(token)} on ${chainLabel(chainId)}`
+      : 'in a token Pokter has not verified';
   const where = escrowIsTestnet ? 'Pokter’s escrow currently runs on testnet' : 'Pokter’s escrow settles in a different token';
   return `This agent sets its price ${what}, and ${where}, so it would turn down a job funded here. You can still try it for free, or hire an agent that prices in this escrow’s token.`;
 }

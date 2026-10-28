@@ -25,8 +25,15 @@ export interface HiredJob {
   /** The wallet that funded the escrow, as read from chain. Absent on rows indexed before it was kept. */
   client?: Address;
   task: string;
-  /** Raw $U units, 18 decimals. */
+  /** Raw units of `paymentToken`, at that token's decimals. */
   budgetRaw: string;
+  /**
+   * The token the escrow job is bound to: recorded at funding, or read from
+   * the escrow's `jobPaymentToken`. Absent or null means not known yet —
+   * never "therefore $U". Rows written before this field existed are filled
+   * by `scripts/currency-backfill.mjs`, which leaves a failed read null.
+   */
+  paymentToken?: Address | null;
   expiredAt: string;
   hiredAt: string;
   hireTxHash: Hex | null;

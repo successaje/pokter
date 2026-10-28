@@ -4,6 +4,7 @@ import { CATEGORIES, type Category } from '@/lib/agents/categories';
 import { isFeaturableAgent } from '@/lib/agents/eligibility';
 import { mainnetFirstPerAgent } from '@/lib/agents/distinct';
 import { summarizeMarketplaceActivity } from '@/lib/erc8183/activity-stats';
+import { courierPaidTest } from '@/lib/erc8183/courier-paid';
 import { getJobStore } from '@/lib/erc8183/store';
 import { findRows, type FindRow } from '@/lib/find/rows';
 import { getEcosystemStats, listSearchableWithStatus, type EcosystemStats } from '@/lib/marketplace';
@@ -11,6 +12,7 @@ import { outcomeShortlist } from '@/lib/home/outcome-shortlist';
 import { chainLabel } from '@/lib/network/presentation';
 import { letsJobsLapse, type SearchableAgent } from '@/lib/search/match';
 import { catalogueCounts } from '@/lib/agents/catalogue-counts';
+import { registeredWalletRead } from '@/lib/registry/live-agent';
 import { teamWalletSet } from '@/lib/team/server';
 import { fundedByTeam } from '@/lib/team/wallets';
 import { isLifecycleDemo } from '@/lib/agent/credited-history';
@@ -64,8 +66,8 @@ function specimenFor(entry: SearchableAgent, row: FindRow): Specimen {
     },
     {
       id: 'price',
-      label: 'Signed price',
-      result: row.priceU !== null ? `${row.priceLabel}, signed by its wallet` : 'Has not signed a price',
+      label: row.priceU !== null && !row.priceFresh ? 'Last signed escrow quote' : 'Escrow quote',
+      result: row.priceU !== null ? `${row.priceLabel}, signed by its wallet` : 'Has not signed a quote',
       tone: row.priceU !== null ? 'ok' : 'none',
     },
     {
@@ -144,10 +146,10 @@ export interface HomeData {
    * Jobs outside buyers funded; Pokter's own test hires are counted apart in
    * `teamCompleted`. `completedMainnet` is the part paid in real $U.
    */
-  activity: { completedJobs: number; answeredJobs: number; demoJobs: number; selfHireJobs: number; completedMainnet: number; teamCompleted: number; indexedJobs: number; activeJobs: number };
+  activity: { completedJobs: number; answeredJobs: number; demoJobs: number; selfHireJobs: number; courierJobs: number; completedMainnet: number; teamCompleted: number; indexedJobs: number; activeJobs: number };
   measured: { monitored: number; answering: number };
   /** The same counts Discover's collections show, so the two never disagree. */
-  catalogue: { hireable: number; priced: number };
+  catalogue: { hireable: number; priced: number; pricedInCategories: number };
 }
 
 export async function loadHome(): Promise<HomeData> {
@@ -165,7 +167,8 @@ export async function loadHome(): Promise<HomeData> {
     // it is not featured as hireable now.
     // An agent that lets paid jobs lapse is not featured either, however well
     // it answers probes.
-    .filter((entry) => isFeaturableAgent(entry.listing.agent) && entry.listing.requiresAuth !== true && !letsJobsLapse(entry))
+    // Nor one outside the five categories: featuring it would imply Pokter evaluated work it does not evaluate.
+    .filter((entry) => isFeaturableAgent(entry.listing.agent) && entry.listing.requiresAuth !== true && !letsJobsLapse(entry) && entry.listing.category !== 'unclassified')
     .map((entry) => byKey.get(`${entry.listing.agent.chain_id}:${entry.listing.agent.token_id}`)!)
     .filter((row) => row.hirable)
     // A signed price first: a row reading "No signed price" asks the buyer to
@@ -215,7 +218,11 @@ export async function loadHome(): Promise<HomeData> {
   const completedOutside = buyerJobs.filter((job) => job.status === 'COMPLETED');
   const demos = completedOutside.filter((job) => isLifecycleDemo(job)).length;
   const selfHires = completedOutside.filter((job) => !isLifecycleDemo(job) && isSelfHire(job)).length;
-  const answered = completedOutside.length - demos - selfHires;
+  /* The agent's answer, but paid to Pokter's courier: the same rule as Discover and the proof page. */
+  const carried = completedOutside.filter((job) => !isLifecycleDemo(job) && !isSelfHire(job));
+  const paidToCourier = await courierPaidTest(carried, team, registeredWalletRead);
+  const courier = carried.filter(paidToCourier).length;
+  const answered = completedOutside.length - demos - selfHires - courier;
   const mainnetJobs = summarizeMarketplaceActivity(buyerJobs.filter((job) => job.chainId === 56));
   const teamJobs = summarizeMarketplaceActivity(allJobs.filter((job) => fundedByTeam(job, team)));
 
@@ -225,7 +232,7 @@ export async function loadHome(): Promise<HomeData> {
     specimens: chooseSpecimens(entries, rows),
     featured,
     outcomes,
-    activity: { completedJobs: jobs.completedJobs, answeredJobs: answered, demoJobs: demos, selfHireJobs: selfHires, completedMainnet: mainnetJobs.completedJobs, teamCompleted: teamJobs.completedJobs, indexedJobs: jobs.indexedJobs, activeJobs: jobs.activeJobs },
+    activity: { completedJobs: jobs.completedJobs, answeredJobs: answered, demoJobs: demos, selfHireJobs: selfHires, courierJobs: courier, completedMainnet: mainnetJobs.completedJobs, teamCompleted: teamJobs.completedJobs, indexedJobs: jobs.indexedJobs, activeJobs: jobs.activeJobs },
     measured: { monitored: stats?.agentsMonitored ?? 0, answering: stats?.agentsAnswering ?? 0 },
     // The same figures Discover and the methodology census show.
     catalogue: catalogueCounts(entries),

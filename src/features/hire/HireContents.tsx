@@ -5,10 +5,15 @@ import { hireTaskFromRequest, type ProposalForHire } from '@/lib/briefs/model';
 import { getBriefStore } from '@/lib/briefs/store';
 import { isCampaignLive } from '@/lib/campaign/window';
 import { jobChainParam } from '@/lib/jobs/href';
+import { requestToken } from '@/lib/network/tokens';
+import { getJobStore } from '@/lib/erc8183/store';
+import { currencyEvidence } from '@/lib/hire/currency-choice';
 import { loadProfile } from '@/features/agent/profile';
 import { deliversItself } from '@/features/hire/delivery';
 import { HireNetworks, type HireNetwork } from '@/features/hire/HireNetworks';
+import { withHandovers } from '@/features/hire/handover';
 import { ownRegistration } from '@/lib/agents/own-registration';
+import { enabledEscrowChains } from '@/lib/network/escrow';
 import type { ChainId } from '@/lib/scan/types';
 import { LinkButton } from '@/ui/Button';
 import { EmptyState } from '@/ui/Feedback';
@@ -27,6 +32,7 @@ export async function HireContents({
   tokenId,
   escrow,
   initialTask,
+  initialCurrency = null,
   proposalId,
   embedded = false,
 }: {
@@ -34,6 +40,8 @@ export async function HireContents({
   tokenId: string;
   escrow?: string;
   initialTask: string | null;
+  /** A currency to ask the agent to price in, from the link (`?pay=`); ignored unless offered on the escrow chain. */
+  initialCurrency?: string | null;
   /** A proposal chosen on a request (`?proposal=`); ignored unless it is the chosen one, for this agent. */
   proposalId?: string;
   /** Inside the sheet, where the sheet already draws the chrome. */
@@ -55,7 +63,7 @@ export async function HireContents({
   if (!p.hireable) {
     return (
       <EmptyState
-        title={`${p.name} cannot be hired through Pokter`}
+        title={`${p.name} cannot be hired through escrow on Pokter`}
         action={
           <>
             <LinkButton href={`/agents/${chainId}/${tokenId}`} size="s" intent="secondary">Back to the agent</LinkButton>
@@ -80,6 +88,8 @@ export async function HireContents({
       .filter((option) => option !== p.escrow.chainId)
       .map((option) => loadProfile(chainId as ChainId, tokenId, { escrow: option })),
   );
+  /* Every job funded through Pokter for this agent, once; each network reads its own chain's. */
+  const agentJobs = getJobStore().byAgent(chainId, tokenId);
   const networks = [p, ...others.flatMap((r) => (r.state === 'ok' && r.profile.escrow.chainId !== p.escrow.chainId ? [r.profile] : []))]
     .sort((a, b) => p.escrowOptions.indexOf(a.escrow.chainId) - p.escrowOptions.indexOf(b.escrow.chainId))
     .map((profile) => ({
@@ -88,6 +98,13 @@ export async function HireContents({
       providers: profile.providers,
       signedQuoteU: profile.quote && profile.quote.current && profile.quote.payable !== false ? profile.quote.priceU : null,
       lastSignedU: profile.quote && !profile.quote.current && profile.quote.payable !== false ? profile.quote.priceU : null,
+      quoteCurrency: profile.quote?.currency ?? null,
+      /* What Pokter has seen this agent price or be funded in, on this escrow chain only. */
+      currencyEvidence: currencyEvidence({
+        escrowChainId: profile.escrow.chainId,
+        quote: profile.quote ? { currency: profile.quote.currency, settlementChainId: profile.quote.settlementChainId } : null,
+        jobs: agentJobs,
+      }),
       suggestedU: profile.suggestion?.u ?? null,
       warnings: profile.warnings,
     }));
@@ -111,11 +128,17 @@ export async function HireContents({
     redirect(`/hire/${opening.chainId}/${opening.tokenId}?escrow=${p.escrow.chainId}${task ? `&task=${encodeURIComponent(task)}` : ''}`);
   }
 
+  /* The way back to every other network where this agent has its own registration (`withHandovers`). */
+  const offered = new Set(withHandoffs.map((n) => n.chainId));
+  const elsewhere = enabledEscrowChains().filter((option) => !offered.has(option));
+  const twins = await Promise.all(elsewhere.map(async (on) => ({ on, twin: await ownRegistration(on, p.owner, p.name, chainId, tokenId).catch(() => null) })));
+  const allNetworks = withHandovers(withHandoffs, twins);
+
   const fromRequest = chosenProposal(proposalId, chainId, tokenId);
 
   return (
     <HireNetworks
-      networks={withHandoffs}
+      networks={allNetworks}
       initialChainId={p.escrow.chainId}
       embedded={embedded}
       agent={{ chainId: p.chainId, tokenId: p.tokenId, name: p.name, category: p.category?.id ?? 'unclassified', wallet: p.agentWallet, imageUrl: p.imageUrl, key: p.key }}
@@ -123,6 +146,7 @@ export async function HireContents({
       answeredTasks={answeredTasksFor(p.agentWallet)}
       campaignLive={isCampaignLive()}
       initialTask={initialTask ?? fromRequest?.task ?? null}
+      initialCurrency={initialCurrency}
       proposal={fromRequest?.proposal ?? null}
     />
   );
@@ -140,8 +164,24 @@ function chosenProposal(id: string | undefined, chainId: number, tokenId: string
   if (!bid || bid.agentChainId !== chainId || bid.agentTokenId !== tokenId) return null;
   const request = store.get(bid.briefId);
   if (!request || request.awardedBidId !== bid.id) return null;
+  /*
+   * The proposal's money, resolved once here: its own token, else its
+   * request's, else (rows from before either carried one) the chain's $U.
+   * A token Pokter cannot name drops the proposal rather than letting the
+   * hire assume one — the hire then runs without a price to hold it to.
+   */
+  const token = requestToken(request.chainId, bid.paymentToken ?? request.paymentToken);
+  if (!token) return null;
   return {
-    proposal: { requestId: request.id, requestTitle: request.title, priceU: bid.priceU, deliverDays: bid.deliverDays, chainId: request.chainId },
+    proposal: {
+      requestId: request.id,
+      requestTitle: request.title,
+      priceU: bid.priceU,
+      priceRaw: bid.priceRaw,
+      paymentToken: token.address,
+      deliverDays: bid.deliverDays,
+      chainId: request.chainId,
+    },
     task: hireTaskFromRequest(request),
   };
 }
@@ -150,6 +190,8 @@ function chosenProposal(id: string | undefined, chainId: number, tokenId: string
 export function briefFromLink(task: string | undefined): string | null {
   return typeof task === 'string' && task.trim() ? task.trim().slice(0, 2000) : null;
 }
+
+export { currencyFromLink } from './currency-link';
 
 /**
  * The agent's name for the sheet's title, read from the same profile the

@@ -1,6 +1,7 @@
 'use client';
 
 import type { RequestMatch } from './matching';
+import { amountText, requestUnit } from './model';
 
 const KEY = 'pokter.request-alerts.v1';
 const EVENT = 'pokter:request-alerts-changed';
@@ -61,11 +62,11 @@ export function subscribeToRequestAlerts(listener: () => void): () => void {
 /** The wording of one alert: what was asked, for how much, and which of your agents fits. */
 export function alertCopy(match: RequestMatch): { title: string; body: string } {
   const { request, agents } = match;
-  const unit = request.chainId === 97 ? 'test $U' : '$U';
   const fits = agents.length === 1 ? `${agents[0].name} fits` : `${agents[0].name} and ${agents.length - 1} more of your agents fit`;
+  /* In the request's own money, marked when it is test money: "2.00 USDT", "0.10 test $U". */
   return {
     title: 'A request your agent could answer',
-    body: `“${request.title}” · up to ${request.budgetU.toFixed(2)} ${unit}. ${fits} its category.`,
+    body: `“${request.title}” · up to ${amountText(request.budgetU)} ${requestUnit(request)}. ${fits} its category.`,
   };
 }
 

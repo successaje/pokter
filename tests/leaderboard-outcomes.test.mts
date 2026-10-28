@@ -112,10 +112,10 @@ test('a settled job delivered by Pokter’s courier is not the agent’s evidenc
  * settled job with delivery evidence, and this assertion is the inverse of
  * what it used to make.
  *
- * It credited the agent, and that was wrong on the one figure a buyer scans.
- * Jobs 97/1586 and 97/1587 carry `producer: "Pokter delivery agent
- * (courier)"`; Sluicegate and Keel each showed a single settled job whose
- * whole record was that, with nothing on the row saying so.
+ * It credited the agent, and that was wrong on the one figure a buyer scans:
+ * a courier delivery carries `producer: "Pokter delivery agent (courier)"`,
+ * and an agent whose only settled job was one showed it with nothing on the
+ * row saying so.
  * `economic-history.ts` refuses the same substitution and gives the reason —
  * a relayed delivery is Pokter's whatever address submitted it.
  *

@@ -1,5 +1,6 @@
 import { formatUnits } from 'viem';
 
+import { defaultHireToken } from '@/lib/network/tokens';
 import { apiJson, apiOptions, apiRateLimit } from '@/lib/api/respond';
 import { summarizeMarketplaceActivity } from '@/lib/erc8183/activity-stats';
 import { getJobStore } from '@/lib/erc8183/store';
@@ -15,15 +16,25 @@ export function OPTIONS() {
   return apiOptions();
 }
 
-function summary(jobs: ReturnType<ReturnType<typeof getJobStore>['all']>) {
+function summary(chainId: number, jobs: ReturnType<ReturnType<typeof getJobStore>['all']>) {
   const stats = summarizeMarketplaceActivity(jobs);
+  /* $U's scale from the registry, not a literal: `amountU` is the $U figure on this chain. */
+  const u = defaultHireToken(chainId);
+  const amountU = (raw: string) => (u ? formatUnits(BigInt(raw), u.decimals) : null);
   return {
     indexedJobs: stats.indexedJobs,
     activeJobs: stats.activeJobs,
     completedJobs: stats.completedJobs,
     byStatus: stats.byStatus,
-    indexedValue: { raw: stats.indexedValueRaw, amountU: formatUnits(BigInt(stats.indexedValueRaw), 18) },
-    completedValue: { raw: stats.completedValueRaw, amountU: formatUnits(BigInt(stats.completedValueRaw), 18) },
+    indexedValue: { raw: stats.indexedValueRaw, amountU: amountU(stats.indexedValueRaw) },
+    completedValue: { raw: stats.completedValueRaw, amountU: amountU(stats.completedValueRaw) },
+    /*
+     * The two values above are $U only. Every token's own figure, always:
+     * gating it on the hire-token flag meant a rollback that turned USDT
+     * hiring off would hide the funded USDT jobs that already exist, which
+     * is exactly when a reader needs to see them.
+     */
+    valueByToken: stats.valueByToken,
     lastCheckedAt: stats.lastCheckedAt,
   };
 }
@@ -51,15 +62,15 @@ export function GET(request: Request) {
       name: ALTANA_NETWORK.chain.name,
       testnet: IS_TESTNET,
     },
-    activity: summary(all.filter((job) => job.chainId === ALTANA_NETWORK.chainId)),
-    buyers: summary(buyers.filter((job) => job.chainId === ALTANA_NETWORK.chainId)),
+    activity: summary(ALTANA_NETWORK.chainId, all.filter((job) => job.chainId === ALTANA_NETWORK.chainId)),
+    buyers: summary(ALTANA_NETWORK.chainId, buyers.filter((job) => job.chainId === ALTANA_NETWORK.chainId)),
     teamWallets: teamWalletList(),
     byChain: chains.map((chainId) => ({
       chainId,
       name: chainLabel(chainId),
       testnet: chainId === 97,
-      activity: summary(all.filter((job) => job.chainId === chainId)),
-      buyers: summary(buyers.filter((job) => job.chainId === chainId)),
+      activity: summary(chainId, all.filter((job) => job.chainId === chainId)),
+      buyers: summary(chainId, buyers.filter((job) => job.chainId === chainId)),
     })),
     scope: 'Jobs commissioned through Pokter and verified against ERC-8183. `buyers` excludes jobs funded by the wallets in `teamWallets`, which are Pokter\'s own and published on purpose; no other wallet address, task text or email is returned.',
   });

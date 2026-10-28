@@ -9,10 +9,16 @@ primary_region = 'iad'
     NEXT_PUBLIC_APP_URL = 'https://pokter.xyz'
     NEXT_PUBLIC_PASSKEY_RP_ID = 'pokter.xyz'
     NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID = 'd8f9d3b75a1facd7447f8440becd4093'
-    # Hires of agents that sign a price in mainnet $U are funded on the BNB
-    # Chain escrow, with real money; everything else stays on testnet.
-    # Remove to return to testnet only. See src/lib/network/escrow.ts.
+    # Hires of agents that sign a price in a token offered on BNB Chain ($U,
+    # and those in NEXT_PUBLIC_HIRE_TOKENS) are funded on the BNB Chain escrow,
+    # with real money; everything else stays on testnet. Remove 56 to return
+    # to testnet only. See src/lib/network/escrow.ts.
     NEXT_PUBLIC_ESCROW_CHAINS = '97,56'
+    # New currencies for hires on BNB Chain, enabled one at a time for the
+    # owner-led test session (docs/release/test-session.md). Public while on.
+    # Remove a pair and redeploy to stop new hires in it; funded jobs keep
+    # their token, settlement and recovery.
+    NEXT_PUBLIC_HIRE_TOKENS = '56:0x55d398326f99059fF775485246999027B3197955,56:0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d,56:0x8d0D000Ee44948FC98c9B98A4FA4921476f08B0d,97:0x337610d27c682E347C9cD60BD4b3b107C9d34dDd'
 
 [env]
   PORT = '8080'

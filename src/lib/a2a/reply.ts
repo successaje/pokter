@@ -19,6 +19,18 @@ export interface A2AReply {
   taskId: string | null;
   /** The first non-empty data part of the result. */
   data: Record<string, unknown> | null;
+  /**
+   * Every non-empty data part of the result, in order. Keeping only the
+   * first lost a quote an agent sent as its second part, after a summary.
+   */
+  dataParts: Record<string, unknown>[];
+  /**
+   * For a task: the data parts of its status message, whatever its state.
+   * An input-required task says what it needs here, and a seller on BNB's
+   * SDK can put its refusal (`response.accepted: false`, `response.reason`)
+   * here; reading only a completed task's content dropped both.
+   */
+  statusData: Record<string, unknown>[];
   /** Text of the result. */
   texts: string[];
   /** For a task: what its status message says (progress, the input it wants, why it failed). */
@@ -35,35 +47,37 @@ function partsOf(source: Record<string, unknown> | null): unknown[] {
   return source && Array.isArray(source.parts) ? source.parts : [];
 }
 
-function collect(parts: unknown[]): { data: Record<string, unknown> | null; texts: string[] } {
-  let data: Record<string, unknown> | null = null;
+function collect(parts: unknown[]): { data: Record<string, unknown> | null; dataParts: Record<string, unknown>[]; texts: string[] } {
+  const dataParts: Record<string, unknown>[] = [];
   const texts: string[] = [];
   for (const entry of parts) {
     const part = object(entry);
     if (!part) continue;
     if (typeof part.text === 'string' && part.text.trim()) texts.push(part.text.trim());
     const candidate = object(part.data);
-    if (!data && candidate && Object.keys(candidate).length > 0) data = candidate;
+    if (candidate && Object.keys(candidate).length > 0) dataParts.push(candidate);
   }
-  return { data, texts };
+  return { data: dataParts[0] ?? null, dataParts, texts };
 }
+
+const NONE: A2AReply = { kind: 'none', state: 'unknown', taskId: null, data: null, dataParts: [], statusData: [], texts: [], statusText: null };
 
 export function readA2AReply(payload: unknown): A2AReply {
   const root = object(payload);
-  if (!root) return { kind: 'none', state: 'unknown', taskId: null, data: null, texts: [], statusText: null };
+  if (!root) return NONE;
   if (root.error) {
     const message = object(root.error)?.message;
-    return { kind: 'error', state: 'failed', taskId: null, data: null, texts: [], statusText: typeof message === 'string' ? message : null };
+    return { ...NONE, kind: 'error', state: 'failed', statusText: typeof message === 'string' ? message : null };
   }
   const result = object(root.result);
-  if (!result) return { kind: 'none', state: 'unknown', taskId: null, data: null, texts: [], statusText: null };
+  if (!result) return NONE;
 
   const status = object(result.status);
   const isTask = result.kind === 'task' || (status !== null && typeof status.state === 'string');
   if (!isTask) {
     // A Message is the agent's final word.
-    const { data, texts } = collect(partsOf(result));
-    return { kind: 'message', state: 'completed', taskId: null, data, texts, statusText: null };
+    const { data, dataParts, texts } = collect(partsOf(result));
+    return { kind: 'message', state: 'completed', taskId: null, data, dataParts, statusData: [], texts, statusText: null };
   }
 
   const raw = typeof status?.state === 'string' ? status.state.toLowerCase() : '';
@@ -72,12 +86,14 @@ export function readA2AReply(payload: unknown): A2AReply {
   const artifactParts = (Array.isArray(result.artifacts) ? result.artifacts : []).flatMap((artifact) => partsOf(object(artifact)));
   const fromArtifacts = collect(artifactParts);
   // A completed task's result is its artifacts; the status message is the fallback.
-  const content = state === 'completed' && (fromArtifacts.data || fromArtifacts.texts.length) ? fromArtifacts : state === 'completed' ? statusParts : { data: null, texts: [] };
+  const content = state === 'completed' && (fromArtifacts.data || fromArtifacts.texts.length) ? fromArtifacts : state === 'completed' ? statusParts : { data: null, dataParts: [], texts: [] };
   return {
     kind: 'task',
     state,
     taskId: typeof result.id === 'string' ? result.id : null,
     data: content.data,
+    dataParts: content.dataParts,
+    statusData: statusParts.dataParts,
     texts: content.texts,
     statusText: statusParts.texts.join(' ') || null,
   };

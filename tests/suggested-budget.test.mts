@@ -9,8 +9,10 @@ import {
   suggestionsByCategory,
 } from '../src/lib/find/suggested';
 
+/* Mainnet $U: suggestions are medians of $U prices only (see discovery-tokens.test). */
+const U = '0xcE24439F2D9C6a2289F741120FE202248B666666';
 const priced = (category: string, ...prices: number[]) =>
-  prices.map((priceU) => ({ category, priceU }));
+  prices.map((priceU) => ({ category, priceU, currency: U }));
 
 test('a category with enough signed prices uses its own median', () => {
   const s = suggestionsByCategory(priced('rebalancing', 0.1, 0.1, 0.1, 0.5));
@@ -40,9 +42,9 @@ test('medians are rounded to a figure a person would type', () => {
 test('prices that cannot be paid are not evidence of anything', () => {
   const s = suggestionsByCategory([
     ...priced('x', 0.1, 0.1, 0.1),
-    { category: 'x', priceU: 0 },
-    { category: 'x', priceU: Number.NaN },
-    { category: 'x', priceU: -1 },
+    { category: 'x', priceU: 0, currency: U },
+    { category: 'x', priceU: Number.NaN, currency: U },
+    { category: 'x', priceU: -1, currency: U },
   ]);
   assert.equal(s.get('x')!.sample, 3);
 });

@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getAddress, isAddress, isHex, type Address, type Hex } from 'viem';
 
-import { acceptsProposals, bidMessage, readBidContent, staleProposal, withinBudget, type Bid } from '@/lib/briefs/model';
+import { acceptsProposals, bidMessage, parseBidContent, requestAmountLabel, requestTokenOf, staleProposal, withinBudget, type Bid } from '@/lib/briefs/model';
+import { displaySymbol } from '@/lib/network/tokens';
 import { getBriefStore } from '@/lib/briefs/store';
 import { registryOwner } from '@/lib/registry/onchain';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
@@ -42,14 +43,21 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const bidder = String(body.bidder ?? '');
   const signature = String(body.signature ?? '');
   const placedAt = String(body.placedAt ?? '');
-  const content = readBidContent(body.content);
-  if (!isAddress(bidder) || !isHex(signature) || !content || Number.isNaN(Date.parse(placedAt))) {
+  /* Read against the request: its price must be in the request's token, within one hire's limits in it. */
+  const read = parseBidContent(body.content, brief);
+  if (!read.ok) return NextResponse.json({ error: read.error }, { status: 400 });
+  const content = read.content;
+  if (!isAddress(bidder) || !isHex(signature) || Number.isNaN(Date.parse(placedAt))) {
     return NextResponse.json({ error: 'The bid payload is invalid.' }, { status: 400 });
   }
   const stale = staleProposal(placedAt, Date.now(), getBriefStore().bidFor(id, content.agentChainId, content.agentTokenId));
   if (stale) return NextResponse.json({ error: stale }, { status: 409 });
-  if (!withinBudget(content.priceU, brief.budgetU)) {
-    return NextResponse.json({ error: `The price is above this request's budget of ${brief.budgetU} $U.` }, { status: 422 });
+  if (!withinBudget(content, brief)) {
+    const token = requestTokenOf(brief);
+    return NextResponse.json(
+      { error: `The price is above this request's budget of ${requestAmountLabel(brief, brief.budgetU)}${token ? ` (${displaySymbol(token)} at ${token.address} on chain ${brief.chainId})` : ''}.` },
+      { status: 422 },
+    );
   }
 
   const owner = await registryOwner(content.agentChainId, content.agentTokenId);
@@ -78,7 +86,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     );
   }
 
-  const message = bidMessage({ ...content, briefId: id, bidder, placedAt });
+  /* On the request's chain: that is the network the price, and so its token, is funded on. */
+  const message = bidMessage({ ...content, chainId: brief.chainId, briefId: id, bidder, placedAt });
   if (!(await signedByWallet(content.agentChainId, bidder as Address, message, signature as Hex))) {
     return NextResponse.json({ error: 'That signature does not match this bid.' }, { status: 403 });
   }

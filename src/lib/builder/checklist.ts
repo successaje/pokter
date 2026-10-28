@@ -26,14 +26,16 @@ export interface ChecklistInput {
   endpoint: { checked: boolean; ok: boolean; detail: string | null; status: number | null; error?: string | null };
   /** Skills the endpoint's card declares. */
   capabilities: string[];
-  /** Whether the card declares a negotiation skill a quote can be asked of. */
+  /** Whether the card declares a negotiation skill a quote can be asked of (`isNegotiationSkill`). */
   quoteCapability: boolean;
+  /** A skill named for pricing that Pokter does not ask, such as `get_quote`, when there is no negotiate skill. */
+  priceLikeSkill?: string | null;
   trial: { ran: boolean; ok: boolean; summary: string | null; error: string | null };
 }
 
 const KIT = '/build/integration';
 const fix = (anchor: string, label: string) => ({ label, href: `${KIT}#${anchor}` });
-/* The same rule the preflight route uses to decide a card can quote. */
+/* Skills about pricing rather than work, left out of "skills a buyer can hire". Whether one can be asked for a quote is `isNegotiationSkill`, which is narrower. */
 const QUOTE_SKILL = /(?:negotiate|quote|price)/i;
 
 export function builderChecklist(input: ChecklistInput): ChecklistStage[] {
@@ -66,7 +68,9 @@ export function builderChecklist(input: ChecklistInput): ChecklistStage[] {
     ? { id: 'price', label: 'Signed price', status: 'todo', detail: 'Read from the endpoint once it answers.', fix: null }
     : input.quoteCapability
       ? { id: 'price', label: 'Signed price', status: 'after-publish', detail: 'It declares a negotiation skill. Pokter asks it for a signed price after you publish, because a quote is bound to a registered identity.', fix: null }
-      : { id: 'price', label: 'Signed price', status: 'failed', detail: 'It declares no negotiation skill, so it cannot sign a price for a buyer’s brief. Buyers can then only reach it on a budget they set, which it may decline.', fix: fix('quote', 'Add a quote skill') };
+      : input.priceLikeSkill
+        ? { id: 'price', label: 'Signed price', status: 'failed', detail: `It declares “${input.priceLikeSkill}”, but Pokter asks for a price only through a skill with the id negotiate (or negotiate-…). Rename it, or add one, so buyers’ briefs reach it.`, fix: fix('quote', 'Name the quote skill negotiate') }
+        : { id: 'price', label: 'Signed price', status: 'failed', detail: 'It declares no negotiation skill, so it cannot sign a price for a buyer’s brief. Buyers can then only reach it on a budget they set, which it may decline.', fix: fix('quote', 'Add a quote skill') };
 
   const testDelivery: ChecklistStage = !input.trial.ran
     ? { id: 'test-delivery', label: 'Test delivery', status: 'optional', detail: 'Optional: run one free preview to see what a buyer would receive.', fix: null }

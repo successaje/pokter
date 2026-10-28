@@ -4,7 +4,9 @@ import test from 'node:test';
 import { hireForProposal } from '../src/lib/briefs/hired';
 
 const poster = '0xAbC0000000000000000000000000000000000001';
-const want = { poster, chainId: 97, agentChainId: 97, agentTokenId: '2554', placedAt: '2026-10-20T10:00:00Z' };
+/* Testnet $U, and a price of 1 $U: the job below is that money, for less. */
+const TEST_U = '0xc70B8741B8B07A6d61E54fd4B20f22Fa648E5565';
+const want = { poster, chainId: 97, agentChainId: 97, agentTokenId: '2554', placedAt: '2026-10-20T10:00:00Z', paymentToken: TEST_U, priceRaw: '1000000000000000000' };
 const job = (over: Partial<Parameters<typeof hireForProposal>[0][number]> = {}) => ({
   jobId: '1600',
   chainId: 97,
@@ -13,6 +15,8 @@ const job = (over: Partial<Parameters<typeof hireForProposal>[0][number]> = {}) 
   client: poster.toLowerCase(),
   hiredAt: '2026-10-21T09:00:00Z',
   status: 'FUNDED' as const,
+  paymentToken: TEST_U as string | null,
+  budgetRaw: '1000000000000000000',
   ...over,
 });
 

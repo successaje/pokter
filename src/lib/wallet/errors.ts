@@ -40,6 +40,18 @@ function rpcDetail(error: unknown): string | null {
   return detail || null;
 }
 
+/** The steps that can fail on chain, as a buyer or seller would name them. */
+const FAILED_STEP: Record<string, string> = {
+  CREATING: 'the transaction that creates the job',
+  REGISTERING: 'the transaction that registers the job with the escrow’s policy',
+  BUDGETING: 'the transaction that sets the job’s budget',
+  APPROVING: 'the approval that lets the escrow take the payment',
+  FUNDING: 'the transaction that funds the escrow',
+  SUBMIT: 'the delivery transaction',
+  REVOKE: 'the transaction that revokes the approval',
+  BATCH: 'the batched transaction',
+};
+
 export function walletActionError(error: unknown, action: string): string {
   const candidate = error as { shortMessage?: unknown; message?: unknown };
   const raw =
@@ -92,12 +104,58 @@ export function walletActionError(error: unknown, action: string): string {
   }
 
   /*
+   * The wallet stopped answering Pokter's quick checks after it announced a
+   * change of network or account, so Pokter cannot tell where it is and
+   * does not send the next step blind.
+   */
+  if (/WALLET_NOT_RESPONDING/.test(message)) {
+    return `${action} paused: your wallet stopped answering after it changed network or account. Open your wallet, check it is on the right network and account, then continue. Anything already sent is kept, and the job carries on from the step where it stopped.`;
+  }
+
+  /*
+   * A step that reached the chain and failed there.
+   *
+   * These are single tokens ("CREATING_OUT_OF_GAS", "FUNDING_REVERTED"),
+   * which would otherwise fall through to the generic "no reason we can
+   * translate". Each says which transaction failed, how, and that it alone
+   * was undone; earlier steps that succeeded are not claimed undone.
+   */
+  const failed = /\b([A-Z]+)_(OUT_OF_GAS|REVERTED)\b/.exec(message);
+  const what = failed ? FAILED_STEP[failed[1]] : undefined;
+  if (failed && what) {
+    return failed[2] === 'OUT_OF_GAS'
+      ? `${action} stopped: ${what} ran out of gas, so the network undid it. That transaction changed nothing, and only its network fee was spent. Try again.`
+      : `${action} stopped: the contract refused ${what}, so the network undid it. That transaction changed nothing, and only its network fee was spent. Try again, and if it is refused again, reload the page: the price or the job may have changed.`;
+  }
+
+  /*
    * The wallet returned a hash and the network never saw the
    * transaction. Distinguished from a slow confirmation because the two
    * call for opposite responses: wait, or try again.
    */
   if (/SUBMIT_NOT_BROADCAST/.test(message)) {
     return `${action} was signed, but the network has no record of the transaction — it was never broadcast. Nothing was sent and no fee was paid. Try again.`;
+  }
+
+  /*
+   * A USDT hire: the swap only buys $U, so it is never offered, and the
+   * shortfall is said before anything is signed.
+   */
+  if (/INSUFFICIENT_HIRE_TOKEN/.test(message)) {
+    return `${action} needs the full signed price in USDT, and this wallet holds less. Nothing was signed or sent. Add USDT to this wallet and try again; Pokter does not swap into USDT.`;
+  }
+
+  if (/TOKEN_HIRE_NEEDS_SIGNED_QUOTE/.test(message)) {
+    return `${action} in USDT needs the agent's signed price, and there is none for this brief. Nothing was sent.`;
+  }
+
+  /*
+   * Funded, and the escrow did not confirm the job is bound to the token the
+   * seller signed (or could not be read). Not called a success, and not
+   * retried: retrying could fund a second job.
+   */
+  if (/FUNDED_JOB_TOKEN_VERIFICATION_FAILED/.test(message)) {
+    return `${action} was sent, but Pokter could not confirm the job is held in the token the agent priced. Do not fund it again: open the job on the explorer and check its payment token first.`;
   }
 
   if (/INSUFFICIENT_PAYMENT_TOKEN/.test(message)) {

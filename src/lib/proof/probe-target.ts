@@ -77,3 +77,27 @@ export function probeTarget(
 export function probeIsEvidence(probe: { ok: boolean }, signal?: AbortSignal | null): boolean {
   return !(signal?.aborted && !probe.ok);
 }
+
+/**
+ * What a failed answer's HTTP status says about whether the endpoint can be
+ * called at all: 401 and 403 need credentials Pokter does not have, and an
+ * MCP address that refuses an MCP request with 405 is not an MCP endpoint.
+ * Anything else (404, a 5xx, a timeout) may change, and says nothing here.
+ */
+export function uncallableStatus(status: number | null, protocol: 'a2a' | 'mcp'): 'credentials' | 'not-an-agent-endpoint' | undefined {
+  if (status === 401 || status === 403) return 'credentials';
+  if (protocol === 'mcp' && status === 405) return 'not-an-agent-endpoint';
+  return undefined;
+}
+
+/**
+ * Whether a JSON answer that is no agent card is a listing still waiting for
+ * its agent. Some agent platforms publish a listing record at the declared
+ * address before the owner binds an agent to it: `status: "UNBOUND"` and no
+ * endpoint. Binding one changes that, so it is not the same as an address
+ * that is not an agent endpoint at all.
+ */
+export function awaitsAgent(body: Record<string, unknown>): boolean {
+  const endpoint = body.endpoint;
+  return typeof body.status === 'string' && body.status.toUpperCase() === 'UNBOUND' && (endpoint === null || endpoint === undefined || endpoint === '');
+}

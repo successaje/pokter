@@ -1,6 +1,6 @@
 import { getAddress, keccak256, toBytes, type Address } from 'viem';
 
-import { canonicalJson, quoteUsableForEscrow, verifyNegotiationSignature } from '@/lib/erc8183/negotiation';
+import { canonicalJson, quoteUsableForEscrow, verifyNegotiationSignature, type ContractSignatureCheck } from '@/lib/erc8183/negotiation';
 import { decodeReferenceJobDescription } from '@/lib/erc8183/job-envelope';
 
 /**
@@ -66,9 +66,16 @@ export interface ReferenceDeliveryInput {
   description: string;
   /** Read live from the kernel, never from the index. */
   job: { provider: Address; budget: bigint; expiredAt: bigint; statusName: string };
-  escrow: { chainId: number; commerce: string; paymentToken: string };
+  /**
+   * `paymentToken` is the token this job is bound to, read from the escrow's
+   * `jobPaymentToken` — not the deployment default, which a USDT job is not
+   * in. Null when that read failed: the delivery is declined, not assumed.
+   */
+  escrow: { chainId: number; commerce: string; paymentToken: string | null };
   /** The funding transaction's block timestamp, in ms. Null when unreadable. */
   fundedAtMs: number | null;
+  /** ERC-1271 for a provider wallet that is a smart account; supplied by the server caller (`contractSignatureCheck`). */
+  contractSignature?: ContractSignatureCheck;
   /** Pokter's own attribution for this job. The documented source of identity here. */
   indexed: { agentChainId: number | null; agentTokenId: string | null; agentName?: string | null } | null;
   /** The ERC-8004 record for that identity, for confirmation and category. */
@@ -115,6 +122,7 @@ export async function verifyReferenceDelivery(input: ReferenceDeliveryInput): Pr
       negotiationHash: String(claimedHash),
       providerSignature: String(providerSig),
       expectedProvider: input.job.provider,
+      contractSignature: input.contractSignature,
     });
   } catch (error) {
     return refuse('signature', (error as Error).message);
@@ -129,8 +137,11 @@ export async function verifyReferenceDelivery(input: ReferenceDeliveryInput): Pr
     return refuse('wrong-contract', `The quote names escrow ${domain.verifyingContract}, not this one.`);
   }
   const currency = typeof parsed.currency === 'string' ? parsed.currency : null;
+  if (input.escrow.paymentToken === null) {
+    return refuse('currency-mismatch', 'The token this job is funded in could not be read from the escrow, so it cannot be matched to the quote.');
+  }
   if (!currency || !sameAddress(currency, input.escrow.paymentToken)) {
-    return refuse('currency-mismatch', 'The quote is priced in a token this escrow does not settle.');
+    return refuse('currency-mismatch', 'The quote is priced in a different token from the one this job is funded in.');
   }
   if (reference.quote.priceRaw === undefined || BigInt(reference.quote.priceRaw) !== input.job.budget) {
     return refuse('budget-mismatch', `The quote is for ${reference.quote.priceRaw ?? 'no stated price'} and the job is funded with ${input.job.budget}.`);

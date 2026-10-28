@@ -6,6 +6,7 @@ import { Suspense } from 'react';
 import { isCampaignLive } from '@/lib/campaign/window';
 import { chainLabel } from '@/lib/network/presentation';
 import { loadAgentOps, loadFleet, studioOwner } from '@/features/studio/data';
+import type { TotalLine } from '@/features/workspace/totals';
 import { LatencyTrend, ProbeLog, WeeklyJobs } from '@/features/studio/OpsCharts';
 import { DeliveryInbox } from '@/features/studio/DeliveryInbox';
 import { Diagnostics, DiagnosticsSkeleton } from '@/features/studio/Diagnostics';
@@ -22,6 +23,8 @@ import { MaturityLabel, MaturityLadder } from '@/ui/Maturity';
 import { LaunchKit } from '@/features/studio/LaunchKit';
 import { ReadinessPanel } from '@/features/studio/ReadinessPanel';
 import { WalletRoles } from '@/features/studio/WalletRoles';
+import { approxTotalView } from '@/lib/money/approx-total';
+import { MoneyTotal } from '@/ui/MoneyTotal';
 import { CampaignGoal } from '@/features/studio/CampaignGoal';
 import { getAgent } from '@/lib/scan/client';
 import type { ChainId } from '@/lib/scan/types';
@@ -30,6 +33,21 @@ import { MIN_OUTCOME_BUYERS, MIN_OUTCOME_COMPLETIONS, MIN_OUTCOME_TERMINAL } fro
 export const dynamic = 'force-dynamic';
 // Personal or step-by-step builder pages: kept out of search, as they were under Studio.
 export const metadata: Metadata = { title: 'Manage agent', robots: { index: false } };
+
+/**
+ * Money over several chains and tokens as one figure, every exact amount
+ * behind it on hover or tap (`approxTotalView`): dollar stablecoins at $1
+ * each, test money and unread currencies listed apart and never added in.
+ */
+function moneyTotal(lines: TotalLine[]) {
+  const total = approxTotalView(lines);
+  return (
+    <span className="flex flex-col gap-0.5">
+      <MoneyTotal total={total} />
+      {total.caption && <span className="text-[12px] font-normal tracking-normal text-ink-3">{total.caption}</span>}
+    </span>
+  );
+}
 
 function Progress({ label, value, target, met, note }: { label: string; value: number; target: number; met: boolean; note?: string }) {
   return (
@@ -299,8 +317,9 @@ export default async function ManageAgent({ params }: { params: Promise<{ chainI
               Operations
             </h2>
             <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <Readout label="Released to you" value={`${ops.money.releasedU.toLocaleString('en-US', { maximumFractionDigits: 2 })} $U`} />
-              <Readout label="In escrow now" value={`${ops.money.escrowedU.toLocaleString('en-US', { maximumFractionDigits: 2 })} $U`} />
+              {/* One figure each, the exact amounts behind it; test money is never added to real money. */}
+              <Readout label="Released to you" value={moneyTotal(ops.money.released)} muted={!ops.money.released.length} />
+              <Readout label="In escrow now" value={moneyTotal(ops.money.escrowed)} muted={!ops.money.escrowed.length} />
               <Readout label="Expired or refunded" value={ops.money.refundedJobs} muted={!ops.money.refundedJobs} />
               <Readout label="Disputed jobs" value={ops.money.disputedJobs} muted={!ops.money.disputedJobs} />
             </dl>

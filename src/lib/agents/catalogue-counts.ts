@@ -11,10 +11,14 @@ import { offersDirectHire, type SearchableAgent } from '@/lib/search/match';
  * same catalogue read, and an agent registered on both chains by the same
  * owner counts once.
  */
-export function catalogueCounts(entries: SearchableAgent[]): { hireable: number; priced: number } {
+export function catalogueCounts(entries: SearchableAgent[]): { hireable: number; priced: number; pricedInCategories: number } {
   const promotable = entries.filter((entry) => isPromotableAgent(entry.listing.agent));
+  const priced = promotable.filter((entry) => entry.listing.quote != null);
   return {
     hireable: distinctAgentCount(promotable.filter((entry) => offersDirectHire(entry)).map((entry) => entry.listing.agent)),
-    priced: distinctAgentCount(promotable.filter((entry) => entry.listing.quote != null).map((entry) => entry.listing.agent)),
+    /* Every agent that has signed a price, in any work. */
+    priced: distinctAgentCount(priced.map((entry) => entry.listing.agent)),
+    /* Of those, the ones in the five categories Pokter evaluates; the rest are listed as unclassified. */
+    pricedInCategories: distinctAgentCount(priced.filter((entry) => entry.listing.category !== 'unclassified').map((entry) => entry.listing.agent)),
   };
 }

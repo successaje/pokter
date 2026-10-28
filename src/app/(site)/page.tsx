@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { CATEGORIES } from '@/lib/agents/categories';
 import { CAMPAIGN_END_LABEL, isCampaignLive } from '@/lib/campaign/window';
 import { ESCROW_NETWORKS_LABEL, escrowAvailabilityLine, IS_TESTNET, MAINNET_ESCROW } from '@/lib/network/presentation';
+import { moneyWords } from '@/lib/integration/currencies';
 import { loadHome } from '@/features/home/data';
 import { Inspection } from '@/features/home/Inspection';
 import { TaskSearch } from '@/features/home/TaskSearch';
@@ -72,21 +73,23 @@ export default async function HomePage() {
       scope: 'In the catalogue now',
       unit: 'agents · counted once each, both chains',
       rows: [
-        { label: 'Hireable now', value: home.catalogue.hireable },
+        { label: 'Hireable via escrow', value: home.catalogue.hireable },
         { label: 'Signed a price', value: home.catalogue.priced },
+        { label: 'Of those, in a category Pokter evaluates', value: home.catalogue.pricedInCategories },
       ],
-      note: 'Hireable means answering and fundable through escrow: at a signed price, or on testnet at a budget you set. An agent registered on both chains is counted once.',
+      note: 'Hireable means answering and fundable through escrow: at a signed price, or on testnet at a budget you set. An agent registered on both chains is counted once. Agents whose work fits none of the five categories are listed as unclassified: their price is signed, their work is not evaluated.',
     },
     {
       scope: 'Paid work',
       unit: 'jobs · settled through Pokter escrow',
       rows: [{ label: 'Paid jobs answered', value: home.activity.answeredJobs }],
-      note: `Settled with the agent\u2019s answer, from wallets outside Pokter\u2019s declared team${
-        home.activity.completedMainnet > 0 ? ` (${home.activity.completedMainnet} on BNB Chain in real $U, the rest on testnet)` : IS_TESTNET ? ', in test tokens' : ''
+      note: `Settled with the agent\u2019s answer and paid to the agent, from wallets outside Pokter\u2019s declared team${
+        home.activity.completedMainnet > 0 ? ` (${home.activity.completedMainnet} on BNB Chain in real ${moneyWords(56)}, the rest on testnet)` : IS_TESTNET ? ', in test tokens' : ''
       }. Jobs, not agents.${(() => {
         const left = [
           home.activity.demoJobs > 0 ? `${home.activity.demoJobs} lifecycle demo${home.activity.demoJobs === 1 ? '' : 's'}` : null,
           home.activity.selfHireJobs > 0 ? `${home.activity.selfHireJobs} self-hire${home.activity.selfHireJobs === 1 ? '' : 's'}` : null,
+          home.activity.courierJobs > 0 ? `${home.activity.courierJobs} delivered by Pokter\u2019s courier and paid to Pokter` : null,
           home.activity.teamCompleted > 0 ? `${home.activity.teamCompleted} team test hire${home.activity.teamCompleted === 1 ? '' : 's'}` : null,
         ].filter(Boolean);
         return left.length ? ` Not counted: ${left.join(', ')}.` : '';
@@ -198,7 +201,7 @@ export default async function HomePage() {
               {MAINNET_ESCROW ? (
                 <>
                   <span className="font-medium text-ink-2">Free</span> on BNB testnet, in test tokens, with Pokter&rsquo;s own agent doing the work.{' '}
-                  <span className="font-medium text-ink-2">Paid</span> on BNB Chain in real $U, where an agent has signed a price Pokter could verify.
+                  <span className="font-medium text-ink-2">Paid</span> on BNB Chain in real {moneyWords(56)}, where an agent has signed a price Pokter could verify.
                 </>
               ) : (
                 <>
@@ -229,7 +232,7 @@ export default async function HomePage() {
         <div className="frame flex flex-col gap-10">
           <Reveal className="flex flex-wrap items-end justify-between gap-6">
             <div className="flex max-w-xl flex-col gap-3">
-              <span className="t-label">Hireable now</span>
+              <span className="t-label">Hireable via escrow</span>
               <h2 id="featured-title" className="t-h1">Agents that answer, and can be paid.</h2>
               <p className="t-body text-ink-2">
                 Selected by rule, not by hand: answering Pokter&rsquo;s probes, payable through escrow, and at most one per operator. Agents that signed a price first, then by paid work actually delivered; none that let paid jobs lapse.
@@ -310,7 +313,9 @@ export default async function HomePage() {
         </Reveal>
         <div className="mt-8 flex flex-wrap items-center justify-between gap-4 text-sm">
           <p className="max-w-2xl text-ink-3">
-            {MAINNET_ESCROW ? 'Escrow runs on BNB Chain for agents priced in real $U, and on BNB testnet with test tokens otherwise.' : IS_TESTNET ? 'Escrow currently runs on BNB testnet with test tokens.' : 'Escrow runs on BNB Chain.'} Passkey wallets need no extension, and Pokter covers the network fee where it can.
+            {MAINNET_ESCROW ? `Escrow runs on BNB Chain for agents priced in real ${moneyWords(56)}, and on BNB testnet with test tokens otherwise.` : IS_TESTNET ? 'Escrow currently runs on BNB testnet with test tokens.' : 'Escrow runs on BNB Chain.'}{' '}
+            {/* Scoped like the connect sheet: a passkey wallet hires only on its own network, and the top-up is for a wallet that runs short. */}
+            {MAINNET_ESCROW && IS_TESTNET ? 'Passkey wallets need no extension and hire on testnet, where Pokter tops up their network fee if they run short.' : 'Passkey wallets need no extension, and Pokter tops up their network fee if they run short.'}
           </p>
           <Link href="/how-it-works" className="inline-flex items-center gap-1.5 font-medium hover:underline">
             The full walkthrough <Icon.Arrow size={15} />

@@ -13,6 +13,7 @@ import { adminSigner, ALTANA_NETWORK, altanaClient } from '@/lib/altana/client';
 import { decodePokterJobEnvelope } from './job-envelope';
 import { askAgentByIdentity } from './courier';
 import { verifyReferenceDelivery } from './reference-delivery';
+import { jobPaymentTokenOnChain } from './job-onchain';
 import { getJobStore } from '@/lib/erc8183/store';
 import { getAgent } from '@/lib/scan/client';
 import { classify } from '@/lib/agents/categories';
@@ -25,6 +26,7 @@ import {
   type StoredDeliverable,
 } from '@/lib/erc8183/deliverables';
 import { builtWithPokter } from '@/lib/brand/built-with';
+import { contractSignatureCheck } from './contract-signature';
 
 const inFlight = new Map<string, Promise<DemoDeliveryResult>>();
 let sellerAddressPromise: Promise<Address> | undefined;
@@ -46,6 +48,16 @@ export async function demoSellerAddress(): Promise<Address> {
       throw error;
     });
   return sellerAddressPromise;
+}
+
+
+/** The verifying contract a reference-format quote names, if any: the account a scoped smart-account signer answers to. */
+function signedVerifyingContract(description: string): unknown {
+  try {
+    return (JSON.parse(description) as { verifying_contract?: unknown }).verifying_contract;
+  } catch {
+    return undefined;
+  }
 }
 
 export async function isDemoSeller(address: string): Promise<boolean> {
@@ -273,8 +285,11 @@ async function referenceBrief(
   const verdict = await verifyReferenceDelivery({
     description: job.description,
     job: { provider: job.provider, budget: job.budget, expiredAt: job.expiredAt, statusName: job.statusName },
-    escrow: { chainId, commerce: addresses.commerce, paymentToken: addresses.paymentToken },
+    /* The job's own token from the escrow; a USDT job is not in the deployment default. */
+    escrow: { chainId, commerce: addresses.commerce, paymentToken: await jobPaymentTokenOnChain(chainId, jobId) },
     fundedAtMs: await fundingBlockTimestampMs(indexed?.hireTxHash ?? null),
+    /* A smart-account provider wallet answers for itself (ERC-1271), on the escrow's chain, as the quote check does. */
+    contractSignature: contractSignatureCheck(chainId, signedVerifyingContract(job.description)),
     indexed: indexed
       ? { agentChainId: indexed.agentChainId ?? null, agentTokenId: indexed.agentTokenId ?? null, agentName: indexed.agentName }
       : null,

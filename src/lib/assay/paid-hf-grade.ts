@@ -71,8 +71,8 @@ export function gradePaidHfScenario(input: {
   manifestText: string | null;
   /** Whether the job can still deliver: funded, and not past its deadline. */
   deliveryOpen?: boolean;
-  /** Pokter's reading of the same position, taken at grading time. */
-  reading: HfExpected | null;
+  /** Pokter's reading of the same position, taken at grading time, with the block it was read at. */
+  reading: (HfExpected & { block?: string }) | null;
   /** When that reading was taken. */
   readAt: string;
 }): AssayScenarioResult {

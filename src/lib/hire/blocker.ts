@@ -1,5 +1,6 @@
 import { blockerCodeForCardProblem, type CardProblem } from '@/lib/agents/card-read';
 import type { QuoteFailureCode } from './failure';
+import { NO_ENDPOINT_DETAIL } from './no-endpoint';
 
 /**
  * Why an agent cannot be hired through Pokter right now, in words its
@@ -76,12 +77,31 @@ export function hireBlocker(input: HireBlockerInput): HireBlocker | null {
        *
        * So: what Pokter read, and what it did not find in it.
        */
-      if (input.detail === 'card-without-interface') {
-        return { code: input.code, reason: 'Nothing Pokter read at its registered endpoint or the card path under it names an A2A interface, so there is nowhere to send a brief.', fix: at('transports', 'Transports'), transient: false };
+      const said = (reason: string) => ({ code: input.code, reason, fix: at('transports', 'Transports'), transient: false });
+      if (input.detail === NO_ENDPOINT_DETAIL.cardWithoutInterface) {
+        return said('Nothing Pokter read at its registered endpoint or the card path under it names an A2A interface, so there is nowhere to send a brief.');
       }
-      return mcpOnly
-        ? { code: input.code, reason: 'It publishes only an MCP endpoint. Paid jobs are priced over A2A (a negotiate skill on an agent card), so it can be measured but not hired.', fix: at('transports', 'Transports'), transient: false }
-        : { code: input.code, reason: 'Its agent card offers no HTTPS JSON-RPC interface, which is the one Pokter calls to price and hire it.', fix: at('transports', 'Transports'), transient: false };
+      if (input.detail === NO_ENDPOINT_DETAIL.registryNoWallet) {
+        return said('No agent wallet found in the registry data Pokter reads for it, so a price it signed could not be checked against one, and Pokter does not ask it for a price.');
+      }
+      /*
+       * The registry data is all that was read here: the indexer's copy of
+       * the registration, which can lag the registration itself. So the
+       * sentence is about that data, and says no card was read, rather than
+       * that the agent has no endpoint (56:382582's live registration named
+       * one its indexed copy did not).
+       */
+      if (mcpOnly) {
+        return said('The registry data Pokter reads lists only an MCP endpoint for it. Paid jobs are priced over A2A (a negotiate skill on an agent card), so it can be measured but not hired.');
+      }
+      if (input.detail === NO_ENDPOINT_DETAIL.registryNoA2a) {
+        return said('No A2A endpoint found in the registry data Pokter reads for it, so there is nothing to call to price and hire it. No agent card was read: one published elsewhere is not seen until the registry data names it.');
+      }
+      if (input.detail === NO_ENDPOINT_DETAIL.cardWithoutJsonRpc) {
+        return said('Its agent card offers no HTTPS JSON-RPC interface, which is the one Pokter calls to price and hire it.');
+      }
+      /* Recorded before the read was named: what was found, not what the agent lacks. */
+      return said('Pokter found no A2A interface it could call for it, so it cannot price or hire it here.');
     }
     case 'auth-required':
       return { code: input.code, reason: `Its endpoint refuses anonymous calls${input.detail ? ` (${input.detail})` : ''}, so a buyer’s job cannot reach it.`, fix: at('identity', 'Identity'), transient: false };
@@ -125,7 +145,7 @@ export function hireBlocker(input: HireBlockerInput): HireBlocker | null {
  * brief, through `/api/hire/quote` or `/api/trial`. It is dated to when
  * they asked, and it is not a measurement Pokter scheduled.
  */
-export type BlockerSource = 'sweep' | 'brief' | 'card';
+export type BlockerSource = 'sweep' | 'brief' | 'card' | 'registry';
 
 /** How long a buyer's signed quote outweighs the sweep's failed generic one. */
 export const BRIEF_QUOTE_HOLDS_MS = 7 * 24 * 3_600_000;
@@ -199,7 +219,11 @@ export function briefQuoteOutranksFailure(
  * over, so the order can be exercised without one.
  *
  * Newest evidence wins, and only over what it actually speaks to:
- *   1. a verified quote an escrow can pay — nothing is blocking a hire;
+ *   1. a verified quote an escrow can pay — nothing is blocking a hire —
+ *      unless the sweep's own price request has failed since, for a reason
+ *      that is not transient. The sweep keeps the last signed quote when a
+ *      later request fails, and this returned "nothing blocking" whenever
+ *      that old quote existed, so a newer failure never showed;
  *   2. that quote in money no escrow settles — the payment problem;
  *   3. the sweep's own failed price request, unless a newer signed quote for
  *      a buyer's brief disproves that exact failure;
@@ -226,10 +250,22 @@ export function decideHireBlocker(input: {
   const dated = (blocker: HireBlocker | null, observedAt: string | null, from: BlockerSource) =>
     blocker ? { ...blocker, observedAt, from } : null;
 
-  if (quote && payable !== false) return null;
-  if (quote && payable === false) return dated(hireBlocker({ code: 'payment-incompatible' }), quote.quotedAt, 'sweep');
-
   const brief = briefQuoteStillSpeaks(input.brief, now) ? input.brief : null;
+
+  /*
+   * A failure after the quote, that says something lasting about pricing
+   * the agent (a transient one is a check that did not complete), and that
+   * a newer signed brief quote does not disprove.
+   */
+  const failedSince = Boolean(
+    failed &&
+      quote &&
+      Date.parse(failed.observedAt) > Date.parse(quote.quotedAt) &&
+      hireBlocker({ code: failed.code, detail: failed.detail })?.transient === false &&
+      !(brief && briefQuoteOutranksFailure(failed, brief, now)),
+  );
+  if (quote && !failedSince && payable !== false) return null;
+  if (quote && !failedSince && payable === false) return dated(hireBlocker({ code: 'payment-incompatible' }), quote.quotedAt, 'sweep');
 
   if (failed && !(brief && briefQuoteOutranksFailure(failed, brief, now))) {
     const blocker = dated(
@@ -256,5 +292,34 @@ export function decideHireBlocker(input: {
   if (!card?.problem) return null;
   /* Which code each read implies, including the one that must stay transient. */
   const { code, detail } = blockerCodeForCardProblem(card.problem);
-  return dated(hireBlocker({ code, detail, agentWallet, protocols }), card.readAt, 'card');
+  /* No endpoint in the registry data means no card was read: its source is that data, not a card read. */
+  return dated(hireBlocker({ code, detail, agentWallet, protocols }), card.readAt, card.problem === 'no-endpoint' ? 'registry' : 'card');
+}
+
+/** Where the most recent price check came from. */
+export type PriceCheckSource = 'scheduled' | 'buyer';
+
+/**
+ * The most recent price check Pokter can speak to, apart from the price.
+ *
+ * The last signed price stays, dated, because a successful quote is
+ * history worth keeping. But a listing showing it with nothing else read as
+ * current when a newer check had failed. This is that newer check: when,
+ * whether it got a signed price, and whose request it was. Pokter's
+ * scheduled check is the measurement; a buyer's signed quote is counted
+ * only as a success, because a buyer's failed request can be about that
+ * buyer's brief rather than the agent, and its details are the buyer's.
+ */
+export function latestPriceCheck(input: {
+  quote: { quotedAt: string } | null;
+  failed: { code: string; observedAt: string } | null;
+  brief: BriefQuote | null;
+}): { at: string; outcome: 'signed' | string; source: PriceCheckSource } | null {
+  const checks: Array<{ at: string; outcome: string; source: PriceCheckSource }> = [];
+  if (input.quote) checks.push({ at: input.quote.quotedAt, outcome: 'signed', source: 'scheduled' });
+  if (input.failed) checks.push({ at: input.failed.observedAt, outcome: input.failed.code, source: 'scheduled' });
+  if (input.brief) checks.push({ at: input.brief.quotedAt, outcome: 'signed', source: 'buyer' });
+  const dated = checks.filter((check) => Number.isFinite(Date.parse(check.at)));
+  dated.sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+  return dated[0] ?? null;
 }

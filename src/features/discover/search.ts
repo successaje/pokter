@@ -6,12 +6,12 @@ import { catalogueCounts } from '@/lib/agents/catalogue-counts';
 import { distinctAgentCount, mainnetFirstPerAgent } from '@/lib/agents/distinct';
 import { interpretBrief, type BriefReading } from '@/lib/brief/interpret';
 import { findRows, type FindRow } from '@/lib/find/rows';
-import { listSearchableWithStatus, searchByName } from '@/lib/marketplace';
+import { listSearchableWithStatus, searchById, searchByName } from '@/lib/marketplace';
 import { offersDirectHire, matchesQuery, type SearchableAgent } from '@/lib/search/match';
 import { orderMarketplace } from '@/lib/search/order';
 import type { DiscoverParams } from './params';
 import { parseQuery } from '@/lib/search/query';
-import { closestNames, describeNameMatch, nameMatch } from '@/lib/search/names';
+import { closestNames, describeNameMatch, nameMatch, NAME_MATCH, parseAgentId, placeNameMatches } from '@/lib/search/names';
 import { chainLabel } from '@/lib/network/presentation';
 
 const STOP = new Set([
@@ -30,17 +30,41 @@ export interface DiscoverResult {
   /** Agents whose names are close to a query that matched nothing; never unrelated ones. */
   suggestions: { close: FindRow[] } | null;
   /** How a natural-language query was read; null for no query or advanced syntax. */
-  reading: (BriefReading & { categoryLabel: string | null; terms: string[]; byName: boolean }) | null;
+  reading: (BriefReading & { categoryLabel: string | null; terms: string[]; byName: boolean; byId: boolean }) | null;
   advanced: { unknown: string[] } | null;
-  categoryCounts: Array<{ id: Category; label: string; count: number }>;
+  categoryCounts: Array<{ id: Category | 'unclassified'; label: string; count: number }>;
   /** The newest listings in the catalogue, whatever the current filters are. */
   recent: FindRow[];
   /** Sizes of the curated shortcuts, over everything listed. */
   collections: { hireable: number; priced: number; answering: number; checked: number; outsideDelivery: number; corroborated: number };
+  /**
+   * What turning each filter on would show, under everything else that is
+   * on now (the task, the words, the network, the other filters): the
+   * number beside a filter, the same rule as the task counts.
+   */
+  filterCounts: FilterCounts;
   unreachable: boolean;
   /** Category labels on a chain where a registry read failed, so results there may be missing. */
   incomplete: string[];
 }
+
+export type Signal = 'hireable' | 'priced' | 'outsideDelivery' | 'checked' | 'answering';
+export type FilterCounts = Record<Signal | 'measured' | 'corroborated' | 'anyEvidence', number>;
+
+/** What each buyer signal requires of an agent, used for the results and for the counts beside each signal. */
+const SIGNAL_TESTS: Record<Signal, (e: SearchableAgent) => boolean> = {
+  hireable: (e) => offersDirectHire(e),
+  priced: (e) => e.listing.quote != null,
+  outsideDelivery: (e) => (e.history?.outsideTeam.completed ?? 0) > 0,
+  checked: (e) => e.tested === true,
+  answering: (e) => answeredThisWeek(e),
+};
+
+/** The evidence choices other than "any". */
+const EVIDENCE_TESTS: Record<'measured' | 'corroborated', (e: SearchableAgent) => boolean> = {
+  measured: (e) => e.record.totalProbes > 0,
+  corroborated: (e) => e.listing.attestationCount > 0,
+};
 
 function textTerms(q: string) {
   return Array.from(new Set(q.toLowerCase().split(/[^a-z0-9$%.-]+/).filter((t) => t.length > 2 && !STOP.has(t))));
@@ -82,9 +106,12 @@ export async function discover(params: DiscoverParams): Promise<DiscoverResult> 
     const brief = interpretBrief(q);
     const terms = textTerms(q);
     const categoryLabel = brief.category ? (CATEGORY_BY_ID.get(brief.category)?.label ?? null) : null;
-    reading = { ...brief, categoryLabel, terms, byName: false };
+    reading = { ...brief, categoryLabel, terms, byName: false, byId: false };
     // One or two letters are a name being typed, not a task being described.
     const describesTask = q.length >= 3;
+    const agentId = parseAgentId(q);
+    /* The whole listing, before the query narrows it: an ID is looked up in all of it. */
+    const everyone = pool;
 
     const scored = pool
       .map((entry) => {
@@ -110,19 +137,24 @@ export async function discover(params: DiscoverParams): Promise<DiscoverResult> 
     pool = orderMarketplace(scored.map((s) => s.entry), params.sort).sort((a, b) => (rank.get(b) ?? 0) - (rank.get(a) ?? 0));
 
     /*
-     * No agent whose name matches: ask the registry by name.
+     * No agent in the pool has exactly this name: ask the registry by name.
      *
      * The pool is built from the category listings, so an agent in no
      * category is not in it, and typing its exact name found nothing:
      * "no such agent" rather than "not in a category". Asked whenever no
-     * name in the pool matches, because the pool is rarely empty and a
-     * page of description matches can hide that the named agent is absent.
+     * name in the pool matches exactly, because the pool is rarely empty
+     * and a page of description or partial-name matches can hide that the
+     * named agent is absent.
      */
-    if (describesTask && !scored.some((s) => s.named > 0)) {
+    const poolNamed = scored.some((s) => s.named > 0);
+    if (describesTask && !agentId && !scored.some((s) => s.named === NAME_MATCH.exact)) {
       const have = new Set(pool.map((entry) => `${entry.listing.agent.chain_id}:${entry.listing.agent.token_id}`));
-      const byName = (await searchByName(q)).filter(
+      const found = (await searchByName(q)).filter(
         (entry) => isPromotableAgent(entry.listing.agent) && !have.has(`${entry.listing.agent.chain_id}:${entry.listing.agent.token_id}`),
       );
+      const exactly = (entry: SearchableAgent) => nameMatch(entry.listing.agent.name, q) === NAME_MATCH.exact;
+      /* Where the pool already has name matches, only an exact name is worth adding to them. */
+      const byName = poolNamed ? found.filter(exactly) : found;
       /*
        * A task Pokter recognises ("Monitor my lending risk") is answered by
        * agents in that category first. The registry's name search returned
@@ -130,15 +162,37 @@ export async function discover(params: DiscoverParams): Promise<DiscoverResult> 
        * unrelated yield agents, and they were put above every real
        * health-factor agent. Now they follow the matches, labelled. A query
        * that is not a recognised task is still most likely a name, so there
-       * the name results lead.
+       * the name results lead. An exact name leads either way.
        */
-      for (const entry of byName) reasons.set(entry, brief.category ? 'Matched by name only · not shown doing this task' : 'Found by name · not in a category listing');
-      if (brief.category) {
-        for (const entry of byName) nameOnly.add(entry);
-        pool = [...pool, ...orderMarketplace(byName, params.sort)];
-      } else {
-        pool = [...orderMarketplace(byName, params.sort), ...pool];
+      for (const entry of byName) {
+        if (exactly(entry)) {
+          reasons.set(entry, 'Exact name');
+          continue;
+        }
+        reasons.set(entry, brief.category ? 'Matched by name only · not shown doing this task' : 'Found by name · not in a category listing');
+        if (brief.category) nameOnly.add(entry);
       }
+      if (byName.some(exactly)) reading.byName = true;
+      pool = placeNameMatches(pool, orderMarketplace(byName, params.sort), {
+        nameOf: (entry) => entry.listing.agent.name,
+        query: q,
+        taskRecognised: brief.category !== null,
+      });
+    }
+
+    /*
+     * An agent's ID ("342378", "56/342378") is the most exact thing a person
+     * can type. Its agent leads, from the listings or read from the registry
+     * when it is in none.
+     */
+    if (agentId) {
+      const sameId = (entry: SearchableAgent) =>
+        entry.listing.agent.token_id === agentId.tokenId && (agentId.chainId === null || entry.listing.agent.chain_id === agentId.chainId);
+      const listed = everyone.filter(sameId);
+      const byId = listed.length > 0 ? listed : (await searchById(agentId.chainId, agentId.tokenId)).filter((entry) => isPromotableAgent(entry.listing.agent));
+      for (const entry of byId) reasons.set(entry, `Agent ID ${entry.listing.agent.chain_id}/${entry.listing.agent.token_id}`);
+      if (byId.length > 0) reading.byId = true;
+      pool = [...byId, ...pool.filter((entry) => !byId.includes(entry))];
     }
   }
 
@@ -152,12 +206,12 @@ export async function discover(params: DiscoverParams): Promise<DiscoverResult> 
   const rules: Record<'category' | 'chain' | 'hireable' | 'answering' | 'priced' | 'checked' | 'outsideDelivery' | 'evidence', (e: SearchableAgent) => boolean> = {
     category: (e) => !params.category || e.listing.category === params.category,
     chain: (e) => params.chain === 'any' || String(e.listing.agent.chain_id) === params.chain,
-    hireable: (e) => !params.hireable || offersDirectHire(e),
-    answering: (e) => !params.answering || answeredThisWeek(e),
-    priced: (e) => !params.priced || e.listing.quote != null,
-    checked: (e) => !params.checked || e.tested === true,
-    outsideDelivery: (e) => !params.outsideDelivery || (e.history?.outsideTeam.completed ?? 0) > 0,
-    evidence: (e) => (params.evidence === 'measured' ? e.record.totalProbes > 0 : params.evidence === 'corroborated' ? e.listing.attestationCount > 0 : true),
+    hireable: (e) => !params.hireable || SIGNAL_TESTS.hireable(e),
+    answering: (e) => !params.answering || SIGNAL_TESTS.answering(e),
+    priced: (e) => !params.priced || SIGNAL_TESTS.priced(e),
+    checked: (e) => !params.checked || SIGNAL_TESTS.checked(e),
+    outsideDelivery: (e) => !params.outsideDelivery || SIGNAL_TESTS.outsideDelivery(e),
+    evidence: (e) => params.evidence === 'any' || EVIDENCE_TESTS[params.evidence](e),
   };
   const applying = (items: SearchableAgent[], skip?: keyof typeof rules) =>
     items.filter((e) => (Object.keys(rules) as Array<keyof typeof rules>).every((key) => key === skip || rules[key](e)));
@@ -171,7 +225,33 @@ export async function discover(params: DiscoverParams): Promise<DiscoverResult> 
   const { items: shown, alsoOn } = perAgent(filtered);
 
   const forTasks = perAgent(applying(pool, 'category')).items;
-  const categoryCounts = CATEGORIES.map((c) => ({ id: c.id, label: c.label, count: forTasks.filter((e) => e.listing.category === c.id).length }));
+  /*
+   * The five, and then the rest when there is any: signed agents in work
+   * Pokter does not evaluate are listed, so the tasks add up to "All tasks"
+   * and a buyer can find them, under a name that claims no evaluation.
+   */
+  const unclassified = forTasks.filter((e) => e.listing.category === 'unclassified').length;
+  const categoryCounts: DiscoverResult['categoryCounts'] = [
+    ...CATEGORIES.map((c) => ({ id: c.id, label: c.label, count: forTasks.filter((e) => e.listing.category === c.id).length })),
+    ...(unclassified > 0 ? [{ id: 'unclassified' as const, label: 'Unclassified', count: unclassified }] : []),
+  ];
+
+  /*
+   * Each filter's count is what clicking it would show: every other rule as
+   * it is, this one turned on. Counted over the whole catalogue instead, a
+   * pill under a chosen task said 93 where clicking showed 21.
+   */
+  const ifOn = (skip: keyof typeof rules, test: (e: SearchableAgent) => boolean) => perAgent(applying(pool, skip).filter(test)).items.length;
+  const filterCounts: FilterCounts = {
+    hireable: ifOn('hireable', SIGNAL_TESTS.hireable),
+    priced: ifOn('priced', SIGNAL_TESTS.priced),
+    outsideDelivery: ifOn('outsideDelivery', SIGNAL_TESTS.outsideDelivery),
+    checked: ifOn('checked', SIGNAL_TESTS.checked),
+    answering: ifOn('answering', SIGNAL_TESTS.answering),
+    anyEvidence: ifOn('evidence', () => true),
+    measured: ifOn('evidence', EVIDENCE_TESTS.measured),
+    corroborated: ifOn('evidence', EVIDENCE_TESTS.corroborated),
+  };
 
   const rows = findRows(shown);
   const distinct = (items: SearchableAgent[]) => distinctAgentCount(items.map((e) => e.listing.agent));
@@ -211,6 +291,7 @@ export async function discover(params: DiscoverParams): Promise<DiscoverResult> 
     reading,
     advanced,
     categoryCounts,
+    filterCounts,
     collections: {
       // Each card's count is what clicking it shows: one rule, one agent each.
       ...catalogueCounts(entries),

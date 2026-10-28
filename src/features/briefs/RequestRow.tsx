@@ -1,13 +1,13 @@
 import Link from 'next/link';
 
-import { requestCategoryLabel, requestStatus, type BriefContent } from '@/lib/briefs/model';
-import { formatQuotedPrice } from '@/lib/erc8183/pricing';
+import { requestAmountLabel, requestCategoryLabel, requestStatus, requestTokenOf, type BriefContent } from '@/lib/briefs/model';
+import { displaySymbol } from '@/lib/network/tokens';
 import { cn } from '@/lib/ui/cn';
 import { avatarUrl } from '@/lib/ui/avatar-art';
 import { AvatarImage } from '@/ui/AvatarImage';
 import { Icon } from '@/ui/icons';
 
-export interface RequestRowData extends Pick<BriefContent, 'title' | 'brief' | 'budgetU' | 'chainId' | 'closesAt' | 'category'> {
+export interface RequestRowData extends Pick<BriefContent, 'title' | 'brief' | 'budgetU' | 'budgetRaw' | 'paymentToken' | 'chainId' | 'closesAt' | 'category'> {
   id: string;
   poster: string;
   /** The poster's published name and picture; absent while their profile is private. */
@@ -82,7 +82,8 @@ export function RequestRow({ request, now, preview = false }: { request: Request
       </span>
       <span className="mt-auto flex shrink-0 flex-row items-baseline justify-between gap-1 border-t border-rule pt-3 @lg:mt-0 @lg:flex-col @lg:items-end @lg:border-0 @lg:pt-0">
         <span className="hidden text-[11.5px] text-ink-3 @lg:block">Proposed budget</span>
-        <span className="t-readout text-[19px] text-ink">{request.budgetU > 0 ? formatQuotedPrice(request.budgetU) : '— $U'}</span>
+        {/* No amount yet (the form's preview) is a dash in the chosen token, never a "$U" the request may not be in. */}
+        <span className="t-readout text-[19px] text-ink">{request.budgetU > 0 ? requestAmountLabel(request, request.budgetU) : `— ${tokenSymbol(request)}`}</span>
         {/* Test money never sits next to a real-looking number unmarked. */}
         <span className={cn('text-[12px]', testnet ? 'font-medium text-watch' : 'text-ink-3')}>{testnet ? 'Testnet · test tokens' : 'BNB Chain'}</span>
       </span>
@@ -107,6 +108,11 @@ export function RequestRow({ request, now, preview = false }: { request: Request
     </div>
   );
 }
+
+const tokenSymbol = (request: Pick<RequestRowData, 'chainId' | 'paymentToken'>) => {
+  const token = requestTokenOf(request);
+  return token ? displaySymbol(token) : '';
+};
 
 /** The first sentence or line, which is what a scanning reader takes in. */
 export function summary(brief: string): string {

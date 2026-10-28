@@ -9,6 +9,7 @@ import { readJson, withPublicEndpoint } from '@/lib/proof/prober';
 import { getAgent } from '@/lib/scan/client';
 import type { ChainId } from '@/lib/scan/types';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
+import { a2aUserMessage } from '@/lib/a2a/message';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 25;
@@ -44,7 +45,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   const name = agent?.name || `Agent #${tokenId}`;
   const endpoint = agent?.services?.a2a?.endpoint?.replace('{agentId}', tokenId);
   if (!agent || !endpoint) {
-    return NextResponse.json({ error: `${name} publishes no A2A endpoint, so it has no preview to run.`, layer: 'seller', code: 'no-endpoint' }, { status: 409 });
+    return NextResponse.json({ error: `No A2A endpoint found for ${name} in the registry data Pokter reads, so it has no preview to run.`, layer: 'seller', code: 'no-endpoint' }, { status: 409 });
   }
 
   try {
@@ -69,7 +70,7 @@ export async function POST(request: Request): Promise<NextResponse> {
           id: rpcId,
           method: 'message/send',
           params: {
-            message: { role: 'user', messageId: crypto.randomUUID(), parts: [{ kind: 'data', data: { skill, task_description: task } }] },
+            message: a2aUserMessage([{ kind: 'data', data: { skill, task_description: task } }]),
             configuration: { acceptedOutputModes: ['application/json', 'text/plain'], blocking: true },
           },
         }),

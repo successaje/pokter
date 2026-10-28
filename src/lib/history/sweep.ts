@@ -22,6 +22,7 @@ import { classify } from '@/lib/agents/categories';
 import {
   getProbeStore,
   type ProbeRecord,
+  type ProbeStore,
   type QuoteFailureRecord,
   type QuoteRecord,
   type SweepRecord,
@@ -29,6 +30,8 @@ import {
 import { getQuestStore } from '@/lib/quest/store';
 import { PROBE_ADAPTER } from '@/lib/proof/probe-target';
 import type { QuoteFailure } from '@/lib/hire/failure';
+import { withRegisteredWallet } from '@/lib/registry/live-agent';
+import { advanceCursor, afterDiscoveryAttempt, declaresCallableProtocol, DISCOVERY_MAX_PAGES, DISCOVERY_PAGE, DISCOVERY_QUOTA, discoveryResult, newerThanCursor, type DiscoveryResult } from './discovery';
 
 export interface SweepOptions {
   chainId?: ChainId;
@@ -185,6 +188,8 @@ async function buildRoster(
     ...store.enrolledAgents().filter(onThisChain),
     ...store.quotedAgents().filter(onThisChain),
     ...hired.filter(onThisChain),
+    /* New registrations that answered when discovery tried them (`runDiscovery`): measured like any other from then on. */
+    ...store.discoveredAgents().filter(onThisChain),
     ...fromRegistry,
   ]
     .filter(onThisChain)
@@ -321,7 +326,9 @@ export async function runSweep({
     // Why it would not quote, kept: the agent's page says so to its owner.
     let failure: QuoteFailure | null = null;
     let refusal: string | null = null;
-    let quote = await requestQuote(agent, {
+    /* Checked against the wallet the registry names now, as every hire route checks it (`registeredAgentWallet`), so a stored price is one a hire would accept. */
+    const priced = await withRegisteredWallet(agent);
+    let quote = await requestQuote(priced, {
       signal,
       onFailure: (reason) => {
         failure = reason;
@@ -343,7 +350,7 @@ export async function runSweep({
     if (sample && !signal?.aborted) {
       let retryFailure: QuoteFailure | null = null;
       let retryRefusal: string | null = null;
-      const retried = await requestQuote(agent, {
+      const retried = await requestQuote(priced, {
         signal,
         enquiry: { task_description: sample, terms: POKTER_TERMS },
         onFailure: (reason) => {
@@ -440,5 +447,97 @@ export async function runSweep({
    * check depend on the sweep at all.
    */
   noteSweepFinished(outcome.finishedAt);
+  return outcome;
+}
+
+export interface DiscoveryOutcome {
+  chainId: number;
+  /** Registrations read past the cursor this run. */
+  read: number;
+  /** Of those, queued: they declare A2A or MCP and Pokter did not already measure them. */
+  queued: number;
+  /** Queued agents tried this run, and what came of it. */
+  tried: number;
+  promoted: number;
+  dropped: number;
+  /** Listings with no agent bound to them yet, to be tried again in a week. */
+  waiting: number;
+  /** More registrations arrived than this run reads; the oldest of them were not seen. */
+  gap: boolean;
+  /** Tries the run's time ran out before. */
+  unreached: number;
+}
+
+/**
+ * One discovery pass for a chain (see discovery.ts): read what was
+ * registered since the cursor, queue what can be called, try a few.
+ *
+ * A try is a single read of the agent's card or MCP handshake, and its
+ * result is kept in the queue only. Writing it to the probe history would
+ * make every newcomer, answering or not, part of the roster for good
+ * (`trackedAgents` is everything ever probed) and slow the rotation for the
+ * agents already listed. An agent joins the roster when it answers.
+ *
+ * Bounded by its caller's deadline, checked before each registry page and
+ * each try, so it ends rather than being abandoned mid-way. A registry
+ * lookup that fails is not the agent's silence and costs it no attempt.
+ */
+export interface DiscoveryDeps {
+  listAgents: typeof listAgents;
+  getAgent: typeof getAgent;
+  probeAgent: typeof probeAgent;
+  store: ProbeStore;
+}
+
+export async function runDiscovery(
+  chainId: ChainId,
+  { deadlineAt, signal, quota = DISCOVERY_QUOTA }: { deadlineAt: number; signal?: AbortSignal; quota?: number },
+  /* The registry, the probe and the store, replaceable so the pass is tested against a real store without a network. */
+  deps: Partial<DiscoveryDeps> = {},
+): Promise<DiscoveryOutcome> {
+  const { listAgents: list = listAgents, getAgent: lookup = getAgent, probeAgent: probe = probeAgent, store = getProbeStore() } = deps;
+  const outcome: DiscoveryOutcome = { chainId, read: 0, queued: 0, tried: 0, promoted: 0, dropped: 0, waiting: 0, gap: false, unreached: 0 };
+  const cursor = store.discoveryCursor(chainId);
+  const timeLeft = () => !signal?.aborted && Date.now() < deadlineAt;
+
+  const seen: Array<{ token_id: string; created_at: string; supported_protocols: string[] | null }> = [];
+  for (let page = 0; page < DISCOVERY_MAX_PAGES && timeLeft(); page += 1) {
+    const listed = await list({ chainId, limit: DISCOVERY_PAGE, offset: page * DISCOVERY_PAGE, sortBy: 'created_at', sortOrder: 'desc' }).catch(() => null);
+    if (!listed) break;
+    const { fresh, reachedCursor } = newerThanCursor(listed.items, cursor);
+    seen.push(...fresh);
+    if (reachedCursor || listed.items.length < DISCOVERY_PAGE) break;
+    if (page === DISCOVERY_MAX_PAGES - 1) outcome.gap = true;
+  }
+  /* Counted past the cursor, not the overlap re-read behind it. */
+  outcome.read = cursor === null ? seen.length : seen.filter((agent) => Date.parse(agent.created_at) > Date.parse(cursor)).length;
+  const advanced = advanceCursor(cursor, seen);
+  if (advanced && advanced !== cursor) store.setDiscoveryCursor(chainId, advanced);
+
+  const measured = new Set(store.trackedAgents().filter((a) => a.chainId === chainId).map((a) => a.tokenId));
+  outcome.queued = store.enqueueDiscovered(
+    seen
+      .filter((agent) => declaresCallableProtocol(agent.supported_protocols) && !measured.has(agent.token_id))
+      .map((agent) => ({ chainId, tokenId: agent.token_id, registeredAt: agent.created_at })),
+  );
+
+  const due = store.dueDiscoveries(chainId, new Date().toISOString(), quota);
+  await mapWithConcurrency(due, 3, async (entry) => {
+    if (!timeLeft()) {
+      outcome.unreached += 1;
+      return;
+    }
+    const agent = await lookup(chainId, entry.tokenId).catch(() => null);
+    if (!agent) return;
+    outcome.tried += 1;
+    const result: DiscoveryResult = !probeTarget(agent) ? 'no-endpoint' : discoveryResult(await probe(agent, { samples: 1, signal }).catch(() => null));
+    /* Our own cancellation says nothing about the agent: no attempt is spent on it. */
+    if (result === 'no-answer' && signal?.aborted) return;
+    const next = afterDiscoveryAttempt(entry.attempts, result, Date.now());
+    if (next.state === 'promoted') outcome.promoted += 1;
+    if (next.state === 'dropped') outcome.dropped += 1;
+    if (result === 'no-agent-yet' && next.state === 'queued') outcome.waiting += 1;
+    store.recordDiscoveryAttempt({ chainId, tokenId: entry.tokenId, state: next.state, attempts: next.attempts, nextAttemptAt: next.nextAttemptAt, outcome: result, at: new Date().toISOString() });
+  });
   return outcome;
 }

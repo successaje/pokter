@@ -1,3 +1,5 @@
+import { formatQuoted, paymentTokenAt, settlementChainOf } from '@/lib/network/tokens';
+
 /**
  * The default escrow budget, in $U.
  *
@@ -24,55 +26,51 @@ export function formatBudget(amountU: number): string {
 }
 
 /**
- * A price an agent quoted, as the interface states it.
+ * A price an agent quoted, as the interface states it, in the quote's own
+ * money.
  *
- * `formatBudget` rounds to two places, which is right for a budget the buyer
- * typed and wrong for a price the agent chose: one listed agent quotes a
- * single wei, and two-place rounding printed that as "0.00 $U" — a free
- * agent, which it is not.
+ * The currency is required. It defaulted to "$U", so every caller that left
+ * it out — the discovery card among them — printed a USDT price as $U while
+ * the agent's own page, which passed it, said USDT. `null` means the
+ * currency is not known, and says so.
  *
- * Anything above zero that would round away is shown as a bound instead, so
- * the number is never smaller than the truth.
+ * Not rounded to two places: a price is shown as the number the agent
+ * signed (to twelve significant figures, which every stable price here
+ * fits), so a funded amount is never displayed as something else. Where
+ * the raw signed amount is at hand, `formatQuotedRaw` is exact to the unit.
  */
-export function formatQuotedPrice(amountU: number, currency?: string | null): string {
-  if (amountU === 0) return 'Free';
-  const token = tokenLabel(currency);
-  if (amountU < 0.01) return `< 0.01 ${token}`;
-  return `${amountU.toFixed(2)} ${token}`;
+export function formatQuotedPrice(amount: number, currency: string | null): string {
+  if (amount === 0) return 'Free';
+  return `${plainNumber(amount)} ${tokenLabel(currency)}`;
+}
+
+/** A signed amount from its raw units, exact to the unit, in its own token; the address when the token is not one Pokter knows. */
+export function formatQuotedRaw(currency: string | null, raw: string | bigint): string {
+  if (!currency) return `${raw.toString()} base units (currency unknown)`;
+  return formatQuoted(currency, raw)?.label ?? `${raw.toString()} base units of ${currency}`;
+}
+
+function plainNumber(amount: number): string {
+  const n = Number(amount.toPrecision(12));
+  return n.toLocaleString('en-US', { useGrouping: false, maximumFractionDigits: 18 });
 }
 
 /**
- * The token a price is actually denominated in.
+ * The token a price is denominated in, from the registry by address.
  *
- * Every quoted price was printed as "$U" regardless of its token, so an
- * agent quoting 1 USDT was shown as "1.00 $U" on its own page — the right
- * number against the wrong money, on the one figure a buyer uses to
- * decide. The row below it said "Payable by this escrow: No, wrong token",
- * which is the contradiction a reader has to resolve rather than a warning
- * they can act on.
- *
- * An unrecognised token is named by its address rather than guessed at. A
- * short address is less useful than a symbol and more useful than a symbol
- * that is wrong.
+ * An unrecognised token is named by its address rather than guessed at, and
+ * an absent one is said to be unknown — never assumed to be $U.
  */
-export function tokenLabel(currency?: string | null): string {
-  if (!currency) return '$U';
-  const address = currency.toLowerCase();
-  if (ESCROW_TOKENS.has(address)) return '$U';
-  const known = KNOWN_TOKENS[address];
+export function tokenLabel(currency: string | null | undefined): string {
+  if (!currency) return '(currency unknown)';
+  const chainId = settlementChainOf(currency);
+  const token = chainId === null ? null : paymentTokenAt(chainId, currency);
+  if (token) return token.symbol === 'U' ? '$U' : token.symbol;
+  const known = KNOWN_TOKENS[currency.toLowerCase()];
   return known ?? `${currency.slice(0, 6)}…${currency.slice(-4)}`;
 }
 
-/* The escrow payment tokens, which are the only ones Pokter settles in. */
-const ESCROW_TOKENS = new Set([
-  '0xce24439f2d9c6a2289f741120fe202248b666666',
-  '0xc70b8741b8b07a6d61e54fd4b20f22fa648e5565',
-]);
-
-/* Named only so a buyer sees what they were quoted, never to imply Pokter
-   can settle it. */
+/* Tokens Pokter does not record (and so cannot fund), named so a buyer sees what they were quoted. */
 const KNOWN_TOKENS: Record<string, string> = {
-  '0x55d398326f99059ff775485246999027b3197955': 'USDT',
-  '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d': 'USDC',
   '0xe9e7cea3dedca5984780bafc599bd69add087d56': 'BUSD',
 };

@@ -31,6 +31,8 @@ function job(id: string, status: JobStatusName, options: Partial<HiredJob> = {})
     deliverableUrl: null,
     settleTxHash: null,
     ...options,
+    /* Positively identified $U on whichever chain the job is on: an unread token is not counted as $U. */
+    paymentToken: options.paymentToken ?? ((options.chainId ?? 56) === 97 ? '0xc70B8741B8B07A6d61E54fd4B20f22Fa648E5565' : '0xcE24439F2D9C6a2289F741120FE202248B666666'),
   };
 }
 
@@ -49,7 +51,9 @@ test('production proof keeps team, outside-team, and unknown funding honest', ()
   assert.equal(result.teamJobs, 2);
   assert.equal(result.unknownFunderJobs, 1);
   assert.equal(result.uniqueKnownBuyers, 3);
-  assert.equal(result.agentsHired, 2);
+  assert.equal(result.agentsHired, 1, 'agent 2’s only job was rejected, which the escrow also allows before funding: not proven hired');
+  assert.equal(result.fundedHires, 3);
+  assert.equal(result.fundingUnproven, 1);
   assert.equal(result.completedValueRaw, '300');
   assert.equal(result.completionRate, 0.5);
 });
@@ -281,4 +285,47 @@ test('a self-hire settles like any job but is not counted as an answered deliver
   assert.equal(summary.completed, 2);
   assert.equal(summary.completedSelfHires, 1);
   assert.equal(summary.answeredDeliveries, 1);
+});
+
+test('a job the escrow paid to Pokter’s courier is counted apart, not as the agent’s answered delivery', () => {
+  const COURIER = '0x0000000000000000000000000000000000000009';
+  const paidToPokter = (candidate: HiredJob) => candidate.provider?.toLowerCase() === COURIER;
+  const jobs = [
+    job('1', 'COMPLETED'),
+    job('2', 'COMPLETED', { provider: COURIER }),
+    job('3', 'COMPLETED', { provider: COURIER, client: BUYER_B }),
+    /* Precedence: a demo is a demo and a self-hire a self-hire, whoever was paid. */
+    job('5', 'COMPLETED', { provider: COURIER, agentTokenId: '5' }),
+    job('6', 'COMPLETED', { provider: COURIER, client: COURIER }),
+    job('7', 'SUBMITTED', { provider: COURIER }),
+  ];
+  const demo = (candidate: HiredJob) => candidate.jobId === '5';
+  const result = summarizeProductionProof(jobs, isTeam, demo, paidToPokter);
+  assert.equal(result.completed, 5);
+  assert.equal(result.lifecycleDemoJobs, 1);
+  assert.equal(result.completedSelfHires, 1);
+  assert.equal(result.courierDeliveries, 2, 'jobs 2 and 3: the agent’s answer, Pokter’s payment');
+  assert.equal(result.answeredDeliveries, 1, 'only job 1 paid the agent');
+  /* Unwired, nothing is known to be the courier's: the figure is what it was. */
+  assert.equal(summarizeProductionProof(jobs, isTeam, demo).answeredDeliveries, 3);
+});
+
+test('answers delivered count settled and awaiting deliveries, never a demo or a refunded job', () => {
+  const demo = new Set(['3', '5']);
+  const jobs = [
+    job('1', 'COMPLETED'),
+    job('2', 'COMPLETED', { provider: TEAM }),
+    job('3', 'COMPLETED'),
+    job('4', 'SUBMITTED'),
+    job('5', 'SUBMITTED'),
+    job('6', 'REJECTED'),
+    job('7', 'EXPIRED'),
+    job('8', 'FUNDED'),
+  ];
+  const summary = summarizeProductionProof(jobs, isTeam, (candidate) => demo.has(candidate.id), (candidate) => candidate.provider === TEAM);
+  assert.equal(summary.answersSettled, 2, 'a courier job carries the agent’s answer; a demo carries none');
+  assert.equal(summary.answersAwaitingSettlement, 1);
+  assert.equal(summary.answersDelivered, summary.answersSettled + summary.answersAwaitingSettlement);
+  assert.equal(summary.answeredDeliveries, 1, 'the strict figure still leaves out the courier job');
+  assert.equal(summary.inReview, 2, 'the escrow’s delivered count is unchanged');
 });

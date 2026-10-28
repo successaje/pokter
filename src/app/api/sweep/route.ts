@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
 
-import { runSweep } from '@/lib/history/sweep';
+import { jobPaymentTokenOnChain } from '@/lib/erc8183/job-onchain';
+
+import { runDiscovery, runSweep } from '@/lib/history/sweep';
 import { runBudget } from '@/lib/history/budget';
 import { mapWithConcurrency } from '@/lib/concurrency';
 import { noteRunStarted } from '@/lib/health/vitals';
-import { BSC_TESTNET } from '@/lib/scan/types';
+import { BSC_MAINNET, BSC_TESTNET } from '@/lib/scan/types';
 import { checkForNewHires } from '@/lib/alerts/hires';
 import { alertChannels, sendOperatorAlert } from '@/lib/alerts/operator';
 import { retryStuckDeliveries } from '@/lib/erc8183/delivery-retry';
@@ -61,6 +63,12 @@ export const maxDuration = 300;
 
 /** Testnet probes a shallower roster, so it takes the smaller share. */
 const TESTNET_BUDGET_MS = 45_000;
+/* Discovery's share of a run: a couple of registry pages and a handful of card reads per chain. */
+const DISCOVERY_STEP_MS = 25_000;
+/* Position-range grading reads one mainnet node and normally takes seconds; a slow node costs this share, not the run's. */
+const PAID_V3_STEP_MS = 20_000;
+/* Answered-task checks read the chain and sellers' delivery hosts for a few jobs; what does not fit waits for the next run. */
+const ANSWERED_TASKS_STEP_MS = 30_000;
 
 /** Held while a sweep runs in this process (there is one machine). */
 let sweepRunning = false;
@@ -343,11 +351,14 @@ export async function POST(request: Request): Promise<NextResponse> {
             // The local row is only an index. Repair it from ERC-8183 during every
             // sweep so Activity and Builder never depend on somebody opening a
             // card to refresh a stale status.
+            /* The job's token, once, while it is unknown; a failed read leaves it for the next sweep. */
+            const paymentToken = job.paymentToken ?? (await jobPaymentTokenOnChain(job.chainId, job.jobId));
             getJobStore().record({
               ...job,
               client: onchain.client,
               provider: onchain.provider,
               budgetRaw: onchain.budget.toString(),
+              paymentToken,
               expiredAt: new Date(Number(onchain.expiredAt) * 1000).toISOString(),
               status: onchain.statusName,
               statusCheckedAt: new Date().toISOString(),
@@ -513,6 +524,7 @@ export async function POST(request: Request): Promise<NextResponse> {
                 state: {
                   answering: day && day.probes > 0 ? (day.ratio ?? 0) > 0 : null,
                   priceU: current ? Number(quote.priceU) : null,
+                  currency: current ? quote.currency : null,
                   delivered: entry.history?.delivered ?? 0,
                   missed: entry.history?.missed ?? 0,
                 },
@@ -588,7 +600,11 @@ export async function POST(request: Request): Promise<NextResponse> {
     // caught: a slow or failing RPC must not cost the measurements above.
     const paidHfChecks = await budget.step('paidHfChecks', () => gradeDuePaidHfChecks());
     // Position ranges read different contracts, and fail independently.
-    const paidV3Checks = await budget.step('paidV3Checks', () => gradeDuePaidV3Checks());
+    const paidV3Checks = await budget.step(
+      'paidV3Checks',
+      () => gradeDuePaidV3Checks({ deadlineAt: Date.now() + Math.min(PAID_V3_STEP_MS, budget.spendable()) - 2_000 }),
+      { maxMs: PAID_V3_STEP_MS },
+    );
 
     /*
      * The Set and Earn tracker's index: new escrow jobs on both chains by
@@ -601,7 +617,29 @@ export async function POST(request: Request): Promise<NextResponse> {
       mapWithConcurrency([56, 97] as const, 1, (chain) => indexEscrowJobs(chain).catch(() => null)),
     );
     // After the index, so the newest jobs are there to be judged.
-    const answeredTasks = await budget.step('answeredTasks', () => checkAnsweredTasks());
+    const answeredTasks = await budget.step(
+      'answeredTasks',
+      () => checkAnsweredTasks({ budgetMs: Math.max(0, Math.min(ANSWERED_TASKS_STEP_MS, budget.spendable()) - 2_000) }),
+      { maxMs: ANSWERED_TASKS_STEP_MS },
+    );
+
+    /*
+     * New registrations (lib/history/discovery.ts): read what was
+     * registered since the last run on each chain, queue what declares A2A
+     * or MCP, and try a few. Optional and late, after everything that
+     * sends someone an alert; a run without time for it says so in the
+     * budget report, and the stored cursor means the next run reads what
+     * this one did not. Bounded by its own deadline so it ends rather than
+     * being abandoned when the step's time is up.
+     */
+    const discovery = await budget.step(
+      'discovery',
+      () => {
+        const deadlineAt = Date.now() + Math.min(DISCOVERY_STEP_MS, budget.remaining()) - 2_000;
+        return mapWithConcurrency([BSC_MAINNET, BSC_TESTNET] as const, 1, (chain) => runDiscovery(chain, { deadlineAt, signal }).catch(() => null));
+      },
+      { maxMs: DISCOVERY_STEP_MS },
+    );
 
     /*
      * Recover any job Pokter brokered that never reached its own index.
@@ -626,10 +664,22 @@ export async function POST(request: Request): Promise<NextResponse> {
      * a thrown error would lose the probe results this run just gathered.
      */
     const sealed = await budget.step('sealed', () => publishSeal());
+    /*
+     * Every agent the catalogue lists, not only the category sections read
+     * above: signed agents outside the five categories, and signed agents
+     * the registry's category search does not return, are listed too.
+     * Without their wallets, a hire of one showed on /quest as "Not matched
+     * to a listed agent".
+     */
     const agentWallets = listings
-      ? await budget.step('agentWallets', () =>
-          refreshAgentWallets(listings.map((l) => ({ chainId: l.agent.chain_id, tokenId: l.agent.token_id, name: l.agent.name ?? null }))),
-        )
+      ? await budget.step('agentWallets', async () => {
+          const catalogue = await listSearchableWithStatus({ limit: 400 }).then(({ entries }) => entries.map((entry) => entry.listing.agent)).catch(() => []);
+          const agents = new Map<string, { chainId: number; tokenId: string; name: string | null }>();
+          for (const agent of [...listings.map((l) => l.agent), ...catalogue]) {
+            agents.set(`${agent.chain_id}:${agent.token_id}`, { chainId: agent.chain_id, tokenId: agent.token_id, name: agent.name ?? null });
+          }
+          return refreshAgentWallets([...agents.values()]);
+        })
       : null;
     /*
      * What listed agents' wallets have done on chain: transactions sent, and
@@ -710,6 +760,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       tradingScan,
       tradingAlerts,
       relayTests,
+      discovery,
       funders,
       healthFactorChecks,
       categoryChecks,

@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { amountWithinLimits } from '@/lib/hire/budget-limits';
 import { randomUUID } from 'node:crypto';
 import {
   settleErc8183Job,
@@ -14,7 +15,9 @@ import type { Address } from 'viem';
 import { correctedErc8183Addresses } from './addresses';
 
 import { DELIVERY_WINDOW_SECONDS, jobLifetimeSeconds } from './deadline';
-import { formatAmount, requireDecimals } from '@/lib/network/tokens';
+import { requireDecimals } from '@/lib/network/tokens';
+import { jobAmountLabel } from '@/lib/erc8183/job-amount';
+import { assertEscrowSupportsToken, buildTokenHireCalls, nonDefaultHireToken, readJobPaymentToken } from './hire-calls';
 import { ALTANA_NETWORK, IS_TESTNET, adminSigner, altanaClient } from '@/lib/altana/client';
 import { attributeJob } from './attribute-owners';
 import { getJobStore } from './store';
@@ -63,8 +66,16 @@ export interface HireInput {
    * store keeps and the agent is asked.
    */
   description?: string;
-  /** Budget in whole $U, e.g. 0.1. */
+  /** Budget in whole $U, e.g. 0.1. Ignored for a token hire, which funds `amountRaw` exactly. */
   budgetU: number;
+  /**
+   * The token the seller signed, when it is not $U, and the signed amount in
+   * its base units. Both or neither: a token hire funds exactly the signed
+   * amount, and a token Pokter does not offer (or USDT with USDT hiring off)
+   * is refused rather than funded in $U.
+   */
+  paymentToken?: Address;
+  amountRaw?: string;
   /** Submission time beyond the policy's dispute window. */
   deadlineSeconds?: number;
 }
@@ -158,9 +169,9 @@ const POLICY_ABI = [
   },
 ] as const;
 
-/** Current $U balance of the Pokter wallet, in whole tokens. */
-export async function paymentTokenBalance(wallet: Address): Promise<string> {
-  const { paymentToken } = correctedErc8183Addresses(ALTANA_NETWORK.chainId);
+/** Current balance of the Pokter wallet in `token` (the escrow default when omitted), in whole tokens. */
+export async function paymentTokenBalance(wallet: Address, token?: Address): Promise<string> {
+  const paymentToken = token ?? correctedErc8183Addresses(ALTANA_NETWORK.chainId).paymentToken;
   const balance = await publicClient().readContract({
     address: paymentToken,
     abi: erc20Abi,
@@ -238,13 +249,23 @@ export async function hireAgent(input: HireInput): Promise<HiredJob> {
    * verified rather than falling back, because there is no safe default
    * scale for money.
    */
-  const { paymentToken: hireToken } = correctedErc8183Addresses(ALTANA_NETWORK.chainId);
+  const tokenHire = nonDefaultHireToken(ALTANA_NETWORK.chainId, input.paymentToken);
+  if (tokenHire && !(input.amountRaw && /^\d+$/.test(input.amountRaw))) {
+    throw new Error('A token hire funds exactly the signed amount, and none was given. Nothing was sent.');
+  }
+  const hireToken = tokenHire?.address ?? correctedErc8183Addresses(ALTANA_NETWORK.chainId).paymentToken;
   const decimals = requireDecimals(ALTANA_NETWORK.chainId, hireToken);
-  const budget = parseUnits(String(input.budgetU), decimals);
-  const held = await paymentTokenBalance(wallet.address);
+  const budget = tokenHire ? BigInt(input.amountRaw!) : parseUnits(String(input.budgetU), decimals);
+  /* The same per-token limits as every other path, in the token's own units. */
+  if (tokenHire) {
+    const within = amountWithinLimits(tokenHire, budget);
+    if (!within.ok) throw new Error(`${within.reason} Nothing was sent.`);
+  }
+  if (tokenHire) await assertEscrowSupportsToken(publicClient() as never, correctedErc8183Addresses(ALTANA_NETWORK.chainId).commerce, hireToken);
+  const held = await paymentTokenBalance(wallet.address, hireToken);
 
   if (parseUnits(held, decimals) < budget) {
-    throw new InsufficientPaymentTokenError(held, String(input.budgetU));
+    throw new InsufficientPaymentTokenError(held, tokenHire ? formatUnits(budget, decimals) : String(input.budgetU));
   }
 
   // Built here rather than via the SDK's hireErc8183Agent, which resolves its
@@ -274,14 +295,16 @@ export async function hireAgent(input: HireInput): Promise<HiredJob> {
     BigInt(Math.floor(Date.now() / 1000)) +
     BigInt(jobLifetimeSeconds(disputeWindow, input.deadlineSeconds ?? DELIVERY_WINDOW_SECONDS));
 
-  const calls = buildHireCalls({
-    addresses,
-    jobId,
-    provider: input.provider,
-    description: input.description ?? input.task,
-    budget,
-    expiredAt,
-  });
+  const calls = tokenHire
+    ? buildTokenHireCalls({ chainId: ALTANA_NETWORK.chainId, addresses, jobId, provider: input.provider, description: input.description ?? input.task, budget, expiredAt, token: hireToken })
+    : buildHireCalls({
+        addresses,
+        jobId,
+        provider: input.provider,
+        description: input.description ?? input.task,
+        budget,
+        expiredAt,
+      });
 
   let result;
   try {
@@ -301,6 +324,8 @@ export async function hireAgent(input: HireInput): Promise<HiredJob> {
     if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 2_000));
     const onchain = await getErc8183Job(ALTANA_NETWORK, jobId).catch(() => null);
     confirmed = onchain !== null && isThisHire(onchain, { client: wallet.address, provider: input.provider, description });
+    /* A token hire is this hire only if the escrow bound it to that token. Unread counts as unconfirmed. */
+    if (confirmed && tokenHire) confirmed = (await readJobPaymentToken(rpc as never, addresses.commerce, jobId)) === getAddress(hireToken);
   }
   if (!confirmed) {
     throw new Error(`The hire reported success, but job ${jobId} on chain is not this hire's job, so nothing was recorded. Check the transaction ${result.transactionHash ?? '(no hash returned)'} before retrying.`);
@@ -316,6 +341,8 @@ export async function hireAgent(input: HireInput): Promise<HiredJob> {
     provider: input.provider,
     task: input.task,
     budgetRaw: budget.toString(),
+    /* Known at funding: `createJob` binds the default, `createJobWithToken` the signed token, both confirmed above for a token hire. */
+    paymentToken: getAddress(hireToken),
     expiredAt: new Date(Number(expiredAt) * 1000).toISOString(),
     ...(input.agentChainId === undefined ? {} : { agentChainId: input.agentChainId }),
     hiredAt: new Date().toISOString(),
@@ -427,9 +454,7 @@ export function listJobs(): HiredJob[] {
  * infer it.
  */
 export function formatBudget(job: HiredJob): string {
-  const { paymentToken } = correctedErc8183Addresses(job.chainId);
-  return formatAmount(job.chainId, paymentToken, job.budgetRaw)?.label
-    ?? `${job.budgetRaw} raw units`;
+  return jobAmountLabel(job);
 }
 
 /**
@@ -490,5 +515,7 @@ export async function reclaimJob(jobId: string): Promise<{ jobId: string; transa
     });
   }
 
-  return { jobId, transactionHash: result.transactionHash ?? null, budget: formatUnits(onchain.budget, requireDecimals(ALTANA_NETWORK.chainId, correctedErc8183Addresses(ALTANA_NETWORK.chainId).paymentToken)) };
+  /* Refunded in the job's own token, read from the escrow; a failed read says so rather than assume $U. */
+  const refunded = await readJobPaymentToken(publicClient() as never, correctedErc8183Addresses(ALTANA_NETWORK.chainId).commerce, BigInt(jobId));
+  return { jobId, transactionHash: result.transactionHash ?? null, budget: jobAmountLabel({ chainId: ALTANA_NETWORK.chainId, paymentToken: refunded, budgetRaw: onchain.budget.toString() }) };
 }

@@ -1,35 +1,25 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 
-import { briefText, flatText, type DeliveredAnswer } from '@/lib/delivery/answer';
+import { DeliveredAnswerView } from '@/features/delivery/AnswerView';
+import { briefText, type DeliveredAnswer } from '@/lib/delivery/answer';
 import type { HiredJob } from '@/lib/erc8183/types';
-import { chainLabel } from '@/lib/network/presentation';
+import { utcWhen } from '@/lib/jobs/evidence-view';
 import { Button } from '@/ui/Button';
 import { Skeleton } from '@/ui/Feedback';
 import { Icon } from '@/ui/icons';
 import type { ManifestMatch } from '@/lib/erc8183/manifest-match';
+import { publicationMessage } from '@/lib/jobs/answer-publication';
+import type { JobFunder } from '@/lib/jobs/evidence-view';
+import { useActiveSigner } from '@/lib/wallet/use-active-signer';
+import { Notice } from '@/ui/Feedback';
 
 type AnswerResponse =
   | { delivered: false }
   | { delivered: true; readable: false; reason: string }
-  | { delivered: true; readable: true; matchesChain: boolean; matchedBy?: ManifestMatch | null; manifestHash: string; answer: DeliveredAnswer };
-
-/** A field value as text: short values inline, structures as indented text, nothing interpreted. */
-function Value({ value }: { value: unknown }) {
-  if (value === null || value === undefined || value === '') return <span className="text-ink-3">—</span>;
-  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return <span className="whitespace-pre-line break-words">{String(value)}</span>;
-  const flat = flatText(value);
-  if (flat) return <span className="break-words">{flat}</span>;
-  const json = JSON.stringify(value, null, 2);
-  if (json.length <= 160) return <span className="t-readout break-words text-[12.5px]">{JSON.stringify(value)}</span>;
-  return (
-    <details className="group">
-      <summary className="cursor-pointer text-[12.5px] font-medium text-ink-2 hover:text-ink">Show {Array.isArray(value) ? `${value.length} items` : 'details'}</summary>
-      <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap rounded-[8px] bg-sunken p-3 text-[12px]">{json.slice(0, 6000)}</pre>
-    </details>
-  );
-}
+  | { delivered: true; readable: true; matchesChain: boolean; matchedBy?: ManifestMatch | null; manifestHash: string; answer: DeliveredAnswer; funder?: JobFunder; published?: boolean };
 
 /**
  * The answer, first. The buyer hired an agent to answer a question, so
@@ -37,18 +27,20 @@ function Value({ value }: { value: unknown }) {
  * read, where it came from and what it does not cover. The file and the
  * hash that prove it are one level down, always there.
  */
-/** A timestamp as written when it is not a date we can parse. */
-function localMoment(value: string): string {
-  const parsed = new Date(value);
-  return parsed.toString() === 'Invalid Date' ? value : parsed.toLocaleString();
+/** In UTC, like every other time on the job page; as written when it is not a date. */
+function answerMoment(value: string): string {
+  return utcWhen(value) ?? value;
 }
 
 export function JobAnswer({
   job,
+  owned,
   deliverableUrl,
   verify,
 }: {
   job: HiredJob;
+  /** The connected wallet funded this job: it sees its own brief and answer, and decides whether the answer is published. */
+  owned: boolean;
   deliverableUrl: string | null;
   verify: { run: () => void; busy: boolean; verified: boolean };
 }) {
@@ -72,12 +64,43 @@ export function JobAnswer({
     );
   }
   const data = query.data;
-  if (query.isError || !data || !data.delivered) {
-    return <p className="text-[13.5px] text-ink-2">{query.isError ? `${(query.error as Error).message} The file and its proof are below.` : 'Nothing has been delivered yet.'}</p>;
+  if (query.isError) {
+    /*
+     * The answer could not be read or formatted. The delivered file and the
+     * on-chain check do not depend on that, so they stay one click away
+     * rather than disappearing with the summary.
+     */
+    return (
+      <div className="flex flex-col gap-3">
+        <p className="text-[13.5px] text-ink-2">{(query.error as Error).message} The original file and its check against the chain are still available.</p>
+        <div className="flex flex-wrap items-center gap-3 text-[13px]">
+          {deliverableUrl ? (
+            <a href={deliverableUrl} target="_blank" rel="noreferrer noopener nofollow" className="inline-flex items-center gap-1.5 font-medium link">
+              Open the delivered file <Icon.ArrowUpRight size={14} />
+            </a>
+          ) : (
+            <span className="text-ink-3">No readable link was published.</span>
+          )}
+          <Button size="s" intent={verify.verified ? 'ghost' : 'secondary'} onClick={verify.run} busy={verify.busy} disabled={verify.verified}>
+            {verify.verified ? 'Checked: matches' : 'Check it against the chain'}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+  if (!data || !data.delivered) {
+    return <p className="text-[13.5px] text-ink-2">Nothing has been delivered yet.</p>;
   }
 
-  const answer = data.readable ? data.answer : null;
-  const asked = answer?.asked ?? briefText(job.task);
+  /*
+   * Anyone but the funding wallet sees what the public evidence page
+   * shows: the answer once it is public, the brief only for Pokter's own
+   * tests. The page is out of search, but an unpublished answer should not
+   * be one link away on Pokter either.
+   */
+  const withheld = !owned && data.readable && data.published === false;
+  const answer = data.readable && !withheld ? data.answer : null;
+  const asked = owned || (data.readable && data.funder === 'team') ? (answer?.asked ?? briefText(job.task)) : null;
   return (
     <div className="flex flex-col gap-5">
       {asked && (
@@ -89,64 +112,12 @@ export function JobAnswer({
 
       {!data.readable ? (
         <p className="text-[13.5px] text-ink-2">{data.reason}</p>
+      ) : withheld ? (
+        <p className="text-[13.5px] text-ink-2">Delivered. The buyer has not published the answer, so it is shown only to the wallet that funded the job.</p>
       ) : (
         <>
-          <div className="flex flex-col gap-1.5">
-            <span className="t-label">What came back</span>
-            {answer!.title && <p className="text-[15px] font-semibold">{answer!.title}</p>}
-            {answer!.result ? (
-              <p className="whitespace-pre-line break-words text-[15px] leading-relaxed text-ink">{answer!.result}</p>
-            ) : answer!.raw ? (
-              <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-[10px] bg-sunken p-4 text-[13px]">{answer!.raw.slice(0, 8000)}</pre>
-            ) : (
-              <p className="text-[13.5px] text-ink-3">The agent gave no summary; its fields are below.</p>
-            )}
-            <p className="text-[12px] text-ink-3">
-              {/*
-                Two facts, never one. When the report was written is not
-                when its data was read, and printing the first under the
-                second claimed a freshness nobody measured.
-              */}
-              {answer!.asOf?.time ? `Data read ${localMoment(answer!.asOf.time)}` : 'The agent did not say when it read the data'}
-              {answer!.asOf?.block ? ` · block ${answer!.asOf.block}` : ''}
-              {answer!.generatedAt ? ` · report generated ${localMoment(answer!.generatedAt)}` : ''}
-              {` · paid on ${chainLabel(job.chainId)}`}
-              {answer!.producer ? ` · produced by ${answer!.producer}` : ''}
-            </p>
-          </div>
-
-          {answer!.fields.length > 0 && (
-            <dl className="grid grid-cols-1 gap-x-6 gap-y-2.5 rounded-[12px] border border-rule bg-paper p-4 text-[13.5px] sm:grid-cols-[minmax(0,180px)_minmax(0,1fr)]">
-              {answer!.fields.slice(0, 14).map((f) => (
-                <div key={f.label} className="contents">
-                  <dt className="text-[12.5px] capitalize text-ink-3">{f.label}</dt>
-                  <dd className="min-w-0 text-ink-2"><Value value={f.value} /></dd>
-                </div>
-              ))}
-            </dl>
-          )}
-
-          {(answer!.limitations.length > 0 || answer!.sources.length > 0) && (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {answer!.limitations.length > 0 && (
-                <div className="flex flex-col gap-1.5">
-                  <span className="t-label">What it does not cover</span>
-                  <ul className="flex list-disc flex-col gap-1 pl-5 text-[13px] text-ink-2">
-                    {answer!.limitations.slice(0, 8).map((l) => <li key={l} className="break-words">{l}</li>)}
-                  </ul>
-                </div>
-              )}
-              {answer!.sources.length > 0 && (
-                <div className="flex flex-col gap-1.5">
-                  <span className="t-label">Where it came from</span>
-                  <ul className="flex list-disc flex-col gap-1 pl-5 text-[13px] text-ink-2">
-                    {answer!.sources.slice(0, 8).map((s) => <li key={s} className="break-all">{s}</li>)}
-                  </ul>
-                </div>
-              )}
-            </div>
-          )}
-          <p className="text-[12px] text-ink-3">Written by the agent. Pokter shows it as delivered and has not checked that it is right.</p>
+          <DeliveredAnswerView answer={answer!} chainId={job.chainId} when={answerMoment} />
+          {owned && data.matchesChain && (data.funder === 'outside' || data.funder === 'unknown') && <AnswerPublication job={job} published={data.published === true} />}
         </>
       )}
 
@@ -160,7 +131,9 @@ export function JobAnswer({
           <span className="hidden font-medium text-ink-2 group-open:inline">Hide</span>
         </summary>
         <div className="flex flex-col gap-3 border-t border-rule px-4 py-3 text-[13px]">
-          {deliverableUrl ? (
+          {withheld ? (
+            <span className="text-ink-3">The delivered file is linked for the wallet that funded the job.</span>
+          ) : deliverableUrl ? (
             <a href={deliverableUrl} target="_blank" rel="noreferrer noopener nofollow" className="inline-flex items-center gap-1.5 self-start font-medium link">
               Open the delivered file <Icon.ArrowUpRight size={14} />
             </a>
@@ -189,6 +162,54 @@ export function JobAnswer({
           </Button>
         </div>
       </details>
+    </div>
+  );
+}
+
+/**
+ * The funding wallet's choice to publish its answer on Pokter's public
+ * pages, or to stop. Off until chosen (see answer-publication.ts): the
+ * answer is the buyer's, and it can carry the task in it. One signature,
+ * which moves nothing; the newest choice wins.
+ */
+function AnswerPublication({ job, published }: { job: HiredJob; published: boolean }) {
+  const signer = useActiveSigner();
+  const queryClient = useQueryClient();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function decide(publish: boolean) {
+    setBusy(true);
+    setError(null);
+    try {
+      const decidedAt = new Date().toISOString();
+      const signature = await signer.sign(publicationMessage({ chainId: job.chainId, jobId: job.jobId, publish, decidedAt }));
+      const response = await fetch(`/api/jobs/${job.jobId}/publication?chain=${job.chainId}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ publish, decidedAt, signature }) });
+      const body = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) throw new Error(body.error ?? 'The choice could not be recorded.');
+      await queryClient.invalidateQueries({ queryKey: ['job-answer', job.chainId, job.jobId] });
+    } catch (reason) {
+      const message = (reason as Error)?.message ?? '';
+      setError(/reject|denied|cancel|NotAllowed/i.test(message) ? 'You declined the signature. Nothing changed.' : message || 'The choice could not be recorded.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-3 rounded-[12px] border border-rule bg-paper px-4 py-3">
+      <div className="flex flex-col gap-1">
+        <span className="text-[13.5px] font-medium text-ink">{published ? 'Published on Pokter' : 'Only you see this answer on Pokter'}</span>
+        <p className="text-[12.5px] leading-relaxed text-ink-3">
+          {published
+            ? 'It is shown on this job’s public evidence page, and may appear as a sample on the agent’s page, with your wallet address taken out.'
+            : 'Publishing it shows it on this job’s public evidence page, and possibly as a sample on the agent’s page, with your wallet address taken out. That helps other buyers judge the agent. The agent’s delivery link is recorded on chain whichever you choose.'}
+        </p>
+      </div>
+      <Button size="s" intent="secondary" className="self-start" busy={busy} disabled={!signer.canSign} onClick={() => void decide(!published)}>
+        {published ? 'Stop publishing it' : 'Publish this answer'}
+      </Button>
+      {error && <Notice tone="bad">{error}</Notice>}
     </div>
   );
 }

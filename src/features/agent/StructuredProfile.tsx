@@ -1,4 +1,7 @@
+import Link from 'next/link';
 import type { ReactNode } from 'react';
+
+import { jobEvidencePath } from '@/lib/jobs/evidence-view';
 
 import type { Said, StructuredProfile as Structured } from './structured';
 
@@ -89,6 +92,22 @@ export function StructuredProfile({ s, sampleAnchor, onChain }: { s: Structured;
             <a href={`#${sampleAnchor}`} className="font-medium text-ink-2 hover:text-ink hover:underline">
               See the delivery
             </a>
+          </Missing>
+        ) : s.back.delivered > 0 ? (
+          /*
+           * Delivered, but nothing Pokter may show: no sample is not no
+           * delivery. Two reasons, both said: an outside buyer's answer is
+           * shown only once the buyer publishes it (`answerIsPublic`), and
+           * any answer only once it matches its hash. The newest delivery's
+           * evidence is one click away either way.
+           */
+          <Missing>
+            No published sample yet. It has delivered {s.back.delivered === 1 ? 'a paid job' : `${s.back.delivered} paid jobs`} through Pokter. An outside buyer&rsquo;s answer appears here only once the buyer publishes it, and any answer only once it matches its hash on chain.{' '}
+            {s.back.latest && (
+              <Link href={jobEvidencePath({ chainId: s.back.latest.chainId, jobId: s.back.latest.jobId })} className="font-medium text-ink-2 hover:text-ink hover:underline">
+                The newest delivery&rsquo;s evidence
+              </Link>
+            )}
           </Missing>
         ) : (
           <Missing>It has not delivered a paid job through Pokter yet, so there is no real sample to show.</Missing>
