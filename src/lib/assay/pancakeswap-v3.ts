@@ -37,8 +37,9 @@ const POOL_FACTORY = parseAbi(['function getPool(address,address,uint24) view re
 const POOL = parseAbi(['function slot0() view returns (uint160 sqrtPriceX96, int24 tick, uint16, uint16, uint16, uint32, bool)']);
 const TRANSFER_EVENT = parseAbi(['event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)'])[0];
 
+/* A slow node gives up a call after 8s and tries it once more, rather than three more times at 10s each. */
 export function v3Client() {
-  return createPublicClient({ chain: bsc, transport: http(RPC_URL), batch: { multicall: true } });
+  return createPublicClient({ chain: bsc, transport: http(RPC_URL, { timeout: 8_000, retryCount: 1 }), batch: { multicall: true } });
 }
 
 /* As in venus.ts: the concrete client, so the read methods are in scope. */
