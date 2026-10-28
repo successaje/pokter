@@ -90,6 +90,8 @@ export interface ProbeStore {
   recordQuotes(quotes: QuoteRecord[]): void;
   /** The last quote held for each of the given agents, keyed `chainId:tokenId`. */
   quotesFor(agents: { chainId: number; tokenId: string }[]): Map<string, QuoteRecord>;
+  /** Agents whose stored price this wallet signed, on any chain. */
+  agentsBySigner(wallet: string): { chainId: number; tokenId: string }[];
   /**
    * Whether each agent's card last said its endpoint needs credentials. Only
    * the latest reading is kept: a builder who opens the endpoint is hireable
@@ -482,6 +484,11 @@ class SqliteProbeStore implements ProbeStore {
       .prepare('SELECT chain_id, token_id FROM card_access WHERE requires_auth = 1')
       .all() as unknown as { chain_id: number; token_id: string }[];
     return new Set(rows.map((row) => `${row.chain_id}:${row.token_id}`));
+  }
+
+  agentsBySigner(wallet: string): { chainId: number; tokenId: string }[] {
+    const rows = this.db.prepare('SELECT chain_id, token_id FROM quotes WHERE lower(signer) = ?').all(wallet.toLowerCase()) as Array<{ chain_id: number; token_id: string }>;
+    return rows.map((row) => ({ chainId: row.chain_id, tokenId: row.token_id }));
   }
 
   quotesFor(
