@@ -1,4 +1,6 @@
 import { isDollarUJob, totalsByToken, type TokenTotal } from '@/lib/erc8183/job-amount';
+import { approxUsdTotal, type MoneyLine } from '@/lib/money/approx-total';
+import { chainLabel } from '@/lib/network/presentation';
 
 /**
  * What a builder was paid, kept apart by escrow network.
@@ -58,4 +60,29 @@ export function earnedLineText(line: EarnedLine): string {
   if (line.realMoney) return line.label;
   const amount = line.label.slice(0, line.label.length - line.symbol.length).trim();
   return `${amount} test ${line.symbol}`;
+}
+
+/**
+ * The line under a builder's earnings figure: where the money was paid,
+ * and what was left out of the figure.
+ *
+ * It said "released on BNB Chain" whenever no stablecoins were added
+ * together, so a builder paid only in test tokens read "0.22 test $U,
+ * released on BNB Chain": the wrong network, for money with no value. It
+ * also said "test money and unread currencies not counted" when only one
+ * of those was left out.
+ */
+export function earningsNote(lines: readonly MoneyLine[]): string {
+  const total = approxUsdTotal(lines);
+  if (total.caption) return total.caption;
+  const test = total.notCounted.some((line) => line.chainId !== 56);
+  const unread = total.notCounted.some((line) => line.chainId === 56 && (line.token === null || line.decimals === null));
+  const other = total.notCounted.some((line) => line.chainId === 56 && line.token !== null && line.decimals !== null);
+  if (total.counted.length === 0 && test && !unread && !other) return `test tokens on ${chainLabel(97)}, no value`;
+  const left = [test && 'test tokens', unread && 'unread currencies', other && 'other tokens'].filter((kind): kind is string => Boolean(kind));
+  /* With nothing counted and one kind left out, the figure is that amount itself and says what it is. */
+  if (left.length > 0 && (total.counted.length > 0 || left.length > 1)) {
+    return `${left.length === 1 ? left[0] : `${left.slice(0, -1).join(', ')} and ${left.at(-1)}`} not counted`;
+  }
+  return `released on ${chainLabel(56)}`;
 }

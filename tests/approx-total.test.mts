@@ -4,7 +4,7 @@ import test from 'node:test';
 
 import { approxTotalView, approxUsdTotal, formatUsd, type MoneyLine } from '../src/lib/money/approx-total';
 import { totalLines } from '../src/features/workspace/totals';
-import { earnedByToken, earnedMoneyLines } from '../src/lib/builder/earnings';
+import { earnedByToken, earnedMoneyLines, earningsNote } from '../src/lib/builder/earnings';
 import { knownTokens } from '../src/lib/network/tokens';
 
 /*
@@ -87,6 +87,23 @@ test('workspace and builder totals feed the same figure', () => {
   const earned = approxTotalView(earnedMoneyLines(earnedByToken(jobs)));
   assert.equal(earned.headline, '≈ $0.10');
   assert.deepEqual(earned.notCounted.map((l) => [l.text, l.where]), [['0.1 test $U', 'Testnet']]);
+});
+
+test('the note under a builder\'s earnings says where they were paid and what was left out', () => {
+  const paid = (chainId: number, paymentToken: string | null, cents: bigint) => ({ chainId, paymentToken, budgetRaw: (cents * E16).toString(), status: 'COMPLETED' });
+  const note = (jobs: ReturnType<typeof paid>[]) => earningsNote(earnedMoneyLines(earnedByToken(jobs)));
+  /* Paid only in test tokens: the testnet, not "released on BNB Chain". */
+  assert.equal(note([paid(97, U97, 22n)]), 'test tokens on BNB Testnet, no value');
+  assert.equal(note([paid(56, U56, 5n)]), 'released on BNB Chain');
+  assert.equal(note([]), 'released on BNB Chain');
+  /* Only what was actually left out is named. */
+  assert.equal(note([paid(56, U56, 5n), paid(97, U97, 10n)]), 'test tokens not counted');
+  assert.equal(note([paid(56, U56, 5n), paid(56, null, 10n)]), 'unread currencies not counted');
+  assert.equal(note([paid(56, U56, 5n), paid(56, null, 10n), paid(97, U97, 1n)]), 'test tokens and unread currencies not counted');
+  assert.equal(note([paid(56, null, 10n), paid(97, U97, 1n)]), 'test tokens and unread currencies not counted');
+  /* Several stablecoins added at $1 each say so first. */
+  assert.equal(note([paid(56, U56, 5n), paid(56, USDC56, 5n)]), 'stablecoins at $1 each');
+  assert.match(source('src/app/(site)/build/(section)/page.tsx'), /note: earningsNote\(earnedLines\),/);
 });
 
 test('every total shows one figure with its breakdown, and no breakdown sits inside a link', () => {
