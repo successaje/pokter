@@ -9,6 +9,7 @@ import type { HiredJob } from '@/lib/erc8183/types';
 
 import { deliverableKey, readDeliverable, readDeliverableMismatch } from '@/lib/erc8183/deliverables';
 import { getJobStore } from '@/lib/erc8183/store';
+import { mayStartSideEffect } from '@/lib/history/budget';
 
 import { GRADING_RULES, STATIC_SUITES, type StaticAssayCategory } from './category-suites';
 import { HF_SUITE_ID } from './health-factor';
@@ -429,9 +430,10 @@ export async function gradePaidV3Check(
  * Grade every position-range agent that has paid fixtures.
  *
  * Separate from the static loop because this reads the chain, and from
- * the health factor loop because it reads different contracts.
+ * the health factor loop because it reads different contracts. With a
+ * deadline, no agent is started after it: the rest wait for the next run.
  */
-export async function gradeDuePaidV3Checks(): Promise<{ graded: number; incomplete: number; passedAll: number }> {
+export async function gradeDuePaidV3Checks({ deadlineAt }: { deadlineAt?: number } = {}): Promise<{ graded: number; incomplete: number; passedAll: number }> {
   const agents = new Map<string, { chainId: number; tokenId: string }>();
   for (const job of getJobStore().all()) {
     const marker = readCheckMarker(job.task);
@@ -445,6 +447,7 @@ export async function gradeDuePaidV3Checks(): Promise<{ graded: number; incomple
   let passedAll = 0;
   for (const target of agents.values()) {
     if (alreadyGraded(target, V3_SUITE_ID, fixtureJobsForAgent(target, V3_SUITE_ID))) continue;
+    if (!mayStartSideEffect(deadlineAt)) break;
     const outcome = await gradePaidV3Check(target).catch(() => null);
     if (outcome?.state === 'recorded') {
       graded += 1;

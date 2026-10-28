@@ -65,6 +65,10 @@ export const maxDuration = 300;
 const TESTNET_BUDGET_MS = 45_000;
 /* Discovery's share of a run: a couple of registry pages and a handful of card reads per chain. */
 const DISCOVERY_STEP_MS = 25_000;
+/* Position-range grading reads one mainnet node and normally takes seconds; a slow node costs this share, not the run's. */
+const PAID_V3_STEP_MS = 20_000;
+/* Answered-task checks read the chain and sellers' delivery hosts for a few jobs; what does not fit waits for the next run. */
+const ANSWERED_TASKS_STEP_MS = 30_000;
 
 /** Held while a sweep runs in this process (there is one machine). */
 let sweepRunning = false;
@@ -596,7 +600,11 @@ export async function POST(request: Request): Promise<NextResponse> {
     // caught: a slow or failing RPC must not cost the measurements above.
     const paidHfChecks = await budget.step('paidHfChecks', () => gradeDuePaidHfChecks());
     // Position ranges read different contracts, and fail independently.
-    const paidV3Checks = await budget.step('paidV3Checks', () => gradeDuePaidV3Checks());
+    const paidV3Checks = await budget.step(
+      'paidV3Checks',
+      () => gradeDuePaidV3Checks({ deadlineAt: Date.now() + Math.min(PAID_V3_STEP_MS, budget.spendable()) - 2_000 }),
+      { maxMs: PAID_V3_STEP_MS },
+    );
 
     /*
      * The Set and Earn tracker's index: new escrow jobs on both chains by
@@ -609,7 +617,11 @@ export async function POST(request: Request): Promise<NextResponse> {
       mapWithConcurrency([56, 97] as const, 1, (chain) => indexEscrowJobs(chain).catch(() => null)),
     );
     // After the index, so the newest jobs are there to be judged.
-    const answeredTasks = await budget.step('answeredTasks', () => checkAnsweredTasks());
+    const answeredTasks = await budget.step(
+      'answeredTasks',
+      () => checkAnsweredTasks({ budgetMs: Math.max(0, Math.min(ANSWERED_TASKS_STEP_MS, budget.spendable()) - 2_000) }),
+      { maxMs: ANSWERED_TASKS_STEP_MS },
+    );
 
     /*
      * New registrations (lib/history/discovery.ts): read what was
