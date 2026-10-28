@@ -783,8 +783,14 @@ function OutcomeCards({
  * the rate under each name started at a different place on every row. Naming
  * the mobile template fixes the rank gutter and lines the rows up.
  */
+/*
+ * Above `sm`, every column after the agent is right-aligned, so the board's
+ * right edge is one line, and the last is wide enough to sit well clear of
+ * the one before: a left-aligned "Evidence" 12px after a right-aligned
+ * "Checks answered" read as one run of text.
+ */
 const RESPONSIVENESS_GRID =
-  'grid grid-cols-[2.5rem_minmax(0,1fr)] gap-x-3 gap-y-2 sm:grid-cols-[2.5rem_minmax(0,1fr)_6rem_11rem_6.5rem]';
+  'grid grid-cols-[2.5rem_minmax(0,1fr)] gap-x-3 gap-y-2 sm:grid-cols-[2.5rem_minmax(0,1fr)_6rem_11rem_8rem]';
 
 /**
  * The column names, outside the list rather than as its first item.
@@ -804,7 +810,7 @@ function ResponsivenessHeader() {
         Answer rate <Icon.ChevronDown size={12} aria-hidden />
       </span>
       <span className="t-label text-right">Checks answered</span>
-      <span className="t-label">Evidence</span>
+      <span className="t-label text-right">Evidence</span>
     </div>
   );
 }
@@ -870,7 +876,7 @@ function ResponsivenessLine({ row, rank }: { row: ResponsivenessRow; rank: numbe
         */}
         {row.checks > 0 && <span>{formatObservedSpan(row.observedDays)}</span>}
       </span>
-      <span className="col-start-2 sm:col-start-auto">
+      <span className="col-start-2 sm:col-start-auto sm:text-right">
         <Link
           href={`/agents/${row.agent.chainId}/${row.agent.tokenId}#history`}
           className="inline-flex items-center gap-1 text-[12.5px] font-medium text-ink hover:underline"

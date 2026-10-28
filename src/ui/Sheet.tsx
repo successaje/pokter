@@ -109,7 +109,14 @@ export function Sheet({
               </div>
             </header>
           )}
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">{children}</div>
+          {/*
+            Positioned, so anything absolutely placed inside (a screen-reader
+            label, a tooltip) is laid out and clipped here. Unpositioned, such
+            an element took the dialog as its frame, stretched it past the
+            screen, and the whole panel scrolled away. Scrolling stops at its
+            ends instead of carrying on to the page behind.
+          */}
+          <div className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5">{children}</div>
           {footer && <footer className="pb-safe border-t border-rule px-5 pt-3">{footer}</footer>}
         </div>
       </div>

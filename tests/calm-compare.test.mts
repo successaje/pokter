@@ -34,5 +34,17 @@ test('the row sits under the site header on the page and flush with the top of t
   assert.match(code('shell/SiteHeader.tsx'), /scrolled \? 'h-14' : 'h-16'/);
   assert.match(code('features/compare/CompareSheet.tsx'), /\[--compare-top:-20px\]/);
   /* Minus the sheet body's own padding. */
-  assert.match(code('ui/Sheet.tsx'), /overflow-y-auto px-5 py-5/);
+  assert.match(code('ui/Sheet.tsx'), /overflow-y-auto overscroll-contain px-5 py-5/);
+});
+
+test('the sheet never scrolls out of view: its body frames what is placed inside it, and the dialog does not scroll', () => {
+  /*
+   * An absolutely placed label inside an unpositioned body took the dialog as
+   * its frame, stretched it past the screen, and the panel scrolled away.
+   */
+  assert.match(code('ui/Sheet.tsx'), /className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5"/);
+  const css = code('app/globals.css');
+  const sheet = css.slice(css.indexOf('dialog.sheet {'), css.indexOf('}', css.indexOf('dialog.sheet {')));
+  assert.match(sheet, /overflow: hidden;/);
+  assert.match(sheet, /overscroll-behavior: contain;/);
 });
