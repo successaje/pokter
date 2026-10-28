@@ -1,7 +1,7 @@
 import type { BoardNetwork } from './network';
 import type { OutcomeMetric } from './outcomes';
 
-export type BoardView = 'outcomes' | 'responsiveness';
+export type BoardView = 'score' | 'outcomes' | 'responsiveness';
 
 export interface BoardSelection {
   network: BoardNetwork;
@@ -11,13 +11,17 @@ export interface BoardSelection {
 
 export const DEFAULT_SELECTION: BoardSelection = {
   network: 'mainnet',
-  view: 'outcomes',
+  /* The Pokter Score is what a buyer came to compare, so it is the board
+     they land on. The other two remain exactly what they were. */
+  view: 'score',
   metric: 'settled-jobs',
 };
 
 export function boardViewFrom(raw: string | string[] | undefined): BoardView {
   const value = Array.isArray(raw) ? raw[0] : raw;
-  return value === 'responsiveness' ? 'responsiveness' : 'outcomes';
+  if (value === 'responsiveness') return 'responsiveness';
+  if (value === 'outcomes') return 'outcomes';
+  return 'score';
 }
 
 /**

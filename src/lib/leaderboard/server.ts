@@ -2,6 +2,9 @@ import 'server-only';
 
 import { CATEGORIES, type Category } from '@/lib/agents/categories';
 import { isLifecycleDemo, isRelayedDelivery } from '@/lib/agent/credited-history';
+import { deliveryRecord, type DeliveryRecord } from '@/lib/score/inputs';
+import { RESPONSIVENESS_WINDOW_DAYS } from '@/lib/leaderboard/responsiveness';
+import { rankTrackRecords, scoreTrackRecord, type TrackRecord } from '@/lib/score/track-record';
 import { getJobStore } from '@/lib/erc8183/store';
 import { isSelfHire } from '@/lib/erc8183/production-proof';
 import type { HiredJob } from '@/lib/erc8183/types';
@@ -295,5 +298,89 @@ export async function loadResponsivenessBoard(
   return {
     state: 'ready',
     data: buildResponsivenessBoard({ registryChainId, byCategory, unreadCategories }),
+  };
+}
+
+/* ------------------------------------------------------------------ *
+ * The Pokter Score board
+ * ------------------------------------------------------------------ */
+
+export interface ScoreRow {
+  agent: BoardAgent;
+  name: string;
+  category: Category | 'unclassified';
+  score: TrackRecord;
+  record: DeliveryRecord;
+}
+
+export interface ScoreBoard {
+  rows: readonly ScoreRow[];
+  /** Agents the minimum-evidence rule left out, so the page can say how many. */
+  unranked: readonly ScoreRow[];
+  coverage: {
+    listedAgents: number;
+    ranked: number;
+    withResolvedJob: number;
+    lastRefreshedAt: string | null;
+  };
+}
+
+/**
+ * Every listed agent on one registry chain, scored the same way.
+ *
+ * The score is computed here and nowhere else — one server-side
+ * implementation, versioned with the model, so a figure on the leaderboard
+ * and the same figure on the agent's own page can never be two different
+ * numbers computed two different ways.
+ *
+ * Ranked inside a category, which is why the page shows one category at a
+ * time: an answer rate and a delivery count mean different things for a
+ * grid trader and a health-factor monitor.
+ */
+export async function loadScoreBoard(network: BoardNetwork): Promise<BoardResult<ScoreBoard>> {
+  let catalogue: Catalogue;
+  try {
+    catalogue = await listSearchableWithStatus({ limit: 400 });
+  } catch {
+    return { state: 'unavailable', reason: DATA_UNAVAILABLE };
+  }
+  if (catalogue.unreachable) return { state: 'unavailable', reason: DATA_UNAVAILABLE };
+
+  const registryChainId = registryChainOf(network);
+  const store = getJobStore();
+  const scored: ScoreRow[] = catalogue.entries
+    .filter((entry) => entry.listing.agent.chain_id === registryChainId)
+    .map((entry) => {
+      const agent = toBoardAgent(entry);
+      const record = deliveryRecord(store.byAgent(entry.listing.agent.chain_id, entry.listing.agent.token_id));
+      const window = entry.record.windows.find((w) => w.days === RESPONSIVENESS_WINDOW_DAYS) ?? entry.record.windows[0];
+      return {
+        agent,
+        name: agent.name,
+        category: entry.listing.category ?? 'unclassified',
+        record,
+        score: scoreTrackRecord({
+          delivered: record.delivered,
+          missed: record.missed,
+          answered: window?.answered ?? 0,
+          checks: window?.probes ?? 0,
+          observedDays: entry.record.observedDays,
+          category: entry.listing.category ?? 'unclassified',
+        }),
+      };
+    });
+
+  return {
+    state: 'ready',
+    data: {
+      rows: rankTrackRecords(scored),
+      unranked: scored.filter((row) => !row.score.rankable),
+      coverage: {
+        listedAgents: scored.length,
+        ranked: scored.filter((row) => row.score.rankable).length,
+        withResolvedJob: scored.filter((row) => row.score.resolvedJobs > 0).length,
+        lastRefreshedAt: new Date().toISOString(),
+      },
+    },
   };
 }
