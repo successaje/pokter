@@ -76,4 +76,9 @@ test('the pass is bounded, keeps its tries out of the probe history, and runs la
   assert.ok(route.indexOf("budget.step(\n      'discovery'") > route.indexOf("budget.step('stuckJobs'"), 'after the steps that alert anyone');
   assert.match(code('lib/history/scheduler.ts'), / · discovery /);
   assert.match(code('app/(site)/methodology/page.tsx'), /New registrations are found as they arrive, not by scanning the registry\./);
+  /* "1 answered and are measured": each count agrees with its verb. */
+  const methodology = code('app/(site)/methodology/page.tsx');
+  assert.match(methodology, /answered and \{d\.promoted === 1 \? 'is' : 'are'\} measured/);
+  assert.match(methodology, /\{d\.queued === 1 \? 'is' : 'are'\} waiting/);
+  assert.match(methodology, /\{d\.dropped === 1 \? 'was' : 'were'\} left alone/);
 });
