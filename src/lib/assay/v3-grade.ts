@@ -169,6 +169,8 @@ export function gradePaidV3Scenarios(input: {
 
   const said = readV3Answer(answer);
   const truncated = answerTruncated(answer);
+  /* Where and when Pokter read the reference, kept on every row so the comparison can name its block. */
+  const at = { block: input.reading.block.toString(), readAt: input.readAt };
 
   /*
    * An answer that names none of the wallet's positions did not do the
@@ -184,7 +186,7 @@ export function gradePaidV3Scenarios(input: {
       return {
         ...base,
         scenario: `#${position.id}`,
-        expected: { status: expected },
+        expected: { status: expected, ...at },
         observed: null,
         excerpt: null,
         pass: false,
@@ -209,7 +211,7 @@ export function gradePaidV3Scenarios(input: {
     return rows.map((position) => ({
       ...base,
       scenario: position ? `#${position.id}` : walletRow('reading'),
-      expected: position ? { status: statusOf(position) } : null,
+      expected: position ? { status: statusOf(position), ...at } : null,
       observed: position ? { status: said.get(position.id) ?? null } : { positions: said.size },
       excerpt: null,
       pass: false,
@@ -228,7 +230,7 @@ export function gradePaidV3Scenarios(input: {
     return [{
       ...base,
       scenario: walletRow('no-positions'),
-      expected: { positions: 0 },
+      expected: { positions: 0, ...at },
       observed: { positions: said.size },
       excerpt: null,
       pass: !invented,
@@ -245,14 +247,14 @@ export function gradePaidV3Scenarios(input: {
     const scenario = `#${position.id}`;
     if (observed === null) {
       return truncated
-        ? { ...base, scenario, expected: { status: expected }, observed: null, excerpt: null, pass: false, outcome: 'not-comparable', reason: `The answer says it read only its first positions and does not reach this one, so it is not counted. Pokter read it as ${expected}.` }
-        : { ...base, scenario, expected: { status: expected }, observed: null, excerpt: null, pass: false, outcome: 'unanswered', reason: `The answer does not mention this position. Pokter read it as ${expected} at block ${input.reading!.block}.` };
+        ? { ...base, scenario, expected: { status: expected, ...at }, observed: null, excerpt: null, pass: false, outcome: 'not-comparable', reason: `The answer says it read only its first positions and does not reach this one, so it is not counted. Pokter read it as ${expected}.` }
+        : { ...base, scenario, expected: { status: expected, ...at }, observed: null, excerpt: null, pass: false, outcome: 'unanswered', reason: `The answer does not mention this position. Pokter read it as ${expected} at block ${input.reading!.block}.` };
     }
     const pass = observed === expected;
     return {
       ...base,
       scenario,
-      expected: { status: expected },
+      expected: { status: expected, ...at },
       observed: { status: observed },
       excerpt: null,
       pass,
