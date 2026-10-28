@@ -83,12 +83,13 @@ export default async function HomePage() {
       scope: 'Paid work',
       unit: 'jobs · settled through Pokter escrow',
       rows: [{ label: 'Paid jobs answered', value: home.activity.answeredJobs }],
-      note: `Settled with the agent\u2019s answer, from wallets outside Pokter\u2019s declared team${
+      note: `Settled with the agent\u2019s answer and paid to the agent, from wallets outside Pokter\u2019s declared team${
         home.activity.completedMainnet > 0 ? ` (${home.activity.completedMainnet} on BNB Chain in real ${moneyWords(56)}, the rest on testnet)` : IS_TESTNET ? ', in test tokens' : ''
       }. Jobs, not agents.${(() => {
         const left = [
           home.activity.demoJobs > 0 ? `${home.activity.demoJobs} lifecycle demo${home.activity.demoJobs === 1 ? '' : 's'}` : null,
           home.activity.selfHireJobs > 0 ? `${home.activity.selfHireJobs} self-hire${home.activity.selfHireJobs === 1 ? '' : 's'}` : null,
+          home.activity.courierJobs > 0 ? `${home.activity.courierJobs} delivered by Pokter\u2019s courier and paid to Pokter` : null,
           home.activity.teamCompleted > 0 ? `${home.activity.teamCompleted} team test hire${home.activity.teamCompleted === 1 ? '' : 's'}` : null,
         ].filter(Boolean);
         return left.length ? ` Not counted: ${left.join(', ')}.` : '';

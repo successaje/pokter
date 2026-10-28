@@ -15,6 +15,7 @@ import { reviewWindowSummary } from '@/lib/erc8183/settle-window';
 import { getJobStore } from '@/lib/erc8183/store';
 import type { HiredJob } from '@/lib/erc8183/types';
 import { jobReceipt } from '@/lib/jobs/receipt-link';
+import { registeredWalletRead } from '@/lib/registry/live-agent';
 import { teamWalletSet } from '@/lib/team/server';
 import { answerIsPublic } from './answer-publication';
 
@@ -50,6 +51,13 @@ export interface JobEvidence {
   funder: JobFunder;
   /** True when a team wallet delivered it: Pokter's courier, not the agent's own wallet. */
   deliveredByPokter: boolean;
+  /**
+   * The escrow pays a Pokter wallet that is not the agent's own: Pokter's
+   * courier is the provider, delivering the agent's answer in its place, and
+   * is paid in its place. False for Pokter's own agents, whose registered
+   * wallet is the Pokter wallet the escrow pays.
+   */
+  paidToCourier: boolean;
   hiredAt: string;
   deliveredAt: string | null;
   expiresAt: string | null;
@@ -90,6 +98,10 @@ export async function loadJobEvidence(chainId: 56 | 97, jobId: string, now = Dat
   const paymentToken = indexed.paymentToken ?? (await withTimeout(jobPaymentTokenOnChain(chainId, jobId), 5_000));
   const team = teamWalletSet();
   const funder = jobFunder({ client: chain?.client ?? indexed.client, provider }, team);
+  const deliveredByPokter = team.has(provider.toLowerCase());
+  /* Unread, the Pokter wallet is taken to be the courier: the page then says Pokter was paid, never that the agent was. */
+  const agentWallet = deliveredByPokter ? await withTimeout(registeredWalletRead(indexed.agentChainId ?? chainId, indexed.agentTokenId), 5_000) : null;
+  const paidToCourier = deliveredByPokter && !(agentWallet?.answered && agentWallet.wallet?.toLowerCase() === provider.toLowerCase());
   const expiredAt = chain?.expiredAt ?? Math.floor(Date.parse(indexed.expiredAt) / 1000);
   const submittedAt = chain?.submittedAt ?? 0;
 
@@ -135,7 +147,8 @@ export async function loadJobEvidence(chainId: 56 | 97, jobId: string, now = Dat
     amount: jobAmountLabel({ chainId, paymentToken: paymentToken ?? null, budgetRaw: indexed.budgetRaw }),
     paymentToken: paymentToken ?? null,
     funder,
-    deliveredByPokter: team.has(provider.toLowerCase()),
+    deliveredByPokter,
+    paidToCourier,
     hiredAt: indexed.hiredAt,
     deliveredAt: submittedAt > 0 ? new Date(submittedAt * 1000).toISOString() : null,
     expiresAt: Number.isFinite(expiredAt) && expiredAt > 0 ? new Date(expiredAt * 1000).toISOString() : null,

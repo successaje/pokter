@@ -144,7 +144,7 @@ export interface HomeData {
    * Jobs outside buyers funded; Pokter's own test hires are counted apart in
    * `teamCompleted`. `completedMainnet` is the part paid in real $U.
    */
-  activity: { completedJobs: number; answeredJobs: number; demoJobs: number; selfHireJobs: number; completedMainnet: number; teamCompleted: number; indexedJobs: number; activeJobs: number };
+  activity: { completedJobs: number; answeredJobs: number; demoJobs: number; selfHireJobs: number; courierJobs: number; completedMainnet: number; teamCompleted: number; indexedJobs: number; activeJobs: number };
   measured: { monitored: number; answering: number };
   /** The same counts Discover's collections show, so the two never disagree. */
   catalogue: { hireable: number; priced: number; pricedInCategories: number };
@@ -216,7 +216,9 @@ export async function loadHome(): Promise<HomeData> {
   const completedOutside = buyerJobs.filter((job) => job.status === 'COMPLETED');
   const demos = completedOutside.filter((job) => isLifecycleDemo(job)).length;
   const selfHires = completedOutside.filter((job) => !isLifecycleDemo(job) && isSelfHire(job)).length;
-  const answered = completedOutside.length - demos - selfHires;
+  /* The agent's answer, but paid to Pokter's courier wallet: the same rule as Discover and the proof page. */
+  const courier = completedOutside.filter((job) => !isLifecycleDemo(job) && !isSelfHire(job) && typeof job.provider === 'string' && team.has(job.provider.toLowerCase())).length;
+  const answered = completedOutside.length - demos - selfHires - courier;
   const mainnetJobs = summarizeMarketplaceActivity(buyerJobs.filter((job) => job.chainId === 56));
   const teamJobs = summarizeMarketplaceActivity(allJobs.filter((job) => fundedByTeam(job, team)));
 
@@ -226,7 +228,7 @@ export async function loadHome(): Promise<HomeData> {
     specimens: chooseSpecimens(entries, rows),
     featured,
     outcomes,
-    activity: { completedJobs: jobs.completedJobs, answeredJobs: answered, demoJobs: demos, selfHireJobs: selfHires, completedMainnet: mainnetJobs.completedJobs, teamCompleted: teamJobs.completedJobs, indexedJobs: jobs.indexedJobs, activeJobs: jobs.activeJobs },
+    activity: { completedJobs: jobs.completedJobs, answeredJobs: answered, demoJobs: demos, selfHireJobs: selfHires, courierJobs: courier, completedMainnet: mainnetJobs.completedJobs, teamCompleted: teamJobs.completedJobs, indexedJobs: jobs.indexedJobs, activeJobs: jobs.activeJobs },
     measured: { monitored: stats?.agentsMonitored ?? 0, answering: stats?.agentsAnswering ?? 0 },
     // The same figures Discover and the methodology census show.
     catalogue: catalogueCounts(entries),

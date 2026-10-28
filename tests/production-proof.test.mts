@@ -284,3 +284,26 @@ test('a self-hire settles like any job but is not counted as an answered deliver
   assert.equal(summary.completedSelfHires, 1);
   assert.equal(summary.answeredDeliveries, 1);
 });
+
+test('a job the escrow paid to Pokter’s courier is counted apart, not as the agent’s answered delivery', () => {
+  const COURIER = '0x0000000000000000000000000000000000000009';
+  const paidToPokter = (candidate: HiredJob) => candidate.provider?.toLowerCase() === COURIER;
+  const jobs = [
+    job('1', 'COMPLETED'),
+    job('2', 'COMPLETED', { provider: COURIER }),
+    job('3', 'COMPLETED', { provider: COURIER, client: BUYER_B }),
+    /* Precedence: a demo is a demo and a self-hire a self-hire, whoever was paid. */
+    job('5', 'COMPLETED', { provider: COURIER, agentTokenId: '5' }),
+    job('6', 'COMPLETED', { provider: COURIER, client: COURIER }),
+    job('7', 'SUBMITTED', { provider: COURIER }),
+  ];
+  const demo = (candidate: HiredJob) => candidate.jobId === '5';
+  const result = summarizeProductionProof(jobs, isTeam, demo, paidToPokter);
+  assert.equal(result.completed, 5);
+  assert.equal(result.lifecycleDemoJobs, 1);
+  assert.equal(result.completedSelfHires, 1);
+  assert.equal(result.courierDeliveries, 2, 'jobs 2 and 3: the agent’s answer, Pokter’s payment');
+  assert.equal(result.answeredDeliveries, 1, 'only job 1 paid the agent');
+  /* Unwired, nothing is known to be the courier's: the figure is what it was. */
+  assert.equal(summarizeProductionProof(jobs, isTeam, demo).answeredDeliveries, 3);
+});

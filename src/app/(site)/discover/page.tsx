@@ -196,7 +196,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
             {[
               { value: activity.funded, label: 'outside jobs funded', note: 'Funded through Pokter\u2019s escrow by a buyer that is not Pokter, on either chain.' },
               { value: activity.open, label: 'open now', note: 'Funded or delivered and not yet settled: the escrow is still holding the money.' },
-              { value: activity.answered, label: 'outside deliveries', note: 'Settled with the agent\u2019s own answer, with lifecycle demonstrations and self-hires taken out.' },
+              { value: activity.answered, label: 'outside deliveries', note: `Settled with the agent\u2019s own answer and paid to the agent, with lifecycle demonstrations and self-hires taken out${activity.viaCourier > 0 ? `; ${activity.viaCourier} more carried by Pokter\u2019s courier, which the escrow paid instead` : ''}.` },
             ].map((stat) => (
               <li key={stat.label} className="flex items-baseline gap-1.5" title={stat.note}>
                 <span className="t-readout font-medium text-ink">{stat.value}</span>
