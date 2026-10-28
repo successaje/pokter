@@ -339,6 +339,20 @@ export function pastFundable(attempt: Pick<FundingAttempt, 'fundableUntil'>, cha
 }
 
 /** The attempt with its deadline proven by the chain when its own record lacks one: the job's on-chain `expiredAt`. */
+/**
+ * The job an attempt created and left unfunded, when it can still be
+ * finished: not funded, and before the deadline the escrow holds for it.
+ *
+ * Such an attempt was closed as "not funded" whenever no funding prompt had
+ * gone out, which is right about money (nothing in flight can pay) and left
+ * the job behind: after a reload the buyer started a second job instead of
+ * finishing the first. It is kept and offered for finishing instead.
+ */
+export function finishableJob(attempt: Pick<FundingAttempt, 'fundableUntil'>, verdict: Reconciled, chainNowSeconds: number): string | null {
+  if (verdict.outcome !== 'not-funded' || !verdict.jobId) return null;
+  return pastFundable(withProvenDeadline(attempt, verdict), chainNowSeconds) ? null : verdict.jobId;
+}
+
 function withProvenDeadline<A extends Pick<FundingAttempt, 'fundableUntil'>>(attempt: A, verdict: Reconciled): A {
   if (attempt.fundableUntil !== null || verdict.outcome !== 'not-funded' || verdict.expiredAt == null) return attempt;
   return { ...attempt, fundableUntil: verdict.expiredAt };

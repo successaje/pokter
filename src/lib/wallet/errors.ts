@@ -104,6 +104,15 @@ export function walletActionError(error: unknown, action: string): string {
   }
 
   /*
+   * The wallet stopped answering Pokter's quick checks after it announced a
+   * change of network or account, so Pokter cannot tell where it is and
+   * does not send the next step blind.
+   */
+  if (/WALLET_NOT_RESPONDING/.test(message)) {
+    return `${action} paused: your wallet stopped answering after it changed network or account. Open your wallet, check it is on the right network and account, then continue. Anything already sent is kept, and the job carries on from the step where it stopped.`;
+  }
+
+  /*
    * A step that reached the chain and failed there.
    *
    * These were single tokens ("CREATING_REVERTED"), so they fell through to

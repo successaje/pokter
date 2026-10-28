@@ -23,7 +23,7 @@ import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { nonDefaultHireToken } from '@/lib/erc8183/hire-calls';
 import { displaySymbol, offeredTokens, type PaymentToken } from '@/lib/network/tokens';
 import { planCommission, type CommissionPlan } from '@/lib/hire/commission-plan';
-import { AttemptOwnershipLost, DeadlineNotRecorded, fundingCoordinator, promptMovesMoney, reconcileAttempt, type AttemptSession, type BeginInput, type FundingAttempt, type KeyValue, type LockManagerLike } from '@/lib/hire/funding-journal';
+import { AttemptOwnershipLost, DeadlineNotRecorded, finishableJob, fundingCoordinator, promptMovesMoney, reconcileAttempt, type AttemptSession, type BeginInput, type FundingAttempt, type KeyValue, type LockManagerLike } from '@/lib/hire/funding-journal';
 import { fundedJobRecord } from '@/lib/hire/funded-job';
 import { fetchOpenAttempt, remoteAttempt, remoteDecision, type PublicAttempt } from '@/lib/hire/remote-attempt-client';
 import {
@@ -1674,6 +1674,18 @@ export function useHire({
       const verdict = await reconcileAttempt(snapshot, reader);
       setResumableJobId(verdict.outcome === 'not-funded' && verdict.jobId ? verdict.jobId : null);
       const chainNow = await reader.chainNow();
+      /*
+       * A job this attempt created and never funded, with no funding prompt
+       * outstanding, is kept to be finished rather than closed: closing it
+       * sent the buyer back to start a second job and left the first behind.
+       * They can still choose to start over (`startOver`).
+       */
+      const finishable = promptMovesMoney(snapshot.prompt) ? null : finishableJob(snapshot, verdict, chainNow);
+      if (finishable) {
+        setPendingAttempt(snapshot);
+        setReconcileNote(`Job ${finishable} was created for this hire and is not funded yet. Finish it here: it carries on from the step where it stopped, and nothing is in escrow yet.`);
+        return;
+      }
       let adopted: HiredJob | null = null;
       /*
        * Closed only under the cross-tab lock, only if the record is still this
@@ -1816,6 +1828,38 @@ export function useHire({
     }
   };
 
+  /**
+   * Leave an earlier attempt's unfunded job and fund this hire afresh.
+   * Only when nothing from that attempt can still pay: anything else (a
+   * funding prompt that may still be approved, a job that turns out funded)
+   * goes through the ordinary check instead.
+   */
+  const startOver = async () => {
+    const snapshot = pendingAttempt;
+    if (!snapshot || recheckInFlight.current) return;
+    recheckInFlight.current = true;
+    setReconciling(true);
+    let recheck = false;
+    try {
+      const reader = attemptReader(snapshot.chainId, snapshot.wallet as `0x${string}`, snapshot.provider as `0x${string}`);
+      const verdict = await reconcileAttempt(snapshot, reader);
+      const settled = verdict.outcome === 'not-funded' ? await coordinator.settle(snapshot, verdict, await reader.chainNow()) : null;
+      if (settled === 'closed-not-funded') {
+        setPendingAttempt(null);
+        setResumableJobId(null);
+        setReconcileNote(`${verdict.outcome === 'not-funded' && verdict.jobId ? `Job ${verdict.jobId} is left unfunded, with nothing in escrow.` : 'The earlier attempt is closed, with nothing in escrow.'} You can fund this hire now.`);
+      } else {
+        recheck = true;
+      }
+    } catch {
+      setReconcileNote('The chain could not be read just now, so the earlier attempt is kept. Check again shortly.');
+    } finally {
+      recheckInFlight.current = false;
+      setReconciling(false);
+    }
+    if (recheck) await recheckFunding(snapshot);
+  };
+
   const revokeAllowance = async () => {
     if (!active.address) return;
     setRevoking(true);
@@ -1919,6 +1963,7 @@ export function useHire({
     /** The unfunded job an open attempt created, finishable from a browser wallet instead of hiring again. */
     resumableJobId: active.mode === 'external' ? resumableJobId : null,
     resumeFunding,
+    startOver,
     /** Another device's open attempt for this wallet, and the buyer's confirmation past an unverified one. */
     remoteOpen,
     acknowledgeRemote: () => {

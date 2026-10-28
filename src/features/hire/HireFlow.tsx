@@ -129,6 +129,25 @@ const EXTERNAL_STEPS: Array<{ id: string; label: string; hint: string }> = [
   { id: 'confirming', label: 'Waiting for confirmation', hint: 'Usually a few seconds on BNB Chain.' },
 ];
 
+/** The steps that wait on the buyer's wallet. */
+const WALLET_PROMPTS = new Set(['swapping', 'creating', 'registering', 'budgeting', 'approving', 'funding']);
+/** How long one wallet step may take before the page says what it is waiting for. */
+const WALLET_STEP_PATIENCE_MS = 20_000;
+
+/**
+ * Whether the current wallet step has been waiting longer than a prompt
+ * usually takes. Resets whenever the step changes.
+ */
+function useWaitingOnWallet(step: string | null): boolean {
+  const [late, setLate] = useState<string | null>(null);
+  useEffect(() => {
+    if (!step || !WALLET_PROMPTS.has(step)) return;
+    const timer = setTimeout(() => setLate(step), WALLET_STEP_PATIENCE_MS);
+    return () => clearTimeout(timer);
+  }, [step]);
+  return late !== null && late === step;
+}
+
 function Progress({ steps, current }: { steps: Array<{ id: string; label: string; hint?: string }>; current: string }) {
   const index = steps.findIndex((s) => s.id === current);
   return (
@@ -354,6 +373,7 @@ export function HireFlow(props: HireFlowProps) {
       })
     : null;
   const busy = hire.state === 'hiring';
+  const waitingOnWallet = useWaitingOnWallet(busy && hire.active.mode === 'external' ? hire.externalStep : null);
   const done = hire.state === 'hired' && hire.job;
   const failure = hire.state === 'error' && hire.error ? explainFailure(hire.error, hire.errorLayer) : null;
 
@@ -520,6 +540,11 @@ export function HireFlow(props: HireFlowProps) {
             )}
           </div>
           {hire.externalJobId !== null && <p className="text-[13px] text-ink-3">Job #{hire.externalJobId.toString()} created on chain.</p>}
+          {waitingOnWallet && (
+            <Notice tone="watch" title="Waiting for your wallet">
+              If you have approved this step, Pokter is watching the chain and carries on as soon as the transaction lands. There is no need to refresh or start again. If no request appeared, open your wallet app or browser extension and look for it there.
+            </Notice>
+          )}
         </div>
       </Shell>
     );
@@ -532,13 +557,16 @@ export function HireFlow(props: HireFlowProps) {
           {hire.pendingAttempt && (
         <Notice
           tone="watch"
-          title="An earlier funding attempt is being checked"
+          title={hire.resumableJobId ? `Job ${hire.resumableJobId} is waiting to be funded` : 'An earlier funding attempt is being checked'}
           action={
             <div className="flex flex-wrap gap-2">
               {hire.resumableJobId && (
                 <Button size="s" busy={hire.state === 'hiring'} onClick={() => void hire.resumeFunding()}>
                   Finish funding job {hire.resumableJobId}
                 </Button>
+              )}
+              {hire.resumableJobId && (
+                <Button size="s" intent="secondary" busy={hire.reconciling} onClick={() => void hire.startOver()}>Start a new hire instead</Button>
               )}
               <Button size="s" intent="secondary" busy={hire.reconciling} onClick={() => void hire.recheckFunding()}>Check again</Button>
             </div>
