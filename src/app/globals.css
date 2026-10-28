@@ -702,6 +702,9 @@ dialog.sheet {
   width: 100%;
   height: 100%;
   color: inherit;
+  /* The panel scrolls inside itself; the dialog around it never moves, and never hands scrolling to the page. */
+  overflow: hidden;
+  overscroll-behavior: contain;
 }
 dialog.sheet::backdrop { background: var(--overlay); animation: fade 200ms var(--ease-out); }
 dialog.sheet[open] .sheet-panel { animation: sheet-up 320ms var(--ease-out); }
