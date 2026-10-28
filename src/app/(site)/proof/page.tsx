@@ -9,6 +9,7 @@ import {
 } from '@/lib/erc8183/production-proof';
 import { getJobStore } from '@/lib/erc8183/store';
 import { courierPaidTest } from '@/lib/erc8183/courier-paid';
+import { fundingEvidence } from '@/lib/erc8183/funding-evidence';
 import { jobAmountLabel } from '@/lib/erc8183/job-amount';
 import { isLifecycleDemo } from '@/lib/agent/credited-history';
 import { listSearchable } from '@/lib/marketplace';
@@ -119,12 +120,13 @@ function FilterGroup<T extends string>({
   );
 }
 
-function Headline({ value, label, note }: { value: number; label: string; note: string }) {
+function Headline({ value, label, note, aside }: { value: number; label: string; note: string; aside?: string | null }) {
   return (
     <div className="grid min-w-0 grid-cols-[5rem_minmax(0,1fr)] items-baseline gap-x-3 bg-raised p-5 sm:flex sm:flex-col sm:items-start sm:gap-2 sm:p-6">
-      <span className="t-readout row-span-2 text-[2rem] leading-none tracking-[-0.04em] sm:text-[2.4rem]">{value.toLocaleString('en-US')}</span>
+      <span className="t-readout row-span-3 text-[2rem] leading-none tracking-[-0.04em] sm:text-[2.4rem]">{value.toLocaleString('en-US')}</span>
       <span className="text-[14.5px] font-semibold text-ink">{label}</span>
       <span className="col-start-2 text-[13px] leading-snug text-ink-2">{note}</span>
+      {aside && <span className="col-start-2 text-[12px] leading-snug text-ink-3">{aside}</span>}
     </div>
   );
 }
@@ -183,10 +185,13 @@ export default async function ProductionProofPage({ searchParams }: { searchPara
    */
   const paidToCourier = await courierPaidTest(jobs, team, registeredWalletRead);
   const summary = summarizeProductionProof(jobs, isTeam, isLifecycleDemo, paidToCourier);
-  /* The split beside the total is always of every funder, so a filtered view still says what it left out. */
-  const everyFunder = filters.funder === 'all' ? jobs : inView(network, 'all');
-  const outsideTeamJobs = everyFunder.filter((job) => !isTeam(job)).length;
-  const teamFundedJobs = everyFunder.length - outsideTeamJobs;
+  /*
+   * The split beside the total is of funded hires (`fundingEvidence`), and
+   * always of every funder, so a filtered view still says what it left out.
+   */
+  const everyFunder = (filters.funder === 'all' ? jobs : inView(network, 'all')).filter((job) => fundingEvidence(job) === 'funded');
+  const outsideTeamHires = everyFunder.filter((job) => !isTeam(job)).length;
+  const teamFundedHires = everyFunder.length - outsideTeamHires;
   const wallets = teamWalletList();
   /*
    * The agent's registry name, not the one written into each job: legacy
@@ -210,10 +215,16 @@ export default async function ProductionProofPage({ searchParams }: { searchPara
 
   const split =
     filters.funder === 'all'
-      ? `${outsideTeamJobs} outside-team · ${teamFundedJobs} team-funded`
+      ? `${outsideTeamHires} outside-team · ${teamFundedHires} team-funded`
       : filters.funder === 'outside-team'
-        ? `Outside-team only · ${teamFundedJobs} team-funded in all activity`
-        : `Team-funded only · ${outsideTeamJobs} outside-team in all activity`;
+        ? `Outside-team only · ${teamFundedHires} team-funded in all activity`
+        : `Team-funded only · ${outsideTeamHires} outside-team in all activity`;
+  /* A job the escrow does not prove was funded is named, never counted as a hire. */
+  const notHires = [
+    summary.notFunded > 0 ? `${summary.notFunded} created, never funded` : null,
+    summary.fundingUnproven > 0 ? `${summary.fundingUnproven} rejected, funding not proven` : null,
+  ].filter(Boolean);
+  const notHiresNote = notHires.length > 0 ? `Not counted: ${notHires.join(' · ')}` : null;
 
   /*
    * Results: jobs that delivered the agent's answer (`answersDelivered`),
@@ -283,9 +294,9 @@ export default async function ProductionProofPage({ searchParams }: { searchPara
 
       <section aria-label={`${word} summary`} className="pt-8">
         <div className="grid grid-cols-1 gap-px overflow-hidden rounded-[16px] border border-rule bg-rule sm:grid-cols-3">
-          <Headline value={summary.jobs} label={`${word} jobs`} note={split} />
+          <Headline value={summary.fundedHires} label="Funded hires" note={split} aside={notHiresNote} />
           <Headline value={summary.answersDelivered} label="Answers delivered" note={`${summary.answersSettled} settled · ${summary.answersAwaitingSettlement} awaiting settlement`} />
-          <Headline value={summary.agentsHired} label="Agents hired" note={unfiltered ? `Across recorded ${word.toLowerCase()} jobs` : 'Across the jobs in this view'} />
+          <Headline value={summary.agentsHired} label="Agents hired" note={unfiltered ? `Across recorded ${word.toLowerCase()} hires` : 'Across the hires in this view'} />
         </div>
         {testMoney && <p className="mt-3 text-[12.5px] text-ink-3">Testnet jobs are paid in test tokens, which have no value.</p>}
       </section>
@@ -392,7 +403,7 @@ export default async function ProductionProofPage({ searchParams }: { searchPara
         <span className="t-label">How these are counted</span>
         <h2 id="counting-title" className="t-h2 mt-2">The stricter figures</h2>
         <p className="mt-2 max-w-2xl text-[13px] leading-relaxed text-ink-2">
-          Answers delivered counts every job that delivered the agent&rsquo;s answer. The figures below separate who was paid and who was buying.
+          Funded hires counts jobs whose escrow status proves the money went in: the escrow moves a job out of Created only by funding it or rejecting it, so Funded, Delivered, Settled and Expired each prove it, and a job still Created or rejected is not counted. Answers delivered counts every job that delivered the agent&rsquo;s answer. The figures below separate who was paid and who was buying.
         </p>
         <div className="mt-4 grid grid-cols-2 gap-x-5 sm:grid-cols-3 lg:grid-cols-6">
           {/*

@@ -19,12 +19,13 @@ test('the page reads one network at a time, BNB Chain unless chosen, with every 
   assert.match(page, /\{ value: 'all', label: 'All activity' \}, \{ value: 'outside-team', label: 'Outside-team' \}, \{ value: 'team', label: 'Pokter team' \}/);
 });
 
-test('three headline figures lead, the funding split beside the total', () => {
-  const headlines = page.slice(page.indexOf('<Headline value={summary.jobs}'), page.indexOf('</section>', page.indexOf('<Headline value={summary.jobs}')));
-  assert.match(headlines, /label=\{`\$\{word\} jobs`\} note=\{split\}/);
+test('three headline figures lead, funded hires first with the funding split beside the total', () => {
+  const headlines = page.slice(page.indexOf('<Headline value={summary.fundedHires}'), page.indexOf('</section>', page.indexOf('<Headline value={summary.fundedHires}')));
+  assert.match(headlines, /<Headline value=\{summary\.fundedHires\} label="Funded hires" note=\{split\} aside=\{notHiresNote\} \/>/);
   assert.match(headlines, /label="Answers delivered" note=\{`\$\{summary\.answersSettled\} settled · \$\{summary\.answersAwaitingSettlement\} awaiting settlement`\}/);
   assert.match(headlines, /label="Agents hired"/);
-  assert.match(page, /`\$\{outsideTeamJobs\} outside-team · \$\{teamFundedJobs\} team-funded`/);
+  assert.match(page, /`\$\{outsideTeamHires\} outside-team · \$\{teamFundedHires\} team-funded`/);
+  assert.match(page, /\.filter\(\(job\) => fundingEvidence\(job\) === 'funded'\);/, 'the split is of funded hires, so it adds up to the headline');
   assert.ok(page.indexOf('id="results-title"') < page.indexOf('id="settlement-title"'), 'what agents delivered comes before settlement');
   assert.ok(page.indexOf('id="settlement-title"') < page.indexOf('id="receipts-title"'));
 });
