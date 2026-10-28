@@ -1,4 +1,4 @@
-import { STATIC_SUITES } from './category-suites';
+import { STATIC_SUITES, verdictClass } from './category-suites';
 import { HF_SUITE_ID, HF_TOLERANCE } from './health-factor';
 import { HF_COMPARABLE_MS } from './paid-hf-grade';
 import type { AssayRun } from './types';
@@ -167,8 +167,17 @@ const numericTolerance = (wanted: number) => Math.max(0.01, Math.abs(wanted) * 0
 function scenarioRow(result: AssayRun['results'][number], ranAt: string, tasks: Map<string, string>): ComparisonRow {
   const expected = object(result.expected) ?? {};
   const observed = object(result.observed);
-  const fields = (record: Record<string, unknown> | null) =>
-    record ? Object.keys(expected).map((key) => `${words(key)} ${shown(record[key])}`).join(' · ') : '—';
+  const fields = (record: Record<string, unknown> | null, answered = false) =>
+    record
+      ? Object.keys(expected)
+          .map((key) => {
+            const value = record[key];
+            /* A verdict word is read into its class before comparing; say so when the word is not the class itself. */
+            const read = answered && key === 'verdict' && value !== undefined && value !== null ? verdictClass(value) : null;
+            return `${words(key)} ${shown(value)}${read && read !== String(value).trim().toUpperCase() ? ` (read as ${read})` : ''}`;
+          })
+          .join(' · ')
+      : '—';
   const differences = observed
     ? Object.entries(expected).flatMap(([key, wanted]) => {
         const got = observed[key];
@@ -179,7 +188,12 @@ function scenarioRow(result: AssayRun['results'][number], ranAt: string, tasks: 
           const gap = numeric - wanted;
           return Math.abs(gap) > numericTolerance(wanted) ? [`${words(key)} ${gap > 0 ? '+' : ''}${Number(gap.toPrecision(4))}`] : [];
         }
-        return String(got).trim().toUpperCase() === String(wanted).trim().toUpperCase() ? [] : [`${words(key)} differs`];
+        /* The grader's own rule (`judgeStaticAnswer`): a verdict by its class, other words exactly, anything else by value. */
+        if (typeof wanted === 'string') {
+          const answered = key === 'verdict' ? verdictClass(got) : String(got).trim().toUpperCase();
+          return answered === wanted.toUpperCase() ? [] : [`${words(key)} differs`];
+        }
+        return got === wanted ? [] : [`${words(key)} differs`];
       })
     : null;
   return {
@@ -188,7 +202,7 @@ function scenarioRow(result: AssayRun['results'][number], ranAt: string, tasks: 
     account: null,
     task: tasks.get(result.scenario) ?? null,
     reference: fields(expected),
-    answer: fields(observed),
+    answer: fields(observed, true),
     difference: differences === null ? '—' : differences.length === 0 ? 'None' : differences.join(' · '),
     result: scenarioResult(result.pass, result.outcome),
     reason: result.reason,
