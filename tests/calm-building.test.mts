@@ -26,3 +26,12 @@ test('the overview lists active jobs only, and says so when there are none', () 
   /* The full list stays whole. */
   assert.match(code('app/(site)/build/(section)/jobs/page.tsx'), /<DeliveryInbox jobs=\{jobs\} staged=\{staged\} \/>/);
 });
+
+test('All jobs shows every job: the first page, then the rest on request, never a silent cap', () => {
+  const inbox = code('features/studio/DeliveryInbox.tsx');
+  assert.doesNotMatch(inbox, /slice\(0, 20\)/);
+  assert.match(inbox, /const JOBS_PAGE = 20;/);
+  assert.match(inbox, /\(everything \? ordered : ordered\.slice\(0, JOBS_PAGE\)\)\.map/);
+  assert.match(inbox, /\{!everything && ordered\.length > JOBS_PAGE && \(/);
+  assert.match(inbox, /Show \{ordered\.length - JOBS_PAGE\} more/);
+});
