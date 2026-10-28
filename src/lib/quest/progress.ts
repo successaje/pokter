@@ -49,6 +49,46 @@ export function marketplaceFromTask(task: string): string | null {
   return match ? match[1].toLowerCase() : null;
 }
 
+/** A job description's parsed fields, or null when it is plain text. */
+function recordFields(description: string): Record<string, unknown> | null {
+  try {
+    const parsed = JSON.parse(description) as unknown;
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The task a job's record states: its `task` field when it is JSON, the whole text otherwise. */
+export function taskOf(description: string): string {
+  const fields = recordFields(description);
+  if (typeof fields?.task === 'string') return fields.task;
+  if (typeof fields?.task_description === 'string') return fields.task_description;
+  return description;
+}
+
+/** A site's domain from a bare domain or a URL ("marque.trade", "https://marque.trade/x"); null for anything else. */
+function siteDomain(value: string): string | null {
+  const text = value.trim().toLowerCase();
+  const host = /^https?:\/\//.test(text) ? (() => { try { return new URL(text).hostname; } catch { return ''; } })() : text;
+  return /^(?:[a-z0-9-]+\.)+[a-z]{2,}$/.test(host) ? host : null;
+}
+
+/**
+ * Where a job's record says it was made: its `client_ref` field, else
+ * "via example.com" in its task.
+ *
+ * Only the task was read, so jobs whose record carries
+ * `"client_ref":"marque.trade"` (56/57030 and 56/57037) were shown as "Not
+ * recorded" while the record named the marketplace plainly. A
+ * `client_ref` that is not a site's domain (an order number, say) names
+ * nothing and is not used.
+ */
+export function marketplaceFromRecord(description: string): string | null {
+  const ref = recordFields(description)?.client_ref;
+  return (typeof ref === 'string' ? siteDomain(ref) : null) ?? marketplaceFromTask(taskOf(description));
+}
+
 export function summariseQuest(hires: QuestHire[]): QuestSummary {
   const agents = new Set(hires.map((h) => (h.agent ? `agent:${h.agent.chainId}:${h.agent.tokenId}` : `wallet:${h.provider.toLowerCase()}`)));
   const named = [...new Set(hires.map((h) => h.marketplace).filter((m): m is string => m !== null))].sort();

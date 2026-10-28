@@ -652,10 +652,22 @@ export async function POST(request: Request): Promise<NextResponse> {
      * a thrown error would lose the probe results this run just gathered.
      */
     const sealed = await budget.step('sealed', () => publishSeal());
+    /*
+     * Every agent the catalogue lists, not only the category sections read
+     * above: signed agents outside the five categories, and signed agents
+     * the registry's category search does not return, are listed too. Their
+     * wallets were never read, so a hire of Lattice, Bound, Redcell, Tidemark
+     * or Plinth keeper showed on /quest as "Not matched to a listed agent".
+     */
     const agentWallets = listings
-      ? await budget.step('agentWallets', () =>
-          refreshAgentWallets(listings.map((l) => ({ chainId: l.agent.chain_id, tokenId: l.agent.token_id, name: l.agent.name ?? null }))),
-        )
+      ? await budget.step('agentWallets', async () => {
+          const catalogue = await listSearchableWithStatus({ limit: 400 }).then(({ entries }) => entries.map((entry) => entry.listing.agent)).catch(() => []);
+          const agents = new Map<string, { chainId: number; tokenId: string; name: string | null }>();
+          for (const agent of [...listings.map((l) => l.agent), ...catalogue]) {
+            agents.set(`${agent.chain_id}:${agent.token_id}`, { chainId: agent.chain_id, tokenId: agent.token_id, name: agent.name ?? null });
+          }
+          return refreshAgentWallets([...agents.values()]);
+        })
       : null;
     /*
      * What listed agents' wallets have done on chain: transactions sent, and

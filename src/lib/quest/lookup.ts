@@ -2,9 +2,10 @@ import 'server-only';
 
 import { decodePokterJobEnvelope } from '@/lib/erc8183/job-envelope';
 import { COMMERCE_ABI, JOB_STATUS, QUEST_CHAINS, questClient, type QuestChainId } from './indexer';
-import { marketplaceFromTask, POKTER_MARKETPLACE, summariseQuest, type QuestHire, type QuestSummary } from './progress';
+import { marketplaceFromRecord, POKTER_MARKETPLACE, summariseQuest, type QuestHire, type QuestSummary } from './progress';
 import { getQuestStore } from './store';
 import { getJobStore } from '@/lib/erc8183/store';
+import { getProbeStore } from '@/lib/history/store';
 
 export interface QuestLookup {
   address: string;
@@ -14,15 +15,19 @@ export interface QuestLookup {
   coverage: Array<{ chainId: number; throughJob: number; updatedAt: string | null }>;
 }
 
-function taskOf(description: string): string {
-  try {
-    const parsed = JSON.parse(description) as Record<string, unknown>;
-    if (typeof parsed.task === 'string') return parsed.task;
-    if (typeof parsed.task_description === 'string') return parsed.task_description;
-  } catch {
-    /* Plain text. */
-  }
-  return description;
+/**
+ * The agent a paid wallet signed prices for, on the job's chain, when it is
+ * exactly one.
+ *
+ * The wallet table (`agentByWallet`) is filled by the sweep, so an agent
+ * listed since the last run, or one outside the listings it read, was shown
+ * as "Not matched to a listed agent". A signed price names the agent and the
+ * wallet that signed it. A wallet that signed for several agents on one
+ * chain names none of them: guessing would credit the wrong agent.
+ */
+function agentBySignedPrice(chainId: number, wallet: string): { chainId: number; tokenId: string; name: string | null } | null {
+  const agents = getProbeStore().agentsBySigner(wallet).filter((agent) => agent.chainId === chainId);
+  return agents.length === 1 ? { ...agents[0], name: null } : null;
 }
 
 /**
@@ -71,13 +76,13 @@ export async function lookupQuest(address: string): Promise<QuestLookup> {
       ? { chainId: envelope.identity.chainId, tokenId: envelope.identity.tokenId, name: envelope.identity.name ?? null }
       : ours
         ? { chainId: ours.agentChainId ?? 56, tokenId: ours.agentTokenId, name: ours.agentName }
-        : store.agentByWallet(job.provider);
+        : store.agentByWallet(job.provider) ?? agentBySignedPrice(job.chainId, job.provider);
     hires.push({
       chainId: job.chainId,
       jobId: String(job.jobId),
       provider: job.provider,
       agent,
-      marketplace: envelope || ours ? POKTER_MARKETPLACE : marketplaceFromTask(taskOf(job.description)),
+      marketplace: envelope || ours ? POKTER_MARKETPLACE : marketplaceFromRecord(job.description),
       status: JOB_STATUS[status] ?? String(status),
     });
   }
