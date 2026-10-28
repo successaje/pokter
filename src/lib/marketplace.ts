@@ -422,6 +422,8 @@ export interface AgentDossier {
   live: LiveReading;
   /** What our own scheduled sweeps have accumulated. */
   record: TrackRecord;
+  /** The newest scheduled check, answered or not. Each sweep checks a share of the roster, so this is per agent. */
+  latestCheck: ProbeRecord | null;
   /** The transparent evaluation shown on the detail page. */
   score: PokterScore;
   /**
@@ -524,9 +526,10 @@ export async function getDossier(
   const attestations = feedbackPage.items.map((row) => toAttestation(row, authors.get(row.id)));
 
   const since = new Date(Date.now() - HISTORY_DAYS * 86_400_000);
-  const record = buildTrackRecord(
-    getProbeStore().historyFor(chainId, tokenId, since),
-  );
+  const probes = getProbeStore().historyFor(chainId, tokenId, since);
+  const record = buildTrackRecord(probes);
+  /* The newest scheduled check, answered or not: when Pokter last called it and what came back. */
+  const latestCheck = probes.reduce<ProbeRecord | null>((latest, probe) => (!latest || probe.probedAt > latest.probedAt ? probe : latest), null);
 
   // Our accumulated sweeps count as evidence alongside third-party
   // attestations, which is the point of measuring on a schedule: without it an
@@ -549,6 +552,7 @@ export async function getDossier(
     proof,
     live,
     record,
+    latestCheck,
     score: computeScore({ agent, category, proof, attestations, record, live, history: agentHistory(getJobStore().byAgent(agent.chain_id, agent.token_id)) }),
     quote,
     quoteCurrent: Boolean(

@@ -29,6 +29,7 @@ import { Address, Details, Facts, Readout } from '@/ui/Data';
 import { CategoryCheck } from '@/features/agent/CategoryCheck';
 import { AnswerCheckSummary } from '@/features/agent/AnswerComparison';
 import { answerComparison } from '@/lib/assay/comparison';
+import { ago } from '@/lib/compare/rows';
 import { TestAgentPanel } from '@/features/proofrun/TestAgentPanel';
 import { EmailLinkNotice } from '@/features/workspace/EmailLinkNotice';
 import { EmptyState } from '@/ui/Feedback';
@@ -232,6 +233,26 @@ function HeadlineStats({ p }: { p: AgentProfile }) {
         </div>
       ))}
     </dl>
+  );
+}
+
+/**
+ * When Pokter's scheduled sweeps last called this agent, and what came back.
+ *
+ * Each sweep checks a share of the roster, so freshness is this agent's own
+ * time; one "checked minutes ago" for every agent would be untrue of most.
+ * The live call this page makes on load is a separate reading, in Evidence.
+ */
+function LastCheck({ p }: { p: AgentProfile }) {
+  const title = 'Pokter’s scheduled sweeps check a share of all agents each time, so each agent has its own last check.';
+  if (!p.lastCheck) return <p className="text-[12.5px] text-ink-3" title={title}>Not reached by a scheduled check yet.</p>;
+  return (
+    <p className="flex items-start gap-2 text-[12.5px] leading-snug text-ink-3" title={title}>
+      <span className={cn('mt-[5px] size-1.5 shrink-0 rounded-full', p.lastCheck.answered ? 'bg-ok' : 'bg-bad')} aria-hidden />
+      <span>
+        Last checked <time dateTime={p.lastCheck.at}>{ago(p.lastCheck.at).replace('Just now', 'just now')}</time>: {p.lastCheck.reading.charAt(0).toLowerCase()}{p.lastCheck.reading.slice(1)}.
+      </span>
+    </p>
   );
 }
 
@@ -475,7 +496,10 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                 What this agent is, and how it has behaved
               </h2>
             </div>
-            <HeadlineStats p={p} />
+            <div className="flex flex-col gap-2.5">
+              <HeadlineStats p={p} />
+              <LastCheck p={p} />
+            </div>
             {/* The answer check in two lines, the full comparison one click away in Evidence. */}
             {checkComparison && <AnswerCheckSummary label={p.categoryCheck!.definition.label} comparison={checkComparison} />}
             {/* The five questions a buyer arrives with, each labelled with

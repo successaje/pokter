@@ -29,6 +29,8 @@ export interface ReadinessInput {
   now: number;
   live: { answered: boolean; medianMs: number | null };
   record: { totalProbes: number; totalAnswered: number; observedDays: number; lastSeen: string | null };
+  /** The newest scheduled check and what it found, in words (`endpointReading`). */
+  lastCheck?: { at: string; reading: string } | null;
   quote: { quotedAt: string; expiresAt: string | null; current: boolean; payable: boolean | null } | null;
   escrowLabel: string;
   history: { jobs: number; selfDelivered: number; operatorDelivered: number; relayedDelivered: number };
@@ -44,7 +46,7 @@ function ago(iso: string, now: number): string {
 }
 
 export function readinessRows(input: ReadinessInput): ReadinessRow[] {
-  const { live, record, quote, history, categoryCheck, now } = input;
+  const { live, record, quote, history, categoryCheck, lastCheck, now } = input;
   const rows: ReadinessRow[] = [];
 
   rows.push({
@@ -63,7 +65,11 @@ export function readinessRows(input: ReadinessInput): ReadinessRow[] {
     detail:
       record.totalProbes === 0
         ? 'No sweep has measured it, so there is no history either way.'
-        : `Over ${Math.max(1, Math.round(record.observedDays))} observed day${Math.round(record.observedDays) === 1 ? '' : 's'}${record.lastSeen ? `, last ${ago(record.lastSeen, now)}` : ''}.`,
+        : `Over ${Math.max(1, Math.round(record.observedDays))} observed day${Math.round(record.observedDays) === 1 ? '' : 's'}${
+            lastCheck
+              ? `; last checked ${ago(lastCheck.at, now)}: ${lastCheck.reading.charAt(0).toLowerCase()}${lastCheck.reading.slice(1)}`
+              : record.lastSeen ? `, last ${ago(record.lastSeen, now)}` : ''
+          }.`,
   });
 
   rows.push({
