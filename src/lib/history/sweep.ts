@@ -460,6 +460,8 @@ export interface DiscoveryOutcome {
   tried: number;
   promoted: number;
   dropped: number;
+  /** Listings with no agent bound to them yet, to be tried again in a week. */
+  waiting: number;
   /** More registrations arrived than this run reads; the oldest of them were not seen. */
   gap: boolean;
   /** Tries the run's time ran out before. */
@@ -494,7 +496,7 @@ export async function runDiscovery(
   deps: Partial<DiscoveryDeps> = {},
 ): Promise<DiscoveryOutcome> {
   const { listAgents: list = listAgents, getAgent: lookup = getAgent, probeAgent: probe = probeAgent, store = getProbeStore() } = deps;
-  const outcome: DiscoveryOutcome = { chainId, read: 0, queued: 0, tried: 0, promoted: 0, dropped: 0, gap: false, unreached: 0 };
+  const outcome: DiscoveryOutcome = { chainId, read: 0, queued: 0, tried: 0, promoted: 0, dropped: 0, waiting: 0, gap: false, unreached: 0 };
   const cursor = store.discoveryCursor(chainId);
   const timeLeft = () => !signal?.aborted && Date.now() < deadlineAt;
 
@@ -534,6 +536,7 @@ export async function runDiscovery(
     const next = afterDiscoveryAttempt(entry.attempts, result, Date.now());
     if (next.state === 'promoted') outcome.promoted += 1;
     if (next.state === 'dropped') outcome.dropped += 1;
+    if (result === 'no-agent-yet' && next.state === 'queued') outcome.waiting += 1;
     store.recordDiscoveryAttempt({ chainId, tokenId: entry.tokenId, state: next.state, attempts: next.attempts, nextAttemptAt: next.nextAttemptAt, outcome: result, at: new Date().toISOString() });
   });
   return outcome;

@@ -36,6 +36,14 @@ export const DISCOVERY_QUOTA = 6;
  * name or ID, and anything else that puts it on the roster still does.
  */
 export const DISCOVERY_BACKOFF_MS: readonly number[] = [1, 6, 24, 72, 168, 168, 168].map((hours) => hours * 3_600_000);
+/**
+ * A listing with no agent bound to it yet is tried again weekly, four times,
+ * then dropped like a silent one: binding an agent is the owner's step, and
+ * an hourly retry would spend the queue's tries on listings that rarely
+ * change within a day.
+ */
+export const DISCOVERY_UNBOUND_RETRY_MS = 168 * 3_600_000;
+export const DISCOVERY_UNBOUND_RETRIES = 4;
 
 /** Whether a registration declares a protocol Pokter can call: A2A or MCP, as the registry spells either. */
 export function declaresCallableProtocol(protocols: readonly string[] | null | undefined): boolean {
@@ -80,25 +88,31 @@ export function advanceCursor(cursor: string | null, items: readonly { created_a
 
 export type DiscoveryState = 'queued' | 'promoted' | 'dropped';
 
-export type DiscoveryResult = 'answered' | 'no-answer' | 'no-endpoint' | 'not-callable';
+export type DiscoveryResult = 'answered' | 'no-answer' | 'no-endpoint' | 'not-callable' | 'no-agent-yet';
 
 /**
  * How a try ended. `not-callable`: the endpoint answered, and every answer
  * said it cannot be called (it needs credentials, or is not an agent
- * endpoint), which no retry changes. Silence, a timeout or a server error
- * is `no-answer`, which a later try may change.
+ * endpoint), which no retry changes. `no-agent-yet`: every answer was a
+ * listing with no agent bound to it, which the owner may still change.
+ * Silence, a timeout or a server error is `no-answer`, which a later try
+ * may change.
  */
-export function discoveryResult(reading: { answered: number; probes?: ReadonlyArray<{ ok: boolean; uncallable?: string }> } | null): Exclude<DiscoveryResult, 'no-endpoint'> {
+export function discoveryResult(
+  reading: { answered: number; probes?: ReadonlyArray<{ ok: boolean; uncallable?: string; awaitingAgent?: boolean }> } | null,
+): Exclude<DiscoveryResult, 'no-endpoint'> {
   if (reading && reading.answered > 0) return 'answered';
   const probes = reading?.probes ?? [];
+  if (probes.length > 0 && probes.every((probe) => !probe.ok && probe.awaitingAgent === true)) return 'no-agent-yet';
   if (probes.length > 0 && probes.every((probe) => !probe.ok && probe.uncallable !== undefined)) return 'not-callable';
   return 'no-answer';
 }
 
 /**
  * What one try decides. `answered` promotes the agent to the roster; no
- * callable endpoint, declared or answered, drops it at once; silence
- * schedules the next try or, after the last, drops it.
+ * callable endpoint, declared or answered, drops it at once; a listing with
+ * no agent yet is tried again in a week, up to `DISCOVERY_UNBOUND_RETRIES`
+ * times; silence schedules the next try or, after the last, drops it.
  */
 export function afterDiscoveryAttempt(
   previousAttempts: number,
@@ -108,6 +122,10 @@ export function afterDiscoveryAttempt(
   const attempts = previousAttempts + 1;
   if (result === 'answered') return { state: 'promoted', attempts, nextAttemptAt: null };
   if (result === 'no-endpoint' || result === 'not-callable') return { state: 'dropped', attempts, nextAttemptAt: null };
+  if (result === 'no-agent-yet') {
+    if (attempts > DISCOVERY_UNBOUND_RETRIES) return { state: 'dropped', attempts, nextAttemptAt: null };
+    return { state: 'queued', attempts, nextAttemptAt: new Date(now + DISCOVERY_UNBOUND_RETRY_MS).toISOString() };
+  }
   const wait = DISCOVERY_BACKOFF_MS[attempts - 1];
   if (wait === undefined) return { state: 'dropped', attempts, nextAttemptAt: null };
   return { state: 'queued', attempts, nextAttemptAt: new Date(now + wait).toISOString() };

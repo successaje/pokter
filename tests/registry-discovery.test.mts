@@ -108,3 +108,28 @@ test('an endpoint that answers it cannot be called is left alone at once; silenc
   assert.match(code('lib/history/sweep.ts'), /const result: DiscoveryResult = !probeTarget\(agent\) \? 'no-endpoint' : discoveryResult\(await probe\(agent, \{ samples: 1, signal \}\)/);
   assert.match(code('app/(site)/methodology/page.tsx'), /One whose endpoint answers that it cannot be called, because it needs credentials or is not an agent endpoint, is left alone at once\./);
 });
+
+test('a listing with no agent bound to it yet is tried weekly, four times, not left alone at once', async () => {
+  const { awaitsAgent } = await import('../src/lib/proof/probe-target');
+  assert.equal(awaitsAgent({ agentTokenId: '395512', name: 'n.agent', endpoint: null, status: 'UNBOUND' }), true, 'the listing record as published');
+  assert.equal(awaitsAgent({ status: 'unbound' }), true, 'no endpoint field at all');
+  assert.equal(awaitsAgent({ status: 'UNBOUND', endpoint: 'https://agent.example/a2a' }), false, 'an endpoint named: something to call, not a wait');
+  assert.equal(awaitsAgent({ status: 'BOUND', endpoint: null }), false);
+  assert.equal(awaitsAgent({ error: { code: 'NOT_FOUND' } }), false, 'no listing at all is not a wait');
+
+  const { discoveryResult, afterDiscoveryAttempt, DISCOVERY_UNBOUND_RETRIES, DISCOVERY_UNBOUND_RETRY_MS } = await import('../src/lib/history/discovery');
+  assert.equal(discoveryResult({ answered: 0, probes: [{ ok: false, awaitingAgent: true }] }), 'no-agent-yet');
+  assert.equal(discoveryResult({ answered: 0, probes: [{ ok: false, awaitingAgent: true }, { ok: false }] }), 'no-answer', 'one plain failure keeps the ordinary back-off');
+  assert.equal(DISCOVERY_UNBOUND_RETRY_MS, 7 * 86_400_000);
+  const now = Date.parse('2026-10-28T12:00:00Z');
+  for (let attempts = 0; attempts < DISCOVERY_UNBOUND_RETRIES + 1; attempts += 1) {
+    const next = afterDiscoveryAttempt(attempts, 'no-agent-yet', now);
+    if (attempts < DISCOVERY_UNBOUND_RETRIES) assert.deepEqual(next, { state: 'queued', attempts: attempts + 1, nextAttemptAt: '2026-11-04T12:00:00.000Z' });
+    else assert.deepEqual(next, { state: 'dropped', attempts: attempts + 1, nextAttemptAt: null }, 'still unbound after four weekly retries');
+  }
+
+  const prober = code('lib/proof/prober.ts');
+  assert.match(prober, /result: awaitsAgent\(body\)\s*\? \{ ok: false, latencyMs, status: response\.status, detail: 'Endpoint is a listing with no agent bound to it yet\.', awaitingAgent: true, at \}/);
+  assert.match(code('lib/history/scheduler.ts'), /\$\{d\.waiting \? `, \$\{d\.waiting\} waiting for an agent` : ''\}/);
+  assert.match(code('app/(site)/methodology/page.tsx'), /One whose endpoint is a listing with no agent bound to it yet is tried again weekly, four times, in case its owner binds one\./);
+});
