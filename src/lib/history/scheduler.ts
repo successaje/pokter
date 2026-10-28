@@ -170,7 +170,7 @@ export function startSweepScheduler(): void {
         probes?: number; answered?: number; agents?: number; rosterSize?: number;
         cutShort?: boolean; standDown?: string; error?: string;
         budget?: { skipped?: string[]; timedOut?: string[]; failed?: string[]; criticalMissed?: string[]; usedMs?: number; budgetMs?: number; reservedMs?: number; steps?: Array<{ label: string; ms: number }> };
-        discovery?: Array<{ chainId: number; read: number; queued: number; tried: number; promoted: number; dropped: number; gap: boolean } | null> | null;
+        discovery?: Array<{ chainId: number; read: number; queued: number; tried: number; promoted: number; dropped: number; waiting?: number; gap: boolean } | null> | null;
       };
       // Coverage per run matters now that a run is a batch: `agents of
       // rosterSize` is how to see the roster being worked through, and
@@ -192,7 +192,7 @@ export function startSweepScheduler(): void {
       /* New registrations, per chain: read past the cursor, queued, tried, and what came of it (lib/history/discovery.ts). */
       const found = (body.discovery ?? []).filter((d): d is NonNullable<typeof d> => d !== null);
       const discovered = found.length
-        ? ` · discovery ${found.map((d) => `${d.chainId}: ${d.read} new, ${d.queued} queued, ${d.tried} tried, ${d.promoted} answered${d.dropped ? `, ${d.dropped} dropped` : ''}${d.gap ? ', gap' : ''}`).join('; ')}`
+        ? ` · discovery ${found.map((d) => `${d.chainId}: ${d.read} new, ${d.queued} queued, ${d.tried} tried, ${d.promoted} answered${d.dropped ? `, ${d.dropped} dropped` : ''}${d.waiting ? `, ${d.waiting} waiting for an agent` : ''}${d.gap ? ', gap' : ''}`).join('; ')}`
         : '';
       /*
        * A run that lost a critical step did not do its job, and `200` must

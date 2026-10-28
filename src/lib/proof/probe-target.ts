@@ -89,3 +89,15 @@ export function uncallableStatus(status: number | null, protocol: 'a2a' | 'mcp')
   if (protocol === 'mcp' && status === 405) return 'not-an-agent-endpoint';
   return undefined;
 }
+
+/**
+ * Whether a JSON answer that is no agent card is a listing still waiting for
+ * its agent. Some agent platforms publish a listing record at the declared
+ * address before the owner binds an agent to it: `status: "UNBOUND"` and no
+ * endpoint. Binding one changes that, so it is not the same as an address
+ * that is not an agent endpoint at all.
+ */
+export function awaitsAgent(body: Record<string, unknown>): boolean {
+  const endpoint = body.endpoint;
+  return typeof body.status === 'string' && body.status.toUpperCase() === 'UNBOUND' && (endpoint === null || endpoint === undefined || endpoint === '');
+}

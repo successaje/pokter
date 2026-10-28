@@ -67,3 +67,19 @@ test('a pass whose time is up reads nothing and tries nothing', async () => {
   assert.equal(called, false);
   assert.equal(outcome.tried, 0);
 });
+
+test('a listing with no agent bound yet is counted as waiting and tried again in a week', async () => {
+  const listing = { token_id: '20', chain_id: 56, created_at: new Date(Date.now() - 60_000).toISOString(), supported_protocols: ['A2A'] };
+  const outcome = await runDiscovery(56, { deadlineAt: Date.now() + 10_000 }, {
+    store,
+    listAgents: (async () => ({ items: [listing], total: 1 })) as never,
+    getAgent: (async (_chain: number, tokenId: string) => ({ token_id: tokenId, chain_id: 56, services: { a2a: { endpoint: `https://listing.example/agents/${tokenId}/card` } } })) as never,
+    probeAgent: (async () => ({ answered: 0, probes: [{ ok: false, awaitingAgent: true }] })) as never,
+  });
+  assert.equal(outcome.tried, 1);
+  assert.equal(outcome.waiting, 1);
+  assert.equal(outcome.dropped, 0, 'not left alone: its owner may still bind an agent');
+  const day = 86_400_000;
+  assert.deepEqual(store.dueDiscoveries(56, new Date(Date.now() + 6 * day).toISOString(), 10), [], 'not tried again within the week');
+  assert.deepEqual(store.dueDiscoveries(56, new Date(Date.now() + 7 * day + 60_000).toISOString(), 10), [{ chainId: 56, tokenId: '20', attempts: 1 }]);
+});

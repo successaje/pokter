@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { MCP_PROTOCOL_VERSION, probeIsEvidence, probeTarget, uncallableStatus } from '@/lib/proof/probe-target';
+import { awaitsAgent, MCP_PROTOCOL_VERSION, probeIsEvidence, probeTarget, uncallableStatus } from '@/lib/proof/probe-target';
 
 export { MCP_PROTOCOL_VERSION, probeTarget };
 
@@ -64,6 +64,8 @@ export interface ProbeResult {
    * answer, which may change.
    */
   uncallable?: 'credentials' | 'not-an-agent-endpoint';
+  /** On a failed probe, the endpoint is a listing with no agent bound to it yet (`awaitsAgent`), which binding one changes. */
+  awaitingAgent?: true;
   at: string;
 }
 
@@ -364,14 +366,16 @@ async function probeAt(
       // Either card format: a top-level url (to v0.3) or supportedInterfaces (current).
       if (!isAgentCard(body)) {
         return {
-          result: {
-            ok: false,
-            latencyMs,
-            status: response.status,
-            detail: 'Endpoint returned JSON, but not a valid A2A agent card.',
-            uncallable: 'not-an-agent-endpoint',
-            at,
-          },
+          result: awaitsAgent(body)
+            ? { ok: false, latencyMs, status: response.status, detail: 'Endpoint is a listing with no agent bound to it yet.', awaitingAgent: true, at }
+            : {
+                ok: false,
+                latencyMs,
+                status: response.status,
+                detail: 'Endpoint returned JSON, but not a valid A2A agent card.',
+                uncallable: 'not-an-agent-endpoint',
+                at,
+              },
           body,
         };
       }
