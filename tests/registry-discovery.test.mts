@@ -82,3 +82,29 @@ test('the pass is bounded, keeps its tries out of the probe history, and runs la
   assert.match(methodology, /\{d\.queued === 1 \? 'is' : 'are'\} waiting/);
   assert.match(methodology, /\{d\.dropped === 1 \? 'was' : 'were'\} left alone/);
 });
+
+test('an endpoint that answers it cannot be called is left alone at once; silence is retried', async () => {
+  const { uncallableStatus } = await import('../src/lib/proof/probe-target');
+  assert.equal(uncallableStatus(401, 'a2a'), 'credentials');
+  assert.equal(uncallableStatus(403, 'mcp'), 'credentials');
+  assert.equal(uncallableStatus(405, 'mcp'), 'not-an-agent-endpoint', 'refuses an MCP request: not an MCP endpoint');
+  /* A missing page, a server error or no answer may change, and says nothing. */
+  for (const status of [404, 405, 500, 502, null]) assert.equal(uncallableStatus(status, 'a2a'), undefined, String(status));
+
+  const { discoveryResult, afterDiscoveryAttempt } = await import('../src/lib/history/discovery');
+  assert.equal(discoveryResult({ answered: 1, probes: [{ ok: true }] }), 'answered');
+  assert.equal(discoveryResult({ answered: 0, probes: [{ ok: false, uncallable: 'not-an-agent-endpoint' }] }), 'not-callable');
+  assert.equal(discoveryResult({ answered: 0, probes: [{ ok: false, uncallable: 'credentials' }, { ok: false }] }), 'no-answer', 'one plain failure keeps it in the queue');
+  assert.equal(discoveryResult({ answered: 0, probes: [{ ok: false }] }), 'no-answer');
+  assert.equal(discoveryResult({ answered: 0 }), 'no-answer');
+  assert.equal(discoveryResult(null), 'no-answer');
+  assert.deepEqual(afterDiscoveryAttempt(0, 'not-callable', 0), { state: 'dropped', attempts: 1, nextAttemptAt: null });
+  assert.equal(afterDiscoveryAttempt(0, 'no-answer', 0).state, 'queued');
+
+  const prober = code('lib/proof/prober.ts');
+  assert.match(prober, /detail: 'Endpoint returned JSON, but not a valid A2A agent card\.',\s*uncallable: 'not-an-agent-endpoint',/);
+  assert.match(prober, /uncallable: uncallableStatus\(response\.status, 'a2a'\)/);
+  assert.match(prober, /\.\.\.\(listing\.ok \? \{\} : \{ uncallable: uncallableStatus\(listing\.status, 'mcp'\) \}\)/);
+  assert.match(code('lib/history/sweep.ts'), /const result: DiscoveryResult = !probeTarget\(agent\) \? 'no-endpoint' : discoveryResult\(await probe\(agent, \{ samples: 1, signal \}\)/);
+  assert.match(code('app/(site)/methodology/page.tsx'), /One whose endpoint answers that it cannot be called, because it needs credentials or is not an agent endpoint, is left alone at once\./);
+});

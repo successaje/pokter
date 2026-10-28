@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { MCP_PROTOCOL_VERSION, probeIsEvidence, probeTarget } from '@/lib/proof/probe-target';
+import { MCP_PROTOCOL_VERSION, probeIsEvidence, probeTarget, uncallableStatus } from '@/lib/proof/probe-target';
 
 export { MCP_PROTOCOL_VERSION, probeTarget };
 
@@ -56,8 +56,17 @@ export interface ProbeResult {
   requiresAuth?: boolean;
   /** MCP tools as declared, input schemas included (see `listMcpTools`). */
   tools?: McpTool[];
+  /**
+   * On a failed probe, when the endpoint answered with something that means
+   * it cannot be called at all: it needs credentials (401, 403), or it is
+   * not an agent endpoint (JSON that is no agent card, or an MCP address that
+   * refuses an MCP request with 405). Unset when the endpoint simply did not
+   * answer, which may change.
+   */
+  uncallable?: 'credentials' | 'not-an-agent-endpoint';
   at: string;
 }
+
 
 export interface LiveReading {
   endpoint: string | null;
@@ -307,6 +316,7 @@ async function probeAt(
           capabilities: listing.tools.map((tool) => tool.name),
           tools: listing.tools,
           requiresAuth: false,
+          ...(listing.ok ? {} : { uncallable: uncallableStatus(listing.status, 'mcp') }),
           at,
         },
       };
@@ -327,6 +337,7 @@ async function probeAt(
           latencyMs,
           status: response.status,
           detail: `Endpoint answered ${response.status} ${response.statusText}.`,
+          uncallable: uncallableStatus(response.status, 'a2a'),
           at,
         },
       };
@@ -358,6 +369,7 @@ async function probeAt(
             latencyMs,
             status: response.status,
             detail: 'Endpoint returned JSON, but not a valid A2A agent card.',
+            uncallable: 'not-an-agent-endpoint',
             at,
           },
           body,

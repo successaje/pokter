@@ -77,3 +77,15 @@ export function probeTarget(
 export function probeIsEvidence(probe: { ok: boolean }, signal?: AbortSignal | null): boolean {
   return !(signal?.aborted && !probe.ok);
 }
+
+/**
+ * What a failed answer's HTTP status says about whether the endpoint can be
+ * called at all: 401 and 403 need credentials Pokter does not have, and an
+ * MCP address that refuses an MCP request with 405 is not an MCP endpoint.
+ * Anything else (404, a 5xx, a timeout) may change, and says nothing here.
+ */
+export function uncallableStatus(status: number | null, protocol: 'a2a' | 'mcp'): 'credentials' | 'not-an-agent-endpoint' | undefined {
+  if (status === 401 || status === 403) return 'credentials';
+  if (protocol === 'mcp' && status === 405) return 'not-an-agent-endpoint';
+  return undefined;
+}

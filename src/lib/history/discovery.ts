@@ -80,19 +80,34 @@ export function advanceCursor(cursor: string | null, items: readonly { created_a
 
 export type DiscoveryState = 'queued' | 'promoted' | 'dropped';
 
+export type DiscoveryResult = 'answered' | 'no-answer' | 'no-endpoint' | 'not-callable';
+
+/**
+ * How a try ended. `not-callable`: the endpoint answered, and every answer
+ * said it cannot be called (it needs credentials, or is not an agent
+ * endpoint), which no retry changes. Silence, a timeout or a server error
+ * is `no-answer`, which a later try may change.
+ */
+export function discoveryResult(reading: { answered: number; probes?: ReadonlyArray<{ ok: boolean; uncallable?: string }> } | null): Exclude<DiscoveryResult, 'no-endpoint'> {
+  if (reading && reading.answered > 0) return 'answered';
+  const probes = reading?.probes ?? [];
+  if (probes.length > 0 && probes.every((probe) => !probe.ok && probe.uncallable !== undefined)) return 'not-callable';
+  return 'no-answer';
+}
+
 /**
  * What one try decides. `answered` promotes the agent to the roster; no
- * callable endpoint drops it at once; silence schedules the next try or,
- * after the last, drops it.
+ * callable endpoint, declared or answered, drops it at once; silence
+ * schedules the next try or, after the last, drops it.
  */
 export function afterDiscoveryAttempt(
   previousAttempts: number,
-  result: 'answered' | 'no-answer' | 'no-endpoint',
+  result: DiscoveryResult,
   now: number,
 ): { state: DiscoveryState; attempts: number; nextAttemptAt: string | null } {
   const attempts = previousAttempts + 1;
   if (result === 'answered') return { state: 'promoted', attempts, nextAttemptAt: null };
-  if (result === 'no-endpoint') return { state: 'dropped', attempts, nextAttemptAt: null };
+  if (result === 'no-endpoint' || result === 'not-callable') return { state: 'dropped', attempts, nextAttemptAt: null };
   const wait = DISCOVERY_BACKOFF_MS[attempts - 1];
   if (wait === undefined) return { state: 'dropped', attempts, nextAttemptAt: null };
   return { state: 'queued', attempts, nextAttemptAt: new Date(now + wait).toISOString() };
