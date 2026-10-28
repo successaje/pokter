@@ -1,10 +1,14 @@
 'use client';
 
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 
 import type { ApproxTotalView } from '@/lib/money/approx-total';
 import { cn } from '@/lib/ui/cn';
 import { Icon } from './icons';
+
+/* Pixels between the figure and its breakdown, and kept clear at the screen's edges. */
+const GAP = 8;
+const EDGE = 8;
 
 /**
  * A money total as one figure, with every exact amount behind it.
@@ -15,6 +19,10 @@ import { Icon } from './icons';
  * exact amounts must never be out of reach. Escape and a click elsewhere
  * close it.
  *
+ * The breakdown opens in the top layer, placed against the figure, so a
+ * panel or card that clips its contents (rounded stat strips do) never
+ * cuts it off.
+ *
  * A single amount with nothing behind it is just shown: there is nothing to
  * break down.
  */
@@ -22,16 +30,37 @@ export function MoneyTotal({ total, className }: { total: ApproxTotalView; class
   const [open, setOpen] = useState(false);
   const id = useId();
   const root = useRef<HTMLSpanElement>(null);
+  const figure = useRef<HTMLButtonElement>(null);
+  const panel = useRef<HTMLSpanElement>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  /* Opens to the right of the figure, or to its left when the panel (at most 20rem) would pass the screen's edge. */
-  const [alignEnd, setAlignEnd] = useState(false);
-  const show = () => {
-    const box = root.current?.getBoundingClientRect();
-    const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-    setAlignEnd(Boolean(box && box.left + 20 * rem > document.documentElement.clientWidth - 8));
-    setOpen(true);
-  };
+  const show = () => setOpen(true);
   const lines = total.counted.length + total.notCounted.length;
+
+  /* Below the figure and from its left edge; above it when the screen ends first, and from its right edge when the panel would pass the side. */
+  useLayoutEffect(() => {
+    const el = panel.current;
+    if (!open || !el) return;
+    if (!el.matches(':popover-open')) el.showPopover?.();
+    const place = () => {
+      const box = figure.current?.getBoundingClientRect();
+      if (!box) return;
+      const width = el.offsetWidth;
+      const height = el.offsetHeight;
+      const right = document.documentElement.clientWidth - EDGE;
+      const bottom = window.innerHeight - EDGE;
+      const left = box.left + width <= right ? box.left : box.right - width;
+      const below = box.bottom + GAP;
+      el.style.left = `${Math.max(EDGE, Math.min(left, right - width))}px`;
+      el.style.top = `${below + height <= bottom || box.top - GAP - height < EDGE ? below : box.top - GAP - height}px`;
+    };
+    place();
+    window.addEventListener('scroll', place, { capture: true, passive: true });
+    window.addEventListener('resize', place);
+    return () => {
+      window.removeEventListener('scroll', place, { capture: true });
+      window.removeEventListener('resize', place);
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -61,6 +90,7 @@ export function MoneyTotal({ total, className }: { total: ApproxTotalView; class
   return (
     <span ref={root} className="relative inline-flex" onPointerEnter={onEnter} onPointerLeave={onLeave}>
       <button
+        ref={figure}
         type="button"
         aria-expanded={open}
         aria-controls={id}
@@ -73,10 +103,12 @@ export function MoneyTotal({ total, className }: { total: ApproxTotalView; class
       </button>
       {open && (
         <span
+          ref={panel}
           id={id}
+          popover="manual"
           role="dialog"
           aria-label="Every amount behind this total"
-          className={cn('absolute top-full z-40', alignEnd ? 'right-0' : 'left-0', 'mt-2 flex w-max min-w-[15rem] max-w-[min(20rem,calc(100vw-2rem))] flex-col gap-2 rounded-[10px] border border-rule bg-raised p-3 text-left font-sans text-[13px] leading-snug tracking-normal text-ink shadow-lg')}
+          className="fixed inset-auto z-40 m-0 flex max-h-[calc(100dvh-1rem)] w-max min-w-[15rem] max-w-[min(20rem,calc(100vw-2rem))] flex-col gap-2 overflow-y-auto rounded-[10px] border border-rule bg-raised p-3 text-left font-sans text-[13px] leading-snug tracking-normal text-ink shadow-lg"
         >
           {total.approximate && <span className="text-[12px] text-ink-3">Dollar stablecoins counted at $1 each. The exact amounts:</span>}
           {total.counted.length > 0 && (

@@ -118,4 +118,8 @@ test('every total shows one figure with its breakdown, and no breakdown sits ins
   assert.match(component, /aria-expanded=\{open\}/);
   assert.match(component, /onClick=\{\(\) => \(open \? setOpen\(false\) : show\(\)\)\}/, 'opens on tap, not only on hover');
   assert.match(component, /e\.key === 'Escape'/);
+  /* The stat strips round their corners by clipping, so the breakdown opens in the top layer rather than inside the tile. */
+  assert.match(component, /popover="manual"/);
+  assert.match(component, /el\.showPopover\?\.\(\)/);
+  assert.doesNotMatch(component, /absolute top-full/);
 });
