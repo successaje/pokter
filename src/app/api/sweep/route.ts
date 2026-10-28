@@ -655,9 +655,9 @@ export async function POST(request: Request): Promise<NextResponse> {
     /*
      * Every agent the catalogue lists, not only the category sections read
      * above: signed agents outside the five categories, and signed agents
-     * the registry's category search does not return, are listed too. Their
-     * wallets were never read, so a hire of Lattice, Bound, Redcell, Tidemark
-     * or Plinth keeper showed on /quest as "Not matched to a listed agent".
+     * the registry's category search does not return, are listed too.
+     * Without their wallets, a hire of one showed on /quest as "Not matched
+     * to a listed agent".
      */
     const agentWallets = listings
       ? await budget.step('agentWallets', async () => {

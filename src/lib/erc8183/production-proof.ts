@@ -72,11 +72,8 @@ export interface ProductionProofSummary {
    * testnet" courier is the on-chain provider for an agent with no signed
    * price, relays the agent's answer, and is paid in its place.
    *
-   * They looked identical to agent-delivered rows and were counted with
-   * them, so jobs 97/1586 and 97/1587 (an outside buyer, Sluicegate and
-   * Keel) read as answered deliveries while the escrow paid Pokter. A reader
-   * running the verifier would see the marketplace receiving the payment.
-   * Counted apart, and labelled on each row.
+   * Counted apart from the agents' own paid work, and labelled on each row,
+   * so the figure and the escrow agree about who was paid.
    */
   courierDeliveries: number;
   answeredDeliveries: number;

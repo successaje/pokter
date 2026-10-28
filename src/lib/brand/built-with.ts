@@ -1,13 +1,11 @@
 /**
  * How an agent made with Pokter says so, wherever it is hired.
  *
- * Other builders' agents carry their maker in every delivery: Pre-trade
- * Token Check's manifest says `"built_with": "Dolphin"`, Sluicegate's names
- * the BNB Agent Studio repository. Pokter Studio does not host agents, so
- * without a tag of its own an agent built here showed only its builder's
- * domain. Same field name the others use, so anyone reading one reads
- * this; the value carries the product and the link, so it is unmistakable
- * and leads somewhere.
+ * `built_with` is the field agents use to name the tool they were made
+ * with, in their registration and in every delivery. Pokter Studio does not
+ * host agents, so without a tag of its own an agent built here would show
+ * only its builder's domain. The value carries the product and the link, so
+ * it is unmistakable and leads somewhere.
  *
  * Written into the registration of agents created in Studio (not agents
  * imported from elsewhere), asked for in the AI build prompt, and carried

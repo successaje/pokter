@@ -89,12 +89,11 @@ export type DeliverySubmitter =
 /**
  * Whether the agent delivered this itself, from its own wallet.
  *
- * `relayed-answer` is deliberately **not** here, and that is a correction.
- * It was, and it made the headline metric credit the agent for a delivery
- * Pokter's courier submitted: jobs 97/1586 and 97/1587 carry
- * `producer: "Pokter delivery agent (courier)"`, and Sluicegate and Keel
- * each showed one settled job whose entire record was that, with nothing on
- * the row saying so.
+ * `relayed-answer` is deliberately **not** here. Counting it credited the
+ * agent with a delivery Pokter's courier submitted (its manifest says
+ * `producer: "Pokter delivery agent (courier)"`), so an agent whose only
+ * settled job was a courier delivery showed one with nothing on the row
+ * saying so.
  *
  * `economic-history.ts` already refuses this substitution and gives the
  * reason — a relayed delivery is Pokter's whatever address submitted it,
