@@ -42,6 +42,9 @@ const STATUS: Record<HiredJob['status'], { label: string; tone: string }> = {
   EXPIRED: { label: 'Expired unpaid', tone: 'text-ink-3' },
 };
 
+/** Jobs shown before the rest are asked for. */
+const JOBS_PAGE = 20;
+
 const STAGES = { authorizing: 'Sign to authorise this delivery', storing: 'Storing the exact file', submitting: 'Approve the on-chain submission', confirming: 'Confirming on chain' } as const;
 
 /**
@@ -368,6 +371,12 @@ export function DeliveryInbox({ jobs, staged = {}, empty }: { jobs: HiredJob[]; 
   const { openConnect } = useConnect();
   const { switchChain, isPending: switching } = useLiveSwitchChain();
   const [open, setOpen] = useState<string | null>(null);
+  /*
+   * The first page, then the rest on request. The list stopped at 20 and
+   * said nothing, so "All jobs" hid every older job of a busy agent with no
+   * sign that there were more.
+   */
+  const [everything, setEverything] = useState(false);
   const connected = address ? getAddress(address) : null;
   // Each job is delivered on the escrow it was funded on.
   const wrongChainFor = (job: HiredJob) => Boolean(isConnected && chain?.id !== job.chainId);
@@ -379,70 +388,77 @@ export function DeliveryInbox({ jobs, staged = {}, empty }: { jobs: HiredJob[]; 
     return <EmptyState title="No commissioned work yet">Jobs appear here when a buyer funds escrow for one of your agents. Agents with a live delivery endpoint receive them automatically.</EmptyState>;
   }
   return (
-    <ul className="ruled border-y border-rule">
-      {ordered.slice(0, 20).map((job) => {
-        const s = STATUS[job.status];
-        const isProvider = connected?.toLowerCase() === job.provider.toLowerCase();
-        const wrongChain = wrongChainFor(job);
-        return (
-          <li key={job.id} className="flex flex-col gap-3 py-4">
-            {/*
-              Two columns that never wrap into each other: what the job is on
-              the left, where it stands on the right. As a wrapping row, a
-              long brief pushed the status and amount under it, to the left,
-              so every row with a real brief was laid out differently from
-              every row without one. The brief is one line; the job page has
-              all of it, and the name is the way there.
-            */}
-            <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-6 gap-y-1">
-              <Link href={jobHref(job)} className="truncate text-sm font-medium hover:underline">
-                {job.agentName} <span className="t-readout font-normal text-ink-3">#{job.jobId}</span>
-              </Link>
-              <span className={cn('text-right text-[13px] font-medium', s.tone)}>{s.label}</span>
-              <p className="truncate text-[13px] text-ink-2" title={job.task}>
-                {job.task}
-              </p>
-              <span className="t-readout text-right text-[12.5px] text-ink-2">{amountOf(job)}</span>
-              {/* Which network, real or test money, and while it is open, the deadline. */}
-              <p className="col-span-2 text-[12px] text-ink-3">
-                <span className={job.chainId === 56 ? 'font-medium text-ink-2' : undefined}>
-                  {chainLabel(job.chainId)} · {moneyOf(job)}
-                </span>
-                {job.expiredAt && (job.status === 'FUNDED' || job.status === 'SUBMITTED') && <> · deadline {new Date(job.expiredAt).toUTCString().slice(5, 22)} UTC</>}
-              </p>
-            </div>
-            {job.status === 'SUBMITTED' && isProvider && !wrongChain && <Collect job={job} account={connected!} />}
-            {job.status === 'SUBMITTED' && isProvider && wrongChain && (
-              <Button size="s" intent="secondary" onClick={() => switchChain({ chainId: job.chainId === 56 ? 56 : 97 })} busy={switching} className="self-start">
-                Switch to {chainLabel(job.chainId)} to collect
-              </Button>
-            )}
-            {job.status === 'FUNDED' &&
-              (open === job.id ? (
-                isProvider && !wrongChain ? (
-                  <Composer job={job} account={connected!} staged={staged[`${job.chainId}:${job.jobId}`]} />
-                ) : wrongChain ? (
-                  <Button size="s" intent="secondary" onClick={() => switchChain({ chainId: job.chainId === 56 ? 56 : 97 })} busy={switching} className="self-start">
-                    Switch to {chainLabel(job.chainId)}
-                  </Button>
-                ) : !connected ? (
-                  <div className="flex flex-col gap-2">
-                    <p className="text-[13px] text-ink-2">Delivering is signed by the provider wallet {shortAddress(job.provider)}, in a browser wallet.</p>
-                    <Button size="s" intent="secondary" onClick={() => openConnect('to deliver as the provider')} className="self-start">
-                      Connect provider wallet
-                    </Button>
-                  </div>
-                ) : (
-                  <Notice tone="watch">Connected {shortAddress(connected)}, but this job pays provider {shortAddress(job.provider)}. Switch accounts in your wallet.</Notice>
-                )
-              ) : (
-                <Button size="s" intent="secondary" onClick={() => setOpen(job.id)} className="self-start">
-                  Deliver by hand
+    <div>
+      <ul className="ruled border-y border-rule">
+        {(everything ? ordered : ordered.slice(0, JOBS_PAGE)).map((job) => {
+          const s = STATUS[job.status];
+          const isProvider = connected?.toLowerCase() === job.provider.toLowerCase();
+          const wrongChain = wrongChainFor(job);
+          return (
+            <li key={job.id} className="flex flex-col gap-3 py-4">
+              {/*
+                Two columns that never wrap into each other: what the job is on
+                the left, where it stands on the right. As a wrapping row, a
+                long brief pushed the status and amount under it, to the left,
+                so every row with a real brief was laid out differently from
+                every row without one. The brief is one line; the job page has
+                all of it, and the name is the way there.
+              */}
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-6 gap-y-1">
+                <Link href={jobHref(job)} className="truncate text-sm font-medium hover:underline">
+                  {job.agentName} <span className="t-readout font-normal text-ink-3">#{job.jobId}</span>
+                </Link>
+                <span className={cn('text-right text-[13px] font-medium', s.tone)}>{s.label}</span>
+                <p className="truncate text-[13px] text-ink-2" title={job.task}>
+                  {job.task}
+                </p>
+                <span className="t-readout text-right text-[12.5px] text-ink-2">{amountOf(job)}</span>
+                {/* Which network, real or test money, and while it is open, the deadline. */}
+                <p className="col-span-2 text-[12px] text-ink-3">
+                  <span className={job.chainId === 56 ? 'font-medium text-ink-2' : undefined}>
+                    {chainLabel(job.chainId)} · {moneyOf(job)}
+                  </span>
+                  {job.expiredAt && (job.status === 'FUNDED' || job.status === 'SUBMITTED') && <> · deadline {new Date(job.expiredAt).toUTCString().slice(5, 22)} UTC</>}
+                </p>
+              </div>
+              {job.status === 'SUBMITTED' && isProvider && !wrongChain && <Collect job={job} account={connected!} />}
+              {job.status === 'SUBMITTED' && isProvider && wrongChain && (
+                <Button size="s" intent="secondary" onClick={() => switchChain({ chainId: job.chainId === 56 ? 56 : 97 })} busy={switching} className="self-start">
+                  Switch to {chainLabel(job.chainId)} to collect
                 </Button>
-              ))}
-          </li>
-        );
-      })}
-    </ul>
+              )}
+              {job.status === 'FUNDED' &&
+                (open === job.id ? (
+                  isProvider && !wrongChain ? (
+                    <Composer job={job} account={connected!} staged={staged[`${job.chainId}:${job.jobId}`]} />
+                  ) : wrongChain ? (
+                    <Button size="s" intent="secondary" onClick={() => switchChain({ chainId: job.chainId === 56 ? 56 : 97 })} busy={switching} className="self-start">
+                      Switch to {chainLabel(job.chainId)}
+                    </Button>
+                  ) : !connected ? (
+                    <div className="flex flex-col gap-2">
+                      <p className="text-[13px] text-ink-2">Delivering is signed by the provider wallet {shortAddress(job.provider)}, in a browser wallet.</p>
+                      <Button size="s" intent="secondary" onClick={() => openConnect('to deliver as the provider')} className="self-start">
+                        Connect provider wallet
+                      </Button>
+                    </div>
+                  ) : (
+                    <Notice tone="watch">Connected {shortAddress(connected)}, but this job pays provider {shortAddress(job.provider)}. Switch accounts in your wallet.</Notice>
+                  )
+                ) : (
+                  <Button size="s" intent="secondary" onClick={() => setOpen(job.id)} className="self-start">
+                    Deliver by hand
+                  </Button>
+                ))}
+            </li>
+          );
+        })}
+      </ul>
+      {!everything && ordered.length > JOBS_PAGE && (
+        <button type="button" onClick={() => setEverything(true)} className="mt-3 text-[13px] font-medium text-ink-2 hover:text-ink">
+          Show {ordered.length - JOBS_PAGE} more {ordered.length - JOBS_PAGE === 1 ? 'job' : 'jobs'}
+        </button>
+      )}
+    </div>
   );
 }

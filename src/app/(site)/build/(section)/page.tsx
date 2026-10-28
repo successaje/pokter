@@ -11,7 +11,7 @@ import { VerifyOwner } from '@/features/studio/VerifyOwner';
 import { loadFleet, studioOwner } from '@/features/studio/data';
 import { EmailLinkNotice } from '@/features/workspace/EmailLinkNotice';
 import { PageHeader, StatStrip } from '@/features/workspace/parts';
-import { earnedByToken, earnedMoneyLines } from '@/lib/builder/earnings';
+import { earnedByToken, earnedMoneyLines, earningsNote } from '@/lib/builder/earnings';
 import { approxTotalView } from '@/lib/money/approx-total';
 import { MoneyTotal } from '@/ui/MoneyTotal';
 import { chainLabel } from '@/lib/network/presentation';
@@ -139,7 +139,8 @@ async function Overview({ owner }: { owner: string }) {
    * jobs whose token has not been read are shown beside it and never added
    * in. $U and USDT are both real and both shown, never folded into one.
    */
-  const earned = approxTotalView(earnedMoneyLines(earnedByToken(jobs)));
+  const earnedLines = earnedMoneyLines(earnedByToken(jobs));
+  const earned = approxTotalView(earnedLines);
   const missing = unavailable.map(chainLabel).join(' and ');
   const answering = agents.filter((a) => a.online).length;
 
@@ -168,7 +169,7 @@ async function Overview({ owner }: { owner: string }) {
           {
             label: 'Earnings',
             value: <MoneyTotal total={earned} />,
-            note: earned.caption ?? (earned.notCounted.length && earned.counted.length ? 'test money and unread currencies not counted' : `released on ${chainLabel(56)}`),
+            note: earningsNote(earnedLines),
           },
           { label: 'Jobs · lifetime', value: jobs.length, note: `across ${agents.length} ${agents.length === 1 ? 'agent' : 'agents'}` },
           { label: 'Answering now', value: answering, note: unavailable.length > 0 ? `${missing} could not be read` : `of ${agents.length} ${agents.length === 1 ? 'agent' : 'agents'}` },

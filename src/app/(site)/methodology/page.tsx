@@ -201,7 +201,7 @@ export default async function MethodologyPage() {
               {discovery.map((d, i) => (
                 <span key={d.label}>
                   {i > 0 ? '; ' : 'So far: '}
-                  on {d.label}, {d.promoted.toLocaleString('en-US')} answered and are measured, {d.queued.toLocaleString('en-US')} are waiting, {d.dropped.toLocaleString('en-US')} were left alone
+                  on {d.label}, {d.promoted.toLocaleString('en-US')} answered and {d.promoted === 1 ? 'is' : 'are'} measured, {d.queued.toLocaleString('en-US')} {d.queued === 1 ? 'is' : 'are'} waiting, {d.dropped.toLocaleString('en-US')} {d.dropped === 1 ? 'was' : 'were'} left alone
                 </span>
               ))}
               .
