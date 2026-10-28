@@ -81,6 +81,15 @@ export interface ProductionProofSummary {
   inReview: number;
   /** Accepted jobs whose buyer was the seller, not counted as answered deliveries. */
   completedSelfHires: number;
+  /**
+   * Jobs that delivered the agent's answer, settled or not: the work done,
+   * before the question of who was paid. Lifecycle demos carry no answer
+   * and are left out; courier jobs and self-hires carry one and are in.
+   * Rejected deliveries are not, because the escrow refunded the buyer.
+   */
+  answersDelivered: number;
+  answersSettled: number;
+  answersAwaitingSettlement: number;
   byStatus: Record<JobStatusName, number>;
   lastCheckedAt: string | null;
 }
@@ -201,6 +210,7 @@ export function summarizeProductionProof(
   let lifecycleDemoJobs = 0;
   let completedSelfHires = 0;
   let courierDeliveries = 0;
+  let awaitingDemos = 0;
   let lastCheckedAt: string | null = null;
 
   for (const job of jobs) {
@@ -208,6 +218,7 @@ export function summarizeProductionProof(
     if (job.status === 'COMPLETED' && isLifecycleDemo(job)) lifecycleDemoJobs += 1;
     else if (job.status === 'COMPLETED' && isSelfHire(job)) completedSelfHires += 1;
     else if (job.status === 'COMPLETED' && paidToPokter(job)) courierDeliveries += 1;
+    if (job.status === 'SUBMITTED' && isLifecycleDemo(job)) awaitingDemos += 1;
     const team = isTeamFunded(job);
     if (isSelfHire(job)) selfHireJobs += 1;
     if (team) teamJobs += 1;
@@ -259,6 +270,9 @@ export function summarizeProductionProof(
     answeredDeliveries: byStatus.COMPLETED - lifecycleDemoJobs - completedSelfHires - courierDeliveries,
     inReview: byStatus.SUBMITTED,
     completedSelfHires,
+    answersDelivered: byStatus.COMPLETED - lifecycleDemoJobs + byStatus.SUBMITTED - awaitingDemos,
+    answersSettled: byStatus.COMPLETED - lifecycleDemoJobs,
+    answersAwaitingSettlement: byStatus.SUBMITTED - awaitingDemos,
     outsideSelfHireJobs: jobs.filter((job) => !isTeamFunded(job) && isSelfHire(job)).length,
     outsideDemandJobs: jobs.filter((job) => !isTeamFunded(job) && !isSelfHire(job)).length,
     teamJobs,

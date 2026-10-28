@@ -4,24 +4,23 @@ import Link from 'next/link';
 import {
   filterCurrentProductionJobs,
   summarizeProductionProof,
-  type ProductionProofFilters,
   type ProofFunder,
-  type ProofNetwork,
   type ProofWindow,
 } from '@/lib/erc8183/production-proof';
 import { getJobStore } from '@/lib/erc8183/store';
 import { jobAmountLabel } from '@/lib/erc8183/job-amount';
-import { defaultHireToken, formatAmount } from '@/lib/network/tokens';
 import { isLifecycleDemo } from '@/lib/agent/credited-history';
 import { listSearchable } from '@/lib/marketplace';
 import type { HiredJob, JobStatusName } from '@/lib/erc8183/types';
 import { chainLabel, escrowMoney, explorerBaseFor } from '@/lib/network/presentation';
-import { jobEvidencePath } from '@/lib/jobs/evidence-view';
+import { briefIsPublic, jobEvidencePath, jobFunder } from '@/lib/jobs/evidence-view';
+import { answerIsPublic } from '@/lib/jobs/answer-publication';
 import { escrowCommerceAddress } from '@/lib/erc8183/addresses';
 import { jobReceipt } from '@/lib/jobs/receipt-link';
 import { teamWalletList, teamWalletSet } from '@/lib/team/server';
 import { fundedByTeam } from '@/lib/team/wallets';
 import { cn } from '@/lib/ui/cn';
+import { AgentAvatar } from '@/ui/Agent';
 import { Icon } from '@/ui/icons';
 import { WhyNumbersDiffer } from '@/features/proof/WhyNumbersDiffer';
 
@@ -29,7 +28,7 @@ export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
   title: 'Production proof',
-  description: 'Every job Pokter has indexed, split by network, funding provenance and on-chain outcome, with receipts anyone can verify.',
+  description: 'Agents hired through Pokter, the answers they delivered and an on-chain receipt for every job, split by network and funding.',
   alternates: { canonical: '/proof' },
 };
 
@@ -42,35 +41,46 @@ const STATUS_COPY: Record<JobStatusName, string> = {
   EXPIRED: 'Expired',
 };
 
+/* One network at a time: real and test money are never read as one population. */
+type Network = 'mainnet' | 'testnet';
+const NETWORK_WORD: Record<Network, string> = { mainnet: 'Mainnet', testnet: 'Testnet' };
+/* Per group in the results list, one job per agent: a range of agents, not one agent's repeats. */
+const RESULTS_PER_GROUP = 6;
+
+interface Filters {
+  network: Network;
+  funder: ProofFunder;
+  window: ProofWindow;
+}
+
 function one(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
 }
 
-function parseFilters(raw: Record<string, string | string[] | undefined>): ProductionProofFilters {
+function parseFilters(raw: Record<string, string | string[] | undefined>): Omit<Filters, 'network'> & { network: Network | null } {
   const network = one(raw.network);
   const funder = one(raw.funder);
   const window = one(raw.window);
   return {
-    network: network === 'mainnet' || network === 'testnet' ? network : 'all',
+    network: network === 'mainnet' || network === 'testnet' ? network : null,
     /*
-     * Outside-team by default: the question a visitor brings is whether
-     * agents hired here deliver for buyers, and the team's test hires answer
-     * a different one. Both stay one click away and are never hidden.
+     * All activity by default, with the funding split printed beside every
+     * total and outside-team results listed first, so team-funded jobs are
+     * counted in plain view rather than hidden behind a filter. Each side
+     * is one click away.
      */
-    funder: funder === 'team' || funder === 'all' ? funder : 'outside-team',
+    funder: funder === 'team' || funder === 'outside-team' ? funder : 'all',
     window: window === '7d' || window === '30d' ? window : 'all',
   };
 }
 
-function proofHref(filters: ProductionProofFilters, change: Partial<ProductionProofFilters>, agent: string | null = null): string {
+function proofHref(filters: Filters, change: Partial<Filters>, agent: string | null = null): string {
   const next = { ...filters, ...change };
-  const params = new URLSearchParams();
-  if (next.network !== 'all') params.set('network', next.network);
-  if (next.funder !== 'outside-team') params.set('funder', next.funder);
+  const params = new URLSearchParams({ network: next.network });
+  if (next.funder !== 'all') params.set('funder', next.funder);
   if (next.window !== 'all') params.set('window', next.window);
   if (agent) params.set('agent', agent);
-  const query = params.toString();
-  return query ? `/proof?${query}` : '/proof';
+  return `/proof?${params.toString()}`;
 }
 
 function FilterGroup<T extends string>({
@@ -107,10 +117,20 @@ function FilterGroup<T extends string>({
   );
 }
 
+function Headline({ value, label, note }: { value: number; label: string; note: string }) {
+  return (
+    <div className="grid min-w-0 grid-cols-[5rem_minmax(0,1fr)] items-baseline gap-x-3 bg-raised p-5 sm:flex sm:flex-col sm:items-start sm:gap-2 sm:p-6">
+      <span className="t-readout row-span-2 text-[2rem] leading-none tracking-[-0.04em] sm:text-[2.4rem]">{value.toLocaleString('en-US')}</span>
+      <span className="text-[14.5px] font-semibold text-ink">{label}</span>
+      <span className="col-start-2 text-[13px] leading-snug text-ink-2">{note}</span>
+    </div>
+  );
+}
+
 function Metric({ value, label, note }: { value: string; label: string; note: string }) {
   return (
     <div className="flex flex-col gap-3 border-t border-rule py-5 sm:pr-5">
-      <span className="t-readout text-[2rem] leading-none tracking-[-0.04em]">{value}</span>
+      <span className="t-readout text-[1.6rem] leading-none tracking-[-0.03em]">{value}</span>
       <span>
         <span className="block text-[13.5px] font-medium text-ink">{label}</span>
         <span className="mt-1 block text-[12px] leading-relaxed text-ink-3">{note}</span>
@@ -123,9 +143,21 @@ function receiptLink(job: HiredJob): string {
   return jobReceipt(job, escrowCommerceAddress).href;
 }
 
+const agentOf = (job: HiredJob) => `${job.agentChainId ?? job.chainId}:${job.agentTokenId}` as const;
+
+/** The newest job of each agent, newest first: the list shows how many agents delivered, not how often one did. */
+function newestPerAgent(jobs: HiredJob[]): HiredJob[] {
+  const seen = new Set<string>();
+  return jobs.filter((job) => {
+    if (seen.has(agentOf(job))) return false;
+    seen.add(agentOf(job));
+    return true;
+  });
+}
+
 export default async function ProductionProofPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const raw = await searchParams;
-  const filters = parseFilters(raw);
+  const parsed = parseFilters(raw);
   const agent = one(raw.agent);
   const agentKey = agent && /^\d+\:\d+$/.test(agent) ? agent : null;
   const team = teamWalletSet();
@@ -136,19 +168,22 @@ export default async function ProductionProofPage({ searchParams }: { searchPara
    * agents' own paid work and labelled on its row (`courierDeliveries`).
    */
   const paidToPokter = (job: HiredJob) => typeof job.provider === 'string' && team.has(job.provider.toLowerCase());
-  const jobs = filterCurrentProductionJobs(getJobStore().all(), filters, isTeam)
-    .filter((job) => !agentKey || `${job.agentChainId ?? job.chainId}:${job.agentTokenId}` === agentKey)
-    .sort((a, b) => b.hiredAt.localeCompare(a.hiredAt));
+  const store = getJobStore();
+  const indexed = store.all();
+  const inView = (network: Network, funder: ProofFunder) =>
+    filterCurrentProductionJobs(indexed, { network, funder, window: parsed.window }, isTeam)
+      .filter((job) => !agentKey || agentOf(job) === agentKey)
+      .sort((a, b) => b.hiredAt.localeCompare(a.hiredAt));
+  const counts: Record<Network, number> = { mainnet: inView('mainnet', parsed.funder).length, testnet: inView('testnet', parsed.funder).length };
+  /* BNB Chain unless chosen; a link that names no network and has nothing there (one agent's testnet receipts) opens on testnet. */
+  const network: Network = parsed.network ?? (counts.mainnet === 0 && counts.testnet > 0 ? 'testnet' : 'mainnet');
+  const filters: Filters = { ...parsed, network };
+  const jobs = inView(network, filters.funder);
   const summary = summarizeProductionProof(jobs, isTeam, isLifecycleDemo, paidToPokter);
-  /*
-   * These two are read for their settled value, which counts a demo's money
-   * like any other because the escrow really did move it. They are given the
-   * demo test anyway: an un-wired summary reports every accepted job as
-   * answered, and a later reader of `answeredDeliveries` would get that
-   * silently rather than as an error.
-   */
-  const mainnetSummary = summarizeProductionProof(jobs.filter((job) => job.chainId === 56), isTeam, isLifecycleDemo, paidToPokter);
-  const testnetSummary = summarizeProductionProof(jobs.filter((job) => job.chainId === 97), isTeam, isLifecycleDemo, paidToPokter);
+  /* The split beside the total is always of every funder, so a filtered view still says what it left out. */
+  const everyFunder = filters.funder === 'all' ? jobs : inView(network, 'all');
+  const outsideTeamJobs = everyFunder.filter((job) => !isTeam(job)).length;
+  const teamFundedJobs = everyFunder.length - outsideTeamJobs;
   const wallets = teamWalletList();
   /*
    * The agent's registry name, not the one written into each job: legacy
@@ -160,135 +195,171 @@ export default async function ProductionProofPage({ searchParams }: { searchPara
   );
   const agentLabel = (job: HiredJob): { name: string; registered: boolean } => {
     if (!/^\d+$/.test(job.agentTokenId)) return { name: 'Early demo job', registered: false };
-    const registry = names.get(`${job.agentChainId ?? job.chainId}:${job.agentTokenId}`);
+    const registry = names.get(agentOf(job));
     if (registry) return { name: registry, registered: true };
     const recorded = job.agentName && !/^verified testnet seller$/i.test(job.agentName) ? job.agentName : null;
     return { name: recorded ?? `Agent #${job.agentTokenId}`, registered: true };
   };
+  const word = NETWORK_WORD[network];
+  const unfiltered = filters.funder === 'all' && filters.window === 'all' && !agentKey;
+  const testMoney = network === 'testnet';
   const rate = summary.completionRate === null ? '—' : `${Math.round(summary.completionRate * 100)}%`;
+
+  const split =
+    filters.funder === 'all'
+      ? `${outsideTeamJobs} outside-team · ${teamFundedJobs} team-funded`
+      : filters.funder === 'outside-team'
+        ? `Outside-team only · ${teamFundedJobs} team-funded in all activity`
+        : `Team-funded only · ${outsideTeamJobs} outside-team in all activity`;
+
   /*
-   * The headline stays a $U figure, scaled by the registry's decimals for
-   * $U, because that is what `completedValueRaw` counts. Every other token's
-   * settled value is named beside it from `completedByToken`, one line per
-   * token, so a USDT settlement is shown and never added to $U. Jobs whose
-   * token has not been read are counted, not converted.
+   * Results: jobs that delivered the agent's answer (`answersDelivered`),
+   * newest per agent. Outside-team results come first in their own group,
+   * so the work outside buyers funded is never under the team's repeats.
    */
-  const dollarU = (chainId: number, raw: string) => formatAmount(chainId, defaultHireToken(chainId)?.address, raw)?.amount ?? `${raw} base units`;
-  const otherTokens = (lines: typeof summary.completedByToken, test: boolean) =>
-    lines
-      .filter((line) => line.token === null || line.token.toLowerCase() !== defaultHireToken(line.chainId)?.address.toLowerCase())
-      .map((line) => (line.label && line.symbol
-        ? test ? `${line.label.slice(0, line.label.length - line.symbol.length).trim()} test ${line.symbol}` : line.label
-        : `${line.jobs} job${line.jobs === 1 ? '' : 's'} in a currency not yet read${test ? ' (test)' : ''}`));
-  const mainnetValue = dollarU(56, mainnetSummary.completedValueRaw);
-  const testnetValue = dollarU(97, testnetSummary.completedValueRaw);
-  const mainnetOther = otherTokens(mainnetSummary.completedByToken, false);
-  const testnetOther = otherTokens(testnetSummary.completedByToken, true);
-  const also = (lines: string[]) => (lines.length ? ` Also settled, never added to $U: ${lines.join(' · ')}.` : '');
-  const valueMetric = filters.network === 'testnet'
-    ? { value: testnetValue, label: 'Settled test value ($U)', note: `Test $U has no real value.${also(testnetOther)}` }
-    : filters.network === 'mainnet'
-      ? { value: mainnetValue, label: 'Settled value ($U)', note: `Real $U settled on BNB Chain.${also(mainnetOther)}` }
-      : { value: mainnetValue, label: 'Mainnet settled ($U)', note: `${testnetValue} test $U shown separately.${also([...mainnetOther, ...testnetOther])}` };
+  const delivered = jobs.filter((job) => (job.status === 'SUBMITTED' || job.status === 'COMPLETED') && !isLifecycleDemo(job));
+  const groups = (filters.funder === 'all'
+    ? [
+        { id: 'outside', title: 'Funded outside the team', jobs: newestPerAgent(delivered.filter((job) => !isTeam(job))) },
+        { id: 'team', title: 'Funded by Pokter’s team', jobs: newestPerAgent(delivered.filter(isTeam)) },
+      ]
+    : [{ id: filters.funder, title: null, jobs: newestPerAgent(delivered) }]
+  ).filter((group) => group.jobs.length > 0);
+
+  /* Settled value per chain and token, each in its own money: never one total over them. */
+  const settledValue = summary.completedByToken.map((line) =>
+    line.label && line.symbol
+      ? testMoney ? `${line.label.slice(0, line.label.length - line.symbol.length).trim()} test ${line.symbol}` : line.label
+      : `${line.jobs} job${line.jobs === 1 ? '' : 's'} in a currency not yet read`,
+  );
 
   return (
     <div className="frame pb-24 pt-10 sm:pt-16">
-      <header className="grid gap-8 border-b border-rule pb-12 lg:grid-cols-[minmax(0,1.35fr)_minmax(18rem,0.65fr)] lg:items-end">
-        <div className="flex max-w-3xl flex-col gap-4">
-          <span className="t-label flex items-center gap-2"><span className="tile" aria-hidden /> Production proof</span>
-          <h1 className="t-display">The jobs, including the misses.</h1>
-          <p className="t-lede max-w-2xl">
-            Every escrow job Pokter has indexed, separated by real and test money, team and outside-team funding, and its latest on-chain outcome. The receipt—not this page—is the source of truth.
-          </p>
-        </div>
-        <div className="rounded-[14px] border border-rule bg-raised p-5 text-[13px] leading-relaxed text-ink-2">
-          <p className="font-medium text-ink">What “outside-team” means</p>
-          <p className="mt-2">The funding wallet is not in Pokter&rsquo;s published team set. It does not prove the buyer was unsubsidized or unrelated, so this page does not rename it “independent.”</p>
-        </div>
+      <header className="flex max-w-3xl flex-col gap-4 pb-10">
+        <span className="t-label flex items-center gap-2"><span className="tile" aria-hidden /> Production proof</span>
+        <h1 className="t-display">Real jobs. Delivered answers.</h1>
+        <p className="t-lede max-w-2xl">
+          Agents hired through Pokter&rsquo;s escrow, what they delivered, and the on-chain receipt for every job. Jobs that expired or were refunded stay in the record further down.
+        </p>
       </header>
 
-      <div className="pt-6">
-        <WhyNumbersDiffer current="proof" />
-      </div>
-
-      <section aria-label="Filters" className="grid gap-5 border-b border-rule py-6 md:grid-cols-3">
-        <FilterGroup<ProofNetwork>
-          label="Money network"
-          value={filters.network}
-          options={[{ value: 'all', label: 'Both' }, { value: 'mainnet', label: 'Mainnet' }, { value: 'testnet', label: 'Testnet' }]}
-          href={(network) => proofHref(filters, { network }, agentKey)}
-        />
-        <FilterGroup<ProofFunder>
-          label="Funding provenance"
-          value={filters.funder}
-          options={[{ value: 'outside-team', label: 'Outside-team' }, { value: 'all', label: 'All' }, { value: 'team', label: 'Pokter team' }]}
-          href={(funder) => proofHref(filters, { funder }, agentKey)}
-        />
-        <FilterGroup<ProofWindow>
-          label="Hire window"
-          value={filters.window}
-          options={[{ value: '7d', label: '7 days' }, { value: '30d', label: '30 days' }, { value: 'all', label: 'All time' }]}
-          href={(window) => proofHref(filters, { window }, agentKey)}
-        />
+      <section aria-label="Filters" className="flex flex-col gap-5 border-y border-rule py-5 lg:flex-row lg:items-end lg:justify-between">
+        <nav aria-label="Network" className="flex gap-6">
+          {(['mainnet', 'testnet'] as const).map((option) => (
+            <Link
+              key={option}
+              href={proofHref(filters, { network: option }, agentKey)}
+              scroll={false}
+              aria-current={network === option ? 'page' : undefined}
+              className={cn(
+                '-mb-px flex items-baseline gap-2 border-b-2 pb-2 text-[17px] transition-colors',
+                network === option ? 'border-ink font-semibold text-ink' : 'border-transparent text-ink-3 hover:text-ink',
+              )}
+            >
+              {NETWORK_WORD[option]}
+              <span className="t-readout text-[13px] font-normal text-ink-3">{counts[option]}</span>
+            </Link>
+          ))}
+        </nav>
+        <div className="flex flex-wrap gap-5">
+          <FilterGroup<ProofFunder>
+            label="Funding"
+            value={filters.funder}
+            options={[{ value: 'all', label: 'All activity' }, { value: 'outside-team', label: 'Outside-team' }, { value: 'team', label: 'Pokter team' }]}
+            href={(funder) => proofHref(filters, { funder }, agentKey)}
+          />
+          <FilterGroup<ProofWindow>
+            label="Hired"
+            value={filters.window}
+            options={[{ value: '7d', label: '7 days' }, { value: '30d', label: '30 days' }, { value: 'all', label: 'All time' }]}
+            href={(window) => proofHref(filters, { window }, agentKey)}
+          />
+        </div>
       </section>
       {agentKey && <div className="border-b border-rule py-3 text-[13px] text-ink-2">Filtered to ERC-8004 identity <span className="t-readout">{agentKey}</span>. <Link href={proofHref(filters, {})} className="ml-2 font-medium hover:underline">Clear agent filter</Link></div>}
 
-      <section aria-label="Production metrics" className="grid grid-cols-2 gap-x-5 py-8 sm:grid-cols-4">
-        {/*
-          The answered count leads, because "Accepted deliveries" counted
-          Pokter's own lifecycle demonstrations — which settle identically
-          and carry no answer — and the rows below already said so one by
-          one. The accepted total stays in the note: it is a true escrow
-          fact, and the two figures have to add up for a reader checking
-          them against the outcome bars.
-        */}
-        {/*
-          And the demos get a tile of their own. Kept in a note, the split
-          was there for anyone who read it and invisible to anyone who
-          scanned: an outside review read the page as 12 accepted with a
-          footnote, when the figure that means something is the 7 answered.
-          Side by side, the two add up to the escrow's accepted total.
-        */}
-        <Metric
-          value={summary.answeredDeliveries.toLocaleString('en-US')}
-          label="Settled with an answer"
-          note={`Settled by escrow with the agent’s answer, and paid to the agent. ${summary.answeredDeliveries} of ${summary.completed} settled jobs${summary.completedSelfHires > 0 ? `; ${summary.completedSelfHires} self-hire${summary.completedSelfHires === 1 ? '' : 's'} (buyer was the seller) not counted` : ''}${summary.courierDeliveries > 0 ? `; ${summary.courierDeliveries} via Pokter’s courier counted apart` : ''}.`}
-        />
-        <Metric
-          value={summary.courierDeliveries.toLocaleString('en-US')}
-          label="Via Pokter courier"
-          note={summary.courierDeliveries > 0 ? 'Settled with the agent’s answer, carried by Pokter’s courier for an agent with no signed price. The escrow paid the courier, a Pokter wallet, so these are not counted as the agent’s paid work.' : 'None in this view.'}
-        />
-        <Metric
-          value={summary.inReview.toLocaleString('en-US')}
-          label="Delivered, in review"
-          note="Answered, and waiting for the review window to close or for someone to settle it. Not yet counted as settled."
-        />
-        <Metric
-          value={summary.lifecycleDemoJobs.toLocaleString('en-US')}
-          label="Lifecycle demos"
-          note={summary.lifecycleDemoJobs > 0 ? 'Pokter testing the escrow path end to end: settled, but carrying no answer. Not counted as delivered work.' : 'None in this view.'}
-        />
-        <Metric value={rate} label="Terminal completion" note={`${summary.completed} settled of ${summary.terminal} terminal outcomes. An escrow measure, not a useful-work rate.`} />
-        <Metric value={summary.uniqueKnownBuyers.toLocaleString('en-US')} label="Known buyer wallets" note="Distinct recorded funders in this view." />
-        <Metric
-          value={summary.agentsHired.toLocaleString('en-US')}
-          label="Agents hired"
-          note={summary.agentRegistrationsHired > summary.agentsHired ? `Distinct agents, each counted once across chains (${summary.agentRegistrationsHired} registry identities).` : 'Distinct agents commissioned.'}
-        />
-        <Metric value={summary.repeatKnownBuyers.toLocaleString('en-US')} label="Repeat buyers" note="Known wallets with at least two jobs." />
-        <Metric {...valueMetric} />
+      <section aria-label={`${word} summary`} className="pt-8">
+        <div className="grid grid-cols-1 gap-px overflow-hidden rounded-[16px] border border-rule bg-rule sm:grid-cols-3">
+          <Headline value={summary.jobs} label={`${word} jobs`} note={split} />
+          <Headline value={summary.answersDelivered} label="Answers delivered" note={`${summary.answersSettled} settled · ${summary.answersAwaitingSettlement} awaiting settlement`} />
+          <Headline value={summary.agentsHired} label="Agents hired" note={unfiltered ? `Across recorded ${word.toLowerCase()} jobs` : 'Across the jobs in this view'} />
+        </div>
+        {testMoney && <p className="mt-3 text-[12.5px] text-ink-3">Testnet jobs are paid in test tokens, which have no value.</p>}
       </section>
 
-      <section className="grid gap-8 border-y border-rule py-8 lg:grid-cols-[minmax(0,1.6fr)_minmax(17rem,0.4fr)]">
+      <section aria-labelledby="results-title" className="py-12">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <span className="t-label">Results</span>
+            <h2 id="results-title" className="t-h1 mt-2">What agents delivered</h2>
+          </div>
+          <p className="max-w-sm text-[13px] text-ink-3">The newest delivered job from each agent. Every job, whatever its outcome, is in the <a href="#ledger" className="underline underline-offset-2 hover:text-ink">full record</a>.</p>
+        </div>
+        {groups.length === 0 ? (
+          <p className="mt-6 rounded-[14px] border border-dashed border-rule-strong px-6 py-10 text-center text-ink-2">No delivered jobs in this view.</p>
+        ) : (
+          groups.map((group) => (
+            <div key={group.id} className="mt-7">
+              {group.title && (
+                <h3 className="mb-1 flex items-baseline gap-2 text-[13.5px] font-semibold text-ink">
+                  {group.title}
+                  <span className="t-readout text-[12px] font-normal text-ink-3">{group.jobs.length} agent{group.jobs.length === 1 ? '' : 's'}</span>
+                </h3>
+              )}
+              <ul className="divide-y divide-rule border-y border-rule">
+                {group.jobs.slice(0, RESULTS_PER_GROUP).map((job) => {
+                  const label = agentLabel(job);
+                  const funder = jobFunder({ client: job.client, provider: job.provider }, team);
+                  const answerShown = answerIsPublic(funder, store.answerPublication(job.chainId, job.jobId));
+                  return (
+                    <li key={job.id} className="grid grid-cols-[2rem_minmax(0,1fr)_auto] items-start gap-x-3 gap-y-1.5 py-4 sm:grid-cols-[2rem_minmax(0,13rem)_minmax(0,1fr)_12.5rem_7rem] sm:gap-x-5">
+                      <AgentAvatar name={label.name} seed={agentOf(job)} size={32} />
+                      <div className="min-w-0">
+                        {label.registered ? (
+                          <Link href={`/agents/${job.agentChainId ?? job.chainId}/${job.agentTokenId}`} title={label.name} className="block truncate text-[14.5px] font-semibold text-ink hover:underline">{label.name}</Link>
+                        ) : (
+                          <span className="block truncate text-[14.5px] font-semibold text-ink">{label.name}</span>
+                        )}
+                        <span className="text-[12px] text-ink-3">{job.hiredAt.slice(0, 10)}</span>
+                      </div>
+                      <p className={cn('col-start-2 line-clamp-2 text-[13.5px] leading-snug break-words sm:col-start-auto', briefIsPublic(funder) ? 'text-ink-2' : 'text-ink-3', briefIsPublic(funder) && job.task.trimStart().startsWith('{') && 't-readout text-[12.5px]')}>
+                        {briefIsPublic(funder) ? job.task.replace(/\s+/g, ' ') : funder === 'self' ? 'The operator’s own brief, not shown.' : 'The buyer’s brief, not shown.'}
+                      </p>
+                      <div className="col-start-2 flex flex-wrap items-baseline gap-x-2 text-[13px] sm:col-start-auto sm:flex-col sm:gap-0.5">
+                        <span className="t-readout text-ink">{jobAmountLabel(job)}</span>
+                        <span className={cn('text-[12.5px]', job.status === 'COMPLETED' ? 'text-ok' : 'text-info')}>
+                          {/* A Pokter wallet, not "the courier": Pokter's own agents are paid to their registered wallet, which is also one. */}
+                          {job.status === 'COMPLETED' ? (paidToPokter(job) ? 'Settled, paid to a Pokter wallet' : 'Settled') : 'Delivered, awaiting settlement'}
+                        </span>
+                      </div>
+                      <Link
+                        href={jobEvidencePath(job)}
+                        className="col-start-3 row-start-1 inline-flex items-center gap-1 justify-self-end whitespace-nowrap text-[13px] font-medium text-ink hover:underline sm:col-start-auto sm:row-start-auto"
+                      >
+                        {answerShown ? 'View answer' : 'Job page'} <Icon.Arrow size={14} />
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+              {group.jobs.length > RESULTS_PER_GROUP && (
+                <p className="mt-2 text-[12.5px] text-ink-3">{group.jobs.length - RESULTS_PER_GROUP} more agent{group.jobs.length - RESULTS_PER_GROUP === 1 ? '' : 's'} delivered in this view; every job is in the <a href="#ledger" className="underline underline-offset-2 hover:text-ink">full record</a>.</p>
+              )}
+            </div>
+          ))
+        )}
+      </section>
+
+      <section aria-labelledby="settlement-title" className="grid gap-8 border-t border-rule py-10 lg:grid-cols-[minmax(0,1.6fr)_minmax(17rem,0.4fr)]">
         <div>
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
-              <span className="t-label">On-chain outcomes</span>
-              <h2 className="t-h2 mt-2">Nothing unsuccessful is removed</h2>
+              <span className="t-label">Settlement</span>
+              <h2 id="settlement-title" className="t-h2 mt-2">How every job ended on chain</h2>
             </div>
             <span className="t-readout text-[12px] text-ink-3">{summary.jobs} indexed job{summary.jobs === 1 ? '' : 's'} in this view</span>
           </div>
+          <p className="mt-2 max-w-2xl text-[13px] leading-relaxed text-ink-2">A delivered job settles when its review window closes and someone settles it; until then the money stays in escrow. Nothing unsuccessful is removed.</p>
           <div className="mt-6 grid grid-cols-3 gap-px overflow-hidden rounded-[12px] border border-rule bg-rule sm:grid-cols-6">
             {(['OPEN', 'FUNDED', 'SUBMITTED', 'COMPLETED', 'REJECTED', 'EXPIRED'] as const).map((status) => (
               <div key={status} className="bg-raised p-4">
@@ -298,24 +369,94 @@ export default async function ProductionProofPage({ searchParams }: { searchPara
             ))}
           </div>
         </div>
-        <div className="rounded-[14px] bg-sunken p-5 text-[13px] leading-relaxed text-ink-2">
-          <p className="font-medium text-ink">Funding split in this view</p>
-          <dl className="mt-4 grid grid-cols-[1fr_auto] gap-x-4 gap-y-2">
-            <dt>Outside declared team</dt><dd className="t-readout text-ink">{summary.outsideTeamJobs}</dd>
-            <dt className="pl-3 text-ink-3">of which an operator funding their own agent</dt><dd className="t-readout text-ink-3">{summary.outsideSelfHireJobs}</dd>
-            <dt className="font-medium text-ink">Outside demand</dt><dd className="t-readout font-medium text-ink">{summary.outsideDemandJobs}</dd>
-            <dt>Pokter team or legacy</dt><dd className="t-readout text-ink">{summary.teamJobs}</dd>
-            <dt>Funder not retained</dt><dd className="t-readout text-ink">{summary.unknownFunderJobs}</dd>
-          </dl>
-          <p className="mt-4 text-[12px] text-ink-3">Unknown legacy funders are placed in the team bucket, never the outside-team bucket. A job with the same wallet on both sides is not demand, whoever owns the wallet, so it is shown and then subtracted. Counting the team-funded ones too, {summary.selfHireJobs} jobs in this view were an operator hiring their own agent.</p>
+        <dl className="flex flex-col gap-4 rounded-[14px] bg-sunken p-5 text-[13px] leading-relaxed text-ink-2">
+          <div>
+            <dt className="font-medium text-ink">Settled value</dt>
+            <dd className="t-readout mt-1 text-ink">{settledValue.length > 0 ? settledValue.map((line) => <span key={line} className="block">{line}</span>) : 'Nothing settled in this view'}</dd>
+            <dd className="mt-1 text-[12px] text-ink-3">{testMoney ? 'Test tokens have no value. ' : ''}Each currency on its own line, never added together.</dd>
+          </div>
+          <div>
+            <dt className="font-medium text-ink">Terminal completion <span className="t-readout ml-1">{rate}</span></dt>
+            <dd className="mt-1 text-[12px] text-ink-3">{summary.completed} settled of {summary.terminal} terminal outcomes. An escrow measure, not a useful-work rate.</dd>
+          </div>
+          <div>
+            <dt className="font-medium text-ink">Expired <span className="t-readout ml-1">{summary.expired}</span></dt>
+            <dd className="mt-1 text-[12px] text-ink-3">The deadline passed and the buyer reclaimed the money.</dd>
+          </div>
+        </dl>
+      </section>
+
+      <section aria-labelledby="counting-title" className="border-t border-rule py-10">
+        <span className="t-label">How these are counted</span>
+        <h2 id="counting-title" className="t-h2 mt-2">The stricter figures</h2>
+        <p className="mt-2 max-w-2xl text-[13px] leading-relaxed text-ink-2">
+          Answers delivered counts every job that delivered the agent&rsquo;s answer. The figures below separate who was paid and who was buying.
+        </p>
+        <div className="mt-4 grid grid-cols-2 gap-x-5 sm:grid-cols-3 lg:grid-cols-6">
+          {/*
+            The answered count is the strict one: settled, carrying the agent's
+            answer, paid to the agent, and not a self-hire. Pokter's lifecycle
+            demonstrations settle identically and carry no answer, so they are
+            a figure of their own; side by side with the courier jobs, the
+            figures add up to the escrow's settled total.
+          */}
+          <Metric
+            value={summary.answeredDeliveries.toLocaleString('en-US')}
+            label="Settled with an answer"
+            note={`Settled by escrow with the agent’s answer, and paid to the agent. ${summary.answeredDeliveries} of ${summary.completed} settled jobs${summary.completedSelfHires > 0 ? `; ${summary.completedSelfHires} self-hire${summary.completedSelfHires === 1 ? '' : 's'} (buyer was the seller) not counted` : ''}${summary.courierDeliveries > 0 ? `; ${summary.courierDeliveries} via Pokter’s courier counted apart` : ''}.`}
+          />
+          <Metric
+            value={summary.inReview.toLocaleString('en-US')}
+            label="Delivered, in review"
+            note="Answered, and waiting for the review window to close or for someone to settle it. Not yet counted as settled."
+          />
+          <Metric
+            value={summary.courierDeliveries.toLocaleString('en-US')}
+            label="Via Pokter courier"
+            note={summary.courierDeliveries > 0 ? 'Settled with the agent’s answer, carried by Pokter’s courier for an agent with no signed price. The escrow paid the courier, a Pokter wallet, so these are not counted as the agent’s paid work.' : 'None in this view.'}
+          />
+          <Metric
+            value={summary.lifecycleDemoJobs.toLocaleString('en-US')}
+            label="Lifecycle demos"
+            note={summary.lifecycleDemoJobs > 0 ? 'Pokter testing the escrow path end to end: settled, but carrying no answer. Not counted as delivered work.' : 'None in this view.'}
+          />
+          <Metric value={summary.uniqueKnownBuyers.toLocaleString('en-US')} label="Known buyer wallets" note={`Distinct recorded funders in this view, ${summary.repeatKnownBuyers} with at least two jobs.`} />
+          <Metric
+            value={summary.agentRegistrationsHired.toLocaleString('en-US')}
+            label="Registry identities"
+            note={summary.agentRegistrationsHired > summary.agentsHired ? `Behind the ${summary.agentsHired} agents hired: one agent registered on both chains is counted once.` : 'One per agent hired.'}
+          />
+        </div>
+
+        <div className="mt-8 grid items-start gap-6 lg:grid-cols-2">
+          <div className="rounded-[14px] bg-sunken p-5 text-[13px] leading-relaxed text-ink-2">
+            <p className="font-medium text-ink">Funding split in this view</p>
+            <dl className="mt-4 grid grid-cols-[1fr_auto] gap-x-4 gap-y-2">
+              <dt>Outside declared team</dt><dd className="t-readout text-ink">{summary.outsideTeamJobs}</dd>
+              <dt className="pl-3 text-ink-3">of which an operator funding their own agent</dt><dd className="t-readout text-ink-3">{summary.outsideSelfHireJobs}</dd>
+              <dt className="font-medium text-ink">Outside demand</dt><dd className="t-readout font-medium text-ink">{summary.outsideDemandJobs}</dd>
+              <dt>Pokter team or legacy</dt><dd className="t-readout text-ink">{summary.teamJobs}</dd>
+              <dt>Funder not retained</dt><dd className="t-readout text-ink">{summary.unknownFunderJobs}</dd>
+            </dl>
+            <p className="mt-4 text-[12px] text-ink-3">Unknown legacy funders are placed in the team bucket, never the outside-team bucket. A job with the same wallet on both sides is not demand, whoever owns the wallet, so it is shown and then subtracted. Counting the team-funded ones too, {summary.selfHireJobs} jobs in this view were an operator hiring their own agent.</p>
+          </div>
+          <div className="rounded-[14px] border border-rule bg-raised p-5 text-[13px] leading-relaxed text-ink-2">
+            <p className="font-medium text-ink">What &ldquo;outside-team&rdquo; means</p>
+            <p className="mt-2">The funding wallet is not in Pokter&rsquo;s published team set. It does not prove the buyer was unsubsidized or unrelated, so this page does not rename it &ldquo;independent.&rdquo;</p>
+            <p className="mt-3">A buyer&rsquo;s brief is never shown, and their answer only once the funding wallet chooses to publish it. Pokter&rsquo;s own test jobs show both.</p>
+          </div>
+        </div>
+
+        <div className="mt-6">
+          <WhyNumbersDiffer current="proof" />
         </div>
       </section>
 
-      <section className="py-12" aria-labelledby="receipts-title">
+      <section id="ledger" className="scroll-mt-20 border-t border-rule py-12" aria-labelledby="receipts-title">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <span className="t-label">Receipts</span>
-            <h2 id="receipts-title" className="t-h1 mt-2">Verify every row yourself</h2>
+            <h2 id="receipts-title" className="t-h1 mt-2">Every job, including the misses</h2>
           </div>
           <div className="flex flex-wrap items-center gap-4">
             <a href="/api/v1/receipts/verifier" download className="inline-flex items-center gap-1.5 text-sm font-medium hover:underline">Download independent verifier <Icon.Arrow size={15} /></a>
