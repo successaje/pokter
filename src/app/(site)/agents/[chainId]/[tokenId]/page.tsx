@@ -27,6 +27,8 @@ import { LinkButton } from '@/ui/Button';
 import { Breadcrumbs } from '@/ui/Controls';
 import { Address, Details, Facts, Readout } from '@/ui/Data';
 import { CategoryCheck } from '@/features/agent/CategoryCheck';
+import { AnswerCheckSummary } from '@/features/agent/AnswerComparison';
+import { answerComparison } from '@/lib/assay/comparison';
 import { TestAgentPanel } from '@/features/proofrun/TestAgentPanel';
 import { EmailLinkNotice } from '@/features/workspace/EmailLinkNotice';
 import { EmptyState } from '@/ui/Feedback';
@@ -330,6 +332,7 @@ export default async function AgentPage({ params, searchParams }: { params: Para
   const declaredTemplates = templatesFromSkills(p.skills);
   const templates = declaredTemplates.length > 0 ? declaredTemplates : commissionTaskTemplates(p.category?.id ?? 'unclassified');
   const explorer = explorerBaseFor(p.chainId);
+  const checkComparison = answerComparison(p.categoryCheck?.run ?? null);
 
   /*
    * The only page that says what a particular agent is, and until now the
@@ -473,6 +476,8 @@ export default async function AgentPage({ params, searchParams }: { params: Para
               </h2>
             </div>
             <HeadlineStats p={p} />
+            {/* The answer check in two lines, the full comparison one click away in Evidence. */}
+            {checkComparison && <AnswerCheckSummary label={p.categoryCheck!.definition.label} comparison={checkComparison} />}
             {/* The five questions a buyer arrives with, each labelled with
                 who answered it. The operator's description lives here now,
                 under "What it does", with the same unverified label. */}
@@ -667,7 +672,11 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                 </dl>
               </div>
               <ClaimVsObserved p={p} />
-              {p.categoryCheck && <CategoryCheck definition={p.categoryCheck.definition} run={p.categoryCheck.run} agentKey={`${p.chainId}:${p.tokenId}`} />}
+              {p.categoryCheck && (
+                <div id="answer-check" className="scroll-mt-32">
+                  <CategoryCheck definition={p.categoryCheck.definition} run={p.categoryCheck.run} agentKey={`${p.chainId}:${p.tokenId}`} />
+                </div>
+              )}
               {/*
                 ProofRun, on the agents it can actually check.
                 Offered only to `health-factor` agents: the scenarios are

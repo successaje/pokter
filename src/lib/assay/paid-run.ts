@@ -215,7 +215,7 @@ export async function gradePaidHealthFactorCheck(
         jobId: job.jobId,
         manifestText: stored?.manifestText ?? null,
         deliveryOpen: deliveryOpen(job),
-        reading: reading ? { healthFactor: reading.healthFactor, borrowLimitRatio: reading.borrowLimitRatio, liquidatable: reading.liquidatable } : null,
+        reading: reading ? { healthFactor: reading.healthFactor, borrowLimitRatio: reading.borrowLimitRatio, liquidatable: reading.liquidatable, block: reading.block.toString() } : null,
         readAt,
       }),
     );
