@@ -28,7 +28,7 @@ const evidenceFor = cache(async (chainParam: string, jobId: string): Promise<Job
 });
 
 function summary(e: JobEvidence): string {
-  const status = jobStatusWords(e.status).label.toLowerCase();
+  const status = jobStatusWords(e.status, e.paidToCourier).label.toLowerCase();
   const check = e.delivery.state === 'matches' ? ', and its delivery matches the hash committed on chain' : e.delivery.state === 'mismatch' ? ', but its delivery does not match the hash committed on chain' : '';
   const funder = e.funder === 'team' ? ' Funded by Pokter’s team as a test.' : e.funder === 'outside' ? ' Funded by an outside buyer.' : e.funder === 'self' ? ' Funded by the agent’s own operator.' : '';
   return `A ${e.amount} escrow job for ${e.agent.name} on ${chainLabel(e.chainId)}: ${status}${check}.${funder}`;
@@ -61,7 +61,7 @@ export default async function JobEvidencePage({ params }: { params: Promise<Para
   if (!e) notFound();
 
   const explorer = explorerBaseFor(e.chainId);
-  const status = jobStatusWords(e.status);
+  const status = jobStatusWords(e.status, e.paidToCourier);
   const settled = e.status === 'COMPLETED' || e.status === 'REJECTED' || e.status === 'EXPIRED';
   const facts: Array<{ label: string; value: ReactNode }> = [
     { label: 'Network', value: `${chainLabel(e.chainId)} (${e.chainId})${e.chainId === 97 ? ', test tokens with no value' : ''}` },
@@ -124,7 +124,13 @@ export default async function JobEvidencePage({ params }: { params: Promise<Para
               <strong>Funded</strong>
               <Source kind={e.chain ? 'onchain' : 'index'} />
             </span>
-            <span>The buyer put {e.amount} into the escrow for job #{e.jobId}, payable to the agent’s wallet <Readout>{e.provider}</Readout> only after it delivers.</span>
+            {e.paidToCourier ? (
+              <span>
+                The buyer put {e.amount} into the escrow for job #{e.jobId}, payable to Pokter’s courier <Readout>{e.provider}</Readout> only after it delivers. The courier is the provider for an agent that has not signed a price: it carries the task to the agent and delivers the agent’s answer, and the escrow pays the courier, not the agent.
+              </span>
+            ) : (
+              <span>The buyer put {e.amount} into the escrow for job #{e.jobId}, payable to the agent’s wallet <Readout>{e.provider}</Readout> only after it delivers.</span>
+            )}
           </li>
           <li className="flex flex-col gap-1 py-3">
             <span className="flex items-center justify-between gap-3">
@@ -132,10 +138,16 @@ export default async function JobEvidencePage({ params }: { params: Promise<Para
               <Source kind="onchain" />
             </span>
             {e.chain && e.deliveredAt ? (
-              <span>
-                The agent submitted its delivery {utcWhen(e.deliveredAt)}, committing to the hash <Readout>{e.chain.deliverable}</Readout>.
-                {e.deliveredByPokter ? ' It was submitted from a Pokter wallet, carrying the agent’s answer, not from the agent’s own wallet.' : ''}
-              </span>
+              e.paidToCourier ? (
+                <span>
+                  Pokter’s courier submitted the delivery {utcWhen(e.deliveredAt)}, carrying the agent’s answer, committing to the hash <Readout>{e.chain.deliverable}</Readout>.
+                </span>
+              ) : (
+                <span>
+                  The agent submitted its delivery {utcWhen(e.deliveredAt)}, committing to the hash <Readout>{e.chain.deliverable}</Readout>.
+                  {e.deliveredByPokter ? ' The agent’s wallet is one of Pokter’s: this is one of Pokter’s own agents.' : ''}
+                </span>
+              )
             ) : (
               <span>{e.chain ? 'Not yet.' : 'The escrow could not be read just now.'}</span>
             )}

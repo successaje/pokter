@@ -130,10 +130,16 @@ export default async function ProductionProofPage({ searchParams }: { searchPara
   const agentKey = agent && /^\d+\:\d+$/.test(agent) ? agent : null;
   const team = teamWalletSet();
   const isTeam = (job: HiredJob) => fundedByTeam(job, team);
+  /*
+   * The escrow paid a Pokter wallet: the courier was the provider, carrying
+   * the agent's answer, and was paid in its place. Counted apart from the
+   * agents' own paid work and labelled on its row (`courierDeliveries`).
+   */
+  const paidToPokter = (job: HiredJob) => typeof job.provider === 'string' && team.has(job.provider.toLowerCase());
   const jobs = filterCurrentProductionJobs(getJobStore().all(), filters, isTeam)
     .filter((job) => !agentKey || `${job.agentChainId ?? job.chainId}:${job.agentTokenId}` === agentKey)
     .sort((a, b) => b.hiredAt.localeCompare(a.hiredAt));
-  const summary = summarizeProductionProof(jobs, isTeam, isLifecycleDemo);
+  const summary = summarizeProductionProof(jobs, isTeam, isLifecycleDemo, paidToPokter);
   /*
    * These two are read for their settled value, which counts a demo's money
    * like any other because the escrow really did move it. They are given the
@@ -141,8 +147,8 @@ export default async function ProductionProofPage({ searchParams }: { searchPara
    * answered, and a later reader of `answeredDeliveries` would get that
    * silently rather than as an error.
    */
-  const mainnetSummary = summarizeProductionProof(jobs.filter((job) => job.chainId === 56), isTeam, isLifecycleDemo);
-  const testnetSummary = summarizeProductionProof(jobs.filter((job) => job.chainId === 97), isTeam, isLifecycleDemo);
+  const mainnetSummary = summarizeProductionProof(jobs.filter((job) => job.chainId === 56), isTeam, isLifecycleDemo, paidToPokter);
+  const testnetSummary = summarizeProductionProof(jobs.filter((job) => job.chainId === 97), isTeam, isLifecycleDemo, paidToPokter);
   const wallets = teamWalletList();
   /*
    * The agent's registry name, not the one written into each job: legacy
@@ -246,7 +252,12 @@ export default async function ProductionProofPage({ searchParams }: { searchPara
         <Metric
           value={summary.answeredDeliveries.toLocaleString('en-US')}
           label="Settled with an answer"
-          note={`Settled by escrow with the agent’s answer. ${summary.answeredDeliveries} of ${summary.completed} settled jobs${summary.completedSelfHires > 0 ? `; ${summary.completedSelfHires} self-hire${summary.completedSelfHires === 1 ? '' : 's'} (buyer was the seller) not counted` : ''}.`}
+          note={`Settled by escrow with the agent’s answer, and paid to the agent. ${summary.answeredDeliveries} of ${summary.completed} settled jobs${summary.completedSelfHires > 0 ? `; ${summary.completedSelfHires} self-hire${summary.completedSelfHires === 1 ? '' : 's'} (buyer was the seller) not counted` : ''}${summary.courierDeliveries > 0 ? `; ${summary.courierDeliveries} via Pokter’s courier counted apart` : ''}.`}
+        />
+        <Metric
+          value={summary.courierDeliveries.toLocaleString('en-US')}
+          label="Via Pokter courier"
+          note={summary.courierDeliveries > 0 ? 'Settled with the agent’s answer, carried by Pokter’s courier for an agent with no signed price. The escrow paid the courier, a Pokter wallet, so these are not counted as the agent’s paid work.' : 'None in this view.'}
         />
         <Metric
           value={summary.inReview.toLocaleString('en-US')}
@@ -355,6 +366,9 @@ export default async function ProductionProofPage({ searchParams }: { searchPara
                       <td className="px-4 py-3.5 align-top font-medium text-ink">
                         {STATUS_COPY[job.status]}
                         {isLifecycleDemo(job) && <span className="mt-0.5 block text-[11.5px] font-normal text-ink-3">Lifecycle demo: no answer from the agent</span>}
+                        {!isLifecycleDemo(job) && paidToPokter(job) && (
+                          <span className="mt-0.5 block text-[11.5px] font-normal text-ink-3">Via Pokter courier{job.status === 'COMPLETED' ? ': paid to Pokter' : ''}</span>
+                        )}
                       </td>
                       <td className="px-4 py-3.5 text-right align-top">
                         <span className="inline-flex items-center gap-3">

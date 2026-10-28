@@ -66,6 +66,10 @@ test('a funding time recorded after the delivery is not shown as the funding tim
 
 test('states are said for any reader, and a delivery is one the escrow records', () => {
   assert.equal(jobStatusWords('COMPLETED').label, 'Completed, agent paid');
+  /* The escrow paid Pokter's courier, not the agent: never "agent paid". */
+  assert.equal(jobStatusWords('COMPLETED', true).label, 'Completed, paid to Pokter’s courier');
+  assert.match(jobStatusWords('COMPLETED', true).meaning, /The agent was not paid by this escrow\./);
+  assert.equal(jobStatusWords('EXPIRED', true).label, jobStatusWords('EXPIRED').label, 'only a settled job was paid');
   assert.equal(jobStatusWords('SOMETHING').label, 'SOMETHING');
   assert.deepEqual(['OPEN', 'FUNDED', 'SUBMITTED', 'COMPLETED', 'REJECTED', 'EXPIRED'].filter(wasDelivered), ['SUBMITTED', 'COMPLETED', 'REJECTED']);
   assert.equal(jobEvidencePath({ chainId: 56, jobId: '57097' }), '/jobs/56/57097');
@@ -92,4 +96,20 @@ test('an answer is shown in full, with the buyer’s own address taken out unles
   assert.equal(publishableAnswerText(text, 'outside', null), text);
   /* Applied wherever an answer is shown; the hash is checked on the original bytes. */
   assert.match(code('lib/jobs/evidence.ts'), /readDeliveredAnswer\(publishableAnswerText\(read\.text, funder, chain\.client\)\)/);
+});
+
+test('a courier job says the escrow pays Pokter’s courier, and a Pokter-owned agent is not called a courier', () => {
+  const evidence = code('lib/jobs/evidence.ts');
+  assert.match(evidence, /const paidToCourier = deliveredByPokter && !\(agentWallet\?\.answered && agentWallet\.wallet\?\.toLowerCase\(\) === provider\.toLowerCase\(\)\);/);
+  const page = code('app/(site)/jobs/[chainId]/[jobId]/page.tsx');
+  assert.equal(page.match(/jobStatusWords\(e\.status, e\.paidToCourier\)/g)?.length, 2, 'the headline and the status say the same');
+  assert.match(page, /payable to Pokter’s courier <Readout>\{e\.provider\}<\/Readout> only after it delivers\./);
+  assert.match(page, /Pokter’s courier submitted the delivery/);
+  assert.doesNotMatch(page, /not from the agent’s own wallet/, 'a Pokter-owned agent’s wallet is its own');
+  const proof = code('app/(site)/proof/page.tsx');
+  assert.equal(proof.match(/isLifecycleDemo, paidToPokter\)/g)?.length, 3, 'every summary on the page');
+  assert.match(proof, /label="Via Pokter courier"/);
+  assert.match(proof, /Via Pokter courier\{job\.status === 'COMPLETED' \? ': paid to Pokter' : ''\}/);
+  assert.match(code('lib/erc8183/outside-activity.ts'), /answered: answeredAtAll\.length - viaCourier, viaCourier/);
+  assert.match(code('features/home/data.ts'), /const answered = completedOutside\.length - demos - selfHires - courier;/);
 });

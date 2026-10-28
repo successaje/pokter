@@ -67,6 +67,18 @@ export interface ProductionProofSummary {
    * The escrow fact stays available, and nothing is removed from the rows.
    */
   lifecycleDemoJobs: number;
+  /**
+   * Settled jobs whose escrow paid a Pokter wallet: the "Try free on
+   * testnet" courier is the on-chain provider for an agent with no signed
+   * price, relays the agent's answer, and is paid in its place.
+   *
+   * They looked identical to agent-delivered rows and were counted with
+   * them, so jobs 97/1586 and 97/1587 (an outside buyer, Sluicegate and
+   * Keel) read as answered deliveries while the escrow paid Pokter. A reader
+   * running the verifier would see the marketplace receiving the payment.
+   * Counted apart, and labelled on each row.
+   */
+  courierDeliveries: number;
   answeredDeliveries: number;
   /** Delivered and still inside the review window or awaiting settlement: answered, not yet settled. */
   inReview: number;
@@ -177,6 +189,8 @@ export function summarizeProductionProof(
    * useful work.
    */
   isLifecycleDemo: (job: HiredJob) => boolean = () => false,
+  /* Whether the escrow paid a Pokter wallet (the job's provider is one). Absent means none known, as above. */
+  paidToPokter: (job: HiredJob) => boolean = () => false,
 ): ProductionProofSummary {
   const byStatus = Object.fromEntries(STATUSES.map((status) => [status, 0])) as Record<JobStatusName, number>;
   const buyers = new Map<string, number>();
@@ -189,12 +203,14 @@ export function summarizeProductionProof(
   let selfHireJobs = 0;
   let lifecycleDemoJobs = 0;
   let completedSelfHires = 0;
+  let courierDeliveries = 0;
   let lastCheckedAt: string | null = null;
 
   for (const job of jobs) {
     byStatus[job.status] += 1;
     if (job.status === 'COMPLETED' && isLifecycleDemo(job)) lifecycleDemoJobs += 1;
     else if (job.status === 'COMPLETED' && isSelfHire(job)) completedSelfHires += 1;
+    else if (job.status === 'COMPLETED' && paidToPokter(job)) courierDeliveries += 1;
     const team = isTeamFunded(job);
     if (isSelfHire(job)) selfHireJobs += 1;
     if (team) teamJobs += 1;
@@ -236,11 +252,14 @@ export function summarizeProductionProof(
     selfHireJobs,
     lifecycleDemoJobs,
     /*
-     * Accepted, carrying the agent's answer, and not a self-hire. A job whose
-     * buyer is its seller settles like any other and proves nothing about
-     * demand; an outside review counted 8 here where the strict figure was 7.
+     * Accepted, carrying the agent's answer, paid to the agent, and not a
+     * self-hire. A job whose buyer is its seller settles like any other and
+     * proves nothing about demand; an outside review counted 8 here where
+     * the strict figure was 7. A courier job is the agent's answer but
+     * Pokter's payment (`courierDeliveries`).
      */
-    answeredDeliveries: byStatus.COMPLETED - lifecycleDemoJobs - completedSelfHires,
+    courierDeliveries,
+    answeredDeliveries: byStatus.COMPLETED - lifecycleDemoJobs - completedSelfHires - courierDeliveries,
     inReview: byStatus.SUBMITTED,
     completedSelfHires,
     outsideSelfHireJobs: jobs.filter((job) => !isTeamFunded(job) && isSelfHire(job)).length,
