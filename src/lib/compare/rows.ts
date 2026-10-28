@@ -17,7 +17,8 @@ export function endpointReading(probe: { ok: boolean; latencyMs: number | null; 
   const over = probe.protocol ? ` over ${probe.protocol.toUpperCase()}` : '';
   if (probe.ok) return `Answered${probe.latencyMs !== null ? ` in ${probe.latencyMs} ms` : ''}${over}`;
   const why = probe.detail.trim().split(/[.;\n]/)[0]?.slice(0, 80);
-  return `Did not answer${over}${why ? `: ${why}` : ''}`;
+  /* A detail that only says it did not answer adds nothing to "Did not answer". */
+  return `Did not answer${over}${why && !/^no (answer|response)$/i.test(why.trim()) ? `: ${why}` : ''}`;
 }
 
 /** How long ago, coarse on purpose: a compare is read in minutes, not seconds. */

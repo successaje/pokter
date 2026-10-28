@@ -32,6 +32,7 @@ import { AVAILABILITY_LABEL, VERDICT_MEANING, type Verdict } from '@/lib/proof/e
 import { summarisePublishedEvidence, type PublishedEvidenceSummary } from '@/lib/proof/published';
 import { suggestionLabel, suggestionNote } from '@/lib/find/suggested';
 import { getProbeStore } from '@/lib/history/store';
+import { endpointReading } from '@/lib/compare/rows';
 import { getJobStore } from '@/lib/erc8183/store';
 import { escrowCommerceAddress } from '@/lib/erc8183/addresses';
 import { jobReceipt } from '@/lib/jobs/receipt-link';
@@ -100,6 +101,12 @@ export interface AgentProfile {
    * `record.lastSeen` is the last day Pokter called, which is not it.
    */
   sinceAnswer: number | null;
+  /**
+   * The newest scheduled check: when it ran and what it found. Each sweep
+   * checks a share of the roster, so freshness is said per agent rather
+   * than as one time for every agent.
+   */
+  lastCheck: { at: string; reading: string; answered: boolean } | null;
   record: { windows: TrackRecord['windows']; totalProbes: number; totalAnswered: number; firstSeen: string | null; lastSeen: string | null; observedDays: number; longestOutage: TrackRecord['longestOutage']; cells: StripCell[] };
   skills: DeclaredSkill[];
   /**
@@ -349,6 +356,7 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
     maturity,
     live: { answered: answeredNow, ratio: live.ratio, medianMs: live.medianMs, protocol: live.protocol, endpoint: live.endpoint, capabilities: live.capabilities.slice(0, 20) },
     sinceAnswer: daysSinceLastAnswer(record),
+    lastCheck: d.latestCheck ? { at: d.latestCheck.probedAt, reading: endpointReading(d.latestCheck), answered: d.latestCheck.ok } : null,
     record: {
       windows: record.windows,
       totalProbes: record.totalProbes,
@@ -425,6 +433,7 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
       now: Date.now(),
       live: { answered: answeredNow, medianMs: live.medianMs },
       record: { totalProbes: record.totalProbes, totalAnswered: record.totalAnswered, observedDays: record.observedDays, lastSeen: record.lastSeen },
+      lastCheck: d.latestCheck ? { at: d.latestCheck.probedAt, reading: endpointReading(d.latestCheck) } : null,
       quote: d.quote ? { quotedAt: d.quote.quotedAt, expiresAt: d.quote.expiresAt ?? null, current: d.quoteCurrent, payable } : null,
       escrowLabel: chainLabel(escrowChain),
       history,
