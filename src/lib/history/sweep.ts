@@ -31,7 +31,7 @@ import { getQuestStore } from '@/lib/quest/store';
 import { PROBE_ADAPTER } from '@/lib/proof/probe-target';
 import type { QuoteFailure } from '@/lib/hire/failure';
 import { withRegisteredWallet } from '@/lib/registry/live-agent';
-import { advanceCursor, afterDiscoveryAttempt, declaresCallableProtocol, DISCOVERY_MAX_PAGES, DISCOVERY_PAGE, DISCOVERY_QUOTA, newerThanCursor } from './discovery';
+import { advanceCursor, afterDiscoveryAttempt, declaresCallableProtocol, DISCOVERY_MAX_PAGES, DISCOVERY_PAGE, DISCOVERY_QUOTA, discoveryResult, newerThanCursor, type DiscoveryResult } from './discovery';
 
 export interface SweepOptions {
   chainId?: ChainId;
@@ -528,11 +528,7 @@ export async function runDiscovery(
     const agent = await lookup(chainId, entry.tokenId).catch(() => null);
     if (!agent) return;
     outcome.tried += 1;
-    const result: 'answered' | 'no-answer' | 'no-endpoint' = !probeTarget(agent)
-      ? 'no-endpoint'
-      : (await probe(agent, { samples: 1, signal }).catch(() => null))?.answered
-        ? 'answered'
-        : 'no-answer';
+    const result: DiscoveryResult = !probeTarget(agent) ? 'no-endpoint' : discoveryResult(await probe(agent, { samples: 1, signal }).catch(() => null));
     /* Our own cancellation says nothing about the agent: no attempt is spent on it. */
     if (result === 'no-answer' && signal?.aborted) return;
     const next = afterDiscoveryAttempt(entry.attempts, result, Date.now());
