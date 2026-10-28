@@ -8,9 +8,11 @@ import {
   type ProofWindow,
 } from '@/lib/erc8183/production-proof';
 import { getJobStore } from '@/lib/erc8183/store';
+import { courierPaidTest } from '@/lib/erc8183/courier-paid';
 import { jobAmountLabel } from '@/lib/erc8183/job-amount';
 import { isLifecycleDemo } from '@/lib/agent/credited-history';
 import { listSearchable } from '@/lib/marketplace';
+import { registeredWalletRead } from '@/lib/registry/live-agent';
 import type { HiredJob, JobStatusName } from '@/lib/erc8183/types';
 import { chainLabel, escrowMoney, explorerBaseFor } from '@/lib/network/presentation';
 import { briefIsPublic, jobEvidencePath, jobFunder } from '@/lib/jobs/evidence-view';
@@ -162,12 +164,6 @@ export default async function ProductionProofPage({ searchParams }: { searchPara
   const agentKey = agent && /^\d+\:\d+$/.test(agent) ? agent : null;
   const team = teamWalletSet();
   const isTeam = (job: HiredJob) => fundedByTeam(job, team);
-  /*
-   * The escrow paid a Pokter wallet: the courier was the provider, carrying
-   * the agent's answer, and was paid in its place. Counted apart from the
-   * agents' own paid work and labelled on its row (`courierDeliveries`).
-   */
-  const paidToPokter = (job: HiredJob) => typeof job.provider === 'string' && team.has(job.provider.toLowerCase());
   const store = getJobStore();
   const indexed = store.all();
   const inView = (network: Network, funder: ProofFunder) =>
@@ -179,7 +175,14 @@ export default async function ProductionProofPage({ searchParams }: { searchPara
   const network: Network = parsed.network ?? (counts.mainnet === 0 && counts.testnet > 0 ? 'testnet' : 'mainnet');
   const filters: Filters = { ...parsed, network };
   const jobs = inView(network, filters.funder);
-  const summary = summarizeProductionProof(jobs, isTeam, isLifecycleDemo, paidToPokter);
+  /*
+   * The courier was the provider, carrying the agent's answer, and the
+   * escrow paid it in the agent's place. A job paid to a Pokter agent's own
+   * registered wallet is that agent's paid work (`courierPaidTest`).
+   * Counted apart and labelled on its row (`courierDeliveries`).
+   */
+  const paidToCourier = await courierPaidTest(jobs, team, registeredWalletRead);
+  const summary = summarizeProductionProof(jobs, isTeam, isLifecycleDemo, paidToCourier);
   /* The split beside the total is always of every funder, so a filtered view still says what it left out. */
   const everyFunder = filters.funder === 'all' ? jobs : inView(network, 'all');
   const outsideTeamJobs = everyFunder.filter((job) => !isTeam(job)).length;
@@ -328,8 +331,7 @@ export default async function ProductionProofPage({ searchParams }: { searchPara
                       <div className="col-start-2 flex flex-wrap items-baseline gap-x-2 text-[13px] sm:col-start-auto sm:flex-col sm:gap-0.5">
                         <span className="t-readout text-ink">{jobAmountLabel(job)}</span>
                         <span className={cn('text-[12.5px]', job.status === 'COMPLETED' ? 'text-ok' : 'text-info')}>
-                          {/* A Pokter wallet, not "the courier": Pokter's own agents are paid to their registered wallet, which is also one. */}
-                          {job.status === 'COMPLETED' ? (paidToPokter(job) ? 'Settled, paid to a Pokter wallet' : 'Settled') : 'Delivered, awaiting settlement'}
+                          {job.status === 'COMPLETED' ? (paidToCourier(job) ? 'Settled, paid to Pokter’s courier' : 'Settled') : 'Delivered, awaiting settlement'}
                         </span>
                       </div>
                       <Link
@@ -507,7 +509,7 @@ export default async function ProductionProofPage({ searchParams }: { searchPara
                       <td className="px-4 py-3.5 align-top font-medium text-ink">
                         {STATUS_COPY[job.status]}
                         {isLifecycleDemo(job) && <span className="mt-0.5 block text-[11.5px] font-normal text-ink-3">Lifecycle demo: no answer from the agent</span>}
-                        {!isLifecycleDemo(job) && paidToPokter(job) && (
+                        {!isLifecycleDemo(job) && paidToCourier(job) && (
                           <span className="mt-0.5 block text-[11.5px] font-normal text-ink-3">Via Pokter courier{job.status === 'COMPLETED' ? ': paid to Pokter' : ''}</span>
                         )}
                       </td>

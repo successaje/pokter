@@ -68,9 +68,10 @@ export interface ProductionProofSummary {
    */
   lifecycleDemoJobs: number;
   /**
-   * Settled jobs whose escrow paid a Pokter wallet: the "Try free on
+   * Settled jobs whose escrow paid Pokter's courier: the "Try free on
    * testnet" courier is the on-chain provider for an agent with no signed
-   * price, relays the agent's answer, and is paid in its place.
+   * price, relays the agent's answer, and is paid in its place. A job paid
+   * to a Pokter agent's own registered wallet is not one (`courierPaidTest`).
    *
    * Counted apart from the agents' own paid work, and labelled on each row,
    * so the figure and the escrow agree about who was paid.
@@ -195,8 +196,8 @@ export function summarizeProductionProof(
    * useful work.
    */
   isLifecycleDemo: (job: HiredJob) => boolean = () => false,
-  /* Whether the escrow paid a Pokter wallet (the job's provider is one). Absent means none known, as above. */
-  paidToPokter: (job: HiredJob) => boolean = () => false,
+  /* Whether the escrow paid Pokter's courier in the agent's place (`courierPaidTest`). Absent means none known, as above. */
+  paidToCourier: (job: HiredJob) => boolean = () => false,
 ): ProductionProofSummary {
   const byStatus = Object.fromEntries(STATUSES.map((status) => [status, 0])) as Record<JobStatusName, number>;
   const buyers = new Map<string, number>();
@@ -217,7 +218,7 @@ export function summarizeProductionProof(
     byStatus[job.status] += 1;
     if (job.status === 'COMPLETED' && isLifecycleDemo(job)) lifecycleDemoJobs += 1;
     else if (job.status === 'COMPLETED' && isSelfHire(job)) completedSelfHires += 1;
-    else if (job.status === 'COMPLETED' && paidToPokter(job)) courierDeliveries += 1;
+    else if (job.status === 'COMPLETED' && paidToCourier(job)) courierDeliveries += 1;
     if (job.status === 'SUBMITTED' && isLifecycleDemo(job)) awaitingDemos += 1;
     const team = isTeamFunded(job);
     if (isSelfHire(job)) selfHireJobs += 1;

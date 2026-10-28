@@ -107,7 +107,7 @@ test('a courier job says the escrow pays Pokter’s courier, and a Pokter-owned 
   assert.match(page, /Pokter’s courier submitted the delivery/);
   assert.doesNotMatch(page, /not from the agent’s own wallet/, 'a Pokter-owned agent’s wallet is its own');
   const proof = code('app/(site)/proof/page.tsx');
-  assert.equal(proof.match(/summarizeProductionProof\(/g)?.length, proof.match(/isLifecycleDemo, paidToPokter\)/g)?.length, 'every summary on the page');
+  assert.equal(proof.match(/summarizeProductionProof\(/g)?.length, proof.match(/isLifecycleDemo, paidToCourier\)/g)?.length, 'every summary on the page');
   assert.match(proof, /label="Via Pokter courier"/);
   assert.match(proof, /Via Pokter courier\{job\.status === 'COMPLETED' \? ': paid to Pokter' : ''\}/);
   assert.match(code('lib/erc8183/outside-activity.ts'), /answered: answeredAtAll\.length - viaCourier, viaCourier/);

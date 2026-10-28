@@ -2,8 +2,10 @@ import 'server-only';
 
 import { isLifecycleDemo } from '@/lib/agent/credited-history';
 import { getJobStore } from '@/lib/erc8183/store';
+import { courierPaidTest } from '@/lib/erc8183/courier-paid';
 import { isSelfHire } from '@/lib/erc8183/production-proof';
 import { summarizeMarketplaceActivity } from '@/lib/erc8183/activity-stats';
+import { registeredWalletRead } from '@/lib/registry/live-agent';
 import { teamWalletSet } from '@/lib/team/server';
 import { fundedByTeam } from '@/lib/team/wallets';
 
@@ -34,14 +36,14 @@ export interface OutsideActivity {
  * read the unfiltered figure as useful customer outcomes when the strict
  * count was about half of it, which is why `answered` is the strict one.
  */
-export function outsideActivity(): OutsideActivity {
+export async function outsideActivity(): Promise<OutsideActivity> {
   const team = teamWalletSet();
   const buyerJobs = getJobStore().all().filter((job) => !fundedByTeam(job, team));
   const totals = summarizeMarketplaceActivity(buyerJobs);
   const completed = buyerJobs.filter((job) => job.status === 'COMPLETED');
   const answeredAtAll = completed.filter((job) => !isLifecycleDemo(job) && !isSelfHire(job));
-  /* Paid to a Pokter wallet: the courier's job, not the agent's paid work. The same rule as the proof page. */
-  const paidToPokter = (job: (typeof completed)[number]) => typeof job.provider === 'string' && team.has(job.provider.toLowerCase());
-  const viaCourier = answeredAtAll.filter(paidToPokter).length;
+  /* Paid to Pokter's courier: the courier's job, not the agent's paid work. The same rule as the proof page. */
+  const paidToCourier = await courierPaidTest(answeredAtAll, team, registeredWalletRead);
+  const viaCourier = answeredAtAll.filter(paidToCourier).length;
   return { funded: totals.indexedJobs, open: totals.activeJobs, answered: answeredAtAll.length - viaCourier, viaCourier };
 }

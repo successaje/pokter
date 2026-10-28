@@ -4,6 +4,7 @@ import { CATEGORIES, type Category } from '@/lib/agents/categories';
 import { isFeaturableAgent } from '@/lib/agents/eligibility';
 import { mainnetFirstPerAgent } from '@/lib/agents/distinct';
 import { summarizeMarketplaceActivity } from '@/lib/erc8183/activity-stats';
+import { courierPaidTest } from '@/lib/erc8183/courier-paid';
 import { getJobStore } from '@/lib/erc8183/store';
 import { findRows, type FindRow } from '@/lib/find/rows';
 import { getEcosystemStats, listSearchableWithStatus, type EcosystemStats } from '@/lib/marketplace';
@@ -11,6 +12,7 @@ import { outcomeShortlist } from '@/lib/home/outcome-shortlist';
 import { chainLabel } from '@/lib/network/presentation';
 import { letsJobsLapse, type SearchableAgent } from '@/lib/search/match';
 import { catalogueCounts } from '@/lib/agents/catalogue-counts';
+import { registeredWalletRead } from '@/lib/registry/live-agent';
 import { teamWalletSet } from '@/lib/team/server';
 import { fundedByTeam } from '@/lib/team/wallets';
 import { isLifecycleDemo } from '@/lib/agent/credited-history';
@@ -216,8 +218,10 @@ export async function loadHome(): Promise<HomeData> {
   const completedOutside = buyerJobs.filter((job) => job.status === 'COMPLETED');
   const demos = completedOutside.filter((job) => isLifecycleDemo(job)).length;
   const selfHires = completedOutside.filter((job) => !isLifecycleDemo(job) && isSelfHire(job)).length;
-  /* The agent's answer, but paid to Pokter's courier wallet: the same rule as Discover and the proof page. */
-  const courier = completedOutside.filter((job) => !isLifecycleDemo(job) && !isSelfHire(job) && typeof job.provider === 'string' && team.has(job.provider.toLowerCase())).length;
+  /* The agent's answer, but paid to Pokter's courier: the same rule as Discover and the proof page. */
+  const carried = completedOutside.filter((job) => !isLifecycleDemo(job) && !isSelfHire(job));
+  const paidToCourier = await courierPaidTest(carried, team, registeredWalletRead);
+  const courier = carried.filter(paidToCourier).length;
   const answered = completedOutside.length - demos - selfHires - courier;
   const mainnetJobs = summarizeMarketplaceActivity(buyerJobs.filter((job) => job.chainId === 56));
   const teamJobs = summarizeMarketplaceActivity(allJobs.filter((job) => fundedByTeam(job, team)));
