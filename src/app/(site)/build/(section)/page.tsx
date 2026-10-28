@@ -128,6 +128,13 @@ async function Overview({ owner }: { owner: string }) {
   const { agents, jobs, unavailable } = await loadFleet(owner);
   const toDeliver = jobs.filter((j) => j.status === 'FUNDED').length;
   /*
+   * Active means the escrow still holds the money: funded and waiting for
+   * delivery, or delivered and waiting to be released. The overview listed
+   * every job under this heading, so paid and expired work, which needs
+   * nothing from anyone, sat where a builder looks for what to do next.
+   */
+  const active = jobs.filter((j) => j.status === 'FUNDED' || j.status === 'SUBMITTED');
+  /*
    * One line per chain and token. Real money is the figure; test money and
    * jobs whose token has not been read are shown beside it and never added
    * in. $U and USDT are both real and both shown, never folded into one.
@@ -185,7 +192,14 @@ async function Overview({ owner }: { owner: string }) {
 
       <section aria-labelledby="work-title" className="mt-12">
         <SectionHead id="work-title" title="Active jobs" body="Funded work for your agents, and what each needs from you." href="/build/jobs" link="All jobs" />
-        <DeliveryInbox jobs={jobs} />
+        <DeliveryInbox
+          jobs={active}
+          empty={
+            jobs.length > 0 ? (
+              <p className="border-y border-rule py-5 text-[13.5px] text-ink-2">Nothing needs you right now. Paid and expired jobs are under All jobs.</p>
+            ) : undefined
+          }
+        />
       </section>
 
       <div className="mt-12 flex flex-col gap-10">
