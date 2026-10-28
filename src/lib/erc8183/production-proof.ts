@@ -1,3 +1,4 @@
+import { fundingEvidence } from './funding-evidence';
 import { isDollarUJob, serializableTotals, totalsByToken } from './job-amount';
 import type { HiredJob, JobStatusName } from './types';
 
@@ -22,7 +23,13 @@ export interface ProductionProofSummary {
   completionRate: number | null;
   uniqueKnownBuyers: number;
   repeatKnownBuyers: number;
-  /** Distinct agents, one per agent however many chains it is registered on. */
+  /** Jobs the escrow proves were funded with money (`fundingEvidence`): the hires. */
+  fundedHires: number;
+  /** Created and never funded, or funded with no money: jobs, not hires. */
+  notFunded: number;
+  /** Rejected jobs: `reject` also closes a job that was never funded, so funding is not proven. */
+  fundingUnproven: number;
+  /** Distinct agents with a funded hire, one per agent however many chains it is registered on. */
   agentsHired: number;
   /** Distinct registry identities (chain and token id) behind `agentsHired`. */
   agentRegistrationsHired: number;
@@ -212,6 +219,9 @@ export function summarizeProductionProof(
   let completedSelfHires = 0;
   let courierDeliveries = 0;
   let awaitingDemos = 0;
+  let fundedHires = 0;
+  let notFunded = 0;
+  let fundingUnproven = 0;
   let lastCheckedAt: string | null = null;
 
   for (const job of jobs) {
@@ -229,10 +239,15 @@ export function summarizeProductionProof(
       const buyer = job.client.toLowerCase();
       buyers.set(buyer, (buyers.get(buyer) ?? 0) + 1);
     }
+    const funding = fundingEvidence(job);
+    if (funding === 'funded') fundedHires += 1;
+    else if (funding === 'not-funded') notFunded += 1;
+    else fundingUnproven += 1;
     const registration = `${job.agentChainId ?? job.chainId}:${job.agentTokenId}`;
-    registrations.add(registration);
+    /* An agent is hired by a funded job; a job created and never funded did not hire it. */
+    if (funding === 'funded') registrations.add(registration);
     const name = (job.agentName ?? '').trim().toLowerCase();
-    if (name && job.provider) {
+    if (funding === 'funded' && name && job.provider) {
       const names = registrationNames.get(registration) ?? new Set<string>();
       names.add(`${job.provider.toLowerCase()}|${name}`);
       registrationNames.set(registration, names);
@@ -253,6 +268,9 @@ export function summarizeProductionProof(
     completionRate: terminal > 0 ? byStatus.COMPLETED / terminal : null,
     uniqueKnownBuyers: buyers.size,
     repeatKnownBuyers: [...buyers.values()].filter((count) => count >= 2).length,
+    fundedHires,
+    notFunded,
+    fundingUnproven,
     agentsHired: distinctAgents(registrations, registrationNames),
     agentRegistrationsHired: registrations.size,
     completedValueRaw: completedValue.toString(),

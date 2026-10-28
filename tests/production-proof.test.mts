@@ -51,7 +51,9 @@ test('production proof keeps team, outside-team, and unknown funding honest', ()
   assert.equal(result.teamJobs, 2);
   assert.equal(result.unknownFunderJobs, 1);
   assert.equal(result.uniqueKnownBuyers, 3);
-  assert.equal(result.agentsHired, 2);
+  assert.equal(result.agentsHired, 1, 'agent 2’s only job was rejected, which the escrow also allows before funding: not proven hired');
+  assert.equal(result.fundedHires, 3);
+  assert.equal(result.fundingUnproven, 1);
   assert.equal(result.completedValueRaw, '300');
   assert.equal(result.completionRate, 0.5);
 });
