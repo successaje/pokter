@@ -10,7 +10,8 @@ import Link from 'next/link';
  * network at a time (`boardNetworkFrom`, BNB Chain by default); rankings
  * read each agent's jobs on both networks together (`byAgent` is keyed by
  * the agent, not the escrow) and default to outside-team funding; proof
- * counts jobs, both networks unless filtered (`proof/page.tsx`).
+ * counts jobs on one network at a time, BNB Chain unless chosen
+ * (`proof/page.tsx`).
  */
 const BOARDS = [
   {
@@ -29,7 +30,7 @@ const BOARDS = [
     id: 'proof',
     href: '/proof',
     title: 'Production proof',
-    counts: 'Jobs, not agents: every escrow job Pokter indexed, with real and test money and team and outside funding kept apart, failures included.',
+    counts: 'Jobs, not agents, on one network at a time (BNB Chain unless you choose testnet): every escrow job Pokter indexed, with team and outside funding kept apart, failures included.',
   },
 ] as const;
 

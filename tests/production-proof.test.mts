@@ -307,3 +307,23 @@ test('a job the escrow paid to Pokter’s courier is counted apart, not as the a
   /* Unwired, nothing is known to be the courier's: the figure is what it was. */
   assert.equal(summarizeProductionProof(jobs, isTeam, demo).answeredDeliveries, 3);
 });
+
+test('answers delivered count settled and awaiting deliveries, never a demo or a refunded job', () => {
+  const demo = new Set(['3', '5']);
+  const jobs = [
+    job('1', 'COMPLETED'),
+    job('2', 'COMPLETED', { provider: TEAM }),
+    job('3', 'COMPLETED'),
+    job('4', 'SUBMITTED'),
+    job('5', 'SUBMITTED'),
+    job('6', 'REJECTED'),
+    job('7', 'EXPIRED'),
+    job('8', 'FUNDED'),
+  ];
+  const summary = summarizeProductionProof(jobs, isTeam, (candidate) => demo.has(candidate.id), (candidate) => candidate.provider === TEAM);
+  assert.equal(summary.answersSettled, 2, 'a courier job carries the agent’s answer; a demo carries none');
+  assert.equal(summary.answersAwaitingSettlement, 1);
+  assert.equal(summary.answersDelivered, summary.answersSettled + summary.answersAwaitingSettlement);
+  assert.equal(summary.answeredDeliveries, 1, 'the strict figure still leaves out the courier job');
+  assert.equal(summary.inReview, 2, 'the escrow’s delivered count is unchanged');
+});
