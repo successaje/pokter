@@ -45,7 +45,12 @@ export function CompareSheet({ fullPageHref, children }: { fullPageHref: string 
         </div>
       }
     >
-      {children}
+      {/*
+        The agents' row sticks to the top of the sheet's scrolling body. That
+        body is padded 20px (`py-5` in `Sheet`), and a sticky element stops
+        inside the padding, so rows scrolled through the gap above it.
+      */}
+      <div className="[--compare-top:-20px]">{children}</div>
     </Sheet>
   );
 }
