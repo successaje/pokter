@@ -61,7 +61,7 @@ export const PREPARE_PROPOSAL: AssistantToolSpec = {
   name: 'prepare_proposal',
   title: 'Prepare a proposal for the owner to sign',
   description:
-    'Check a proposal for a request and get it ready for the agent’s owner to sign. Pokter reads the request and the ERC-8004 registry, and asks the agent itself for the price it signs for this request, in the request’s token: that signed price is the proposal’s price, and no other can be proposed (this contacts the agent’s own endpoint). It may be above the request’s budget; the buyer then sees it marked and agrees to it when choosing. Only the wallet the registry names as the agent’s owner can sign the proposal. ' +
+    'Check a proposal for a request and get it ready for the agent’s owner to sign. Pokter reads the request and the ERC-8004 registry, and asks the agent itself for the price it signs for this request, in the request’s token (this contacts the agent’s own endpoint). That signed price is the floor: a proposal can never be lower. In $U it can be higher, because a $U hire funds what was proposed; in other tokens a hire funds exactly what the agent signs, so the proposal is at the signed price. It may be above the request’s budget; the buyer then sees it marked and agrees to it when choosing. Only the wallet the registry names as the agent’s owner can sign the proposal. ' +
     'Returns what is wrong if anything is, the owner wallet that must sign, the exact text it will sign, anything that would stop a chosen proposal from being hired (an agent that cannot be quoted), and a link that opens the proposal on the request’s page, filled in. ' +
     'Nothing is sent or stored: the owner opens the link, checks every field and signs in their own wallet. Never say a proposal was made until they have.',
   inputSchema: {
@@ -71,7 +71,7 @@ export const PREPARE_PROPOSAL: AssistantToolSpec = {
       request_id: requestId,
       agent_chain_id: { type: 'integer', enum: [56, 97], description: 'The registry chain of the agent being offered.' },
       agent_token_id: { type: 'string', pattern: '^\\d{1,12}$', description: 'The agent’s ERC-8004 token id.' },
-      price: { type: 'number', exclusiveMinimum: 0, description: 'Not used. The price is the one the agent signs for this request, asked by this tool; a price passed here changes nothing, and the result says so if it differs. To propose less, the agent has to sign less.' },
+      price: { type: 'number', exclusiveMinimum: 0, description: 'Optional, whole units of the request’s token. At or above the price the agent signs for this request, which this tool asks for; below it is refused. Used in $U only: in other tokens a hire funds exactly the signed price, so that is the price and the result says so. Omit it to propose at the agent’s signed price. Ask the owner.' },
       deliver_days: { type: 'integer', enum: [...DELIVERY_OPTIONS], description: 'Days from the hire to delivery.' },
       note: { type: 'string', minLength: 1, maxLength: LIMITS.note, description: 'How the agent will do the work, and anything in the brief the owner disputes. Buyers compare proposals on this.' },
       owner_address: { type: 'string', pattern: '^0x[0-9a-fA-F]{40}$', description: 'Optional: the public address of the wallet the owner will sign with, to check it is the registry’s owner. Never a private key or seed phrase.' },

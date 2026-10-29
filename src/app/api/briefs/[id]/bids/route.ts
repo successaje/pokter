@@ -3,7 +3,7 @@ import { getAddress, isAddress, isHex, type Address, type Hex } from 'viem';
 
 import { acceptsProposals, bidMessage, parseBidContent, requestAmountLabel, staleProposal, type Bid } from '@/lib/briefs/model';
 import { formatAmount } from '@/lib/network/tokens';
-import { proposalPriceProblem } from '@/lib/briefs/proposal-price';
+import { proposalPriceFlexible, proposalPriceProblem } from '@/lib/briefs/proposal-price';
 import { getBriefStore } from '@/lib/briefs/store';
 import { registryOwner } from '@/lib/registry/onchain';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
@@ -55,17 +55,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (stale) return NextResponse.json({ error: stale }, { status: 409 });
 
   /*
-   * The price is the one the agent signed for this request, asked shortly
-   * before (`proposal-price.ts`). A typed price is how a proposal came to
-   * undercut the agent and be chosen into a hire that could never be
-   * funded. Above the budget is allowed: the poster sees it marked, and
-   * agrees to the amount in the signature that chooses it.
+   * No lower than the price the agent signed for this request, asked
+   * shortly before (`proposal-price.ts`): a lower one is how a proposal came
+   * to be chosen into a hire that could never be funded. Higher only in $U,
+   * whose hire funds the proposed amount. Above the budget is allowed: the
+   * poster sees it marked, and agrees to the amount in the signature that
+   * chooses it.
    */
   const quoted = getBriefStore().proposalQuote(id, content.agentChainId, content.agentTokenId);
   const mismatch = proposalPriceProblem(content, quoted, placedAt, {
     price: formatAmount(brief.chainId, content.paymentToken, content.priceRaw)?.label ?? requestAmountLabel(brief, content.priceU),
     signed: quoted ? (formatAmount(brief.chainId, quoted.currency, quoted.priceRaw)?.label ?? null) : null,
-  });
+  }, { aboveAllowed: proposalPriceFlexible(brief.chainId, brief.paymentToken) });
   if (mismatch) return NextResponse.json({ error: mismatch }, { status: 409 });
 
   const owner = await registryOwner(content.agentChainId, content.agentTokenId);

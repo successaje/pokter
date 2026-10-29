@@ -1,7 +1,7 @@
 import { formatUnits } from 'viem';
 
 import { amountToRaw, requestAmountLabel, withinBudget } from './model';
-import { requestToken, type PaymentToken } from '@/lib/network/tokens';
+import { defaultHireToken, displaySymbol, requestToken, type PaymentToken } from '@/lib/network/tokens';
 
 /**
  * A proposal's price is the one its agent signs for the request.
@@ -10,9 +10,17 @@ import { requestToken, type PaymentToken } from '@/lib/network/tokens';
  * signed price and refused one above the typed number, so an agent that
  * signs 1 USDT could propose 0.5 and be chosen into a hire that could never
  * be funded. Now the agent is asked for a signed quote for the request's
- * own brief, in the request's token, and that is the price: an owner who
- * wants to offer less has the agent sign less. Nothing on the selling side
- * types an amount the agent has not agreed to.
+ * own brief, in the request's token, and that is the floor: never below it,
+ * so a chosen proposal can always be funded. An owner who wants to offer
+ * less has the agent sign less.
+ *
+ * Above it depends on the token. A $U hire funds the buyer's budget, which
+ * may exceed the agent's signed price, so an owner may ask more than the
+ * agent's standing price for a request worth more, and the hire funds what
+ * was proposed. A hire in any other token funds exactly the amount the
+ * agent signed (`checkPurchaseIntent`: "funded exactly or not at all"), so
+ * a proposal in one carries the signed price; to ask more, the agent signs
+ * more.
  *
  * Pure, so the proposal route, both proposal tools and the form apply the
  * same rule.
@@ -54,6 +62,17 @@ export function proposalPriceFrom(priceRaw: string, token: Pick<PaymentToken, 'd
   return amountToRaw(priceU, token.decimals) === raw ? priceU : null;
 }
 
+/**
+ * Whether a proposal in this token may be priced above the agent's signed
+ * price: only in the chain's $U, the one token whose hire funds a budget
+ * rather than exactly the signed amount.
+ */
+export function proposalPriceFlexible(chainId: number, paymentToken: string | null): boolean {
+  const token = requestToken(chainId, paymentToken);
+  const dollarU = defaultHireToken(chainId);
+  return Boolean(token && dollarU && token.address.toLowerCase() === dollarU.address.toLowerCase());
+}
+
 /** Whether a quote is still young enough to price a proposal signed at `at`. */
 export function proposalQuoteFresh(quote: Pick<ProposalQuote, 'quotedAt'>, at: number = Date.now()): boolean {
   const quotedAt = Date.parse(quote.quotedAt);
@@ -70,17 +89,45 @@ export function proposalPriceProblem(
   quote: ProposalQuote | null,
   placedAt: string,
   labels: { price: string; signed: string | null },
+  /** `proposalPriceFlexible` for the request: whether above the signed price is allowed. */
+  { aboveAllowed = false }: { aboveAllowed?: boolean } = {},
 ): string | null {
-  if (!quote) return 'Ask the agent for its signed price for this request first. A proposal carries the price its agent signs, not one typed here.';
+  if (!quote) return 'Ask the agent for its signed price for this request first. A proposal can be no lower than the price its agent signs.';
   if (!proposalQuoteFresh(quote, Date.parse(placedAt))) {
     return `The agent's signed price was asked for more than ${PROPOSAL_QUOTE_MAX_AGE_MS / 60_000} minutes before this proposal was signed. Ask it again, then sign.`;
   }
   if (!content.paymentToken || content.paymentToken.toLowerCase() !== quote.currency.toLowerCase()) {
     return 'The agent signed its price in a different token from this proposal. A proposal is in its request’s token, and so is the price the agent signs for it.';
   }
-  if (content.priceRaw !== quote.priceRaw) {
-    return `This proposal says ${labels.price}, and the agent signed ${labels.signed ?? 'a different price'} for this request. A proposal carries the agent's own signed price.`;
+  let offered: bigint;
+  let signed: bigint;
+  try {
+    offered = BigInt(content.priceRaw);
+    signed = BigInt(quote.priceRaw);
+  } catch {
+    return 'The proposal’s price could not be read.';
   }
+  if (offered < signed) {
+    return `This proposal says ${labels.price}, below the ${labels.signed ?? 'price'} the agent signed for this request. A proposal can’t undercut the agent’s own price: to go lower, have it sign less, then ask again.`;
+  }
+  if (offered > signed && !aboveAllowed) {
+    return `This proposal says ${labels.price}, above the ${labels.signed ?? 'price'} the agent signed. In this token a hire funds exactly what the agent signs, so the proposal carries its signed price; to ask more, the agent has to sign more for this request.`;
+  }
+  return null;
+}
+
+/** Why a typed price cannot be proposed, or null; the same rule as the route, for the form and the tools. */
+export function typedPriceProblem(
+  typedRaw: bigint | null,
+  quote: Pick<ProposalQuote, 'priceRaw'>,
+  token: Pick<PaymentToken, 'symbol'>,
+  signedLabel: string,
+  aboveAllowed: boolean,
+): string | null {
+  if (typedRaw === null) return `Enter a price in ${displaySymbol(token)}.`;
+  const signed = BigInt(quote.priceRaw);
+  if (typedRaw < signed) return `No lower than ${signedLabel}, the price your agent signs for this request. To go lower, have it sign less, then ask again.`;
+  if (typedRaw > signed && !aboveAllowed) return `In ${displaySymbol(token)} a hire funds exactly what your agent signs, so this proposal is at ${signedLabel}. To ask more, have it sign more.`;
   return null;
 }
 

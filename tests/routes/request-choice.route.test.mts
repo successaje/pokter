@@ -64,7 +64,7 @@ test('a proposal carries the price its agent signed for the request, or it is re
   store.recordProposalQuote({ ...quote, quotedAt: new Date().toISOString() });
   const typed = await refused(0.05);
   assert.equal(typed.status, 409);
-  assert.match(typed.error, /says 0\.05 .*the agent signed 0\.1 .*for this request/);
+  assert.match(typed.error, /says 0\.05 .*below the 0\.1 .*the agent signed for this request/);
 
   store.recordProposalQuote({ ...quote, quotedAt: new Date(Date.now() - 40 * 60_000).toISOString() });
   const old = await refused(0.1);

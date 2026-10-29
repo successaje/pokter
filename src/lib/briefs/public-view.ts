@@ -117,8 +117,9 @@ export interface ProposalPrefill {
   agentChainId: 56 | 97;
   agentTokenId: string;
   /**
-   * Read from older links and never used: a proposal's price is the one its
-   * agent signs for the request (`proposal-price.ts`), not one a link carries.
+   * A price the owner chose above the agent's signed one, in $U only
+   * (`proposal-price.ts`). Absent, the form starts at the agent's signed
+   * price; either way it is checked against that price again.
    */
   price?: string;
   deliverDays: (typeof DELIVERY_OPTIONS)[number];
@@ -142,6 +143,7 @@ export const PROPOSAL_LINK_MAX = 2000;
 export function proposalLink(origin: string, requestId: string, prefill: ProposalPrefill): { url: string; noteInLink: boolean } {
   const url = new URL(`/requests/${requestId}`, origin);
   url.searchParams.set('propose', `${prefill.agentChainId}:${prefill.agentTokenId}`);
+  if (prefill.price) url.searchParams.set('price', prefill.price);
   url.searchParams.set('days', String(prefill.deliverDays));
   const bare = url.href;
   if (!prefill.note) return { url: bare, noteInLink: true };
