@@ -36,6 +36,8 @@ export interface ComparisonRow {
   /** When the reference was read, or the run graded. */
   readAt: string | null;
   jobId: string | null;
+  /** The start of the agent's reply as received, so a reader can judge it rather than take the grade on trust. */
+  reply: string | null;
 }
 
 export interface Comparison {
@@ -57,6 +59,7 @@ const UNSCORED: Record<string, { label: string; tone: Tone }> = {
   pending: { label: 'Awaiting delivery', tone: 'none' },
   undelivered: { label: 'Not delivered', tone: 'bad' },
   'not-comparable': { label: 'Not comparable', tone: 'none' },
+  'not-stated': { label: 'Not graded', tone: 'none' },
 };
 
 const HF_OUTCOME: Record<string, { label: string; tone: Tone }> = {
@@ -133,6 +136,7 @@ function hfRow(result: AssayRun['results'][number], ranAt: string): ComparisonRo
     block: readings?.block ?? null,
     readAt: readings?.readAt ?? ranAt,
     jobId: result.jobId ?? null,
+    reply: result.excerpt || null,
   };
 }
 
@@ -158,6 +162,7 @@ function positionRow(result: AssayRun['results'][number], ranAt: string): Compar
     block: typeof expected?.block === 'string' ? expected.block : null,
     readAt: typeof expected?.readAt === 'string' ? expected.readAt : ranAt,
     jobId: result.jobId ?? null,
+    reply: result.excerpt || null,
   };
 }
 
@@ -203,12 +208,14 @@ function scenarioRow(result: AssayRun['results'][number], ranAt: string, tasks: 
     task: tasks.get(result.scenario) ?? null,
     reference: fields(expected),
     answer: fields(observed, true),
-    difference: differences === null ? '—' : differences.length === 0 ? 'None' : differences.join(' · '),
+    /* An answer that stated none of it has no difference to show, only absences: the result says why. */
+    difference: differences === null || result.outcome === 'not-stated' ? '—' : differences.length === 0 ? 'None' : differences.join(' · '),
     result: scenarioResult(result.pass, result.outcome),
     reason: result.reason,
     block: null,
     readAt: ranAt,
     jobId: result.jobId ?? null,
+    reply: result.excerpt || null,
   };
 }
 
@@ -246,6 +253,8 @@ export function answerComparison(run: AssayRun | null): Comparison | null {
 
   if (staticSuite) {
     const tasks = new Map(staticSuite.scenarios.map((scenario) => [scenario.id, scenario.brief.text]));
+    const unstated = run.results.filter((r) => r.outcome === 'not-stated').length;
+    const matched = `Matched ${run.passed} of ${scored} published scenario${scored === 1 ? '' : 's'}${unstated ? `; ${unstated} more not graded, stating none of what the check compares` : ''}.`;
     return {
       kind: 'scenario',
       network: 'None needed: the brief itself fixes the answer',
@@ -254,7 +263,7 @@ export function answerComparison(run: AssayRun | null): Comparison | null {
       tolerance: 'Numbers within 0.5% (at least 0.01); words exactly',
       checkedAt: run.ranAt,
       method,
-      summary: { text: scored === 0 ? run.detail ?? 'Delivered, but none of it could be scored.' : `Matched ${run.passed} of ${scored} published scenario${scored === 1 ? '' : 's'}.`, tone: scored === 0 ? 'none' : run.passed === scored ? 'ok' : 'bad' },
+      summary: { text: scored === 0 ? run.detail ?? 'Delivered, but none of it could be scored.' : matched, tone: scored === 0 ? 'none' : run.passed === scored ? 'ok' : 'bad' },
       scope: scopeOf(scored, 'scenario'),
       rows: run.results.map((result) => scenarioRow(result, run.ranAt, tasks)),
     };

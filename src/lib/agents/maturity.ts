@@ -151,7 +151,7 @@ export const LADDER_MEANING: Record<MaturityId, string> = {
   answers: 'Answered Pokter’s checks of its published endpoint.',
   priced: 'A buyer can get current terms, signed by the agent’s wallet, that an escrow can pay.',
   delivered: 'At least one paid job delivered from the agent’s own wallet. Lifecycle demonstrations do not count, and nor does a delivery Pokter’s courier submitted — but a courier delivery carrying the agent’s own answer is reported as that rather than as nothing.',
-  checked: 'Passed the latest correctness check for its category, judged against chain data.',
+  checked: 'Passed the latest answer check for its category: chain data for a live check, the published scenario for the others.',
   'proven-in-use': `Settled work from at least ${MARKET_PROVEN_BUYERS} buyer wallets outside Pokter’s team, ${MARKET_PROVEN_COMPLETIONS} or more jobs.`,
 };
 
@@ -232,7 +232,7 @@ export function deriveMaturity(facts: MaturityFacts): AgentMaturity {
               ? 'Hired, with no delivery from the agent yet.'
               : 'No paid delivery yet.',
     },
-    { id: 'checked', label: LABEL.checked, earned: earned.checked, state: earned.checked ? 'earned' : 'unmet', detail: earned.checked ? 'Passed the latest correctness check for its category.' : 'No passing correctness check on record.' },
+    { id: 'checked', label: LABEL.checked, earned: earned.checked, state: earned.checked ? 'earned' : 'unmet', detail: earned.checked ? 'Passed the latest answer check for its category.' : 'No passing answer check on record.' },
     {
       id: 'proven-in-use',
       label: LABEL['proven-in-use'],

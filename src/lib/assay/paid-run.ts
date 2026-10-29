@@ -11,7 +11,7 @@ import { deliverableKey, readDeliverable, readDeliverableMismatch } from '@/lib/
 import { getJobStore } from '@/lib/erc8183/store';
 import { mayStartSideEffect } from '@/lib/history/budget';
 
-import { GRADING_RULES, STATIC_SUITES, type StaticAssayCategory } from './category-suites';
+import { GRADING_RULES, NOT_COUNTED, STATIC_SUITES, unstatedNote, type StaticAssayCategory } from './category-suites';
 import { HF_SUITE_ID } from './health-factor';
 import { readV3Positions, sampleV3PositionHolders, v3Client } from './pancakeswap-v3';
 import { gradePaidV3Scenarios } from './v3-grade';
@@ -155,15 +155,21 @@ export function gradePaidCategoryCheck(
    * rows are the ones that have resolved; with none resolved there is no
    * check yet, which is not the same as a check the agent failed.
    */
-  const scored = results.filter((result) => result.outcome !== 'pending');
-  if (scored.length === 0) {
+  const resolved = results.filter((result) => result.outcome !== 'pending');
+  if (resolved.length === 0) {
     return { state: 'incomplete', hired: fixtures.size, total: suite.scenarios.length, missing: results.map((r) => r.scenario) };
   }
+  /* A delivery that states nothing the check compares is resolved but not graded (`judgeStaticAnswer`). */
+  const scored = resolved.filter((result) => !NOT_COUNTED.has(result.outcome));
+  const unstated = resolved.length - scored.length;
 
   const run: Omit<AssayRun, 'ranAt'> = {
     suite: suite.id,
     status: 'checked',
-    detail: scored.length < results.length ? `${results.length - scored.length} of ${results.length} fixtures are still inside their delivery window and are not counted yet.` : null,
+    detail: [
+      resolved.length < results.length ? `${results.length - resolved.length} of ${results.length} fixtures are still inside their delivery window and are not counted yet.` : null,
+      unstated > 0 ? unstatedNote(unstated, resolved.length) : null,
+    ].filter(Boolean).join(' ') || null,
     passed: scored.filter((result) => result.pass).length,
     total: scored.length,
     via: 'paid-hire',

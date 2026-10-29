@@ -76,7 +76,7 @@ function cardProof(row: FindRow): { label: string; detail: string } {
    * failed (Mandate Guard-1 scored 0 / 3), and "Not checked" said the check
    * never happened. This is true either way; the profile says which.
    */
-  return { label: 'No proof yet', detail: 'No passing correctness check or settled outside-buyer delivery on record.' };
+  return { label: 'No proof yet', detail: 'No passing answer check or settled outside-buyer delivery on record.' };
 }
 
 /**

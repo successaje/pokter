@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { setAsideUnstated } from './category-suites';
 import { freeRunStatus } from './run-status';
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
@@ -158,7 +159,8 @@ class AssayStore {
       const judged = freeRunStatus(loaded.results);
       if (judged.status === 'not-askable') return { ...loaded, status: 'not-askable', detail: judged.detail, passed: 0 };
     }
-    return loaded;
+    /* Likewise answers that state nothing the check compares, failed before that rule (`setAsideUnstated`). */
+    return setAsideUnstated(loaded);
   }
 
   sample(suite: string): { accounts: string[]; sampledAt: string } | null {

@@ -36,7 +36,7 @@ export function checkReading(check: { passed: number; total: number; status: str
   if (!check) return { text: 'Not checked yet', score: null };
   if (check.status === 'not-askable') return { text: 'Could not be asked', score: null };
   if (check.status === 'paid-only') return { text: 'Needs a paid check, not run yet', score: null };
-  if (check.total === 0) return { text: 'Delivered, but none of it could be scored', score: null };
+  if (check.total === 0) return { text: check.via === 'paid-hire' ? 'Delivered, but none of it could be graded' : 'Answered, but none of it could be graded', score: null };
   return { text: `${check.passed} of ${check.total} passed${check.via === 'paid-hire' ? ' (paid hire)' : ''}`, score: check.passed / check.total };
 }
 

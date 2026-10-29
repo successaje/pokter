@@ -20,7 +20,8 @@ test('one readable answer, right or wrong, makes it a check', () => {
 });
 
 test('a missing field is reported as not stated, not as "undefined"', () => {
-  const verdict = judgeStaticAnswer({ amount: 5000 }, { text: null, data: { recommend: false } });
+  const verdict = judgeStaticAnswer({ amount: 5000, asset: 'USDT' }, { text: null, data: { amount: 5000, recommend: false } });
   assert.equal(verdict.pass, false);
-  assert.match(verdict.reason, /does not state amount; the scenario expects 5000/);
+  assert.equal(verdict.stated, true, 'it states the amount, so it is graded on both');
+  assert.match(verdict.reason, /does not state asset; the scenario expects USDT/);
 });

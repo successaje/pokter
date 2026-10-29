@@ -26,7 +26,7 @@ test('availability is said as replies, never as a verdict on the answers; the AP
   assert.equal(VERDICT_LABEL.reliable, 'Reliable', 'verdictLabel in the API is unchanged');
   const view = code('features/compare/CompareView.tsx');
   assert.match(view, /label: 'Availability', hint: 'Whether it replies to Pokter’s probes'/);
-  assert.match(view, /label: 'Correctness', hint: 'Whether its answers match what Pokter reads on chain'/);
+  assert.match(view, /label: 'Answer check', hint: 'Whether its answers match Pokter’s published check for its kind'/);
   assert.match(view, /deliveryAdjustedVerdict\(c\.proof\.verdict, c\.economicHistory\)/, 'the same demotion as the agent page');
   assert.match(code('ui/Verdict.tsx'), /\{AVAILABILITY_LABEL\[verdict\]\}/);
 });

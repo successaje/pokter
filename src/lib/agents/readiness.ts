@@ -34,7 +34,7 @@ export interface ReadinessInput {
   quote: { quotedAt: string; expiresAt: string | null; current: boolean; payable: boolean | null } | null;
   escrowLabel: string;
   history: { jobs: number; selfDelivered: number; operatorDelivered: number; relayedDelivered: number };
-  categoryCheck: { name: string; run: { status: string; passed: number; total: number; ranAt: string } | null } | null;
+  categoryCheck: { name: string; run: { status: string; passed: number; total: number; ranAt: string; detail?: string | null } | null } | null;
 }
 
 function ago(iso: string, now: number): string {
@@ -124,16 +124,27 @@ export function readinessRows(input: ReadinessInput): ReadinessRow[] {
               : 'No escrow job has been funded for it.',
   });
 
+  /*
+   * "Answer check", not "Correctness": several checks grade only what the
+   * brief itself fixes (the yield one, the buyer's own terms read back), so
+   * a pass is not the agent's answers being right, and the row named after
+   * it is the check's own name. A check that answered but graded nothing
+   * says so, rather than "could not be checked".
+   */
+  const check = categoryCheck?.run ?? null;
+  const ungraded = check?.status === 'checked' && check.total === 0;
   rows.push({
     id: 'correctness',
-    label: 'Correctness',
-    value: !categoryCheck ? 'No check for its kind' : !categoryCheck.run ? 'Not checked yet' : categoryCheck.run.total > 0 ? `${categoryCheck.run.passed} of ${categoryCheck.run.total} passed` : 'Could not be checked',
-    tone: !categoryCheck?.run || categoryCheck.run.total === 0 ? 'unknown' : categoryCheck.run.passed === categoryCheck.run.total ? 'ok' : 'bad',
+    label: 'Answer check',
+    value: !categoryCheck ? 'No check for its kind' : !check ? 'Not checked yet' : check.total > 0 ? `${check.passed} of ${check.total} passed` : ungraded ? 'Not graded' : 'Could not be checked',
+    tone: !check || check.total === 0 ? 'unknown' : check.passed === check.total ? 'ok' : 'bad',
     detail: !categoryCheck
-      ? 'Pokter has no correctness check for this kind of agent, so answers are not graded.'
-      : !categoryCheck.run
+      ? 'Pokter has no answer check for this kind of agent, so answers are not graded.'
+      : !check
         ? `${categoryCheck.name} has not run against it yet.`
-        : `${categoryCheck.name}, ${ago(categoryCheck.run.ranAt, now)}.`,
+        : ungraded && check.detail
+          ? `${categoryCheck.name}, ${ago(check.ranAt, now)}. ${check.detail}`
+          : `${categoryCheck.name}, ${ago(check.ranAt, now)}.`,
   });
 
   return rows;

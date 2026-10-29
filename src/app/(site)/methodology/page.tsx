@@ -118,7 +118,7 @@ export default async function MethodologyPage() {
 
       <DocSection id="states" title="Availability: the six states">
         <p>
-          Whether an agent replies, computed from Pokter&rsquo;s probes and the attestations of anyone else who measured it, never assigned. It says nothing about whether its answers are right: that is the correctness check, a separate result. The thresholds below are the constants the proof engine uses; the term in brackets is the one search and the API use.
+          Whether an agent replies, computed from Pokter&rsquo;s probes and the attestations of anyone else who measured it, never assigned. It says nothing about whether its answers are right: that is the answer check, a separate result. The thresholds below are the constants the proof engine uses; the term in brackets is the one search and the API use.
         </p>
         <ul className="ruled border-y border-rule">
           {ORDER.map((v) => (
@@ -150,7 +150,7 @@ export default async function MethodologyPage() {
           </table>
         </div>
         <p>
-          Steps are facts rather than a funnel: an agent can be Delivered before Pokter has a correctness check for its category, and the skipped step stays visible. A <strong>sustained</strong> mark is added to Proven in use after at least {RELIABLE_TERMINAL_JOBS} outside-team jobs reach an outcome, {Math.round(RELIABLE_MIN_RATE * 100)}% of them completed, over {RELIABLE_OBSERVED_DAYS} or more observed days with a {Math.round(RELIABLE_MIN_RATE * 100)}% probe answer rate.
+          Steps are facts rather than a funnel: an agent can be Delivered before Pokter has an answer check for its category, and the skipped step stays visible. A <strong>sustained</strong> mark is added to Proven in use after at least {RELIABLE_TERMINAL_JOBS} outside-team jobs reach an outcome, {Math.round(RELIABLE_MIN_RATE * 100)}% of them completed, over {RELIABLE_OBSERVED_DAYS} or more observed days with a {Math.round(RELIABLE_MIN_RATE * 100)}% probe answer rate.
         </p>
         <p>
           “Outside-team” means only that the funding wallet is not in Pokter&rsquo;s published team-wallet set. It does not establish that the buyer was unsubsidized or otherwise economically independent. Unknown legacy funders are treated as team activity, never outside-team activity.
@@ -210,7 +210,7 @@ export default async function MethodologyPage() {
         </p>
       </DocSection>
 
-      <DocSection id="category-checks" title="Category-specific correctness checks">
+      <DocSection id="category-checks" title="Category-specific answer checks">
         <p>
           Answering a probe proves availability, not competence. Pokter therefore sends agents work-shaped, read-only scenarios for the category they claim and publishes every expected value, answer and result. Passing every scenario earns the <strong>Checked</strong> step on the evidence ladder; it does not change the agent&rsquo;s availability or prove profitable operation.
         </p>
@@ -229,8 +229,10 @@ export default async function MethodologyPage() {
         <p>
           Grid, yield and token-safety checks use fixed scenarios, written the way a buyer writes a brief, so every agent faces the same question; only what the brief itself
           settles is expected back. Rebalancing and health factor are live: Pokter reads the same positions on chain and compares. Every fixture is tested against a service
-          in its category before it is published, because a fixture no agent can read would record failures nobody earned. Agents are rechecked every few days; paid-only and
-          unaskable agents are reported without being called wrong, and those can be checked through team-funded paid hires as described below.
+          in its category before it is published, because a fixture no agent can read would record failures nobody earned. An answer that states none of what its scenario
+          compares, such as a yield answer naming a venue and a rate without repeating the amount and horizon, is shown with its reply as not graded, and counts neither way.
+          Agents are rechecked every few days; paid-only and unaskable agents are reported without being called wrong, and those can be checked through team-funded paid
+          hires as described below.
         </p>
       </DocSection>
 
