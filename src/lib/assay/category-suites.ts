@@ -327,6 +327,26 @@ export function judgeStaticAnswer(expected: Record<string, unknown>, answer: { t
   return { pass: true, stated: true, observed, reason: 'All required outputs matched the published scenario.' };
 }
 
+type Verdict = ReturnType<typeof judgeStaticAnswer>;
+
+/**
+ * Whether a second ask (the brief's structured part alone) is asked, and
+ * whether its answer replaces the first.
+ *
+ * It is asked only when the first gave the check nothing to grade. An
+ * unreadable first answer takes any readable second one; a readable first
+ * that stated nothing gives way only to a second that states something, so
+ * a worse reply never replaces a better one.
+ */
+export function needsSecondAsk(first: Verdict): boolean {
+  return !first.stated;
+}
+
+export function secondAskWins(first: Verdict, second: Verdict | null): boolean {
+  if (!second || first.stated) return false;
+  return first.observed === null ? second.observed !== null : second.stated;
+}
+
 const STATIC_SUITE_IDS: ReadonlySet<string> = new Set(Object.values(CATEGORY_SUITE_IDS));
 
 /**

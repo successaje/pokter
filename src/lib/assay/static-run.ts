@@ -3,7 +3,7 @@ import 'server-only';
 import { freeRunStatus } from './run-status';
 import type { Category } from '@/lib/agents/categories';
 import { NotAskableError, PaidOnlyError, prepareAgent, sendPreparedBrief } from '@/lib/erc8183/courier';
-import { GRADING_RULES, NOT_COUNTED, STATIC_SUITES, judgeStaticAnswer, staticSuiteFor, unstatedNote, type StaticAssayCategory } from './category-suites';
+import { GRADING_RULES, NOT_COUNTED, STATIC_SUITES, judgeStaticAnswer, needsSecondAsk, secondAskWins, staticSuiteFor, unstatedNote, type StaticAssayCategory } from './category-suites';
 import { dueForCheck } from './queue';
 import { getAssayStore, type AssayRun, type AssayScenarioResult } from './store';
 import { RECHECK_MS } from './run';
@@ -36,11 +36,21 @@ export async function runStaticCategorySuite(
     try {
       let reply = await sendPreparedBrief(agent, scenario.brief, { timeoutMs: 12_000 });
       let verdict = judgeStaticAnswer(scenario.expected, reply.answer);
-      if (!verdict.observed) {
+      let askedAgain = false;
+      /*
+       * Asked once more, with only the structured part, whenever the first
+       * answer gave the check nothing to grade: unreadable, or stating none
+       * of what it compares. Some agents parse the fields and not the prose;
+       * one read "at least 0.5 points" as a market named "move it for at
+       * least 0" and declined. Which answer is kept is `secondAskWins`.
+       */
+      if (needsSecondAsk(verdict)) {
         const retry = await sendPreparedBrief(agent, scenario.brief, { timeoutMs: 12_000, dataOnly: true }).catch(() => null);
-        if (retry) {
+        const second = retry ? judgeStaticAnswer(scenario.expected, retry.answer) : null;
+        if (retry && second && secondAskWins(verdict, second)) {
           reply = retry;
-          verdict = judgeStaticAnswer(scenario.expected, retry.answer);
+          verdict = second;
+          askedAgain = true;
         }
       }
       results.push({
@@ -50,7 +60,7 @@ export async function runStaticCategorySuite(
         excerpt: excerptOf(reply.answer),
         pass: verdict.pass,
         outcome: verdict.pass ? 'correct' : verdict.observed && !verdict.stated ? 'not-stated' : 'wrong',
-        reason: verdict.reason,
+        reason: askedAgain ? `${verdict.reason} Graded on a second ask that sent the brief’s terms as structured data only.` : verdict.reason,
         latencyMs: reply.latencyMs,
       });
     } catch (error) {
