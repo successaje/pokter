@@ -9,6 +9,7 @@ import { PAYMENT_TERMS } from '@/lib/erc8183/payment-terms';
 import type { AgentProfile } from './profile';
 import { mainnetHireBlocked } from '@/lib/hire/mainnet-blocked';
 import { defaultHireToken, escrowMoney as tokenMoney, paymentTokenAt } from '@/lib/network/tokens';
+import { AskForPrice } from './AskForPrice';
 
 /*
  * Every amount named by the route it belongs to, and by what it is. Only a
@@ -114,6 +115,8 @@ export function HirePanel({ profile }: { profile: AgentProfile }) {
             Is this your agent? <Link href={profile.hireBlocker.fix.href} className="link">{profile.hireBlocker.fix.label}</Link> explains the fix.
             {profile.hireBlocker.observedAt ? ` Checked ${new Date(profile.hireBlocker.observedAt).toUTCString().slice(5, 22)} UTC.` : ''}
           </p>
+          {/* Only for a reason that will not pass on its own: a buyer can tell the owner they wanted it. */}
+          {!profile.hireBlocker.transient && <AskForPrice chainId={profile.chainId} tokenId={profile.tokenId} asks={profile.priceAsks} />}
         </div>
       )}
       {profile.warnings.length > 0 && (

@@ -27,6 +27,7 @@ import { approxTotalView } from '@/lib/money/approx-total';
 import { MoneyTotal } from '@/ui/MoneyTotal';
 import { CampaignGoal } from '@/features/studio/CampaignGoal';
 import { getAgent } from '@/lib/scan/client';
+import { PRICE_ASK_WINDOW_DAYS, priceAskCounts } from '@/lib/builder/diagnostics/store';
 import type { ChainId } from '@/lib/scan/types';
 import { MIN_OUTCOME_BUYERS, MIN_OUTCOME_COMPLETIONS, MIN_OUTCOME_TERMINAL } from '@/lib/rankings/outcomes';
 
@@ -128,6 +129,8 @@ export default async function ManageAgent({ params }: { params: Promise<{ chainI
   const listingPath = `/agents/${agent.chainId}/${agent.tokenId}`;
   const preferredHireChain = agent.growth.hireNetworks[0]?.chainId ?? null;
   const hirePath = preferredHireChain ? `/hire/${agent.chainId}/${agent.tokenId}?escrow=${preferredHireChain}` : null;
+  /* Buyers who asked for its price from its public page while it could not be priced. */
+  const asked = priceAskCounts([{ chainId: agent.chainId, tokenId: agent.tokenId }])[0] ?? null;
 
   return (
     <>
@@ -161,6 +164,26 @@ export default async function ManageAgent({ params }: { params: Promise<{ chainI
               <li key={g}>{g}</li>
             ))}
           </ul>
+        </Notice>
+      )}
+
+      {asked && (
+        <Notice
+          tone="watch"
+          className="mb-8"
+          title={asked.asks === 1 ? 'A buyer asked for its price' : `${asked.asks} buyers asked for its price`}
+          action={
+            <LinkButton href={listingPath} size="s" intent="secondary">
+              See why
+            </LinkButton>
+          }
+        >
+          In the last {PRICE_ASK_WINDOW_DAYS} days, from its public page while it could not be priced, most recently {new Date(asked.latestAt).toUTCString().slice(5, 16)}. A hire
+          needs a price it signs for the brief. If it still has none, its public page says what stopped it, and{' '}
+          <Link href="/build/integration#quote" className="link">
+            The signed quote
+          </Link>{' '}
+          explains what to return. Pokter does not record who asked.
         </Notice>
       )}
 
