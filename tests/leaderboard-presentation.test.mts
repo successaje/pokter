@@ -667,10 +667,10 @@ test('no row on any board expands, and nothing hides in a tooltip', () => {
   assert.match(source, /formatObservedSpan\(row\.observedDays\)/);
 });
 
-test('the category is the section title and the rule is not', () => {
+test('every category in one list by default, each row naming its category, and the rule is not a heading', () => {
   const source = copy(BOARD);
-  assert.match(source, /\{category\.label\}\s*<\/h3>/);
-  assert.match(source, /agent\{entry\.ranked\.length === 1 \? '' : 's'\}/);
+  assert.match(source, /const merged = browse\.category === ALL_CATEGORIES;/);
+  assert.match(source, /merged \? categoryLabel\(row\.agent\.category\) : null/);
   /* The eligibility sentence and the comparison note moved to the method. */
   assert.doesNotMatch(source, /checks in the window\s*<\/h3>/);
   assert.doesNotMatch(source, /Compared only against others in this category/);

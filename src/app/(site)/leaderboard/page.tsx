@@ -55,7 +55,8 @@ import {
   formatObservedSpan,
   MIN_RESPONSIVENESS_CHECKS,
   RESPONSIVENESS_WINDOW_DAYS,
-  type CategoryResponsiveness,
+  sortResponsivenessRows,
+  type ResponsivenessBoard,
   type ResponsivenessRow,
 } from '@/lib/leaderboard/responsiveness';
 import { loadOutcomeBoard, loadResponsivenessBoard, loadScoreBoard, type ScoreRow } from '@/lib/leaderboard/server';
@@ -65,6 +66,7 @@ import { cn } from '@/lib/ui/cn';
 import { formatCount, formatPercent } from '@/lib/ui/format';
 import { AgentAvatar } from '@/ui/Agent';
 import { buttonClass } from '@/ui/Button';
+import { DismissMenus } from '@/features/leaderboard/DismissMenus';
 import { SearchField } from '@/features/leaderboard/SearchField';
 import { MIN_CHECKS, UNRANKED_COPY, type EvidenceStrength } from '@/lib/score/track-record';
 import { EmptyState, Notice } from '@/ui/Feedback';
@@ -115,7 +117,7 @@ function LinkMenu<T extends string>({
 }) {
   const current = options.find((option) => option.value === value) ?? options[0];
   return (
-    <details className="group relative">
+    <details data-menu className="group relative">
       <summary
         aria-label={label}
         className="flex cursor-pointer list-none items-center justify-between gap-2 rounded-[10px] border border-rule bg-raised px-3 py-2 text-[13.5px] font-medium text-ink hover:border-rule-strong [&::-webkit-details-marker]:hidden"
@@ -183,6 +185,98 @@ function ChipGroup<T extends string>({
 }
 
 
+
+/**
+ * BNB Chain or BNB Testnet: one choice, always visible, at the board's top
+ * corner. A dropdown hid which money the board was counting behind a press;
+ * a two-way toggle says it at a glance and switches in one.
+ */
+function NetworkToggle({ value, href }: { value: BoardNetwork; href: (network: BoardNetwork) => string }) {
+  return (
+    <nav aria-label="Network" className="inline-flex shrink-0 items-center gap-0.5 rounded-full border border-rule bg-sunken p-1">
+      {BOARD_NETWORKS.map((network) => (
+        <Link
+          key={network}
+          href={href(network)}
+          scroll={false}
+          aria-current={network === value ? 'page' : undefined}
+          className={cn(
+            'whitespace-nowrap rounded-full px-2 py-1.5 text-[12px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40 sm:px-3.5 sm:text-[13px]',
+            network === value ? 'bg-raised text-ink shadow-sm' : 'text-ink-3 hover:text-ink',
+          )}
+        >
+          {/* Shorter on a phone, so the toggle stays on the title's line. */}
+          <span className="sm:hidden">{network === 'testnet' ? 'Testnet' : 'Mainnet'}</span>
+          <span className="hidden sm:inline">{chainLabel(escrowChainOf(network))}</span>
+        </Link>
+      ))}
+    </nav>
+  );
+}
+
+interface PodiumEntry {
+  agent: BoardAgent;
+  rank: number;
+  value: string;
+  label: string;
+  /** What the agent does, in the merged view, so first place is not read as best at everything. */
+  sub: string | null;
+}
+
+const PODIUM_COLUMN: Record<number, string> = { 1: 'col-start-2', 2: 'col-start-1', 3: 'col-start-3' };
+const PODIUM_STEP: Record<number, string> = { 1: 'h-14', 2: 'h-10', 3: 'h-7' };
+
+/**
+ * The first three, raised above the list.
+ *
+ * Only on the first page of a board nobody has searched, where "the top
+ * three" is a fact about the board; under a search it would crown whoever
+ * happened to match. Read first, second, third; drawn second, first, third,
+ * the way a podium stands. The list below starts at fourth, so no agent
+ * appears twice.
+ */
+function Podium({ entries }: { entries: PodiumEntry[] }) {
+  if (entries.length === 0) return null;
+  return (
+    <ol aria-label="Top three" className="mb-8 grid grid-cols-3 items-end gap-2 sm:gap-4">
+      {entries.slice(0, 3).map((entry) => (
+        <li key={entry.agent.key} className={cn('row-start-1 flex min-w-0 flex-col', PODIUM_COLUMN[entry.rank])}>
+          <Link
+            href={`/agents/${entry.agent.chainId}/${entry.agent.tokenId}`}
+            className={cn(
+              'group flex flex-col items-center gap-1.5 rounded-t-[14px] border border-b-0 px-2 pb-3 pt-4 text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40 sm:px-4',
+              entry.rank === 1 ? 'border-signal/40 bg-signal-wash' : 'border-rule bg-raised hover:bg-sunken/50',
+            )}
+          >
+            <AgentAvatar name={entry.agent.name} imageUrl={entry.agent.imageUrl} seed={entry.agent.key} size={entry.rank === 1 ? 52 : 44} />
+            <span className="w-full truncate text-[13px] font-semibold leading-tight group-hover:underline sm:text-[15px]">
+              {entry.agent.name}
+            </span>
+            {entry.sub && <span className="w-full truncate text-[11px] text-ink-3 sm:text-[12px]">{entry.sub}</span>}
+            <span className="t-readout mt-1 text-[18px] font-medium tabular-nums sm:text-[22px]">{entry.value}</span>
+            <span className="text-[11px] text-ink-3 sm:text-[12px]">{entry.label}</span>
+          </Link>
+          <span
+            aria-hidden
+            className={cn(
+              't-readout grid place-items-center rounded-b-[14px] border text-[15px] font-semibold',
+              PODIUM_STEP[entry.rank],
+              entry.rank === 1 ? 'border-signal bg-signal text-signal-ink' : 'border-rule bg-sunken text-ink-2',
+            )}
+          >
+            {entry.rank}
+          </span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+/** The podium's three, when this view should have one: page one, no search, ranked rows only. */
+function podiumOf<T>(rows: ReadonlyArray<{ row: T; rank: number | null }>, browse: BrowseQuery, page: number): Array<{ row: T; rank: number }> {
+  if (page !== 1 || browse.search.trim()) return [];
+  return rows.filter((entry): entry is { row: T; rank: number } => entry.rank !== null && entry.rank <= 3).slice(0, 3);
+}
 
 function Pagination({
   page,
@@ -275,11 +369,12 @@ function timestamp(value: string | null): string {
  * says the link goes somewhere.
  */
 function EvidenceCell({ row, current }: { row: OutcomeRow; current: BoardSelection }) {
+  /* One line: the receipts by name, the share card as an icon. Stacked, the two links set the row's height. */
   return (
-    <span className="flex flex-col items-start gap-1">
+    <span className="flex items-center justify-end gap-1">
       <Link
         href={`/proof?network=${current.network}&funder=outside-team&agent=${row.agent.key}`}
-        className="inline-flex items-center gap-1 text-[12.5px] font-medium text-ink hover:underline"
+        className="inline-flex items-center gap-1 whitespace-nowrap text-[12.5px] font-medium text-ink hover:underline"
       >
         Every job <Icon.ArrowUpRight size={12} className="text-ink-3" />
       </Link>
@@ -290,9 +385,11 @@ function EvidenceCell({ row, current }: { row: OutcomeRow; current: BoardSelecti
           chainId: row.agent.chainId,
           tokenId: row.agent.tokenId,
         })}
-        className="inline-flex items-center gap-1 text-[11.5px] text-ink-3 hover:text-ink hover:underline"
+        aria-label={`Share ${row.agent.name}’s card`}
+        title="Share card"
+        className="grid size-8 shrink-0 place-items-center rounded-[8px] text-ink-3 transition-colors hover:bg-sunken hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40"
       >
-        <Icon.Share size={11} /> Share card
+        <Icon.Share size={14} aria-hidden />
       </Link>
     </span>
   );
@@ -314,7 +411,7 @@ function EvidenceCell({ row, current }: { row: OutcomeRow; current: BoardSelecti
  * so a reader moving between the tabs is reading the same shape.
  */
 const BOARD_GRID =
-  'grid grid-cols-[1.5rem_minmax(0,1fr)_auto_1rem] items-center gap-x-4 gap-y-1.5 sm:grid-cols-[2.5rem_minmax(0,1fr)_7rem_9.5rem_2rem]';
+  'grid grid-cols-[1.5rem_minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1.5 sm:grid-cols-[2.5rem_minmax(0,1fr)_6.5rem_6.5rem_7.5rem]';
 
 /**
  * A read that failed, told apart from a board with nothing on it.
@@ -359,7 +456,7 @@ const STRENGTH_LABEL: Record<EvidenceStrength, string> = {
   strong: 'Strong',
 };
 
-function ScoreTable({ rows }: { rows: readonly ScoreRow[] }) {
+function ScoreTable({ rows, merged }: { rows: ReadonlyArray<{ row: ScoreRow; rank: number }>; merged: boolean }) {
   return (
     <>
       <div className={cn(SCORE_GRID, 'hidden border-b border-rule px-3 pb-2.5 sm:grid')}>
@@ -372,7 +469,7 @@ function ScoreTable({ rows }: { rows: readonly ScoreRow[] }) {
         <span className="t-label whitespace-nowrap text-right">Jobs completed</span>
       </div>
       <ol className="divide-y divide-rule">
-        {rows.map((row, index) => (
+        {rows.map(({ row, rank }) => (
           <li
             key={row.agent.key}
             className={cn(
@@ -381,11 +478,11 @@ function ScoreTable({ rows }: { rows: readonly ScoreRow[] }) {
               /* The leader, and only the leader. A restrained wash is the
                  one piece of emphasis on the page; applied to more than a
                  single row it stops being emphasis and becomes stripes. */
-              index === 0 ? 'bg-signal-wash' : 'hover:bg-sunken/50',
+              rank === 1 ? 'bg-signal-wash' : 'hover:bg-sunken/50',
             )}
           >
             <span className="t-readout text-[13px] tabular-nums text-ink-3">
-              {String(index + 1).padStart(2, '0')}
+              {String(rank).padStart(2, '0')}
             </span>
             <span className="flex min-w-0 items-center gap-2.5">
               <AgentAvatar name={row.agent.name} imageUrl={row.agent.imageUrl} seed={row.agent.key} size={38} />
@@ -396,11 +493,11 @@ function ScoreTable({ rows }: { rows: readonly ScoreRow[] }) {
                 >
                   {row.agent.name}
                 </Link>
-                {/* Where it is registered, because testnet and mainnet
-                    evidence are counted alike and the reader decides what
-                    that is worth. */}
+                {/* In the merged list, what the agent does, so a score is read
+                    beside its category; inside one category, where it is
+                    registered. */}
                 <span className="mt-0.5 block truncate text-[13px] text-ink-3">
-                  {chainLabel(row.agent.chainId)}
+                  {merged ? categoryLabel(row.agent.category) : chainLabel(row.agent.chainId)}
                 </span>
               </span>
             </span>
@@ -558,7 +655,7 @@ function ResponsivenessHeader() {
  * is a 56px press rather than a chevron, and on a keyboard it is one tab
  * stop that opens with Enter.
  */
-function ResponsivenessLine({ row, rank }: { row: ResponsivenessRow; rank: number | null }) {
+function ResponsivenessLine({ row, rank, sub }: { row: ResponsivenessRow; rank: number | null; sub?: string | null }) {
   return (
     /*
       Flat. This was an expandable row holding the observed span and the
@@ -581,12 +678,15 @@ function ResponsivenessLine({ row, rank }: { row: ResponsivenessRow; rank: numbe
       </span>
       <span className="flex min-w-0 items-center gap-2.5">
         <AgentAvatar name={row.agent.name} imageUrl={row.agent.imageUrl} seed={row.agent.key} size={38} />
-        <Link
-          href={`/agents/${row.agent.chainId}/${row.agent.tokenId}`}
-          className="truncate text-[15.5px] font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40"
-        >
-          {row.agent.name}
-        </Link>
+        <span className="min-w-0">
+          <Link
+            href={`/agents/${row.agent.chainId}/${row.agent.tokenId}`}
+            className="block truncate text-[15.5px] font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40"
+          >
+            {row.agent.name}
+          </Link>
+          {sub && <span className="mt-0.5 block truncate text-[13px] text-ink-3">{sub}</span>}
+        </span>
       </span>
       {/*
         One decimal, because nought rounded 349 of 350 up to "100%". That
@@ -618,96 +718,96 @@ function ResponsivenessLine({ row, rank }: { row: ResponsivenessRow; rank: numbe
   );
 }
 
-function ResponsivenessCategory({
-  entry,
+/**
+ * Every category in one list, or one category when chosen.
+ *
+ * Ranked by answer rate across the categories in view, then the agents with
+ * too few checks to rank, unordered by rate and said to be so. Ranked first
+ * and searched after, so a row keeps its standing whatever a search leaves.
+ */
+function ResponsivenessList({
+  board,
   browse,
+  current,
+  merged,
 }: {
-  entry: CategoryResponsiveness;
+  board: ResponsivenessBoard;
   browse: BrowseQuery;
+  current: BoardSelection;
+  merged: boolean;
 }) {
-  const category = CATEGORY_BY_ID.get(entry.category)!;
-  /*
-   * Ranked first, then narrowed, so a row keeps the standing it holds in its
-   * category rather than the position it happens to occupy among the rows a
-   * search left behind.
-   */
-  const ranked = entry.ranked
-    .map((row, index) => ({ row, rank: index + 1 }))
-    .filter(({ row }) => matchesBrowse(row.agent, browse));
-  const below = entry.belowMinimum.filter((row) => matchesBrowse(row.agent, browse));
-  if (ranked.length === 0 && below.length === 0) return null;
-  const hiddenByBrowse =
-    entry.ranked.length - ranked.length + (entry.belowMinimum.length - below.length);
+  const inView = board.categories.filter((entry) => merged || entry.category === browse.category);
+  const ranked = sortResponsivenessRows(inView.flatMap((entry) => entry.ranked)).map((row, index) => ({ row, rank: index + 1 as number | null }));
+  const below = inView
+    .flatMap((entry) => entry.belowMinimum)
+    .sort((a, b) => b.checks - a.checks || a.agent.name.localeCompare(b.agent.name))
+    .map((row) => ({ row, rank: null as number | null }));
+  const page = pageOf([...ranked, ...below], ({ row }) => matchesBrowse(row.agent, browse), browse);
+  const podium = podiumOf(page.rows, browse, page.page);
+  const onPodium = new Set(podium.map(({ row }) => row.agent.key));
+  const rows = page.rows.filter(({ row }) => !onPodium.has(row.agent.key));
+  const rankedRows = rows.filter(({ rank }) => rank !== null);
+  const belowRows = rows.filter(({ rank }) => rank === null);
+  const sub = (row: ResponsivenessRow) => (merged ? categoryLabel(row.agent.category) : null);
+  if (page.matched === 0) {
+    return (
+      <EmptyState title="Nothing on this board matches these filters" className="mt-6">
+        Clearing them shows the agents this board holds.
+      </EmptyState>
+    );
+  }
   return (
-    <section aria-labelledby={`responsiveness-${entry.category}`} className="pt-10">
-      <div className="flex flex-wrap items-end justify-between gap-3 border-b border-rule pb-3">
-        {/*
-          The category is the title. It used to be a label above a heading
-          that was really a sentence about the eligibility rule — so every
-          section shouted the rule and whispered which category it was
-          about. The rule is on the methodology page; the count is what a
-          reader wants beside the name.
-        */}
-        <div className="flex items-baseline gap-2.5">
-          <h3 id={`responsiveness-${entry.category}`} className="text-[16px] font-semibold tracking-[-0.01em]">
-            {category.label}
-          </h3>
-          <span className="text-[13px] text-ink-3">
-            {formatCount(entry.ranked.length)} agent{entry.ranked.length === 1 ? '' : 's'}
-          </span>
-        </div>
-      </div>
-      {/*
-        Said where the rows are missing from, not only at the top of the page.
-        A category heading that counts eight agents above a list of two is the
-        same defect as a stale column label: the figure is right about the
-        board and wrong about what is under it.
-      */}
-      {hiddenByBrowse > 0 && (
-        <p className="pt-3 text-[12.5px] text-ink-3">
-          {formatCount(hiddenByBrowse)} agent{hiddenByBrowse === 1 ? '' : 's'} in this category
-          {hiddenByBrowse === 1 ? ' is' : ' are'} hidden by the search above.
-        </p>
-      )}
-      {entry.ranked.length === 0 ? (
+    <>
+      <Podium
+        entries={podium.map(({ row, rank }) => ({
+          agent: row.agent,
+          rank,
+          value: formatPercent(row.answerRate, { decimals: 1 }),
+          label: 'Answer rate',
+          sub: sub(row),
+        }))}
+      />
+      {ranked.length === 0 && page.page === 1 && (
         <p className="border-b border-rule bg-sunken/50 px-4 py-3 text-[13px] text-ink-2">
-          No agent in this category has {MIN_RESPONSIVENESS_CHECKS} checks in the last {RESPONSIVENESS_WINDOW_DAYS}{' '}
-          days, so Pokter publishes no order for it. Every listed agent in this category is below, with whatever
-          checks Pokter has for it — which for some is none.
+          No agent here has {MIN_RESPONSIVENESS_CHECKS} checks in the last {RESPONSIVENESS_WINDOW_DAYS} days, so Pokter
+          publishes no order. Every listed agent is below, with whatever checks Pokter has for it, which for some is none.
         </p>
-      ) : (
-        ranked.length > 0 && (
-          <>
-            <ResponsivenessHeader />
-            <ol className="divide-y divide-rule">
-              {ranked.map(({ row, rank }) => (
-                <ResponsivenessLine key={row.agent.key} row={row} rank={rank} />
-              ))}
-            </ol>
-          </>
-        )
+      )}
+      {rankedRows.length > 0 && (
+        <>
+          <ResponsivenessHeader />
+          <ol className="divide-y divide-rule">
+            {rankedRows.map(({ row, rank }) => (
+              <ResponsivenessLine key={row.agent.key} row={row} rank={rank} sub={sub(row)} />
+            ))}
+          </ol>
+        </>
       )}
       {/*
-        Flat, like everything else. This was a toggle, which put the agents
-        with the least evidence behind a press — the one group whose
-        figures most need saying out loud. They continue the list with no
-        rank, which is what unranked looks like.
+        Flat, like everything else: the agents with the least evidence are
+        listed with their figures and no rank, which is what unranked looks
+        like, rather than hidden behind a press.
       */}
-      {below.length > 0 && (
-        <div className="mt-4">
+      {belowRows.length > 0 && (
+        <div className={rankedRows.length > 0 ? 'mt-4' : ''}>
           <p className="border-t border-rule pt-3 text-[12.5px] text-ink-3">
             {formatCount(below.length)} agent{below.length === 1 ? '' : 's'} with too few checks to rank, listed with
             their figures and left unordered. A rate out of a handful of attempts is not a low rate, it is no
             measurement.
           </p>
           <ol className="mt-1 divide-y divide-rule">
-            {below.map((row) => (
-              <ResponsivenessLine key={row.agent.key} row={row} rank={null} />
+            {belowRows.map(({ row }) => (
+              <ResponsivenessLine key={row.agent.key} row={row} rank={null} sub={sub(row)} />
             ))}
           </ol>
         </div>
       )}
-    </section>
+      {page.pages > 1 && (
+        <div className="mt-4 flex justify-end">
+          <Pagination page={page} current={current} browse={browse} />
+        </div>
+      )}
+    </>
   );
 }
 
@@ -795,35 +895,11 @@ export default async function LeaderboardPage({
     .filter(Boolean)
     .join(' · ');
 
-  /*
-    The score board ranks inside a category, so with nothing chosen it has
-    to choose one — and the control and the table have to choose the same
-    one. Resolved here, once, rather than in both places: they disagreed
-    when they each worked it out for themselves, and the dropdown said
-    Rebalancing over a table headed Yield Optimisation.
-  */
-  const scoreCategory: Classification | typeof ALL_CATEGORIES =
-    view !== 'score' || scoreBoard?.state !== 'ready'
-      ? browse.category
-      : browse.category !== ALL_CATEGORIES
-        ? browse.category
-        : ((): Classification | typeof ALL_CATEGORIES => {
-            const byCategory = new Map<string, number>();
-            for (const row of scoreBoard.data.rows) {
-              byCategory.set(String(row.category), (byCategory.get(String(row.category)) ?? 0) + 1);
-            }
-            const top = [...byCategory.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
-            return (top?.[0] as Classification) ?? ALL_CATEGORIES;
-          })();
-
   const counts = categoryCounts(boardAgents);
+  /* All by default on every board: one merged list, narrowed by category when chosen. */
+  const merged = browse.category === ALL_CATEGORIES;
   const categoryOptions = [
-    /* "All" is a filter on the other two boards and a category-less
-       ranking on this one, which the model does not produce — so the
-       score board offers only real categories. */
-    ...(view === 'score'
-      ? []
-      : [{ value: ALL_CATEGORIES as Classification | typeof ALL_CATEGORIES, label: 'All', count: boardAgents.length }]),
+    { value: ALL_CATEGORIES as Classification | typeof ALL_CATEGORIES, label: 'All', count: boardAgents.length },
     ...[...counts.entries()]
       .sort((a, b) => b[1] - a[1] || categoryLabel(a[0]).localeCompare(categoryLabel(b[0])))
       .map(([category, count]) => ({
@@ -856,10 +932,17 @@ export default async function LeaderboardPage({
         else — and the facts that lost their place moved under the table
         rather than off it.
       */}
-      <header className="flex flex-col gap-2">
-        <h1 className="text-[32px] font-semibold tracking-[-0.025em] sm:text-[42px]">Leaderboard</h1>
-        <p className="text-[15px] text-ink-2 sm:text-[17px]">Compare agents by observed results.</p>
+      <header className="flex flex-wrap items-start justify-between gap-x-2 gap-y-3 sm:flex-nowrap sm:gap-x-4">
+        {/* Sized by the title, not the subtitle, so the toggle shares the title's line wherever both fit. */}
+        <div className="flex min-w-min flex-1 basis-0 flex-col gap-2">
+          <h1 className="text-[32px] font-semibold tracking-[-0.025em] sm:text-[42px]">Leaderboard</h1>
+          <p className="text-[15px] text-ink-2 sm:text-[17px]">Compare agents by observed results.</p>
+        </div>
+        <div className="shrink-0 pt-0.5 sm:pt-2.5">
+          <NetworkToggle value={network} href={(value) => leaderboardHref({ ...current, network: value }, { ...browse, page: 1 })} />
+        </div>
       </header>
+      <DismissMenus />
 
       <div className="mt-9 flex flex-col gap-4 border-b border-rule sm:flex-row sm:items-end sm:justify-between sm:gap-6">
         <nav aria-label="What is measured" className="no-scrollbar -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
@@ -890,16 +973,10 @@ export default async function LeaderboardPage({
 
         {/* Beside the tabs, not under them: one row of choices, not two. */}
         <div className="flex flex-wrap items-center gap-2 pb-3 sm:pb-2.5">
-          <LinkMenu<BoardNetwork>
-            label="Network"
-            value={network}
-            options={BOARD_NETWORKS.map((value) => ({ value, label: chainLabel(escrowChainOf(value)) }))}
-            href={(value) => leaderboardHref({ ...current, network: value }, { ...browse, page: 1 })}
-          />
           {categoryOptions.length > 1 && (
             <LinkMenu<Classification | typeof ALL_CATEGORIES>
               label="Category"
-              value={view === 'score' ? scoreCategory : browse.category}
+              value={browse.category}
               options={categoryOptions}
               href={(value) => leaderboardHref(current, { search: browse.search, category: value, page: 1 })}
             />
@@ -941,27 +1018,22 @@ export default async function LeaderboardPage({
           ) : (
             (() => {
               /*
-                One category at a time. A delivery count and an answer rate
-                mean different things for a grid trader and a health-factor
-                monitor, so the model ranks inside a category and the page
-                shows one — a single table across them would invite one
-                category's typical figure to be read as the standard for
-                another.
+                All categories together by default, one category when chosen.
+                The score is computed the same way for every agent, out of the
+                same 100, so the merged order is the model's own; each row
+                names its category so a reader weighs a figure against the
+                work it measures.
+
+                Ranked first, then searched, so a row keeps its standing
+                rather than taking the position a search left it in.
               */
-              /*
-                No "All" ranking here. The model compares inside a
-                category, so a mixed table would publish an order the model
-                never produced — one category's typical figure read as the
-                standard for another. With nothing chosen the board opens on
-                the category holding the most ranked agents, and says which.
-              */
-              const chosen = scoreCategory;
-              const inCategory = scoreBoard.data.rows.filter((row) => row.category === chosen);
-              const matched = inCategory.filter((row) => matchesBrowse(row.agent, browse));
-              const page = pageOf(matched, () => true, browse);
-              const unrankedHere = scoreBoard.data.unranked.filter((row) => row.category === chosen);
-              if (matched.length === 0) {
-                return browse.search.trim() || browse.category !== ALL_CATEGORIES ? (
+              const inView = scoreBoard.data.rows
+                .filter((row) => merged || row.category === browse.category)
+                .map((row, index) => ({ row, rank: index + 1 }));
+              const page = pageOf(inView, ({ row }) => matchesBrowse(row.agent, browse), browse);
+              const unrankedHere = scoreBoard.data.unranked.filter((row) => merged || row.category === browse.category);
+              if (page.matched === 0) {
+                return browse.search.trim() || !merged ? (
                   <div className="py-14 text-center">
                     <p className="text-[15px] font-medium text-ink">No agent here matches these filters.</p>
                     <p className="mx-auto mt-2 max-w-md text-[13px] text-ink-2">
@@ -981,13 +1053,20 @@ export default async function LeaderboardPage({
                   </div>
                 );
               }
+              const podium = podiumOf(page.rows, browse, page.page);
+              const onPodium = new Set(podium.map(({ row }) => row.agent.key));
               return (
                 <>
-                  {/* The control above says which category this is, and
-                      every row in the table is that category. A sentence
-                      repeating it was a sentence in the way. The rule it
-                      stated lives in the methodology. */}
-                  <ScoreTable rows={page.rows} />
+                  <Podium
+                    entries={podium.map(({ row, rank }) => ({
+                      agent: row.agent,
+                      rank,
+                      value: String(Math.round(row.score.overall ?? 0)),
+                      label: 'Pokter Score',
+                      sub: merged ? categoryLabel(row.category) : null,
+                    }))}
+                  />
+                  <ScoreTable rows={page.rows.filter(({ row }) => !onPodium.has(row.agent.key))} merged={merged} />
                   {page.pages > 1 && (
                     <div className="mt-4 flex justify-end">
                       <Pagination page={page} current={current} browse={browse} />
@@ -1149,12 +1228,32 @@ export default async function LeaderboardPage({
                     />
                   </div>
                   <div className="mt-3">
-                    <OutcomeHeader active={OUTCOME_METRIC_BY_ID.get(metric)!} />
-                    <ol className="divide-y divide-rule">
-                      {outcomePage.rows.map(({ row, rank }) => (
-                        <OutcomeLine key={row.agent.key} row={row} rank={rank} current={current} />
-                      ))}
-                    </ol>
+                    {(() => {
+                      const podium = podiumOf(outcomePage.rows, browse, outcomePage.page);
+                      const onPodium = new Set(podium.map(({ row }) => row.agent.key));
+                      const active = OUTCOME_METRIC_BY_ID.get(metric)!;
+                      return (
+                        <>
+                          <Podium
+                            entries={podium.map(({ row, rank }) => ({
+                              agent: row.agent,
+                              rank,
+                              value: formatCount(outcomeMetricValue(row, metric)),
+                              label: active.short,
+                              sub: merged ? categoryLabel(row.agent.category) : null,
+                            }))}
+                          />
+                          <OutcomeHeader active={active} />
+                          <ol className="divide-y divide-rule">
+                            {outcomePage.rows
+                              .filter(({ row }) => !onPodium.has(row.agent.key))
+                              .map(({ row, rank }) => (
+                                <OutcomeLine key={row.agent.key} row={row} rank={rank} current={current} />
+                              ))}
+                          </ol>
+                        </>
+                      );
+                    })()}
                   </div>
                   {outcomePage.pages > 1 && (
                     <div className="mt-4 flex justify-end">
@@ -1209,11 +1308,7 @@ export default async function LeaderboardPage({
                   days for any listed agent on {chainLabel(registryChainOf(network))}.
                 </EmptyState>
               ) : (
-                <div className="flex flex-col divide-y divide-rule">
-                  {responsiveness.data.categories.map((entry) => (
-                    <ResponsivenessCategory key={entry.category} entry={entry} browse={browse} />
-                  ))}
-                </div>
+                <ResponsivenessList board={responsiveness.data} browse={browse} current={current} merged={merged} />
               )}
 
             </>
