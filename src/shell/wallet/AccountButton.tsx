@@ -15,6 +15,17 @@ import { rememberedUsage } from '@/features/profile/usage';
 import { useConnect } from './ConnectProvider';
 import { useWalletState } from './useWalletState';
 
+/* Whether the balances are shown in full, kept per browser: someone who opens them once usually wants them open. */
+const DETAILS_KEY = 'pokter.wallet-balances-open';
+
+function rememberedDetails(): boolean {
+  try {
+    return typeof window !== 'undefined' && window.localStorage.getItem(DETAILS_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
 function amount(value: number | null, digits = 2) {
   if (value === null) return '—';
   if (value > 0 && value < 0.01) return '<0.01';
@@ -30,6 +41,7 @@ export function AccountButton({ compact }: { compact?: boolean }) {
   const w = useWalletState();
   const { openConnect } = useConnect();
   const [open, setOpen] = useState(false);
+  const [details, setDetails] = useState(rememberedDetails);
   // Read once: the countdown beside "Set and Earn" only needs the day, and the clock is not read during render.
   const [mountedAt] = useState(() => Date.now());
   const close = useCallback(() => setOpen(false), []);
@@ -58,6 +70,19 @@ export function AccountButton({ compact }: { compact?: boolean }) {
    * who holds USDT should see it as spendable. Each in its own decimals.
    */
   const extraTokens = w.balances.tokens.filter((t) => !t.isDefault && t.amount !== null && t.amount > 0);
+  /* The fee token of the chain these balances were read on, not the site's: BNB Chain's gas is BNB even on a testnet build. */
+  const native = w.balances.chainId === 56 ? 'BNB' : w.balances.chainId === 97 ? 'tBNB' : NATIVE_SYMBOL;
+  const testChain = (w.balances.chainId ?? (IS_TESTNET ? 97 : 56)) === 97;
+  const network = w.balances.chainId === null ? NETWORK_LABEL : chainLabel(w.balances.chainId);
+  const toggleDetails = () =>
+    setDetails((was) => {
+      try {
+        window.localStorage.setItem(DETAILS_KEY, was ? '0' : '1');
+      } catch {
+        /* Not remembered; it still opens. */
+      }
+      return !was;
+    });
 
   return (
     /*
@@ -112,75 +137,109 @@ export function AccountButton({ compact }: { compact?: boolean }) {
             <CopyButton value={w.address} label="Copy address" />
           </div>
 
-          <div className="grid grid-cols-2 gap-px bg-rule">
-            <div className="flex flex-col gap-0.5 bg-raised px-4 py-3">
+          {/*
+            One line by default: what can be spent, on which network, and
+            anything that needs attention. The other tokens, the fee balance
+            and the network switch open beneath it, and stay open if the
+            person leaves them so.
+          */}
+          <button
+            type="button"
+            onClick={toggleDetails}
+            aria-expanded={details}
+            aria-controls="wallet-balances"
+            className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-sunken/60"
+          >
+            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
               <span className="t-label">Spendable</span>
               <span className="t-readout text-xl">
                 {amount(w.balances.payment)} <span className="text-[13px] text-ink-3">$U</span>
+                {!details && extraTokens.length > 0 && <span className="ml-2 text-[12px] text-ink-3">+{extraTokens.length} more</span>}
               </span>
-              {extraTokens.map((t) => (
-                <span key={t.address} className="t-readout text-[13px] text-ink-2">
-                  {amount(t.amount)} <span className="text-ink-3">{t.symbol}</span>
+            </span>
+            {/* Open, the network is said once, in the strip below with its switch. */}
+            {!details && (
+              <span className="flex shrink-0 flex-col items-end gap-0.5 text-[12px] text-ink-3">
+                <span className="flex items-center gap-1.5">
+                  <span className={cn('size-1.5 rounded-full', w.balances.unreadable ? 'bg-watch' : 'bg-signal')} aria-hidden />
+                  {w.balances.unreadable === 'off-escrow-chain' ? <span className="text-watch">Other network</span> : network}
                 </span>
-              ))}
-            </div>
-            <div className="flex flex-col gap-0.5 bg-raised px-4 py-3">
-              <span className="t-label">Network fee</span>
-              <span className={cn('t-readout text-xl', lowGas && 'text-watch')}>
-                {amount(w.balances.native, 4)} <span className="text-[13px] text-ink-3">{NATIVE_SYMBOL}</span>
+                {lowGas && <span className="text-watch">Low {native} for fees</span>}
               </span>
-            </div>
-          </div>
-
-          {/*
-            The network these figures were actually read on, not the one the
-            site is configured for. A balance from another chain under this
-            label is the error worth preventing here: a buyer decides what
-            they can afford by reading it.
-          */}
-          <div className="flex flex-col gap-2 border-y border-rule bg-sunken px-4 py-2.5 text-[12px] text-ink-3">
-            <div className="flex items-center gap-2">
-              <span className={cn('size-1.5 rounded-full', w.balances.unreadable ? 'bg-watch' : 'bg-signal')} aria-hidden />
-              {w.balances.unreadable === 'off-escrow-chain' ? (
-                <span className="text-watch">
-                  {w.connectorName ?? 'Your wallet'} is on {w.externalChainName ?? 'another network'}. No balance is shown: it would be read on a different chain from the one you are on.
-                </span>
-              ) : (
-                <>
-                  {w.balances.chainId === null ? NETWORK_LABEL : chainLabel(w.balances.chainId)}
-                  {w.balances.chainId === 97 && <span>· test tokens, no value</span>}
-                </>
-              )}
-            </div>
-            {w.escrowChains.length > 1 && (
-              <div className="flex items-center gap-1.5">
-                <span className="shrink-0">Use</span>
-                {w.escrowChains.map((id) => {
-                  const active = w.balances.chainId === id;
-                  return (
-                    <button
-                      key={id}
-                      type="button"
-                      onClick={() => w.switchToChain(id)}
-                      disabled={w.switching || active}
-                      aria-current={active ? 'true' : undefined}
-                      className={cn(
-                        'rounded-[6px] border px-1.5 py-0.5 text-[11.5px] font-medium transition-colors',
-                        active ? 'border-rule-strong bg-raised text-ink' : 'border-rule text-ink-3 hover:border-rule-strong hover:text-ink',
-                        w.switching && 'opacity-60',
-                      )}
-                    >
-                      {chainLabel(id)}
-                    </button>
-                  );
-                })}
-              </div>
             )}
-            {w.switchError && <span className="text-watch">The wallet did not switch: {w.switchError.slice(0, 120)}</span>}
-          </div>
+            <Icon.ChevronDown size={15} className={cn('shrink-0 text-ink-3 transition-transform', details && 'rotate-180')} aria-hidden />
+          </button>
 
-          {IS_TESTNET && FAUCETS && (w.balances.payment === 0 || lowGas) && (
-            <div className="flex flex-col gap-1.5 border-b border-rule px-4 py-3 text-[13px]">
+          {details && (
+            <div id="wallet-balances" className="flex flex-col border-t border-rule">
+              <dl className="flex flex-col gap-1.5 px-4 py-3 text-[13px]">
+                {extraTokens.map((t) => (
+                  <div key={t.address} className="flex items-baseline justify-between gap-3">
+                    <dt className="text-ink-3">{t.symbol}</dt>
+                    <dd className="t-readout text-ink-2">{amount(t.amount)}</dd>
+                  </div>
+                ))}
+                <div className="flex items-baseline justify-between gap-3">
+                  <dt className="text-ink-3">Network fee</dt>
+                  <dd className={cn('t-readout', lowGas ? 'text-watch' : 'text-ink-2')}>
+                    {amount(w.balances.native, 4)} <span className="text-ink-3">{native}</span>
+                  </dd>
+                </div>
+              </dl>
+
+              {/*
+                The network these figures were actually read on, not the one the
+                site is configured for. A balance from another chain under this
+                label is the error worth preventing here: a buyer decides what
+                they can afford by reading it.
+              */}
+              <div className="flex flex-col gap-2 border-t border-rule bg-sunken px-4 py-2.5 text-[12px] text-ink-3">
+                <div className="flex items-center gap-2">
+                  <span className={cn('size-1.5 rounded-full', w.balances.unreadable ? 'bg-watch' : 'bg-signal')} aria-hidden />
+                  {w.balances.unreadable === 'off-escrow-chain' ? (
+                    <span className="text-watch">
+                      {w.connectorName ?? 'Your wallet'} is on {w.externalChainName ?? 'another network'}. No balance is shown: it would be read on a different chain from the one you are on.
+                    </span>
+                  ) : (
+                    <>
+                      {network}
+                      {w.balances.chainId === 97 && <span>· test tokens, no value</span>}
+                    </>
+                  )}
+                </div>
+                {w.escrowChains.length > 1 && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="shrink-0">Use</span>
+                    {w.escrowChains.map((id) => {
+                      const active = w.balances.chainId === id;
+                      return (
+                        <button
+                          key={id}
+                          type="button"
+                          onClick={() => w.switchToChain(id)}
+                          disabled={w.switching || active}
+                          aria-current={active ? 'true' : undefined}
+                          className={cn(
+                            'rounded-[6px] border px-1.5 py-0.5 text-[11.5px] font-medium transition-colors',
+                            active ? 'border-rule-strong bg-raised text-ink' : 'border-rule text-ink-3 hover:border-rule-strong hover:text-ink',
+                            w.switching && 'opacity-60',
+                          )}
+                        >
+                          {chainLabel(id)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          {/* A failed switch is said whether or not the details are open: it was asked for from them, and may have closed since. */}
+          {w.switchError && <p className="border-t border-rule bg-sunken px-4 py-2.5 text-[12px] text-watch">The wallet did not switch: {w.switchError.slice(0, 120)}</p>}
+
+          {/* Test faucets only for balances read on the test network: on BNB Chain they would hand out tokens that pay for nothing there. */}
+          {testChain && FAUCETS && (w.balances.payment === 0 || lowGas) && (
+            <div className="flex flex-col gap-1.5 border-t border-rule px-4 py-3 text-[13px]">
               <span className="text-ink-2">Need test tokens?</span>
               <a className="link" href={FAUCETS.paymentTokenBot?.url ?? FAUCETS.paymentToken} target="_blank" rel="noreferrer noopener">
                 Ask {FAUCETS.paymentTokenBot?.handle ?? 'the faucet'} for $U and {NATIVE_SYMBOL}
@@ -191,7 +250,7 @@ export function AccountButton({ compact }: { compact?: boolean }) {
             </div>
           )}
 
-          <nav className="flex flex-col py-1.5 text-sm" aria-label="Account">
+          <nav className="flex flex-col border-t border-rule py-1.5 text-sm" aria-label="Account">
             {[
               /* My workspace, My profile and Settings, the three an account is for. Hiring and Building are views inside the workspace; the wallet is there too. */
               /* Builders land in Building, everyone else in Hiring; both are one switch away. */
