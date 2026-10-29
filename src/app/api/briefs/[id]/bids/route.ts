@@ -2,8 +2,10 @@ import { NextResponse } from 'next/server';
 import { getAddress, isAddress, isHex, type Address, type Hex } from 'viem';
 
 import { acceptsProposals, bidMessage, parseBidContent, requestAmountLabel, requestTokenOf, staleProposal, withinBudget, type Bid } from '@/lib/briefs/model';
-import { displaySymbol } from '@/lib/network/tokens';
+import { displaySymbol, formatAmount } from '@/lib/network/tokens';
+import { belowSignedPrice, belowSignedPriceMessage } from '@/lib/briefs/price-floor';
 import { getBriefStore } from '@/lib/briefs/store';
+import { getProbeStore } from '@/lib/history/store';
 import { registryOwner } from '@/lib/registry/onchain';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 import { signedByWallet, walletCanBeChecked } from '@/lib/wallet/signed-by';
@@ -58,6 +60,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       { error: `The price is above this request's budget of ${requestAmountLabel(brief, brief.budgetU)}${token ? ` (${displaySymbol(token)} at ${token.address} on chain ${brief.chainId})` : ''}.` },
       { status: 422 },
     );
+  }
+
+  /*
+   * Not below what the agent signs: hired from this proposal, the agent is
+   * asked for its price before funding and would sign its own, so a lower
+   * proposal could be chosen and never funded (`price-floor.ts`).
+   */
+  const signed = getProbeStore().quotesFor([{ chainId: content.agentChainId, tokenId: content.agentTokenId }]).get(`${content.agentChainId}:${content.agentTokenId}`) ?? null;
+  if (signed && belowSignedPrice(content, signed, { freshOnly: true })) {
+    const label = formatAmount(brief.chainId, signed.currency, signed.priceRaw)?.label ?? requestAmountLabel(brief, signed.priceU);
+    return NextResponse.json({ error: belowSignedPriceMessage(label) }, { status: 422 });
   }
 
   const owner = await registryOwner(content.agentChainId, content.agentTokenId);
