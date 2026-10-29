@@ -53,6 +53,7 @@ import { cleanUntrusted, cleanUntrustedLines, untrusted } from '@/lib/assistant/
 import { answerMcp, type McpTool } from '@/lib/mcp/server';
 import {
   acceptsProposals,
+  amountToRaw,
   bidMessage,
   requestAmountLabel,
   requestCategoryLabel,
@@ -61,8 +62,9 @@ import {
   PROPOSAL_SIGNING_WINDOW_MS,
 } from '@/lib/briefs/model';
 import { getBriefStore } from '@/lib/briefs/store';
-import { aboveBudget } from '@/lib/briefs/proposal-price';
+import { aboveBudget, proposalPriceFlexible, typedPriceProblem } from '@/lib/briefs/proposal-price';
 import { jobAmountLabel, jobToken } from '@/lib/erc8183/job-amount';
+import { amountWithinLimits } from '@/lib/hire/budget-limits';
 import { chainLabel } from '@/lib/network/presentation';
 import { displaySymbol, escrowMoney, paymentTokenAt, type PaymentToken } from '@/lib/network/tokens';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
@@ -397,13 +399,29 @@ function tools(request: Request, token: AutomationTokenRecord): McpTool[] {
       const { askProposalQuote } = await import('@/lib/briefs/proposal-quote');
       const priced = await askProposalQuote(brief, owned.agent.chainId, owned.agent.tokenId);
       if (!priced.ok) return { data: { error: `${priced.error} Nothing was prepared.` }, isError: true };
-      const priceU = priced.quote.priceU;
-      const priceRaw = BigInt(priced.quote.priceRaw);
+      /*
+       * The agent's signed price is the floor. price_u above it is used in
+       * $U, whose hire funds what was proposed; in another token the hire
+       * funds exactly the signed amount, so the signed price stands
+       * (`proposal-price.ts`). Below it is refused.
+       */
+      let priceU = priced.quote.priceU;
+      let priceRaw = BigInt(priced.quote.priceRaw);
+      let priceNote: string | null = null;
       const passed = Number(args.price_u);
-      const priceNote = args.price_u !== undefined && passed !== priceU
-        ? `price_u (${Number.isFinite(passed) ? requestAmountLabel(brief, passed) : String(args.price_u)}) was not used. A proposal carries the price the agent signs for the request, ${priced.label}; to propose less, the agent has to sign less.`
-        : null;
-      const over = aboveBudget({ paymentToken: token.address, priceRaw: priced.quote.priceRaw }, brief);
+      if (args.price_u !== undefined && passed !== priceU) {
+        const raw = Number.isFinite(passed) ? amountToRaw(passed, token.decimals) : null;
+        const problem = typedPriceProblem(raw, priced.quote, token, priced.label, proposalPriceFlexible(brief.chainId, brief.paymentToken));
+        if (problem && (raw === null || raw < priceRaw)) return { data: { error: `${problem} Nothing was prepared.` }, isError: true };
+        const limits = raw !== null ? amountWithinLimits(token, raw) : null;
+        if (!problem && raw !== null && limits && !limits.ok) return { data: { error: `${limits.reason} Nothing was prepared.` }, isError: true };
+        if (problem) priceNote = `${problem} price_u was not used.`;
+        else if (raw !== null) {
+          priceU = passed;
+          priceRaw = raw;
+        }
+      }
+      const over = aboveBudget({ paymentToken: token.address, priceRaw: priceRaw.toString() }, brief);
 
       const key = proposalKey({ owner, requestId, agentChainId: owned.agent.chainId, agentTokenId: owned.agent.tokenId });
       /* Reconciled first, from the bids table, which is the only place a
@@ -493,11 +511,12 @@ function tools(request: Request, token: AutomationTokenRecord): McpTool[] {
             agent: `${owned.agent.chainId}:${owned.agent.tokenId}`,
             priceU,
             priceRaw: priceRaw.toString(),
-            price: priced.label,
+            price: requestAmountLabel(brief, priceU),
+            agentSigns: priced.label,
             priceSignedAt: priced.quote.quotedAt,
             ...(priceNote ? { priceNote } : {}),
             ...(over
-              ? { aboveBudget: true, aboveBudgetNote: `${priced.label} is above this request’s budget of ${requestAmountLabel(brief, brief.budgetU)}. The buyer sees it marked “Above your budget” and has to agree to the amount when choosing it.` }
+              ? { aboveBudget: true, aboveBudgetNote: `${requestAmountLabel(brief, priceU)} is above this request’s budget of ${requestAmountLabel(brief, brief.budgetU)}. The buyer sees it marked “Above your budget” and has to agree to the amount when choosing it.` }
               : {}),
             budgetU: brief.budgetU,
             budgetRaw: brief.budgetRaw,

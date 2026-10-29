@@ -1141,9 +1141,7 @@ export function HireFlow(props: HireFlowProps) {
               <span id="budget-hint" className={cn('text-[12.5px]', budgetError ? 'text-bad' : 'text-ink-3')}>
                 {budgetError
                   ?? (proposalHere
-                    ? hire.reviewQuote && hire.reviewQuote.priceU < props.proposal!.priceU
-                      ? `The agent now signs ${hire.reviewQuote.priceU} ${priceSymbol}, less than the ${props.proposal!.priceU} ${proposalSymbol} it proposed, so that is what you fund.`
-                      : `The price signed on the proposal you chose. It is not changed here.`
+                    ? 'The price on the proposal you chose, which you agreed to when choosing it. It is not changed here.'
                     : props.signedQuoteU !== null
                     ? `Escrow quote ${props.signedQuoteU} ${priceSymbol}`
                     : props.lastSignedU != null

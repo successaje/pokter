@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import { awardMessage } from '../src/lib/briefs/model';
-import { aboveBudget, fundsAboveBudget, PROPOSAL_QUOTE_MAX_AGE_MS, proposalPriceFrom, proposalPriceProblem, proposalQuoteFresh, type ProposalQuote } from '../src/lib/briefs/proposal-price';
+import { aboveBudget, fundsAboveBudget, PROPOSAL_QUOTE_MAX_AGE_MS, proposalPriceFlexible, proposalPriceFrom, proposalPriceProblem, proposalQuoteFresh, typedPriceProblem, type ProposalQuote } from '../src/lib/briefs/proposal-price';
 
 /*
  * A proposal's price is the one its agent signs for the request. If an
@@ -47,10 +47,14 @@ test('a quote prices a proposal for half an hour, not as a standing price', () =
   assert.equal(proposalQuoteFresh({ quotedAt: 'never' }, NOW), false);
 });
 
-test('a proposal is accepted only at the price the agent signed for the request', () => {
+test('a proposal is never below the price the agent signed, and above it only where a hire funds what was proposed', () => {
   const at = new Date(NOW).toISOString();
   assert.equal(proposalPriceProblem({ priceRaw: quote.priceRaw, paymentToken: USDT56.toLowerCase() }, quote, at, labels), null, 'the signed price, whatever the case of the address');
-  assert.match(proposalPriceProblem({ priceRaw: '500000000000000000', paymentToken: USDT56 }, quote, at, labels)!, /says 0\.5 USDT, and the agent signed 1 USDT for this request/);
+  assert.match(proposalPriceProblem({ priceRaw: '500000000000000000', paymentToken: USDT56 }, quote, at, labels)!, /says 0\.5 USDT, below the 1 USDT the agent signed for this request/);
+  assert.match(proposalPriceProblem({ priceRaw: '500000000000000000', paymentToken: USDT56 }, quote, at, labels, { aboveAllowed: true })!, /below/, 'below is refused in any token');
+  const higher = { priceRaw: '2000000000000000000', paymentToken: USDT56 };
+  assert.match(proposalPriceProblem(higher, quote, at, { price: '2 USDT', signed: '1 USDT' })!, /In this token a hire funds exactly what the agent signs/);
+  assert.equal(proposalPriceProblem(higher, quote, at, { price: '2 USDT', signed: '1 USDT' }, { aboveAllowed: true }), null, 'more is allowed where the hire funds a budget');
   assert.match(proposalPriceProblem({ priceRaw: quote.priceRaw, paymentToken: USDT56 }, null, at, labels)!, /Ask the agent for its signed price for this request first/);
   assert.match(proposalPriceProblem({ priceRaw: quote.priceRaw, paymentToken: U97 }, quote, at, labels)!, /different token/);
   assert.match(proposalPriceProblem({ priceRaw: quote.priceRaw, paymentToken: USDT56 }, quote, new Date(NOW + 40 * 60_000).toISOString(), labels)!, /more than 30 minutes before/);
@@ -75,13 +79,26 @@ test('choosing a proposal above the budget signs the amount; within it, the mess
 
 const source = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 
-test('nobody on the selling side types a price, and the buyer cannot edit one in', () => {
+test('only $U lets an owner ask more than the agent signs, since only a $U hire funds a budget', () => {
+  assert.equal(proposalPriceFlexible(97, U97), true);
+  assert.equal(proposalPriceFlexible(97, null), true, 'an older request with no token is the chain’s $U');
+  assert.equal(proposalPriceFlexible(56, USDT56), false);
+  const token = { symbol: 'USDT' };
+  assert.equal(typedPriceProblem(BigInt(quote.priceRaw), quote, token, '1 USDT', false), null);
+  assert.match(typedPriceProblem(BigInt('500000000000000000'), quote, token, '1 USDT', true)!, /No lower than 1 USDT/);
+  assert.match(typedPriceProblem(BigInt('2000000000000000000'), quote, token, '1 USDT', false)!, /In USDT a hire funds exactly what your agent signs/);
+  assert.equal(typedPriceProblem(BigInt('2000000000000000000'), quote, { symbol: 'U' }, '1 $U', true), null);
+  assert.match(typedPriceProblem(null, quote, { symbol: 'U' }, '1 $U', true)!, /Enter a price in \$U/);
+});
+
+test('the owner may raise the price in $U, never lower it, and the buyer cannot edit it in', () => {
   const form = source('src/features/briefs/ProposalForm.tsx');
-  assert.doesNotMatch(form, /setPrice|label="Your price"/, 'no price field');
-  assert.match(form, /priceU: quote\.priceU,[\s\S]*?priceRaw: quote\.priceRaw,/, 'the proposal signs the quote exactly');
+  assert.match(form, /\{flexible \? \(\s*<Field label="Your price"/, 'a price field only where more can be funded');
+  assert.match(form, /priceU: Number\(priceText\),[\s\S]*?priceRaw: chosenRaw\.toString\(\),/, 'the proposal signs the price chosen, checked against the quote');
+  assert.match(form, /typedPriceProblem\(chosenRaw, quote, token, signedLabel, flexible\)/);
   assert.match(form, /fetch\(`\/api\/briefs\/\$\{request\.id\}\/quote`, \{\s*method: 'POST'/, 'asked of the agent, on a button');
   assert.match(source('src/features/hire/HireFlow.tsx'), /readOnly=\{proposalHere\}/);
-  assert.match(source('src/lib/hire/useHire.ts'), /BigInt\(quote\.intent\.amountRaw\) < BigInt\(proposal\.priceRaw\)[\s\S]{0,80}setBudget\(quote\.priceU\)/, 'a lower fresh price lowers the budget');
+  assert.doesNotMatch(source('src/lib/hire/useHire.ts'), /setBudget\(quote\.priceU\)/, 'a hire from a proposal funds the proposal, not a lower fresh price');
 });
 
 test('the poster agrees to an above-budget price explicitly, and the route rebuilds the same message', () => {

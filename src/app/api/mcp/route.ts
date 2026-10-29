@@ -10,14 +10,14 @@ import { CHECK_DELIVERY, HIRE_TOOL_CHAIN, JOB_STATUS, PREPARE_BRIEF, PREPARE_HIR
 import { GET_REQUEST, PREPARE_PROPOSAL, PROPOSAL_TOOL_CHAIN, SEARCH_REQUESTS } from '@/lib/assistant/request-tools';
 import { GET as requestList } from '@/app/api/v1/requests/route';
 import { GET as requestOne } from '@/app/api/v1/requests/[id]/route';
-import { acceptsProposals, bidMessage, parseBidContent, requestAmountLabel, requestStatus, requestTokenOf } from '@/lib/briefs/model';
+import { acceptsProposals, amountToRaw, bidMessage, parseBidContent, requestAmountLabel, requestStatus, requestTokenOf } from '@/lib/briefs/model';
 import { DELIVERY_OPTIONS, filterRequests, plainNote, proposalLink, requestSummary } from '@/lib/briefs/public-view';
 import { requestHired } from '@/lib/briefs/hired-status';
 import { getBriefStore } from '@/lib/briefs/store';
 import { classify } from '@/lib/agents/categories';
 import { registryOwner } from '@/lib/registry/onchain';
 import { getAgent } from '@/lib/scan/client';
-import { aboveBudget, PROPOSAL_QUOTE_MAX_AGE_MS } from '@/lib/briefs/proposal-price';
+import { aboveBudget, PROPOSAL_QUOTE_MAX_AGE_MS, proposalPriceFlexible, typedPriceProblem } from '@/lib/briefs/proposal-price';
 import { getAddress } from 'viem';
 import { jobEvidencePath } from '@/lib/jobs/evidence-view';
 import { CATEGORIES } from '@/lib/agents/categories';
@@ -542,30 +542,42 @@ function tools(request: Request): McpTool[] {
         const { askProposalQuote } = await import('@/lib/briefs/proposal-quote');
         const priced = await askProposalQuote(brief, c, t);
         if (!priced.ok) return { data: { error: priced.error }, isError: true };
+        /*
+         * The agent's signed price is the floor. A price passed above it is
+         * used in $U, whose hire funds what was proposed; in another token
+         * the hire funds exactly the signed amount, so the signed price
+         * stands (`proposal-price.ts`). Below it is refused.
+         */
+        const warnings: string[] = [];
+        let chosenU = priced.quote.priceU;
+        if (typeof args.price === 'number' && asked && args.price !== priced.quote.priceU) {
+          const raw = amountToRaw(args.price, asked.decimals);
+          const problem = typedPriceProblem(raw, priced.quote, asked, priced.label, proposalPriceFlexible(brief.chainId, brief.paymentToken));
+          if (problem && (raw === null || raw < BigInt(priced.quote.priceRaw))) return { data: { error: problem }, isError: true };
+          if (problem) warnings.push(`${problem} The price passed was not used.`);
+          else chosenU = args.price;
+        }
         /* The same reading the proposal route applies, so a proposal prepared here is one it accepts. */
-        const parsed = parseBidContent({ agentChainId: c, agentTokenId: t, priceU: priced.quote.priceU, paymentToken: asked?.address ?? null, deliverDays: days, note }, brief);
+        const parsed = parseBidContent({ agentChainId: c, agentTokenId: t, priceU: chosenU, paymentToken: asked?.address ?? null, deliverDays: days, note }, brief);
         if (!parsed.ok) return { data: { error: parsed.error }, isError: true };
 
-        const warnings: string[] = [];
         if (owner.toLowerCase() === brief.poster.toLowerCase()) warnings.push('This wallet posted the request. The request page does not offer a proposal to its own poster.');
         const record = await detail(c, t);
-        if (typeof args.price === 'number' && args.price !== priced.quote.priceU) {
-          warnings.push(`The price passed (${requestAmountLabel(brief, args.price)}) was not used. A proposal carries the price the agent signs for the request, ${priced.label}; to propose less, the agent has to sign less.`);
-        }
         if (aboveBudget(parsed.content, brief)) {
-          warnings.push(`${priced.label} is above this request’s budget of ${requestAmountLabel(brief, brief.budgetU)}. The poster sees it marked “Above your budget” and has to agree to the amount when choosing it.`);
+          warnings.push(`${requestAmountLabel(brief, chosenU)} is above this request’s budget of ${requestAmountLabel(brief, brief.budgetU)}. The poster sees it marked “Above your budget” and has to agree to the amount when choosing it.`);
         }
         const current = store.bidFor(id, c, t);
         if (current) warnings.push(`Signing this replaces the agent’s current proposal on this request (${requestAmountLabel(brief, current.priceU)}, placed ${current.placedAt}).`);
 
-        const link = proposalLink(origin, id, { agentChainId: c as 56 | 97, agentTokenId: t, deliverDays: days as (typeof DELIVERY_OPTIONS)[number], note });
+        const link = proposalLink(origin, id, { agentChainId: c as 56 | 97, agentTokenId: t, ...(chosenU !== priced.quote.priceU ? { price: String(chosenU) } : {}), deliverDays: days as (typeof DELIVERY_OPTIONS)[number], note });
         if (!link.noteInLink) warnings.push('The note is too long to carry in a link, so the link leaves it out: give the owner the note to paste into the form.');
         return {
           data: {
             request: requestSummary(brief, { proposals: store.bidsFor(id).length, hired: false }, origin),
             proposal: {
               agent: { chainId: c, tokenId: t, name: typeof record?.name === 'string' ? record.name : null, page: `${origin}/agents/${c}/${t}` },
-              price: priced.label,
+              price: requestAmountLabel(brief, chosenU),
+              agentSigns: priced.label,
               priceSignedAt: priced.quote.quotedAt,
               deliverDays: days,
               note,
