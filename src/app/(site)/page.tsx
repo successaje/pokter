@@ -221,14 +221,15 @@ export default async function HomePage() {
           <div className="anim-rise lg:pt-6" style={{ animationDelay: '160ms' }}>
             <Inspection specimens={home.specimens} />
             <p className="mt-3 px-1 text-[12px] leading-snug text-ink-3">
-              {home.specimens.length === 1 ? 'One registered agent' : `${home.specimens.length} registered agents`}, read from the registry, Pokter&rsquo;s probe history and the escrow index when this page was built.
+              {/* "3 registered agents" read as a count of the registry, a few screens above the registry's own count. */}
+              {home.specimens.length === 1 ? 'This agent is' : 'These agents are'} read from the registry, Pokter&rsquo;s probe history and the escrow index, as of when this page was built.
             </p>
           </div>
         </div>
       </section>
 
       {/* ───────────── Hireable now ───────────── */}
-      <section className="border-y border-rule bg-raised/40 py-16 sm:py-20" aria-labelledby="featured-title">
+      <section className="border-y border-rule bg-raised/40 py-12 sm:py-20" aria-labelledby="featured-title">
         <div className="frame flex flex-col gap-10">
           <Reveal className="flex flex-wrap items-end justify-between gap-6">
             <div className="flex max-w-xl flex-col gap-3">
@@ -243,9 +244,15 @@ export default async function HomePage() {
             </Link>
           </Reveal>
           {hireableCount > 0 ? (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            /*
+              A row to swipe on a phone, like the five steps below, rather
+              than four full cards stacked: stacked, they were two and a half
+              screens between the hero and everything else. The card at the
+              edge, cut off, is what says there are more.
+            */
+            <div className="-mr-4 flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 [scrollbar-width:none] sm:mr-0 sm:grid sm:grid-cols-2 sm:gap-4 sm:overflow-x-visible sm:pb-0 lg:grid-cols-4 [&::-webkit-scrollbar]:hidden">
               {home.featured.map((row, i) => (
-                <Reveal key={row.key} delay={i * 70}>
+                <Reveal key={row.key} delay={i * 70} className="w-[84vw] max-w-[360px] shrink-0 snap-start sm:w-auto sm:max-w-none">
                   <FeaturedAgent row={row} />
                 </Reveal>
               ))}
@@ -261,7 +268,7 @@ export default async function HomePage() {
       </section>
 
       {/* ───────────── Browse by outcome ───────────── */}
-      <section className="frame py-20 sm:py-28" aria-labelledby="outcomes-title">
+      <section className="frame py-14 sm:py-28" aria-labelledby="outcomes-title">
         <Reveal className="grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.6fr)] lg:gap-16">
           <div className="flex flex-col gap-4 lg:sticky lg:top-24 lg:self-start">
             <span className="t-label">Start with the job</span>
@@ -307,7 +314,7 @@ export default async function HomePage() {
       </section>
 
       {/* ───────────── How hiring works ───────────── */}
-      <section className="frame py-20 sm:py-28" aria-labelledby="how-title">
+      <section className="frame py-14 sm:py-28" aria-labelledby="how-title">
         <Reveal>
           <StepRail />
         </Reveal>
@@ -324,7 +331,7 @@ export default async function HomePage() {
       </section>
 
       {/* ───────────── The record ───────────── */}
-      <section className="frame py-20 sm:py-28" aria-labelledby="why-title">
+      <section className="frame py-14 sm:py-28" aria-labelledby="why-title">
         <div className="grid grid-cols-1 gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] lg:gap-20">
           <Reveal className="flex flex-col gap-5">
             <span className="t-label">The record</span>
@@ -380,7 +387,7 @@ export default async function HomePage() {
           were a dark section of their own, the one place the page changed
           palette, which made them read as a separate product.
         */}
-        <ul className="mt-14 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <ul className="-mr-4 mt-10 flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 [scrollbar-width:none] sm:mr-0 sm:mt-14 sm:grid sm:grid-cols-2 sm:gap-4 sm:overflow-x-visible sm:pb-0 lg:grid-cols-4 [&::-webkit-scrollbar]:hidden">
           {[
               {
                 icon: Icon.Eye,
@@ -407,7 +414,7 @@ export default async function HomePage() {
                 readout: ['Every delivery', 'hash checked first'],
               },
           ].map((item, i) => (
-            <Reveal as="li" key={item.title} delay={i * 70} className="group flex h-full flex-col rounded-[16px] border border-rule bg-raised p-5 transition-[border-color,box-shadow] hover:border-rule-strong hover:shadow-lift">
+            <Reveal as="li" key={item.title} delay={i * 70} className="group flex h-full w-[78vw] max-w-[320px] shrink-0 snap-start flex-col rounded-[16px] border border-rule bg-raised p-5 transition-[border-color,box-shadow] hover:border-rule-strong hover:shadow-lift sm:w-auto sm:max-w-none">
               {/*
                 The rule on top, the thing it guarantees at the bottom, and
                 the guarantee set in the readout face — it is the part a
@@ -435,7 +442,7 @@ export default async function HomePage() {
           between — the same case made twice in different clothes. Made
           once now: the record, then where to go and check it.
         */}
-        <Reveal className="mb-10 mt-20 flex max-w-2xl flex-col gap-3 sm:mt-24">
+        <Reveal className="mb-8 mt-14 flex max-w-2xl flex-col gap-3 sm:mb-10 sm:mt-24">
           <span className="t-label">Check our work</span>
           <h3 id="trust-title" className="t-h2">Everything Pokter says can be traced.</h3>
         </Reveal>
@@ -455,7 +462,7 @@ export default async function HomePage() {
             <Reveal key={card.href} delay={i * 70}>
               {/* The fill lives on the card, not the Reveal, which owns its own style for the delay offset. */}
               <div
-                className="card-scan relative isolate flex h-full min-h-[310px] flex-col overflow-hidden rounded-[20px] bg-[var(--fill)] p-7 text-[var(--on-fill)]"
+                className="card-scan relative isolate flex h-full flex-col overflow-hidden rounded-[20px] bg-[var(--fill)] p-6 text-[var(--on-fill)] sm:min-h-[310px] sm:p-7"
                 style={{ ['--fill' as string]: `var(--step-${card.fill})`, ['--on-fill' as string]: `var(--step-${card.fill}-ink)` }}
               >
               <span className="relative grid size-10 place-items-center rounded-[11px] bg-[var(--on-fill)]/12">
@@ -465,7 +472,7 @@ export default async function HomePage() {
               <p className="relative mt-2.5 text-[14px] leading-relaxed opacity-80">{card.body}</p>
               <Link
                 href={card.href}
-                className="relative mt-auto inline-flex h-11 w-fit items-center gap-2 rounded-full bg-[var(--on-fill)] px-5 text-[14.5px] font-semibold text-[var(--fill)] transition-transform hover:-translate-y-px"
+                className="relative mt-6 inline-flex h-11 w-fit items-center gap-2 rounded-full bg-[var(--on-fill)] px-5 text-[14.5px] font-semibold text-[var(--fill)] transition-transform hover:-translate-y-px sm:mt-auto"
               >
                 {card.cta} <Icon.ArrowUpRight size={15} />
                 </Link>
@@ -558,7 +565,7 @@ export default async function HomePage() {
         </details>
       </section>
       {/* ───────────── For builders ───────────── */}
-      <section className="border-y border-rule bg-raised/50 py-20 sm:py-28" aria-labelledby="builders-title">
+      <section className="border-y border-rule bg-raised/50 py-14 sm:py-28" aria-labelledby="builders-title">
         <div className="frame grid grid-cols-1 gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:items-center lg:gap-20">
           <Reveal className="flex flex-col gap-5">
             <span className="t-label">For builders</span>
