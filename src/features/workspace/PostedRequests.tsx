@@ -3,7 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 
-import { requestAmountLabel, type Brief } from '@/lib/briefs/model';
+import { requestAmountLabel, requestStatus, type Brief } from '@/lib/briefs/model';
 import { chainLabel } from '@/lib/network/presentation';
 import { cn } from '@/lib/ui/cn';
 import { LinkButton } from '@/ui/Button';
@@ -14,10 +14,11 @@ import { NeedsWallet, PageHeader } from './parts';
 
 type Posted = Brief & { bids: number };
 
-const STATE: Record<Brief['state'], { label: string; tone: string }> = {
-  open: { label: 'Open for proposals', tone: 'border-ok/30 bg-ok-wash text-ok' },
-  awarded: { label: 'Agent chosen', tone: 'border-rule-strong text-ink-2' },
-  cancelled: { label: 'Withdrawn', tone: 'border-rule-strong text-ink-3' },
+/* Labelled by `requestStatus`, the words the request's own page uses: a request past its closing date is closed here too. */
+const TONE: Record<ReturnType<typeof requestStatus>['tone'], string> = {
+  open: 'border-ok/30 bg-ok-wash text-ok',
+  chosen: 'border-rule-strong text-ink-2',
+  ended: 'border-rule-strong text-ink-3',
 };
 
 /**
@@ -25,7 +26,8 @@ const STATE: Record<Brief['state'], { label: string; tone: string }> = {
  *
  * Posting a request commits no money: the escrow is funded only when the
  * buyer chooses a proposal and hires that agent, which is what the
- * description says, so "open" is never read as "funded".
+ * description says, so "open" is never read as "funded". One that ended
+ * without a hire can be posted again from its row.
  */
 export function PostedRequestsPage() {
   const { address } = useMyJobs();
@@ -74,25 +76,34 @@ export function PostedRequestsPage() {
         </EmptyState>
       ) : (
         <ul className="ruled border-y border-rule">
-          {query.data.map((request) => (
-            <li key={request.id}>
-              <Link href={`/requests/${request.id}`} className="flex flex-col gap-1.5 py-4 hover:bg-sunken/40 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+          {query.data.map((request) => {
+            const status = requestStatus(request);
+            return (
+              /* The title's link covers the row, so "Post again" can sit inside it without one link inside another, and the column on the right stays aligned. */
+              <li key={request.id} className="relative flex flex-col gap-1.5 py-4 hover:bg-sunken/40 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
                 <span className="flex min-w-0 flex-col gap-1">
-                  <span className="truncate text-sm font-medium">{request.title}</span>
+                  <Link href={`/requests/${request.id}`} className="block truncate text-sm font-medium after:absolute after:inset-0">
+                    {request.title}
+                  </Link>
                   <span className="text-[12.5px] text-ink-3">
                     {requestAmountLabel(request, request.budgetU)} · deliver in {request.deliverDays} days · {chainLabel(request.chainId)}
                   </span>
+                  {status.tone === 'ended' && (
+                    <Link href={`/workspace/requests/new?from=${request.id}`} className="relative z-10 w-fit text-[12.5px] font-medium text-ink-2 underline underline-offset-2 hover:text-ink">
+                      Post again
+                    </Link>
+                  )}
                 </span>
                 <span className="flex shrink-0 items-center gap-3">
-                  <span className={cn('rounded-full border px-2 py-0.5 text-[11.5px] font-medium', STATE[request.state].tone)}>{STATE[request.state].label}</span>
+                  <span className={cn('rounded-full border px-2 py-0.5 text-[11.5px] font-medium', TONE[status.tone])}>{status.label}</span>
                   <span className="t-readout text-[12.5px] text-ink-2">
                     {request.bids} {request.bids === 1 ? 'proposal' : 'proposals'}
                   </span>
                   <Icon.ChevronRight size={14} className="text-ink-3" />
                 </span>
-              </Link>
-            </li>
-          ))}
+              </li>
+            );
+          })}
         </ul>
       )}
     </>

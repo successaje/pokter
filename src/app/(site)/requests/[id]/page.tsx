@@ -68,6 +68,7 @@ export default async function BriefPage({
       <RequestDetail
         request={{ id: brief.id, title: brief.title, chainId: brief.chainId, deliverDays: brief.deliverDays, budgetU: brief.budgetU, budgetRaw: brief.budgetRaw, paymentToken: brief.paymentToken, poster: brief.poster }}
         taking={taking}
+        ended={said.tone === 'ended'}
         prefill={taking ? readProposalPrefill(sp) : null}
         head={
           <div className="flex flex-col gap-3">
@@ -97,7 +98,8 @@ export default async function BriefPage({
       >
         <RequestTerms content={brief} part="body" facts={false} />
 
-        {brief.state === 'open' && (
+        {/* Only while it takes proposals: withdrawing one that already closed would change nothing but its label. */}
+        {taking && (
           <div className="flex justify-start">
             <WithdrawRequest briefId={brief.id} poster={brief.poster} />
           </div>

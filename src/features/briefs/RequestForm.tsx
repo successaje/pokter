@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { amountWithinLimits, budgetLimitsFor } from '@/lib/hire/budget-limits';
-import { amountToRaw, briefMessage, listProblem, REQUEST_CATEGORIES, type BriefContent, type RequestCategory } from '@/lib/briefs/model';
+import { amountToRaw, briefMessage, listProblem, REQUEST_CATEGORIES, type BriefContent } from '@/lib/briefs/model';
+import { CLOSING_OPTIONS, DELIVERY_OPTIONS, type RequestDraft as Draft } from '@/lib/briefs/request-draft';
 import { escrowMoney } from '@/lib/network/presentation';
 import { defaultHireToken, displaySymbol, hireTokenAt, offeredTokens, tokenIdentity, tokenName, type PaymentToken } from '@/lib/network/tokens';
 import { cn } from '@/lib/ui/cn';
@@ -20,29 +21,6 @@ import { RequestRow } from './RequestRow';
 import { RequestTerms } from './RequestTerms';
 
 const DRAFT_KEY = 'pokter.request-draft-v1';
-
-const DELIVERY_OPTIONS = [1, 2, 3, 5, 7, 14, 30];
-/* Days from publishing; 0 keeps the request open until a proposal is chosen. */
-const CLOSING_OPTIONS = [0, 3, 7, 14, 30];
-
-interface Draft {
-  title: string;
-  brief: string;
-  acceptance: string;
-  failSignals: string;
-  budget: string;
-  chainId: number;
-  /**
-   * The token the budget is in, by address; null is the chain's $U. Drafts
-   * saved before requests had a token have none, and $U is the only thing
-   * that form could have meant.
-   */
-  paymentToken?: string | null;
-  deliverDays: number;
-  closesInDays: number;
-  category: RequestCategory | null;
-  savedAt?: string;
-}
 
 type Problems = Partial<Record<'title' | 'brief' | 'acceptance' | 'failSignals' | 'budget', string>>;
 
@@ -61,15 +39,27 @@ const lines = (value: string) => value.split('\n').map((l) => l.trim()).filter(B
  * undone: the wallet signs these exact terms, and from then on they are
  * public and fixed. The review shows the request through the same
  * component its page uses, so what is approved is what builders read.
+ *
+ * `copy` opens the form on a request that ended, to post it again without
+ * retyping it (`draftFromRequest`). It is still checked and signed as a new
+ * request, and a draft saved in this browser is left where it is.
  */
-export function RequestForm({ networks, initialTitle = '' }: { networks: number[]; initialTitle?: string }) {
+export function RequestForm({ networks, initialTitle = '', copy = null }: { networks: number[]; initialTitle?: string; copy?: { title: string; draft: Draft } | null }) {
   const router = useRouter();
   const { openConnect } = useConnect();
   const { address, canSign, sign } = useActiveSigner();
 
   const empty: Draft = { title: initialTitle, brief: '', acceptance: '', failSignals: '', budget: '', chainId: networks[0] ?? 97, paymentToken: null, deliverDays: 3, closesInDays: 0, category: null };
-  const [draft, setDraft] = useState<Draft>(empty);
+  /* A network or token turned off since the draft was written is dropped rather than kept unpayable. */
+  const usable = (d: Draft): Draft => {
+    const chainId = networks.includes(d.chainId) ? d.chainId : (networks[0] ?? 97);
+    return { ...d, chainId, paymentToken: d.paymentToken && hireTokenAt(chainId, d.paymentToken) ? d.paymentToken : null };
+  };
+  const [draft, setDraft] = useState<Draft>(() => (copy ? usable({ ...empty, ...copy.draft }) : empty));
+  const [copiedFrom, setCopiedFrom] = useState<string | null>(copy?.title ?? null);
   const [restored, setRestored] = useState<string | null>(null);
+  /* Whether the draft in this browser is this form's, so publishing may clear it. */
+  const [ownsDraft, setOwnsDraft] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [step, setStep] = useState<'write' | 'review'>('write');
   const [openedAt] = useState(() => Date.now());
@@ -78,8 +68,13 @@ export function RequestForm({ networks, initialTitle = '' }: { networks: number[
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  /* A saved draft lives in this browser only, so it is read after mount. */
+  /* A saved draft lives in this browser only, so it is read after mount. A copy being posted again wins over it, and leaves it saved. */
   useEffect(() => {
+    if (copy) {
+      /* The proposal window and the reject lines were carried over too: shown, not folded away, since the window is the first thing to check. */
+      if (moreOptions.current) moreOptions.current.open = true;
+      return;
+    }
     try {
       const raw = window.localStorage.getItem(DRAFT_KEY);
       if (!raw) return;
@@ -91,12 +86,10 @@ export function RequestForm({ networks, initialTitle = '' }: { networks: number[
        * wrong trade; the search is a click away.
        */
       if (initialTitle && !saved.title?.trim() && !saved.brief?.trim()) return;
-      if (!networks.includes(saved.chainId)) saved.chainId = networks[0] ?? 97;
-      /* A token turned off since the draft was saved, or one on the other network, is dropped rather than kept unpayable. */
-      if (saved.paymentToken && !hireTokenAt(saved.chainId, saved.paymentToken)) saved.paymentToken = null;
       // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrating from browser storage
-      setDraft({ ...empty, ...saved });
+      setDraft(usable({ ...empty, ...saved }));
       setRestored(saved.savedAt ?? null);
+      setOwnsDraft(true);
     } catch {
       /* Storage unavailable or unreadable: start empty. */
     }
@@ -142,6 +135,7 @@ export function RequestForm({ networks, initialTitle = '' }: { networks: number[
     try {
       window.localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...draft, savedAt: at }));
       setSavedAt(at);
+      setOwnsDraft(true);
     } catch {
       setError('This browser would not save the draft.');
     }
@@ -156,6 +150,14 @@ export function RequestForm({ networks, initialTitle = '' }: { networks: number[
     setDraft(empty);
     setRestored(null);
     setSavedAt(null);
+    setOwnsDraft(false);
+    setProblems({});
+  };
+
+  /* Away from the copy, to a blank form; a draft saved in this browser is not touched. */
+  const startBlank = () => {
+    setDraft(empty);
+    setCopiedFrom(null);
     setProblems({});
   };
 
@@ -203,7 +205,7 @@ export function RequestForm({ networks, initialTitle = '' }: { networks: number[
       const payload = (await response.json().catch(() => ({}))) as { error?: string; brief?: { id: string } };
       if (!response.ok || !payload.brief) throw new Error(payload.error ?? 'The request was not published.');
       try {
-        window.localStorage.removeItem(DRAFT_KEY);
+        if (ownsDraft) window.localStorage.removeItem(DRAFT_KEY);
       } catch {
         /* The request is live either way. */
       }
@@ -253,6 +255,19 @@ export function RequestForm({ networks, initialTitle = '' }: { networks: number[
   return (
     <div className="grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1fr)_340px]">
       <div className="flex min-w-0 flex-col gap-6">
+        {copiedFrom !== null && (
+          <Notice
+            title={<>Copied from &ldquo;{copiedFrom}&rdquo;</>}
+            action={
+              <Button size="s" intent="ghost" onClick={startBlank}>
+                Start blank
+              </Button>
+            }
+          >
+            Everything it said is filled in, so nothing needs retyping. The original stays as it was.
+          </Notice>
+        )}
+
         {restored !== null && (
           <Notice
             title="Your saved draft"

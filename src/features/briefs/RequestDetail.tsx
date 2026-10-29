@@ -8,7 +8,7 @@ import { escrowMoney } from '@/lib/network/presentation';
 import { displaySymbol } from '@/lib/network/tokens';
 import { cn } from '@/lib/ui/cn';
 import { useActiveWallet } from '@/lib/wallet/active';
-import { Button } from '@/ui/Button';
+import { Button, LinkButton } from '@/ui/Button';
 import { Icon } from '@/ui/icons';
 import { ProposalForm, type ProposalRequest } from './ProposalForm';
 
@@ -20,7 +20,8 @@ import { ProposalForm, type ProposalRequest } from './ProposalForm';
  * one action. Making a proposal swaps the card for the form in place, so
  * the request stays readable beside it; Back returns to the summary.
  * The poster sees the summary without the action: nobody proposes to
- * their own request.
+ * their own request. Once it has ended without a hire, closed or
+ * withdrawn, the poster's action is to post it again.
  *
  * On a phone the card sits under the title rather than below everything,
  * so the budget and the action are where a reader decides.
@@ -28,6 +29,7 @@ import { ProposalForm, type ProposalRequest } from './ProposalForm';
 export function RequestDetail({
   request,
   taking,
+  ended = false,
   head,
   summary,
   children,
@@ -35,6 +37,8 @@ export function RequestDetail({
 }: {
   request: ProposalRequest;
   taking: boolean;
+  /** Closed or withdrawn, with nobody hired: what the poster may want to post again. */
+  ended?: boolean;
   head: ReactNode;
   summary: ReactNode;
   children: ReactNode;
@@ -79,6 +83,13 @@ export function RequestDetail({
                     Make a proposal
                   </Button>
                   <p className="text-center text-[12px] text-ink-3">Free to send: a signature, not a transaction. Nothing is paid unless you are chosen and hired.</p>
+                </div>
+              ) : isPoster && ended ? (
+                <div className="flex flex-col gap-2">
+                  <LinkButton href={`/workspace/requests/new?from=${request.id}`} trailing={<Icon.Arrow size={15} />} className="w-full justify-center">
+                    Post it again
+                  </LinkButton>
+                  <p className="text-center text-[12px] text-ink-3">Opens this request filled in, to check and sign as a new one.</p>
                 </div>
               ) : isPoster ? (
                 <p className="text-[12.5px] text-ink-3">This is your request. Proposals appear on the page as builders send them.</p>
