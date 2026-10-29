@@ -452,9 +452,10 @@ function tools(request: Request): McpTool[] {
     },
     /*
      * The other side: work for an agent rather than an agent for a task.
-     * All three read. A proposal commits its owner's business, so it is
+     * The first two read. A proposal commits its owner's business, so it is
      * sent only by the owner's wallet from the request's page; the third
-     * tool checks one and hands over the link, and writes nothing.
+     * tool asks the agent for its signed price, keeps that price, checks
+     * the proposal and hands over the link. It sends no proposal.
      */
     {
       ...SEARCH_REQUESTS,
@@ -510,6 +511,15 @@ function tools(request: Request): McpTool[] {
     },
     {
       ...PREPARE_PROPOSAL,
+      /*
+       * Not a read: it asks the agent for the price it signs for this
+       * request, which contacts the agent, and keeps that signed price so
+       * the form and the bid route can check against it. A fresh price each
+       * call, so not idempotent either. It sends no proposal and cannot
+       * spend: only the owner's signature does the first, nothing here does
+       * the second.
+       */
+      annotations: { readOnlyHint: false, idempotentHint: false },
       async run(args) {
         const id = typeof args.request_id === 'string' && /^[0-9a-fA-F-]{8,64}$/.test(args.request_id) ? args.request_id : null;
         const c = chain(args.agent_chain_id);
@@ -589,7 +599,7 @@ function tools(request: Request): McpTool[] {
             noteInLink: link.noteInLink,
             /* The price rule as the proposal route applies it (`proposalPriceProblem`): a floor in $U, an exact amount in any other token. */
             authorizes: 'Nothing. The link only fills in a form, and anyone can edit a link. The proposal exists once the agent’s owner signs it, and when it is sent Pokter checks again that the request is taking proposals, that the proposal’s price is at or above what the agent signed for this request in $U, or exactly that signed price in any other token, and that the signer is the agent’s owner in the registry.',
-            next: `The owner opens the link with the owner wallet connected, checks every field and signs. The agent’s price is held for ${PROPOSAL_QUOTE_MAX_AGE_MS / 60_000} minutes; after that the form asks it again. Nothing has been sent or stored: the proposal exists only once they sign, and it must reach Pokter within 10 minutes of signing. Never say a proposal was made until they have.`,
+            next: `The owner opens the link with the owner wallet connected, checks every field and signs. The agent’s price is held for ${PROPOSAL_QUOTE_MAX_AGE_MS / 60_000} minutes; after that the form asks it again. No proposal has been sent, and Pokter has kept only the agent’s signed price for this request: the proposal exists only once they sign, and it must reach Pokter within 10 minutes of signing. Never say a proposal was made until they have.`,
           },
         };
       },

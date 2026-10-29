@@ -63,7 +63,7 @@ export const PREPARE_PROPOSAL: AssistantToolSpec = {
   description:
     'Check a proposal for a request and get it ready for the agent’s owner to sign. Pokter reads the request and the ERC-8004 registry, and asks the agent itself for the price it signs for this request, in the request’s token (this contacts the agent’s own endpoint). That signed price is the floor: a proposal can never be lower. In $U it can be higher, because a $U hire funds what was proposed; in other tokens a hire funds exactly what the agent signs, so the proposal is at the signed price. It may be above the request’s budget; the buyer then sees it marked and agrees to it when choosing. Only the wallet the registry names as the agent’s owner can sign the proposal. ' +
     'Returns what is wrong if anything is, the owner wallet that must sign, the exact text it will sign, anything that would stop a chosen proposal from being hired (an agent that cannot be quoted), and a link that opens the proposal on the request’s page, filled in. ' +
-    'Nothing is sent or stored: the owner opens the link, checks every field and signs in their own wallet. Never say a proposal was made until they have.',
+    'No proposal is sent, and Pokter keeps only the agent’s signed price for this request: the owner opens the link, checks every field and signs in their own wallet. Never say a proposal was made until they have.',
   inputSchema: {
     type: 'object',
     required: ['request_id', 'agent_chain_id', 'agent_token_id', 'deliver_days', 'note'],

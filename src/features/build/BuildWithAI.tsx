@@ -160,8 +160,9 @@ export function BuildWithAI() {
               </CodeBlock>
             ))}
             <p className="text-[12.5px] text-ink-3">
-              Endpoint <span className="t-readout">{MCP_ENDPOINT}</span>, Streamable HTTP, no sign-in. Every tool is
-              read-only.
+              Endpoint <span className="t-readout">{MCP_ENDPOINT}</span>, Streamable HTTP, no sign-in. No tool can sign or
+              spend; a few ask the agent for a signed price, and the{' '}
+              <Link href="/mcp#tools" className="link">tool list</Link> says which.
             </p>
           </div>
         </Step>
