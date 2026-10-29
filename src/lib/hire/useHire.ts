@@ -1326,7 +1326,7 @@ export function useHire({
             throw new HireFailure(`${agent.name} signed this price in ${signedPlan.symbol}, and the proposal you chose is in another currency. Nothing was sent. Ask for a quote in the proposal's currency, or choose another proposal.`, 'terms', 'proposal-currency');
           }
           if (proposal.priceRaw && BigInt(signedQuote.intent.amountRaw) > BigInt(proposal.priceRaw)) {
-            throw new HireFailure(`${agent.name} signed ${signedPlan.amountLabel}, more than the price it proposed on your request. Nothing was sent. Go back and choose another proposal.`, 'terms', 'proposal-price');
+            throw new HireFailure(`${agent.name} signed ${signedPlan.amountLabel}, more than the price it proposed on your request. Nothing was sent. Go back to the request and change your choice.`, 'terms', 'proposal-price');
           }
         }
         if (!tokenHire && Number.isFinite(signedQuote.priceU) && budget < signedQuote.priceU) {

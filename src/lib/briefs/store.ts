@@ -244,6 +244,15 @@ class BriefStore {
     this.db.prepare("UPDATE briefs SET state = 'awarded', awarded_bid_id = ? WHERE id = ? AND state = 'open'").run(bidId, briefId);
   }
 
+  /**
+   * The poster changed their mind: back to open, with no proposal chosen.
+   * Only from the choice it undoes, so a second change cannot land on a
+   * request that has since been chosen again, withdrawn or hired.
+   */
+  reopen(briefId: string, bidId: string): boolean {
+    return this.db.prepare("UPDATE briefs SET state = 'open', awarded_bid_id = NULL WHERE id = ? AND state = 'awarded' AND awarded_bid_id = ?").run(briefId, bidId).changes > 0;
+  }
+
   /** Withdrawn by its poster. Only an open request: an awarded one has a builder waiting on it. */
   withdraw(briefId: string): boolean {
     return this.db.prepare("UPDATE briefs SET state = 'cancelled' WHERE id = ? AND state = 'open'").run(briefId).changes > 0;

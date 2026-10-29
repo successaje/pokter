@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
-import { awardMessage, requestAmountLabel, withdrawMessage, type Bid } from '@/lib/briefs/model';
+import { awardMessage, reopenMessage, requestAmountLabel, withdrawMessage, type Bid } from '@/lib/briefs/model';
 import { chainLabel } from '@/lib/network/presentation';
 import { useActiveSigner } from '@/lib/wallet/use-active-signer';
 import { Button } from '@/ui/Button';
@@ -73,6 +73,72 @@ export function AwardBid({ briefId, bid, poster, chainId }: { briefId: string; b
         </Button>
         <Button size="s" onClick={submit} busy={busy}>
           {busy ? 'Approve in your wallet' : 'Choose this proposal'}
+        </Button>
+      </span>
+    </div>
+  );
+}
+
+/**
+ * The poster changing their mind about a choice that has not been hired.
+ *
+ * Choosing moved no money, so undoing it moves none either: the request
+ * goes back to open and any proposal can be chosen. Signed, and dated so
+ * the signature cannot be replayed later (`reopenMessage`).
+ */
+export function ChangeChoice({ briefId, bidId, poster }: { briefId: string; bidId: string; poster: string }) {
+  const router = useRouter();
+  const { address, canSign, sign } = useActiveSigner();
+  const [reviewing, setReviewing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  if (address?.toLowerCase() !== poster.toLowerCase()) return null;
+
+  const submit = async () => {
+    if (!canSign) {
+      setError('Connect the wallet that posted this request.');
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const decidedAt = new Date().toISOString();
+      const signature = await sign(reopenMessage(briefId, bidId, poster, decidedAt));
+      const response = await fetch(`/api/briefs/${briefId}/reopen`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ signature, decidedAt }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? 'Your choice was not changed.');
+      router.refresh();
+    } catch (caught) {
+      const message = (caught as Error).message || 'Your choice was not changed.';
+      setError(/reject|denied/i.test(message) ? 'You declined the signature. Your choice stands.' : message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!reviewing) {
+    return (
+      <Button size="s" intent="ghost" onClick={() => setReviewing(true)}>
+        Change my choice
+      </Button>
+    );
+  }
+  return (
+    <div className="flex w-full flex-col gap-3 rounded-[10px] bg-sunken p-3.5">
+      <p className="text-[13px] leading-relaxed text-ink-2">
+        <span className="font-medium text-ink">Choose a different proposal?</span> This one is no longer chosen and the request reopens, so you can choose any proposal. Signing records the change and moves no money.
+      </p>
+      {error && <p className="text-[12.5px] text-bad">{error}</p>}
+      <span className="flex flex-wrap justify-end gap-2">
+        <Button size="s" intent="ghost" onClick={() => setReviewing(false)} disabled={busy}>
+          Keep this one
+        </Button>
+        <Button size="s" onClick={submit} busy={busy}>
+          {busy ? 'Approve in your wallet' : 'Change my choice'}
         </Button>
       </span>
     </div>

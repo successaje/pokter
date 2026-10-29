@@ -254,6 +254,15 @@ export function awardMessage(briefId: string, bidId: string, poster: string): st
 }
 
 /**
+ * The poster, taking back a choice before it was hired. Signed like the
+ * award it undoes, and dated, so a signature cannot be kept and replayed to
+ * undo a later choice of the same proposal (`decisionIsFresh`).
+ */
+export function reopenMessage(briefId: string, bidId: string, poster: string, decidedAt: string): string {
+  return ['Pokter request choice changed', `Request: ${briefId}`, `Proposal no longer chosen: ${bidId}`, `Poster: ${poster.toLowerCase()}`, `Decided at: ${decidedAt}`].join('\n');
+}
+
+/**
  * The poster, withdrawing. Signed for the same reason an award is: Pokter
  * should not be able to take a request down on somebody's behalf.
  */

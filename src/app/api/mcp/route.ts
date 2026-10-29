@@ -17,7 +17,9 @@ import { getBriefStore } from '@/lib/briefs/store';
 import { classify } from '@/lib/agents/categories';
 import { registryOwner } from '@/lib/registry/onchain';
 import { getAgent } from '@/lib/scan/client';
-import { displaySymbol } from '@/lib/network/tokens';
+import { displaySymbol, formatAmount } from '@/lib/network/tokens';
+import { belowSignedPrice, belowSignedPriceMessage } from '@/lib/briefs/price-floor';
+import { getProbeStore } from '@/lib/history/store';
 import { getAddress } from 'viem';
 import { jobEvidencePath } from '@/lib/jobs/evidence-view';
 import { CATEGORIES } from '@/lib/agents/categories';
@@ -531,6 +533,11 @@ function tools(request: Request): McpTool[] {
         const parsed = parseBidContent({ agentChainId: c, agentTokenId: t, priceU: args.price, paymentToken: asked?.address ?? null, deliverDays: days, note }, brief);
         if (!parsed.ok) return { data: { error: parsed.error }, isError: true };
         if (!withinBudget(parsed.content, brief)) return { data: { error: `The price is above this request’s budget of ${requestAmountLabel(brief, brief.budgetU)}. Propose at or under it.` }, isError: true };
+        /* The rule the proposal route applies: not below the price the agent signs (`price-floor.ts`). */
+        const signedNow = getProbeStore().quotesFor([{ chainId: c, tokenId: t }]).get(`${c}:${t}`) ?? null;
+        if (signedNow && belowSignedPrice(parsed.content, signedNow, { freshOnly: true })) {
+          return { data: { error: belowSignedPriceMessage(formatAmount(brief.chainId, signedNow.currency, signedNow.priceRaw)?.label ?? requestAmountLabel(brief, signedNow.priceU)) }, isError: true };
+        }
 
         const owner = await registryOwner(c, t).catch(() => null);
         if (!owner) return { data: { error: 'The registry did not answer for that agent, or it does not exist, so Pokter cannot say who may propose for it.' }, isError: true };

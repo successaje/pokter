@@ -1,6 +1,7 @@
 import Link from 'next/link';
 
 import { requestAmountLabel, requestTokenOf } from '@/lib/briefs/model';
+import { belowSignedPrice } from '@/lib/briefs/price-floor';
 import { formatQuotedPrice } from '@/lib/erc8183/pricing';
 import { formatAmount } from '@/lib/network/tokens';
 import { VERDICT_LABEL } from '@/lib/proof/engine';
@@ -10,7 +11,7 @@ import { shortAddress } from '@/lib/ui/format';
 import { AgentAvatar, ProbeStrip } from '@/ui/Agent';
 import { LinkButton } from '@/ui/Button';
 import { Icon } from '@/ui/icons';
-import { AwardBid } from './BriefActions';
+import { AwardBid, ChangeChoice } from './BriefActions';
 import type { ProposalCard } from './proposal-cards';
 import { ago } from './RequestRow';
 
@@ -72,6 +73,7 @@ export function ProposalList({
           const later = bid.deliverDays > request.deliverDays;
           const saving = under(bid.priceRaw);
           const long = bid.note.length > 200;
+          const underSigned = row !== null && belowSignedPrice({ priceRaw: bid.priceRaw, paymentToken: bid.paymentToken ?? token?.address ?? null }, { priceRaw: row.priceRaw, currency: row.priceCurrency });
           return (
             <li key={bid.id} className={cn('flex flex-col gap-3.5 rounded-[16px] border p-4', chosen ? 'border-ok/40 bg-ok-wash' : 'border-rule bg-raised')}>
               {/* Who, then the offer, then how: the same order on every card, so they compare across. */}
@@ -104,6 +106,12 @@ export function ProposalList({
                   {days(bid.deliverDays)} after hiring{later ? ` · asked ${days(request.deliverDays)}` : ''}
                 </span>
               </div>
+              {/* Hired from this proposal, the agent is asked for its price and would sign its own: say so before anyone chooses it. */}
+              {underSigned && (
+                <p className="-mt-1.5 text-[12.5px] leading-snug text-watch">
+                  Below the {row!.priceLabel} this agent last signed, so it cannot be funded at this price unless the agent lowers what it signs.
+                </p>
+              )}
 
               {bid.note &&
                 (long ? (
@@ -173,6 +181,8 @@ export function ProposalList({
                     <LinkButton size="s" href={`/hire/${bid.agentChainId}/${bid.agentTokenId}?escrow=${request.chainId}&proposal=${bid.id}`} className="justify-center">
                       {hire?.returned ? 'Hire again' : 'Hire and fund'}
                     </LinkButton>
+                    {/* Nothing is funded for it, so the poster can still choose another. */}
+                    <ChangeChoice briefId={request.id} bidId={bid.id} poster={request.poster} />
                   </>
                 ) : (
                   request.state === 'open' && <AwardBid briefId={request.id} bid={bid} poster={request.poster} chainId={request.chainId} />

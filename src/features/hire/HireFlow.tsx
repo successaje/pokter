@@ -358,7 +358,9 @@ export function HireFlow(props: HireFlowProps) {
       : !hire.budgetValid
         ? `Between ${BUDGET_MIN} and ${BUDGET_MAX} $U.`
         : priceFloor !== null && hire.budget < priceFloor
-          ? `The agent signed a price of ${priceFloor} $U. A lower budget will be refused.`
+          ? proposalHere
+            ? `The agent signs ${priceFloor} ${priceSymbol}, above the ${props.proposal!.priceU} ${proposalSymbol} it proposed, so this proposal cannot be funded. Go back to the request and change your choice, or ask the agent to lower its signed price.`
+            : `The agent signed a price of ${priceFloor} $U. A lower budget will be refused.`
           : null;
 
   /* The payment screen's words, from the plan the transaction is built from. */
@@ -1117,7 +1119,8 @@ export function HireFlow(props: HireFlowProps) {
               Budget for this job
             </label>
             <div className="flex items-center gap-3">
-              <div className="relative w-44">
+              {/* Never squeezed by a long hint beside it: the amount is what is being checked. */}
+              <div className="relative w-44 shrink-0">
                 <input
                   id="budget"
                   type="number"
@@ -1178,7 +1181,7 @@ export function HireFlow(props: HireFlowProps) {
                 : hire.reviewQuote && hire.hireToken && hire.authority
                 ? `The agent signed ${signedAmountLabel ?? `${hire.authority.budgetU} ${hire.hireToken.symbol}`} for this exact task. That exact amount is what is funded, in ${tokenName(hire.hireToken)}, and nothing else is converted or added.`
                 : hire.reviewQuote
-                ? `The agent signed ${hire.reviewQuote.priceU} ${priceSymbol} for this exact task.${proposalHere && hire.reviewQuote.priceU > props.proposal!.priceU ? ` That is more than the ${props.proposal!.priceU} ${proposalSymbol} it proposed on your request, so you can go back and choose another proposal.` : ''} A budget below that is refused before any payment.`
+                ? `The agent signed ${hire.reviewQuote.priceU} ${priceSymbol} for this exact task.${proposalHere && hire.reviewQuote.priceU > props.proposal!.priceU && !budgetError ? ` That is more than the ${props.proposal!.priceU} ${proposalSymbol} it proposed on your request, so this proposal cannot be funded. Go back to the request and change your choice.` : ''} A budget below that is refused before any payment.`
                 : hire.needsQuote
                   ? 'The agent is asked to sign a quote for this exact task before funding. If its price is above your budget, the hire stops before any payment.'
                   : 'Delivery is relayed by Pokter, so the budget is yours to set, and nothing the agent quotes is charged on top of it.'}
