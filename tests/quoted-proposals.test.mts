@@ -101,3 +101,13 @@ test('the price is asked of the agent for the request’s own brief and token, a
   assert.match(ask, /signed\.currency\.toLowerCase\(\) !== token\.address\.toLowerCase\(\)/, 'another token is refused, never converted');
   assert.match(ask, /getBriefStore\(\)\.recordProposalQuote\(quote\)/);
 });
+
+test('the guide and the provider skill describe the agent’s signed price, not a typed one', () => {
+  const guide = source('src/app/(site)/guides/find-jobs/page.tsx');
+  assert.doesNotMatch(guide, /at or under (the|its) budget|"price": 0\.12/, 'the old rule is gone');
+  assert.match(guide, /choose your agent and ask it for its price/);
+  assert.match(guide, /Ask the agent for its signed price for this request first\./, 'the new refusal is explained');
+  const skill = source('src/lib/builders/provider-skill.ts');
+  assert.doesNotMatch(skill, /A price above a\s+request's budget is refused/);
+  assert.match(skill, /\\`prepare_proposal\\` asks the agent what it signs for that\s+request/);
+});
