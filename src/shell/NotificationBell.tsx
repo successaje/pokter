@@ -13,6 +13,8 @@ import { cn } from '@/lib/ui/cn';
 import { useInbox, useSavedAlerts } from '@/features/workspace/hooks';
 import { useRequestAlerts, useRequestAlertSync } from '@/features/briefs/useRequestAlerts';
 import { markRequestAlertRead, markRequestAlertsRead } from '@/lib/briefs/request-alerts';
+import { markPriceAskAlertRead, markPriceAskAlertsRead, priceAskHref } from '@/lib/agents/price-ask-alerts';
+import { usePriceAskAlerts, usePriceAskAlertSync } from '@/features/agent/usePriceAskAlerts';
 import { useReadSync } from '@/features/workspace/useReadSync';
 import { Icon } from '@/ui/icons';
 
@@ -37,6 +39,9 @@ export function NotificationBell() {
   /* Requests that fit this wallet's agents: synced here because the header is on every page. */
   useRequestAlertSync();
   const requestAlerts = useRequestAlerts();
+  /* Buyers asking for the price of an agent this wallet owns that cannot be priced. */
+  usePriceAskAlertSync();
+  const priceAskAlerts = usePriceAskAlerts();
   const { address } = useActiveWallet();
   /*
    * The same read state the page uses, for the same reason it reads the
@@ -77,6 +82,14 @@ export function NotificationBell() {
       at: r.createdAt,
       read: sync.isRead(r),
       href: `/requests/${r.requestId}`,
+    })),
+    ...priceAskAlerts.map((p) => ({
+      id: p.id,
+      title: p.title,
+      body: p.body,
+      at: p.createdAt,
+      read: sync.isRead(p),
+      href: priceAskHref(p),
     })),
   ].sort((x, y) => Date.parse(y.at) - Date.parse(x.at));
 
@@ -126,7 +139,8 @@ export function NotificationBell() {
                    */
                   markSavedAgentAlertsRead();
                   if (address) markRequestAlertsRead(address);
-                  sync.markSeen([...notes, ...alerts, ...requestAlerts]);
+                  if (address) markPriceAskAlertsRead(address);
+                  sync.markSeen([...notes, ...alerts, ...requestAlerts, ...priceAskAlerts]);
                 }}
                 className="text-[12.5px] font-medium text-ink-3 hover:text-ink"
               >
@@ -148,6 +162,7 @@ export function NotificationBell() {
                     onClick={() => {
                       markNotificationRead(item.id);
                       markRequestAlertRead(item.id);
+                      markPriceAskAlertRead(item.id);
                       close();
                     }}
                     className={cn('flex flex-col gap-0.5 px-4 py-3 transition-colors hover:bg-sunken', !item.read && 'bg-sunken/40')}

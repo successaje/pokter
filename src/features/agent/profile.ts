@@ -46,6 +46,7 @@ import { readinessRows, type ReadinessRow } from '@/lib/agents/readiness';
 import { chainLabel } from '@/lib/network/presentation';
 import type { HireBlocker, PriceCheckSource } from '@/lib/hire/blocker';
 import { currentHireBlocker, currentPriceCheck } from '@/lib/hire/blocker-live';
+import { priceAskCounts } from '@/lib/builder/diagnostics/store';
 import { clipAtWord } from '@/lib/ui/clip';
 import { agentReadings, type PlatformBenchmark } from '@/lib/benchmark/platform';
 import { currentPlatformBenchmark } from '@/lib/benchmark/platform-server';
@@ -192,6 +193,8 @@ export interface AgentProfile {
    * signed price, or was never asked.
    */
   hireBlocker: (HireBlocker & { observedAt: string | null }) | null;
+  /** Buyers who asked for its price in the last 30 days, while it could not be priced (`/api/price-asks`). */
+  priceAsks: number;
   /** The most recent price check, beside the last signed price (`latestPriceCheck`). */
   priceCheck: { at: string; outcome: string; source: PriceCheckSource } | null;
   /** Each observation on its own, with its scope and age (see `readinessRows`). */
@@ -428,6 +431,7 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
     escrowTokens,
     corrections: getProbeStore().correctionsFor(agent.chain_id, agent.token_id),
     hireBlocker: currentHireBlocker(agent, d.quote, payable, { problem: cardRead.problem, readAt: cardReadAt }),
+    priceAsks: priceAskCounts([{ chainId: agent.chain_id, tokenId: agent.token_id }])[0]?.asks ?? 0,
     priceCheck: currentPriceCheck(agent, d.quote),
     readiness: readinessRows({
       now: Date.now(),

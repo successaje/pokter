@@ -26,6 +26,7 @@ import {
   recordHireAttemptIn,
 } from './attempt-sql';
 import { WITHHELD_REASON_TEXT } from './withheld';
+import { applyPriceAskSchema, priceAskCountsIn, prunePriceAsksIn, recordPriceAskIn, type PriceAskCount } from './price-ask-sql';
 
 /**
  * Left as a relative path on purpose, as the other stores are:
@@ -44,6 +45,7 @@ function db(): DatabaseSync {
   // WAL, so a builder reading diagnostics does not block a buyer's quote.
   database.exec('PRAGMA journal_mode = WAL');
   applyHireAttemptSchema(database);
+  applyPriceAskSchema(database);
   return database;
 }
 
@@ -54,6 +56,50 @@ function pruneOccasionally(now: number): void {
   if (now - lastPrunedAt < 6 * 3_600_000) return;
   lastPrunedAt = now;
   pruneHireAttemptsIn(db(), new Date(now - ATTEMPT_RETENTION_DAYS * DAY_MS).toISOString());
+  prunePriceAsksIn(db(), new Date(now - ATTEMPT_RETENTION_DAYS * DAY_MS).toISOString());
+}
+
+/** How far back an owner is told about asks for a price. */
+export const PRICE_ASK_WINDOW_DAYS = 30;
+
+/**
+ * A buyer asking an agent that cannot be priced for its price
+ * (`price-ask-sql.ts`). True when it is a new ask; false when the same
+ * person already asked for this agent today, or nothing could be written.
+ */
+export function recordPriceAsk(input: { request: Request; chainId: number; tokenId: string; now?: Date }): boolean {
+  try {
+    const now = input.now ?? new Date();
+    const tokenId = canonicalTokenId(input.tokenId);
+    if (tokenId === null) return false;
+    const handle = db();
+    const fingerprint = attemptFingerprint({
+      salt: attemptSaltIn(handle),
+      clientKey: requestClientKey(input.request),
+      chainId: input.chainId,
+      tokenId,
+      brief: 'price-ask',
+      day: attemptDay(now),
+    });
+    const recorded = recordPriceAskIn(handle, { fingerprint, chainId: input.chainId, tokenId, askedAt: now.toISOString() });
+    pruneOccasionally(now.getTime());
+    return recorded;
+  } catch {
+    return false;
+  }
+}
+
+/** Asks in the last `PRICE_ASK_WINDOW_DAYS` for each agent that has any; empty when the store cannot be read. */
+export function priceAskCounts(agents: ReadonlyArray<{ chainId: number; tokenId: string }>, now = Date.now()): PriceAskCount[] {
+  try {
+    const canonical = agents.flatMap((agent) => {
+      const tokenId = canonicalTokenId(agent.tokenId);
+      return tokenId === null ? [] : [{ chainId: agent.chainId, tokenId }];
+    });
+    return priceAskCountsIn(db(), canonical, new Date(now - PRICE_ASK_WINDOW_DAYS * DAY_MS).toISOString());
+  } catch {
+    return [];
+  }
 }
 
 /**
