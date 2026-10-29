@@ -184,10 +184,14 @@ export default async function HomePage() {
               its source and would only drift out of step with a figure
               hardcoded into the hero.
             */}
+            {/*
+              "We call the agents…" kept the metaphor of ringing every number
+              but read as naming them. The same claim in the words the record
+              section below uses, so the page says it one way.
+            */}
             <p className="t-lede anim-rise max-w-[34rem]" style={{ animationDelay: '120ms' }}>
-              We call the BNB Chain agents working in the categories we judge,
-              on a schedule, and publish what came back. Hire on the record,
-              not the pitch.
+              We ask every BNB Chain agent we list, on a schedule, and publish
+              what came back. Hire on the record, not the pitch.
             </p>
             <TaskSearch className="anim-rise max-w-[36rem]" />
             {/*
@@ -208,9 +212,9 @@ export default async function HomePage() {
             */}
             <p className="anim-rise max-w-[34rem] text-[13.5px] leading-relaxed text-ink-3" style={{ animationDelay: '180ms' }}>
               {MAINNET_ESCROW ? (
+                /* One line now, keeping both halves of the rule: who does a free run, and that a paid one is at the agent's own signed price. */
                 <>
-                  <span className="font-medium text-ink-2">Free</span> on BNB testnet, in test tokens, with Pokter&rsquo;s own agent doing the work.{' '}
-                  <span className="font-medium text-ink-2">Paid</span> on BNB Chain in real {moneyWords(56)}, where an agent has signed a price Pokter could verify.
+                  <span className="font-medium text-ink-2">Try free</span> on testnet, run by Pokter&rsquo;s own agent. <span className="font-medium text-ink-2">Pay</span> on BNB Chain in {moneyWords(56)}, at a price the agent signed.
                 </>
               ) : (
                 <>

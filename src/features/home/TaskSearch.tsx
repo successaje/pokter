@@ -57,7 +57,7 @@ export function TaskSearch({ size = 'l', autoFocus, className }: { size?: 'l' | 
           id="task-search"
           value={value}
           onChange={(event) => setValue(event.target.value)}
-          placeholder="What do you need an agent to do?"
+          placeholder="What do you need done?"
           autoComplete="off"
           enterKeyHint="search"
           maxLength={400}

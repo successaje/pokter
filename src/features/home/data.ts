@@ -35,6 +35,13 @@ export interface Specimen {
   checks: SpecimenCheck[];
   conclusion: string;
   verdict: FindRow['verdict'];
+  /**
+   * Which of the three it was chosen to show. The carousel advances on its
+   * own, and a reader who arrived on the second slide saw "Not recommended"
+   * beside a headline saying "These do" with nothing to say the contrast
+   * was the point.
+   */
+  role: string;
 }
 
 function trimClaim(text: string, max = 150) {
@@ -44,7 +51,7 @@ function trimClaim(text: string, max = 150) {
   return `${cut.slice(0, cut.lastIndexOf(' '))}…`;
 }
 
-function specimenFor(entry: SearchableAgent, row: FindRow): Specimen {
+function specimenFor(entry: SearchableAgent, row: FindRow, role: string): Specimen {
   const attestations = entry.listing.attestationCount;
   const answered = entry.record.totalAnswered;
   const probes = entry.record.totalProbes;
@@ -115,6 +122,7 @@ function specimenFor(entry: SearchableAgent, row: FindRow): Specimen {
     checks,
     conclusion,
     verdict: row.verdict,
+    role,
   };
 }
 
@@ -133,7 +141,13 @@ function chooseSpecimens(entries: SearchableAgent[], rows: FindRow[]): Specimen[
     working.find(({ row }) => row.hirable);
   const silent = pairs.find(({ entry }) => entry.record.totalProbes >= 6 && entry.record.totalAnswered === 0);
   const unpriced = pairs.find(({ row, entry }) => row.priceU === null && entry.record.totalProbes > 0 && entry.record.totalAnswered > 0 && row.key !== strong?.row.key);
-  return [strong, silent, unpriced].filter((x): x is NonNullable<typeof x> => Boolean(x)).map(({ entry, row }) => specimenFor(entry, row));
+  return (
+    [
+      [strong, 'One that works'],
+      [silent, 'One that only talks'],
+      [unpriced, 'One with no signed price'],
+    ] as const
+  ).flatMap(([pick, role]) => (pick ? [specimenFor(pick.entry, pick.row, role)] : []));
 }
 
 export interface HomeData {
