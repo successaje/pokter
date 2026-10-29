@@ -1,11 +1,10 @@
 import { NextResponse } from 'next/server';
 import { getAddress, isAddress, isHex, type Address, type Hex } from 'viem';
 
-import { acceptsProposals, bidMessage, parseBidContent, requestAmountLabel, requestTokenOf, staleProposal, withinBudget, type Bid } from '@/lib/briefs/model';
-import { displaySymbol, formatAmount } from '@/lib/network/tokens';
-import { belowSignedPrice, belowSignedPriceMessage } from '@/lib/briefs/price-floor';
+import { acceptsProposals, bidMessage, parseBidContent, requestAmountLabel, staleProposal, type Bid } from '@/lib/briefs/model';
+import { formatAmount } from '@/lib/network/tokens';
+import { proposalPriceProblem } from '@/lib/briefs/proposal-price';
 import { getBriefStore } from '@/lib/briefs/store';
-import { getProbeStore } from '@/lib/history/store';
 import { registryOwner } from '@/lib/registry/onchain';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 import { signedByWallet, walletCanBeChecked } from '@/lib/wallet/signed-by';
@@ -54,24 +53,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
   const stale = staleProposal(placedAt, Date.now(), getBriefStore().bidFor(id, content.agentChainId, content.agentTokenId));
   if (stale) return NextResponse.json({ error: stale }, { status: 409 });
-  if (!withinBudget(content, brief)) {
-    const token = requestTokenOf(brief);
-    return NextResponse.json(
-      { error: `The price is above this request's budget of ${requestAmountLabel(brief, brief.budgetU)}${token ? ` (${displaySymbol(token)} at ${token.address} on chain ${brief.chainId})` : ''}.` },
-      { status: 422 },
-    );
-  }
 
   /*
-   * Not below what the agent signs: hired from this proposal, the agent is
-   * asked for its price before funding and would sign its own, so a lower
-   * proposal could be chosen and never funded (`price-floor.ts`).
+   * The price is the one the agent signed for this request, asked shortly
+   * before (`proposal-price.ts`). A typed price is how a proposal came to
+   * undercut the agent and be chosen into a hire that could never be
+   * funded. Above the budget is allowed: the poster sees it marked, and
+   * agrees to the amount in the signature that chooses it.
    */
-  const signed = getProbeStore().quotesFor([{ chainId: content.agentChainId, tokenId: content.agentTokenId }]).get(`${content.agentChainId}:${content.agentTokenId}`) ?? null;
-  if (signed && belowSignedPrice(content, signed, { freshOnly: true })) {
-    const label = formatAmount(brief.chainId, signed.currency, signed.priceRaw)?.label ?? requestAmountLabel(brief, signed.priceU);
-    return NextResponse.json({ error: belowSignedPriceMessage(label) }, { status: 422 });
-  }
+  const quoted = getBriefStore().proposalQuote(id, content.agentChainId, content.agentTokenId);
+  const mismatch = proposalPriceProblem(content, quoted, placedAt, {
+    price: formatAmount(brief.chainId, content.paymentToken, content.priceRaw)?.label ?? requestAmountLabel(brief, content.priceU),
+    signed: quoted ? (formatAmount(brief.chainId, quoted.currency, quoted.priceRaw)?.label ?? null) : null,
+  });
+  if (mismatch) return NextResponse.json({ error: mismatch }, { status: 409 });
 
   const owner = await registryOwner(content.agentChainId, content.agentTokenId);
   if (!owner) {

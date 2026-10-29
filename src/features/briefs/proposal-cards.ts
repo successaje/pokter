@@ -1,6 +1,7 @@
 import 'server-only';
 
 import type { Bid } from '@/lib/briefs/model';
+import { getBriefStore } from '@/lib/briefs/store';
 import { findRows, type FindRow } from '@/lib/find/rows';
 import { listSearchable } from '@/lib/marketplace';
 import { resolveAgentImage } from '@/lib/registry/image';
@@ -15,6 +16,8 @@ export interface ProposalCard {
   row: FindRow | null;
   /** The proposer's published name, when their profile is published. */
   bidder: PublicIdentity | null;
+  /** Whether its price is the one the agent signed for this request (`proposal-price.ts`), rather than one typed before that was required. */
+  signedPrice: boolean;
 }
 
 /**
@@ -37,15 +40,17 @@ export async function proposalCards(bids: Bid[]): Promise<ProposalCard[]> {
     findRows(entries.filter((e) => wanted.has(`${e.listing.agent.chain_id}:${e.listing.agent.token_id}`))).map((row) => [`${row.chainId}:${row.tokenId}`, row]),
   );
 
+  const store = getBriefStore();
   return Promise.all(
     bids.map(async (bid) => {
       const row = rows.get(`${bid.agentChainId}:${bid.agentTokenId}`) ?? null;
       const bidder = publicIdentity(bid.bidder);
-      if (row) return { bid, name: row.name, imageUrl: row.imageUrl, row, bidder };
+      const signedPrice = store.proposalQuote(bid.briefId, bid.agentChainId, bid.agentTokenId)?.priceRaw === bid.priceRaw;
+      if (row) return { bid, name: row.name, imageUrl: row.imageUrl, row, bidder, signedPrice };
       const chainId = bid.agentChainId as 56 | 97;
       const detail = await getAgent(chainId, bid.agentTokenId).catch(() => null);
       const imageUrl = await resolveAgentImage(chainId, bid.agentTokenId, detail?.image_url).catch(() => null);
-      return { bid, name: detail?.name ?? `Agent #${bid.agentTokenId}`, imageUrl, row: null, bidder };
+      return { bid, name: detail?.name ?? `Agent #${bid.agentTokenId}`, imageUrl, row: null, bidder, signedPrice };
     }),
   );
 }

@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
 import { awardMessage, reopenMessage, requestAmountLabel, withdrawMessage, type Bid } from '@/lib/briefs/model';
+import { fundsAboveBudget } from '@/lib/briefs/proposal-price';
 import { chainLabel } from '@/lib/network/presentation';
 import { useActiveSigner } from '@/lib/wallet/use-active-signer';
 import { Button } from '@/ui/Button';
@@ -16,10 +17,25 @@ import { Button } from '@/ui/Button';
  * hire that follows asks the agent for a quote on this exact request and
  * is funded by the poster's own wallet, on its own screen.
  */
-export function AwardBid({ briefId, bid, poster, chainId }: { briefId: string; bid: Bid; poster: string; chainId: number }) {
+export function AwardBid({
+  briefId,
+  bid,
+  poster,
+  chainId,
+  budget,
+}: {
+  briefId: string;
+  bid: Bid;
+  poster: string;
+  chainId: number;
+  /** The request's budget, so a proposal above it is chosen knowingly. */
+  budget: { paymentToken: string | null; budgetRaw: string; label: string };
+}) {
   const router = useRouter();
   const { address, canSign, sign } = useActiveSigner();
   const [reviewing, setReviewing] = useState(false);
+  const above = fundsAboveBudget(bid, { chainId, paymentToken: budget.paymentToken, budgetRaw: budget.budgetRaw });
+  const [agreed, setAgreed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const isPoster = address?.toLowerCase() === poster.toLowerCase();
@@ -33,7 +49,7 @@ export function AwardBid({ briefId, bid, poster, chainId }: { briefId: string; b
     setBusy(true);
     setError(null);
     try {
-      const signature = await sign(awardMessage(briefId, bid.id, poster));
+      const signature = await sign(awardMessage(briefId, bid.id, poster, above));
       const response = await fetch(`/api/briefs/${briefId}/award`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -66,12 +82,21 @@ export function AwardBid({ briefId, bid, poster, chainId }: { briefId: string; b
         Choosing records your decision with a signature and moves no money. Next you review the agent&rsquo;s quote for this
         request and fund the escrow on {chainLabel(chainId)} yourself.
       </p>
+      {/* Above the budget, agreeing to the amount is a step of its own, and the amount goes into the signature. */}
+      {above && (
+        <label className="flex items-start gap-2.5 rounded-[8px] border border-[color-mix(in_oklab,var(--watch)_35%,transparent)] bg-watch-wash px-3 py-2.5 text-[13px] leading-snug text-ink">
+          <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-0.5 size-4 shrink-0 accent-[var(--ink)]" />
+          <span>
+            <span className="font-medium">This is above your budget of {budget.label}.</span> I&rsquo;ll fund {above}, the price this agent signed for the request.
+          </span>
+        </label>
+      )}
       {error && <p className="text-[12.5px] text-bad">{error}</p>}
       <span className="flex flex-wrap justify-end gap-2">
         <Button size="s" intent="ghost" onClick={() => setReviewing(false)} disabled={busy}>
           Not yet
         </Button>
-        <Button size="s" onClick={submit} busy={busy}>
+        <Button size="s" onClick={submit} busy={busy} disabled={Boolean(above) && !agreed}>
           {busy ? 'Approve in your wallet' : 'Choose this proposal'}
         </Button>
       </span>

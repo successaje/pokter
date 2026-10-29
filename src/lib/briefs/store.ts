@@ -7,6 +7,7 @@ import { dirname } from 'node:path';
 import { requestToken } from '@/lib/network/tokens';
 
 import { amountToRaw, type Bid, type Brief, type BriefState } from './model';
+import type { ProposalQuote } from './proposal-price';
 
 const DB_PATH = process.env.BRIEF_DB_PATH ?? './data/briefs.db';
 
@@ -75,6 +76,58 @@ class BriefStore {
     const bidColumns = this.db.prepare('PRAGMA table_info(bids)').all() as Array<{ name: string }>;
     if (!bidColumns.some((c) => c.name === 'payment_token')) this.db.exec('ALTER TABLE bids ADD COLUMN payment_token TEXT');
     if (!bidColumns.some((c) => c.name === 'price_raw')) this.db.exec('ALTER TABLE bids ADD COLUMN price_raw TEXT');
+    /*
+     * The price each agent signed for each request, asked when its owner
+     * proposes (`proposal-price.ts`). One row per request and agent, the
+     * newest: a proposal is checked against the latest price the agent
+     * signed, not any it ever signed.
+     */
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS proposal_quotes (
+        brief_id TEXT NOT NULL,
+        agent_chain_id INTEGER NOT NULL,
+        agent_token_id TEXT NOT NULL,
+        price_raw TEXT NOT NULL,
+        price_u REAL NOT NULL,
+        currency TEXT NOT NULL,
+        signer TEXT NOT NULL,
+        negotiation_hash TEXT NOT NULL,
+        quoted_at TEXT NOT NULL,
+        expires_at TEXT,
+        PRIMARY KEY (brief_id, agent_chain_id, agent_token_id)
+      );
+    `);
+  }
+
+  recordProposalQuote(quote: ProposalQuote): void {
+    this.db
+      .prepare(
+        `INSERT INTO proposal_quotes (brief_id, agent_chain_id, agent_token_id, price_raw, price_u, currency, signer, negotiation_hash, quoted_at, expires_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT (brief_id, agent_chain_id, agent_token_id) DO UPDATE SET
+           price_raw = excluded.price_raw, price_u = excluded.price_u, currency = excluded.currency, signer = excluded.signer,
+           negotiation_hash = excluded.negotiation_hash, quoted_at = excluded.quoted_at, expires_at = excluded.expires_at`,
+      )
+      .run(quote.briefId, quote.agentChainId, quote.agentTokenId, quote.priceRaw, quote.priceU, quote.currency, quote.signer, quote.negotiationHash, quote.quotedAt, quote.expiresAt);
+  }
+
+  proposalQuote(briefId: string, agentChainId: number, agentTokenId: string): ProposalQuote | null {
+    const row = this.db
+      .prepare('SELECT * FROM proposal_quotes WHERE brief_id = ? AND agent_chain_id = ? AND agent_token_id = ?')
+      .get(briefId, agentChainId, agentTokenId) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return {
+      briefId: String(row.brief_id),
+      agentChainId: Number(row.agent_chain_id),
+      agentTokenId: String(row.agent_token_id),
+      priceRaw: String(row.price_raw),
+      priceU: Number(row.price_u),
+      currency: String(row.currency),
+      signer: String(row.signer),
+      negotiationHash: String(row.negotiation_hash),
+      quotedAt: String(row.quoted_at),
+      expiresAt: row.expires_at === null ? null : String(row.expires_at),
+    };
   }
 
   /*

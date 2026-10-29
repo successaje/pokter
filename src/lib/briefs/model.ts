@@ -249,8 +249,9 @@ export function bidMessage(input: BidMessageInput): string {
 }
 
 /** The poster, awarding. Signed so an award cannot be invented by Pokter. */
-export function awardMessage(briefId: string, bidId: string, poster: string): string {
-  return ['Pokter brief award', `Brief: ${briefId}`, `Bid: ${bidId}`, `Poster: ${poster.toLowerCase()}`].join('\n');
+export function awardMessage(briefId: string, bidId: string, poster: string, fundsAboveBudget: string | null = null): string {
+  /* A proposal above the budget is chosen with the amount in the signature, so agreeing to pay more is on record (`fundsAboveBudget`). */
+  return ['Pokter brief award', `Brief: ${briefId}`, `Bid: ${bidId}`, `Poster: ${poster.toLowerCase()}`, ...(fundsAboveBudget ? [`Above my budget, I will fund: ${fundsAboveBudget}`] : [])].join('\n');
 }
 
 /**

@@ -1040,6 +1040,14 @@ export function useHire({
       if (needsQuote) {
         const quote = await negotiateForHire(agent.chainId, agent.tokenId, sending, { escrowChainId, token: preferredToken });
         setPreQuote({ quote, binding });
+        /*
+         * A proposal's price is the most a hire from it funds. If the agent
+         * now signs less, the budget follows it down: the buyer never funds
+         * more than the agent asks. Higher stops the hire (see below).
+         */
+        if (proposal?.priceRaw && proposal.paymentToken?.toLowerCase() === quote.intent.currency.toLowerCase() && BigInt(quote.intent.amountRaw) < BigInt(proposal.priceRaw) && Number.isFinite(quote.priceU)) {
+          setBudget(quote.priceU);
+        }
         setPreRequest({ request: quote.request, binding });
         setChecked({ check: { state: 'accepted', by: 'signed-quote' }, binding });
       } else {

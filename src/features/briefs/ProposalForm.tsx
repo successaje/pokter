@@ -1,13 +1,13 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
 
-import { amountToRaw, bidMessage, requestAmountLabel, requestTokenOf, requestUnit, withinBudget, type BidContent } from '@/lib/briefs/model';
+import { bidMessage, requestAmountLabel, requestTokenOf, requestUnit, type BidContent } from '@/lib/briefs/model';
+import { aboveBudget, proposalQuoteFresh, type ProposalQuote } from '@/lib/briefs/proposal-price';
 import { DELIVERY_OPTIONS, type ProposalPrefill } from '@/lib/briefs/public-view';
-import { amountWithinLimits, budgetLimitsFor } from '@/lib/hire/budget-limits';
 import { cn } from '@/lib/ui/cn';
 import { shortAddress } from '@/lib/ui/format';
 import { useDismissibleLayer } from '@/lib/ui/useDismissibleLayer';
@@ -17,7 +17,7 @@ import { AgentAvatar } from '@/ui/Agent';
 import { Button } from '@/ui/Button';
 import { Segmented } from '@/ui/Controls';
 import { Notice, Skeleton } from '@/ui/Feedback';
-import { Field, Input, Select, Textarea } from '@/ui/Field';
+import { Field, Select, Textarea } from '@/ui/Field';
 import { Icon } from '@/ui/icons';
 
 /** `paymentToken` is the request's (null on a request from before tokens, which is $U); the proposal is always in it. */
@@ -27,8 +27,14 @@ type Agent = { chainId: number; tokenId: string; name: string; imageUrl: string 
 const days = (n: number) => (n === 1 ? '1 day' : `${n} days`);
 
 /**
- * Make a proposal: choose one of your agents, say how it will do the work,
- * at what price and by when, then review and sign.
+ * Make a proposal: choose one of your agents, say how it will do the work
+ * and by when, take the price it signs for this request, then review and
+ * sign.
+ *
+ * The price is never typed. The agent is asked for a signed quote for this
+ * request, in its token, and that is the proposal's price
+ * (`proposal-price.ts`); to offer less, the agent signs less. It may be
+ * above the budget, which the poster sees marked.
  *
  * The agent comes from the wallet's own list, behind "Add agent", so nobody
  * types a registry number they have to look up elsewhere; entering an ID
@@ -36,7 +42,8 @@ const days = (n: number) => (n === 1 ? '1 day' : `${n} days`);
  * The proposal endpoint checks the registry's owner again when it is sent.
  *
  * One agent per proposal, because the signed proposal, the choice and the
- * hire each name one agent. Selecting an agent never calls it.
+ * hire each name one agent. Selecting an agent never calls it: asking it
+ * for its price is a button of its own.
  */
 export function ProposalForm({ request, prefill = null }: { request: ProposalRequest; prefill?: (Omit<ProposalPrefill, 'deliverDays'> & { deliverDays: number | null }) | null }) {
   const router = useRouter();
@@ -45,8 +52,8 @@ export function ProposalForm({ request, prefill = null }: { request: ProposalReq
   /* The request's money, and only it: a proposal is priced in the token its request named. */
   const token = requestTokenOf(request);
   const unit = requestUnit(request);
-  const limits = token ? budgetLimitsFor(token) : null;
   const budgetLabel = requestAmountLabel(request, request.budgetU);
+  const queryClient = useQueryClient();
 
   /*
    * A proposal prepared elsewhere (an assistant's prepare_proposal) opens
@@ -68,10 +75,40 @@ export function ProposalForm({ request, prefill = null }: { request: ProposalReq
   const [picked, setAgent] = useState<Agent | null | undefined>(undefined);
   const agent = picked === undefined ? (prefilled.data ?? null) : picked;
   const [note, setNote] = useState(prefill?.note ?? '');
-  const [price, setPrice] = useState(prefill?.price ?? '');
+  /* The agent's signed price for this request: the newest Pokter holds, or the one asked for here. */
+  const quoteKey = ['proposal-quote', request.id, agent?.chainId, agent?.tokenId];
+  const held = useQuery({
+    queryKey: quoteKey,
+    enabled: Boolean(agent),
+    queryFn: async (): Promise<{ quote: ProposalQuote | null; label: string | null }> => {
+      const r = await fetch(`/api/briefs/${request.id}/quote?agentChainId=${agent!.chainId}&agentTokenId=${agent!.tokenId}`, { cache: 'no-store' });
+      if (!r.ok) return { quote: null, label: null };
+      return (await r.json()) as { quote: ProposalQuote | null; label: string | null };
+    },
+  });
+  const ask = useMutation({
+    mutationFn: async (): Promise<{ quote: ProposalQuote; label: string }> => {
+      const r = await fetch(`/api/briefs/${request.id}/quote`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ agentChainId: agent!.chainId, agentTokenId: agent!.tokenId }),
+      });
+      const body = (await r.json().catch(() => ({}))) as { quote?: ProposalQuote; label?: string; error?: string };
+      if (!r.ok || !body.quote) throw new Error(body.error ?? 'The agent did not sign a price for this request.');
+      return { quote: body.quote, label: body.label ?? `${body.quote.priceU} ${unit}` };
+    },
+    onSuccess: (data) => queryClient.setQueryData(quoteKey, data),
+  });
+  const quote = held.data?.quote && proposalQuoteFresh(held.data.quote) ? held.data.quote : null;
+  const priceLabel = quote ? (held.data?.label ?? `${quote.priceU} ${unit}`) : null;
+  const over = Boolean(quote && token && aboveBudget({ paymentToken: token.address, priceRaw: quote.priceRaw }, request));
   const [deliverDays, setDeliverDays] = useState<number>(prefill?.deliverDays ?? ((DELIVERY_OPTIONS as readonly number[]).includes(request.deliverDays) ? request.deliverDays : 3));
   const [step, setStep] = useState<'write' | 'review'>('write');
   const [problems, setProblems] = useState<Partial<Record<'agent' | 'note' | 'price', string>>>({});
+  const askPrice = () => {
+    setProblems((p) => ({ ...p, price: undefined }));
+    ask.mutate();
+  };
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
@@ -83,10 +120,8 @@ export function ProposalForm({ request, prefill = null }: { request: ProposalReq
     const found: typeof problems = {};
     if (!agent) found.agent = 'Add the agent that will do the work.';
     if (!note.trim()) found.note = 'Say how it will do the work: buyers compare proposals on this.';
-    const raw = token && price ? amountToRaw(Number(price), token.decimals) : null;
-    if (!token || !limits) found.price = 'This request is priced in a token Pokter cannot read, so it cannot take a proposal.';
-    else if (raw === null || !amountWithinLimits(token, raw).ok) found.price = `Between ${limits.min} and ${limits.max} ${unit}.`;
-    else if (!withinBudget({ paymentToken: token.address, priceRaw: raw.toString() }, request)) found.price = `Up to the budget of ${budgetLabel}.`;
+    if (!token) found.price = 'This request is priced in a token Pokter cannot read, so it cannot take a proposal.';
+    else if (agent && !quote) found.price = 'Ask your agent for its price for this request first.';
     setProblems(found);
     if (Object.keys(found).length === 0) {
       setError(null);
@@ -103,14 +138,14 @@ export function ProposalForm({ request, prefill = null }: { request: ProposalReq
     setBusy(true);
     setError(null);
     try {
-      if (!token) return;
-      const priceU = Number(price);
+      if (!token || !quote) return;
+      /* Exactly what the agent signed for this request; the proposal route checks it against the same quote. */
       const content: BidContent = {
         agentChainId: agent.chainId,
         agentTokenId: agent.tokenId,
-        priceU,
+        priceU: quote.priceU,
         paymentToken: token.address,
-        priceRaw: amountToRaw(priceU, token.decimals)?.toString() ?? '0',
+        priceRaw: quote.priceRaw,
         deliverDays,
         note: note.trim(),
       };
@@ -127,7 +162,6 @@ export function ProposalForm({ request, prefill = null }: { request: ProposalReq
       setSent(true);
       setStep('write');
       setNote('');
-      setPrice('');
       router.refresh();
     } catch (caught) {
       const message = (caught as Error).message || 'The proposal was not sent.';
@@ -161,10 +195,9 @@ export function ProposalForm({ request, prefill = null }: { request: ProposalReq
         <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-[10px] border border-rule bg-rule">
           <div className="bg-raised px-4 py-3">
             <dt className="text-[12px] text-ink-3">Price</dt>
-            <dd className="t-readout text-[15px]">
-              {/* The number as it is signed, not rounded for show. */}
-              {Number(price)} {unit}
-            </dd>
+            <dd className="t-readout text-[15px]">{priceLabel}</dd>
+            <dd className="text-[11.5px] text-ink-3">Signed by the agent</dd>
+            {over && <dd className="text-[11.5px] font-medium text-watch">Above the budget of {budgetLabel}</dd>}
             {token && !token.offered && <dd className="t-readout break-all text-[11.5px] text-ink-3">{token.address}</dd>}
           </div>
           <div className="bg-raised px-4 py-3">
@@ -202,7 +235,7 @@ export function ProposalForm({ request, prefill = null }: { request: ProposalReq
         <Notice tone="watch" title="Filled in for you">
           {prefilled.isError
             ? `A prepared proposal named agent ${prefill.agentChainId}:${prefill.agentTokenId}, which could not be found. Add the agent yourself.`
-            : 'These values came from the link you opened. Anyone can edit a link, so they say nothing about who prepared them. Check every field before you review and sign: nothing is sent until you do.'}
+            : 'These values came from the link you opened. Anyone can edit a link, so they say nothing about who prepared them. Check every field before you review and sign: nothing is sent until you do. The price is never taken from a link: it is the one your agent signs.'}
         </Notice>
       )}
       <AgentField agent={agent} verified={verified} onChange={setAgent} error={problems.agent} />
@@ -211,27 +244,48 @@ export function ProposalForm({ request, prefill = null }: { request: ProposalReq
         {(p) => <Textarea {...p} value={note} maxLength={1200} onChange={(e) => setNote(e.target.value)} className="min-h-28" />}
       </Field>
 
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Your price" hint={`Up to the budget, ${budgetLabel}${request.chainId === 97 ? ' (test tokens)' : ''}.`} error={problems.price}>
-          {(p) => (
-            <div className="relative">
-              <Input {...p} value={price} inputMode="decimal" onChange={(e) => setPrice(decimalOnly(e.target.value))} placeholder={String(request.budgetU)} className="t-readout pr-20" />
-              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[13px] text-ink-3">{unit}</span>
-            </div>
-          )}
-        </Field>
-        <Field label="Deliver within" hint={later ? <span className="font-medium text-watch">Later than the {days(request.deliverDays)} asked.</span> : 'Days after hiring.'}>
-          {(p) => (
-            <Select {...p} value={deliverDays} onChange={(e) => setDeliverDays(Number(e.target.value))}>
-              {DELIVERY_OPTIONS.map((d) => (
-                <option key={d} value={d}>
-                  {days(d)}
-                </option>
-              ))}
-            </Select>
-          )}
-        </Field>
+      {/* The agent's own signed price for this request, never a typed one. */}
+      <div className="flex flex-col gap-2">
+        <span className="flex items-baseline justify-between gap-3">
+          <span className="text-sm font-medium">Price</span>
+          <span className="text-[12px] text-ink-3">Budget {budgetLabel}{request.chainId === 97 ? ' (test tokens)' : ''}</span>
+        </span>
+        {quote ? (
+          <div className={cn('flex items-start justify-between gap-3 rounded-[10px] border px-3.5 py-3', over ? 'border-[color-mix(in_oklab,var(--watch)_35%,transparent)] bg-watch-wash' : 'border-rule bg-sunken')}>
+            <span className="flex min-w-0 flex-col gap-0.5">
+              <span className="t-readout text-[16px]">{priceLabel}</span>
+              <span className="text-[12px] text-ink-3">Signed by {agent?.name ?? 'the agent'} for this request, {sinceSigned(quote.quotedAt)}.</span>
+              {over && <span className="text-[12px] font-medium text-watch">Above the budget of {budgetLabel}. The poster sees it marked, and agrees to it when choosing.</span>}
+            </span>
+            <Button size="s" intent="ghost" onClick={askPrice} busy={ask.isPending}>
+              Ask again
+            </Button>
+          </div>
+        ) : (
+          <div className="flex flex-col items-start gap-1.5">
+            <Button size="s" intent="secondary" onClick={askPrice} busy={ask.isPending} disabled={!agent}>
+              {agent ? `Ask ${agent.name} for its price` : 'Add your agent to ask its price'}
+            </Button>
+            <span className="text-[12px] leading-snug text-ink-3">
+              Your agent signs a price for this request and that is your proposal&rsquo;s price. To offer less, have it sign less.
+            </span>
+          </div>
+        )}
+        {ask.isError && <p className="text-[13px] text-bad">{(ask.error as Error).message}</p>}
+        {problems.price && <p className="text-[13px] text-bad">{problems.price}</p>}
       </div>
+
+      <Field label="Deliver within" hint={later ? <span className="font-medium text-watch">Later than the {days(request.deliverDays)} asked.</span> : 'Days after hiring.'}>
+        {(p) => (
+          <Select {...p} value={deliverDays} onChange={(e) => setDeliverDays(Number(e.target.value))}>
+            {DELIVERY_OPTIONS.map((d) => (
+              <option key={d} value={d}>
+                {days(d)}
+              </option>
+            ))}
+          </Select>
+        )}
+      </Field>
 
       <div className="flex flex-col gap-2">
         <Button onClick={review} trailing={<Icon.Arrow size={15} />} className="w-full justify-center">
@@ -487,8 +541,8 @@ function AddById({ onFound }: { onFound: (agent: Agent) => void }) {
   );
 }
 
-/** Digits and one decimal point. */
-function decimalOnly(value: string): string {
-  const [whole, ...rest] = value.replace(/[^\d.]/g, '').split('.');
-  return rest.length > 0 ? `${whole}.${rest.join('')}` : whole;
+/** How long ago the agent signed, in words. */
+function sinceSigned(at: string): string {
+  const minutes = Math.max(0, Math.round((Date.now() - Date.parse(at)) / 60_000));
+  return minutes < 1 ? 'just now' : `${minutes} min ago`;
 }

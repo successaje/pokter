@@ -63,13 +63,14 @@ test('changing a choice is its own signed, dated message, distinct from any awar
 
 const source = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 
-test('every way of proposing refuses a price below a fresh signed one, before the registry is asked', () => {
+test('every way of proposing carries the agent’s own signed price, checked before the registry is asked', () => {
+  /* Superseded the floor: a proposal's price is now the agent's quote for the request (tests/quoted-proposals.test.mts). */
   const bids = source('src/app/api/briefs/[id]/bids/route.ts');
-  assert.match(bids, /belowSignedPrice\(content, signed, \{ freshOnly: true \}\)/);
-  assert.ok(bids.indexOf('belowSignedPrice(content') < bids.indexOf('await registryOwner('), 'refused before any network call');
-  const mcp = source('src/app/api/mcp/route.ts');
-  assert.match(mcp, /belowSignedPrice\(parsed\.content, signedNow, \{ freshOnly: true \}\)/);
-  assert.ok(mcp.indexOf('belowSignedPrice(parsed.content') < mcp.indexOf('await registryOwner(c, t)'));
+  assert.match(bids, /proposalPriceProblem\(content, quoted, placedAt/);
+  assert.ok(bids.indexOf('proposalPriceProblem(content') < bids.indexOf('await registryOwner('), 'refused before any network call');
+  assert.doesNotMatch(bids, /belowSignedPrice/);
+  assert.match(source('src/app/api/mcp/route.ts'), /askProposalQuote\(brief, c, t\)/);
+  assert.match(source('src/app/api/mcp/provider/route.ts'), /askProposalQuote\(brief, owned\.agent\.chainId, owned\.agent\.tokenId\)/);
 });
 
 test('a choice is changed only by the poster, freshly signed, and never once funded', () => {
