@@ -207,6 +207,12 @@ export default async function ManageAgent({ params }: { params: Promise<{ chainI
               <Progress label="Hires by independent wallets" value={ad.independentWallets} target={ad.independentTarget} met={ad.hiresMet} note={ad.selfFunded ? `${ad.selfFunded} self-funded hire${ad.selfFunded === 1 ? '' : 's'} not counted` : undefined} />
               <Progress label="On-chain actions by the agent" value={ad.actions} target={ad.actionsTarget} met={ad.actionsMet} note={ad.actionsBlockedReason ?? undefined} />
               <Progress label="Separate active days" value={ad.activeDays} target={ad.daysTarget} met={ad.daysMet} />
+              {/* A count reaching its target is not the campaign agreeing: the meaning of these numbers is BNB Chain's to judge. */}
+              {isCampaignLive() && (
+                <p className="text-[12px] leading-relaxed text-ink-3">
+                  These are counts. Pokter does not check whether the actions fit the agent&rsquo;s category or whether the hirers are independent; BNB Chain decides both.
+                </p>
+              )}
             </section>
           )}
           <section aria-labelledby="growth-title" className="flex flex-col gap-4 rounded-[14px] border border-rule bg-raised p-5">

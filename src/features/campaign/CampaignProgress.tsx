@@ -2,16 +2,17 @@
 
 import { useSyncExternalStore } from 'react';
 
+import type { CampaignCheck } from '@/lib/campaign/check-state';
 import { summarizeCampaignHires } from '@/lib/campaign/progress';
 import { registrationKey, subscribeToRegistration, REGISTRATION_EVENT } from '@/lib/campaign/registration';
 import { useMyJobs } from '@/features/workspace/hooks';
 import { useActiveWallet } from '@/lib/wallet/active';
 import { Notice } from '@/ui/Feedback';
 import { useConnect } from '@/shell/wallet/ConnectProvider';
-import { cn } from '@/lib/ui/cn';
 import { Button, LinkButton } from '@/ui/Button';
 import { Checkbox } from '@/ui/Field';
 import { Icon } from '@/ui/icons';
+import { CheckMark, CheckWords } from './CheckMark';
 
 /**
  * The part of the hire track Pokter can see: hires funded through Pokter
@@ -38,10 +39,20 @@ export function CampaignProgress() {
     );
   }
   const s = summarizeCampaignHires(jobs);
-  const tasks = [
-    { done: registered, label: 'Registered this wallet with BNB Chain', note: 'You do this on BNB Chain’s campaign page. Pokter cannot see it.', toggle: true },
-    { done: s.distinctAgents >= 1, label: 'Hired one agent through Pokter', note: `${s.distinctAgents} distinct agent${s.distinctAgents === 1 ? '' : 's'} hired here` },
-    { done: s.distinctAgents >= 3, label: 'Hired three different agents', note: 'Across at least two shortlisted marketplaces; Pokter counts its own.' },
+  /* Registration is the participant's word, never a tick; hires here are read from the chain (`check-state.ts`). */
+  const tasks: Array<{ state: CampaignCheck; label: string; note: string; toggle?: boolean }> = [
+    {
+      state: registered ? 'cannot-verify' : 'not-yet',
+      label: 'Registered this wallet with BNB Chain',
+      note: registered ? 'Marked by you. Pokter can’t see BNB Chain’s form, so it can’t verify this.' : 'You do this on BNB Chain’s campaign page. Pokter cannot see it.',
+      toggle: true,
+    },
+    { state: s.distinctAgents >= 1 ? 'verified' : 'not-yet', label: 'Hired one agent through Pokter', note: `${s.distinctAgents} distinct agent${s.distinctAgents === 1 ? '' : 's'} hired here` },
+    {
+      state: s.distinctAgents >= 3 ? 'verified' : 'not-yet',
+      label: 'Hired three different agents through Pokter',
+      note: 'The hire track also needs a second marketplace. The tracker below checks every marketplace that uses BNB Chain’s escrow.',
+    },
   ];
   return (
     <div className="flex flex-col gap-4 rounded-[14px] border border-rule bg-raised p-5">
@@ -53,9 +64,12 @@ export function CampaignProgress() {
       <ul className="ruled">
         {tasks.map((t) => (
           <li key={t.label} className="flex items-start gap-3 py-3">
-            <span className={cn('mt-0.5 grid size-6 shrink-0 place-items-center rounded-full', t.done ? 'bg-ok text-paper' : 'border border-rule-strong text-ink-3')}>{t.done ? <Icon.Check size={13} /> : <Icon.Dash size={12} />}</span>
+            <CheckMark state={t.state} className="mt-0.5" />
             <span className="flex flex-1 flex-col">
-              <span className="text-sm font-medium">{t.label}</span>
+              <span className="flex flex-wrap items-baseline gap-x-2">
+                <span className="text-sm font-medium">{t.label}</span>
+                <CheckWords state={t.state} />
+              </span>
               <span className="text-[12.5px] text-ink-3">{t.note}</span>
               {t.toggle && (
                 <Checkbox
