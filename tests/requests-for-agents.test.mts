@@ -67,13 +67,14 @@ test('a request reads in its own token, with its status in the board’s words a
 });
 
 test('a prepared proposal’s link opens the same values in the form, and a bad link fills nothing it cannot read', () => {
-  const link = proposalLink('https://pokter.xyz', 'abc', { agentChainId: 56, agentTokenId: '269228', price: '0.12', deliverDays: 2, note: 'Reads Venus & returns HF.' });
+  const link = proposalLink('https://pokter.xyz', 'abc', { agentChainId: 56, agentTokenId: '269228', deliverDays: 2, note: 'Reads Venus & returns HF.' });
   assert.equal(link.noteInLink, true);
   const params = Object.fromEntries(new URL(link.url).searchParams);
-  assert.deepEqual(readProposalPrefill(params), { agentChainId: 56, agentTokenId: '269228', price: '0.12', deliverDays: 2, note: 'Reads Venus & returns HF.' });
+  assert.equal(params.price, undefined, 'a link carries no price: a proposal’s price is the one its agent signs');
+  assert.deepEqual(readProposalPrefill(params), { agentChainId: 56, agentTokenId: '269228', price: '', deliverDays: 2, note: 'Reads Venus & returns HF.' });
   assert.equal(readProposalPrefill({ propose: '1:2' }), null, 'no agent, no prefill');
   const loose = readProposalPrefill({ propose: '97:5', price: '1e5', days: '4', note: 'x'.repeat(5000) });
-  assert.equal(loose?.price, '', 'an amount that is not a plain decimal is left for the owner to type');
+  assert.equal(loose?.price, '', 'an older link’s amount that is not a plain decimal is not read (and none is used)');
   assert.equal(loose?.deliverDays, null, 'a delivery time the form does not offer is left to the form');
   assert.equal(loose?.note.length, 1200);
 });
@@ -96,7 +97,7 @@ test('the three tools are served, listed, read-only, and stop at the owner’s s
   assert.doesNotMatch(tools, /annotations:/);
   assert.doesNotMatch(tools, /placeBid|\/bids|method: 'POST'/);
   assert.match(tools, /parseBidContent\(/, 'the proposal route’s own reading');
-  assert.match(tools, /withinBudget\(/);
+  assert.match(tools, /askProposalQuote\(brief, c, t\)/, 'the price is the agent’s own, signed for this request');
   assert.match(tools, /registryOwner\(c, t\)/, 'the owner from the registry, not taken on trust');
   assert.deepEqual(PREPARE_PROPOSAL.inputSchema.properties && (PREPARE_PROPOSAL.inputSchema.properties as Record<string, { enum?: number[] }>).deliver_days.enum, [...DELIVERY_OPTIONS]);
   assert.equal(PROPOSAL_TOOL_CHAIN.find((s) => s.step === 'review and sign the proposal')?.tool, null);
@@ -156,7 +157,7 @@ test('on submission the proposal route checks everything a link could have tampe
     'acceptsProposals(brief)', /* status, read from the store, not the link */
     'parseBidContent(body.content, brief)', /* the request's token, and amounts within one hire's limits */
     'staleProposal(', /* freshly signed */
-    'withinBudget(content, brief)', /* the budget */
+    'proposalPriceProblem(content, quoted, placedAt', /* the agent's own signed price for this request */
     'registryOwner(content.agentChainId, content.agentTokenId)', /* ownership, from the registry at the time */
     'getAddress(bidder) === getAddress(owner)',
     'bidMessage({ ...content, chainId: brief.chainId, briefId: id, bidder, placedAt })', /* the request's chain, from the store */

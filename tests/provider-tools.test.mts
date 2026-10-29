@@ -73,7 +73,7 @@ test('every tool has a title, a describing description and an object schema', ()
    refused by schema rather than by a defaulted value it never chose. */
 test('the tools that write say exactly what they require', () => {
   assert.deepEqual(spec('prepare_proposal').inputSchema.required, [
-    'request_id', 'agent_chain_id', 'agent_token_id', 'price_u', 'deliver_days', 'note',
+    'request_id', 'agent_chain_id', 'agent_token_id', 'deliver_days', 'note',
   ]);
   assert.deepEqual(spec('submit_proposal').inputSchema.required, ['proposal_key', 'signature', 'placed_at']);
   assert.deepEqual(spec('prepare_deliverable').inputSchema.required, ['job_id', 'chain_id', 'content']);

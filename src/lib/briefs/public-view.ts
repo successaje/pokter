@@ -116,8 +116,11 @@ export function requestDetail(brief: Brief, bids: readonly Bid[], facts: Omit<Re
 export interface ProposalPrefill {
   agentChainId: 56 | 97;
   agentTokenId: string;
-  /** Whole units of the request's token, as the owner will sign it. */
-  price: string;
+  /**
+   * Read from older links and never used: a proposal's price is the one its
+   * agent signs for the request (`proposal-price.ts`), not one a link carries.
+   */
+  price?: string;
   deliverDays: (typeof DELIVERY_OPTIONS)[number];
   note: string;
 }
@@ -139,7 +142,6 @@ export const PROPOSAL_LINK_MAX = 2000;
 export function proposalLink(origin: string, requestId: string, prefill: ProposalPrefill): { url: string; noteInLink: boolean } {
   const url = new URL(`/requests/${requestId}`, origin);
   url.searchParams.set('propose', `${prefill.agentChainId}:${prefill.agentTokenId}`);
-  url.searchParams.set('price', prefill.price);
   url.searchParams.set('days', String(prefill.deliverDays));
   const bare = url.href;
   if (!prefill.note) return { url: bare, noteInLink: true };

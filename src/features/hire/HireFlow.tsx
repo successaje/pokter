@@ -1130,6 +1130,8 @@ export function HireFlow(props: HireFlowProps) {
                   max={BUDGET_MAX}
                   value={Number.isFinite(hire.budget) ? hire.budget : ''}
                   onChange={(e) => hire.setBudget(Number(e.target.value))}
+                  /* From a proposal, the amount is the one the agent signed: there is nothing here for the buyer to type. */
+                  readOnly={proposalHere}
                   aria-invalid={budgetError ? true : undefined}
                   aria-describedby="budget-hint"
                   className="t-readout h-12 w-full rounded-[10px] border border-rule-strong bg-raised pl-3 pr-12 text-lg focus:border-ink focus:outline-none aria-[invalid=true]:border-bad"
@@ -1138,7 +1140,11 @@ export function HireFlow(props: HireFlowProps) {
               </div>
               <span id="budget-hint" className={cn('text-[12.5px]', budgetError ? 'text-bad' : 'text-ink-3')}>
                 {budgetError
-                  ?? (props.signedQuoteU !== null
+                  ?? (proposalHere
+                    ? hire.reviewQuote && hire.reviewQuote.priceU < props.proposal!.priceU
+                      ? `The agent now signs ${hire.reviewQuote.priceU} ${priceSymbol}, less than the ${props.proposal!.priceU} ${proposalSymbol} it proposed, so that is what you fund.`
+                      : `The price signed on the proposal you chose. It is not changed here.`
+                    : props.signedQuoteU !== null
                     ? `Escrow quote ${props.signedQuoteU} ${priceSymbol}`
                     : props.lastSignedU != null
                       /* Expired, which almost every stored quote is: they last

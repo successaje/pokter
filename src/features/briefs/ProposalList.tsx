@@ -2,6 +2,7 @@ import Link from 'next/link';
 
 import { requestAmountLabel, requestTokenOf } from '@/lib/briefs/model';
 import { belowSignedPrice } from '@/lib/briefs/price-floor';
+import { aboveBudget } from '@/lib/briefs/proposal-price';
 import { formatQuotedPrice } from '@/lib/erc8183/pricing';
 import { formatAmount } from '@/lib/network/tokens';
 import { VERDICT_LABEL } from '@/lib/proof/engine';
@@ -68,12 +69,14 @@ export function ProposalList({
   return (
     <div className="@container">
       <ul className="grid grid-cols-1 gap-3 @xl:grid-cols-2">
-        {cards.map(({ bid, name, imageUrl, row, bidder }) => {
+        {cards.map(({ bid, name, imageUrl, row, bidder, signedPrice }) => {
           const chosen = request.awardedBidId === bid.id;
           const later = bid.deliverDays > request.deliverDays;
           const saving = under(bid.priceRaw);
           const long = bid.note.length > 200;
-          const underSigned = row !== null && belowSignedPrice({ priceRaw: bid.priceRaw, paymentToken: bid.paymentToken ?? token?.address ?? null }, { priceRaw: row.priceRaw, currency: row.priceCurrency });
+          const over = aboveBudget({ paymentToken: bid.paymentToken ?? token?.address ?? null, priceRaw: bid.priceRaw }, request);
+          /* Only a price typed before proposals carried the agent's own: a signed one is the agent's price for this request, whatever its general one. */
+          const underSigned = !signedPrice && row !== null && belowSignedPrice({ priceRaw: bid.priceRaw, paymentToken: bid.paymentToken ?? token?.address ?? null }, { priceRaw: row.priceRaw, currency: row.priceCurrency });
           return (
             <li key={bid.id} className={cn('flex flex-col gap-3.5 rounded-[16px] border p-4', chosen ? 'border-ok/40 bg-ok-wash' : 'border-rule bg-raised')}>
               {/* Who, then the offer, then how: the same order on every card, so they compare across. */}
@@ -98,9 +101,12 @@ export function ProposalList({
               </div>
 
               <div className="flex items-baseline justify-between gap-3 border-y border-rule py-2.5">
-                <span className="t-readout text-[16px] text-ink">
-                  {requestAmountLabel(request, bid.priceU)}
-                  {testnet && <span className="text-[12px] text-ink-3"> · test</span>}
+                <span className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                  <span className="t-readout text-[16px] text-ink">
+                    {requestAmountLabel(request, bid.priceU)}
+                    {testnet && <span className="text-[12px] text-ink-3"> · test</span>}
+                  </span>
+                  {over && <span className="rounded-[5px] bg-watch-wash px-1.5 py-px text-[11.5px] font-medium text-watch">Above your budget</span>}
                 </span>
                 <span className={cn('text-right text-[12.5px]', later ? 'font-medium text-watch' : 'text-ink-3')}>
                   {days(bid.deliverDays)} after hiring{later ? ` · asked ${days(request.deliverDays)}` : ''}
@@ -185,7 +191,15 @@ export function ProposalList({
                     <ChangeChoice briefId={request.id} bidId={bid.id} poster={request.poster} />
                   </>
                 ) : (
-                  request.state === 'open' && <AwardBid briefId={request.id} bid={bid} poster={request.poster} chainId={request.chainId} />
+                  request.state === 'open' && (
+                    <AwardBid
+                      briefId={request.id}
+                      bid={bid}
+                      poster={request.poster}
+                      chainId={request.chainId}
+                      budget={{ paymentToken: request.paymentToken, budgetRaw: request.budgetRaw, label: requestAmountLabel(request, request.budgetU) }}
+                    />
+                  )
                 )}
               </div>
             </li>

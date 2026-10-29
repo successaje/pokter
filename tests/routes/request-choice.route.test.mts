@@ -46,17 +46,30 @@ const request = (id: string) => ({
 const params = (id: string) => ({ params: Promise.resolve({ id }) });
 const post = (path: string, body: unknown) => new Request(`https://pokter.xyz${path}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
 
-test('a proposal below the price the agent signs is refused, with the price to propose', async () => {
-  const { getProbeStore } = await import('../../src/lib/history/store');
+test('a proposal carries the price its agent signed for the request, or it is refused before anything else is asked', async () => {
   const { POST } = await import('../../src/app/api/briefs/[id]/bids/route');
   const id = '11111111-1111-4111-8111-111111111111';
   store.add(request(id));
-  getProbeStore().recordQuotes([{ chainId: 97, tokenId: '2554', priceRaw: '100000000000000000', priceU: 0.1, currency: TEST_U.toLowerCase(), signer: BIDDER, quotedAt: new Date().toISOString(), expiresAt: null, domain: null }]);
+  const bid = (priceU: number) => post(`/api/briefs/${id}/bids`, { bidder: BIDDER, signature: '0x01', placedAt: new Date().toISOString(), content: { agentChainId: 97, agentTokenId: '2554', priceU, paymentToken: TEST_U, deliverDays: 2, note: 'How.' } });
+  const refused = async (priceU: number) => {
+    const response = await POST(bid(priceU), params(id));
+    return { status: response.status, error: ((await response.json()) as { error: string }).error };
+  };
 
-  const response = await POST(post(`/api/briefs/${id}/bids`, { bidder: BIDDER, signature: '0x01', placedAt: new Date().toISOString(), content: { agentChainId: 97, agentTokenId: '2554', priceU: 0.05, paymentToken: TEST_U, deliverDays: 2, note: 'How.' } }), params(id));
-  assert.equal(response.status, 422);
-  const { error } = (await response.json()) as { error: string };
-  assert.match(error, /Propose at least 0\.1 /);
+  const unasked = await refused(0.05);
+  assert.equal(unasked.status, 409);
+  assert.match(unasked.error, /Ask the agent for its signed price for this request first/);
+
+  const quote = { briefId: id, agentChainId: 97, agentTokenId: '2554', priceRaw: '100000000000000000', priceU: 0.1, currency: TEST_U, signer: BIDDER, negotiationHash: '0xhash', expiresAt: null };
+  store.recordProposalQuote({ ...quote, quotedAt: new Date().toISOString() });
+  const typed = await refused(0.05);
+  assert.equal(typed.status, 409);
+  assert.match(typed.error, /says 0\.05 .*the agent signed 0\.1 .*for this request/);
+
+  store.recordProposalQuote({ ...quote, quotedAt: new Date(Date.now() - 40 * 60_000).toISOString() });
+  const old = await refused(0.1);
+  assert.equal(old.status, 409);
+  assert.match(old.error, /more than 30 minutes before this proposal was signed/);
   assert.equal(store.bidsFor(id).length, 0, 'nothing was stored');
 });
 

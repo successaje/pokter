@@ -10,16 +10,14 @@ import { CHECK_DELIVERY, HIRE_TOOL_CHAIN, JOB_STATUS, PREPARE_BRIEF, PREPARE_HIR
 import { GET_REQUEST, PREPARE_PROPOSAL, PROPOSAL_TOOL_CHAIN, SEARCH_REQUESTS } from '@/lib/assistant/request-tools';
 import { GET as requestList } from '@/app/api/v1/requests/route';
 import { GET as requestOne } from '@/app/api/v1/requests/[id]/route';
-import { acceptsProposals, bidMessage, parseBidContent, requestAmountLabel, requestStatus, requestTokenOf, withinBudget } from '@/lib/briefs/model';
+import { acceptsProposals, bidMessage, parseBidContent, requestAmountLabel, requestStatus, requestTokenOf } from '@/lib/briefs/model';
 import { DELIVERY_OPTIONS, filterRequests, plainNote, proposalLink, requestSummary } from '@/lib/briefs/public-view';
 import { requestHired } from '@/lib/briefs/hired-status';
 import { getBriefStore } from '@/lib/briefs/store';
 import { classify } from '@/lib/agents/categories';
 import { registryOwner } from '@/lib/registry/onchain';
 import { getAgent } from '@/lib/scan/client';
-import { displaySymbol, formatAmount } from '@/lib/network/tokens';
-import { belowSignedPrice, belowSignedPriceMessage } from '@/lib/briefs/price-floor';
-import { getProbeStore } from '@/lib/history/store';
+import { aboveBudget, PROPOSAL_QUOTE_MAX_AGE_MS } from '@/lib/briefs/proposal-price';
 import { getAddress } from 'viem';
 import { jobEvidencePath } from '@/lib/jobs/evidence-view';
 import { CATEGORIES } from '@/lib/agents/categories';
@@ -520,7 +518,6 @@ function tools(request: Request): McpTool[] {
         /* As plain text: what the owner reads in the form is what they sign. */
         const note = typeof args.note === 'string' ? plainNote(args.note).trim() : '';
         if (!id || !c || !t) return { data: { error: 'request_id, agent_chain_id (56 or 97) and agent_token_id are required.' }, isError: true };
-        if (typeof args.price !== 'number' || !(args.price > 0)) return { data: { error: 'price is required: what the agent will do it for, in whole units of the request’s token. Ask the owner.' }, isError: true };
         if (!(DELIVERY_OPTIONS as readonly number[]).includes(days)) return { data: { error: `deliver_days must be one of ${DELIVERY_OPTIONS.join(', ')}.` }, isError: true };
         if (!note) return { data: { error: 'note is required: how the agent will do the work. Buyers compare proposals on it.' }, isError: true };
 
@@ -529,15 +526,6 @@ function tools(request: Request): McpTool[] {
         if (!brief) return { data: { error: 'No such request.' }, isError: true };
         if (!acceptsProposals(brief)) return { data: { error: `This request is not taking proposals (${requestStatus(brief).label}).` }, isError: true };
         const asked = requestTokenOf(brief);
-        /* The same reading the proposal route applies, so a proposal prepared here is one it accepts. */
-        const parsed = parseBidContent({ agentChainId: c, agentTokenId: t, priceU: args.price, paymentToken: asked?.address ?? null, deliverDays: days, note }, brief);
-        if (!parsed.ok) return { data: { error: parsed.error }, isError: true };
-        if (!withinBudget(parsed.content, brief)) return { data: { error: `The price is above this request’s budget of ${requestAmountLabel(brief, brief.budgetU)}. Propose at or under it.` }, isError: true };
-        /* The rule the proposal route applies: not below the price the agent signs (`price-floor.ts`). */
-        const signedNow = getProbeStore().quotesFor([{ chainId: c, tokenId: t }]).get(`${c}:${t}`) ?? null;
-        if (signedNow && belowSignedPrice(parsed.content, signedNow, { freshOnly: true })) {
-          return { data: { error: belowSignedPriceMessage(formatAmount(brief.chainId, signedNow.currency, signedNow.priceRaw)?.label ?? requestAmountLabel(brief, signedNow.priceU)) }, isError: true };
-        }
 
         const owner = await registryOwner(c, t).catch(() => null);
         if (!owner) return { data: { error: 'The registry did not answer for that agent, or it does not exist, so Pokter cannot say who may propose for it.' }, isError: true };
@@ -545,26 +533,40 @@ function tools(request: Request): McpTool[] {
           return { data: { error: `Only the wallet the registry names as this agent’s owner can propose for it: ${owner}. ${args.owner_address} is not it, and its signature would be refused.`, owner }, isError: true };
         }
 
+        /*
+         * The price is the agent's own, asked now for this request
+         * (`proposal-price.ts`), and recorded so the proposal route accepts
+         * exactly it. A price passed in is not used.
+         */
+        /* Loaded here, not at the top: it reaches the agent through the escrow SDK, which only this tool needs. */
+        const { askProposalQuote } = await import('@/lib/briefs/proposal-quote');
+        const priced = await askProposalQuote(brief, c, t);
+        if (!priced.ok) return { data: { error: priced.error }, isError: true };
+        /* The same reading the proposal route applies, so a proposal prepared here is one it accepts. */
+        const parsed = parseBidContent({ agentChainId: c, agentTokenId: t, priceU: priced.quote.priceU, paymentToken: asked?.address ?? null, deliverDays: days, note }, brief);
+        if (!parsed.ok) return { data: { error: parsed.error }, isError: true };
+
         const warnings: string[] = [];
         if (owner.toLowerCase() === brief.poster.toLowerCase()) warnings.push('This wallet posted the request. The request page does not offer a proposal to its own poster.');
         const record = await detail(c, t);
-        const blocker = (record?.hireBlocker as { reason?: string } | null | undefined)?.reason;
-        if (blocker) warnings.push(`The agent cannot be quoted right now: ${blocker} A chosen proposal is hired against a quote the agent signs, so this needs fixing before the poster chooses.`);
-        const signed = record?.price as { currency?: string | null } | null | undefined;
-        if (asked && signed?.currency && signed.currency.toLowerCase() !== asked.address.toLowerCase()) {
-          warnings.push(`The agent’s last signed price is in another token. Hired from this proposal, it must sign in ${displaySymbol(asked)} at or under the proposed price, or the hire stops before anything is funded.`);
+        if (typeof args.price === 'number' && args.price !== priced.quote.priceU) {
+          warnings.push(`The price passed (${requestAmountLabel(brief, args.price)}) was not used. A proposal carries the price the agent signs for the request, ${priced.label}; to propose less, the agent has to sign less.`);
+        }
+        if (aboveBudget(parsed.content, brief)) {
+          warnings.push(`${priced.label} is above this request’s budget of ${requestAmountLabel(brief, brief.budgetU)}. The poster sees it marked “Above your budget” and has to agree to the amount when choosing it.`);
         }
         const current = store.bidFor(id, c, t);
         if (current) warnings.push(`Signing this replaces the agent’s current proposal on this request (${requestAmountLabel(brief, current.priceU)}, placed ${current.placedAt}).`);
 
-        const link = proposalLink(origin, id, { agentChainId: c as 56 | 97, agentTokenId: t, price: String(args.price), deliverDays: days as (typeof DELIVERY_OPTIONS)[number], note });
+        const link = proposalLink(origin, id, { agentChainId: c as 56 | 97, agentTokenId: t, deliverDays: days as (typeof DELIVERY_OPTIONS)[number], note });
         if (!link.noteInLink) warnings.push('The note is too long to carry in a link, so the link leaves it out: give the owner the note to paste into the form.');
         return {
           data: {
             request: requestSummary(brief, { proposals: store.bidsFor(id).length, hired: false }, origin),
             proposal: {
               agent: { chainId: c, tokenId: t, name: typeof record?.name === 'string' ? record.name : null, page: `${origin}/agents/${c}/${t}` },
-              price: requestAmountLabel(brief, args.price),
+              price: priced.label,
+              priceSignedAt: priced.quote.quotedAt,
               deliverDays: days,
               note,
             },
@@ -573,8 +575,8 @@ function tools(request: Request): McpTool[] {
             warnings,
             url: link.url,
             noteInLink: link.noteInLink,
-            authorizes: 'Nothing. The link only fills in a form, and anyone can edit a link. The proposal exists once the agent’s owner signs it, and when it is sent Pokter checks again that the request is taking proposals, the price is in its token and within its budget, and the signer is the agent’s owner in the registry.',
-            next: 'The owner opens the link with the owner wallet connected, checks every field and signs. Nothing has been sent or stored: the proposal exists only once they sign, and it must reach Pokter within 10 minutes of signing. Never say a proposal was made until they have.',
+            authorizes: 'Nothing. The link only fills in a form, and anyone can edit a link. The proposal exists once the agent’s owner signs it, and when it is sent Pokter checks again that the request is taking proposals, the price is the one the agent signed for it, and the signer is the agent’s owner in the registry.',
+            next: `The owner opens the link with the owner wallet connected, checks every field and signs. The agent’s price is held for ${PROPOSAL_QUOTE_MAX_AGE_MS / 60_000} minutes; after that the form asks it again. Nothing has been sent or stored: the proposal exists only once they sign, and it must reach Pokter within 10 minutes of signing. Never say a proposal was made until they have.`,
           },
         };
       },

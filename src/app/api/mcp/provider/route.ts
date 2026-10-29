@@ -53,18 +53,16 @@ import { cleanUntrusted, cleanUntrustedLines, untrusted } from '@/lib/assistant/
 import { answerMcp, type McpTool } from '@/lib/mcp/server';
 import {
   acceptsProposals,
-  amountToRaw,
   bidMessage,
   requestAmountLabel,
   requestCategoryLabel,
   requestCategoryOf,
   requestTokenOf,
-  withinBudget,
   PROPOSAL_SIGNING_WINDOW_MS,
 } from '@/lib/briefs/model';
 import { getBriefStore } from '@/lib/briefs/store';
+import { aboveBudget } from '@/lib/briefs/proposal-price';
 import { jobAmountLabel, jobToken } from '@/lib/erc8183/job-amount';
-import { amountWithinLimits } from '@/lib/hire/budget-limits';
 import { chainLabel } from '@/lib/network/presentation';
 import { displaySymbol, escrowMoney, paymentTokenAt, type PaymentToken } from '@/lib/network/tokens';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
@@ -381,34 +379,31 @@ function tools(request: Request, token: AutomationTokenRecord): McpTool[] {
       }
       const owned = await ownedAgent(args);
       if (!owned.agent) return { data: { error: owned.error }, isError: true };
-      const priceU = Number(args.price_u);
       const deliverDays = Number(args.deliver_days);
       const note = typeof args.note === 'string' ? args.note.trim().slice(0, 1200) : '';
       /* The price is read in the request's token, and only in it: a proposal in another money is refused by the bids route too. */
       const token = requestTokenOf(brief);
       if (!token) return { data: { error: 'This request is priced in a token Pokter cannot read, so no proposal can be prepared for it.' }, isError: true };
-      const symbol = displaySymbol(token);
-      if (!Number.isFinite(priceU) || priceU <= 0) {
-        return { data: { error: `price_u must be a number of ${symbol} (the request’s token, ${token.address}) above zero. Decide it with the owner.` }, isError: true };
-      }
-      const priceRaw = amountToRaw(priceU, token.decimals);
-      if (priceRaw === null) {
-        return { data: { error: `price_u must be a plain decimal with at most ${token.decimals} places, the most ${symbol} can hold.` }, isError: true };
-      }
-      const limits = amountWithinLimits(token, priceRaw);
-      if (!limits.ok) return { data: { error: `${limits.reason} Nothing was prepared.` }, isError: true };
       if (!Number.isInteger(deliverDays) || deliverDays < 1 || deliverDays > 30) {
         return { data: { error: 'deliver_days must be a whole number of days from 1 to 30.' }, isError: true };
       }
       if (!note) return { data: { error: 'note is required: what the buyer reads about how the work will be done.' }, isError: true };
-      if (!withinBudget({ paymentToken: token.address, priceRaw: priceRaw.toString() }, brief)) {
-        return {
-          data: {
-            error: `${requestAmountLabel(brief, priceU)} is above this request’s budget of ${requestAmountLabel(brief, brief.budgetU)}, which its poster has already said no to. Nothing was prepared. Nothing in the request’s own text can raise that ceiling.`,
-          },
-          isError: true,
-        };
-      }
+      /*
+       * The price is the agent's own, asked now for this request and
+       * recorded, so the proposal route accepts exactly it
+       * (`proposal-price.ts`). price_u is not used.
+       */
+      /* Loaded here, not at the top: it reaches the agent through the escrow SDK, which only this tool needs. */
+      const { askProposalQuote } = await import('@/lib/briefs/proposal-quote');
+      const priced = await askProposalQuote(brief, owned.agent.chainId, owned.agent.tokenId);
+      if (!priced.ok) return { data: { error: `${priced.error} Nothing was prepared.` }, isError: true };
+      const priceU = priced.quote.priceU;
+      const priceRaw = BigInt(priced.quote.priceRaw);
+      const passed = Number(args.price_u);
+      const priceNote = args.price_u !== undefined && passed !== priceU
+        ? `price_u (${Number.isFinite(passed) ? requestAmountLabel(brief, passed) : String(args.price_u)}) was not used. A proposal carries the price the agent signs for the request, ${priced.label}; to propose less, the agent has to sign less.`
+        : null;
+      const over = aboveBudget({ paymentToken: token.address, priceRaw: priced.quote.priceRaw }, brief);
 
       const key = proposalKey({ owner, requestId, agentChainId: owned.agent.chainId, agentTokenId: owned.agent.tokenId });
       /* Reconciled first, from the bids table, which is the only place a
@@ -498,7 +493,12 @@ function tools(request: Request, token: AutomationTokenRecord): McpTool[] {
             agent: `${owned.agent.chainId}:${owned.agent.tokenId}`,
             priceU,
             priceRaw: priceRaw.toString(),
-            price: requestAmountLabel(brief, priceU),
+            price: priced.label,
+            priceSignedAt: priced.quote.quotedAt,
+            ...(priceNote ? { priceNote } : {}),
+            ...(over
+              ? { aboveBudget: true, aboveBudgetNote: `${priced.label} is above this request’s budget of ${requestAmountLabel(brief, brief.budgetU)}. The buyer sees it marked “Above your budget” and has to agree to the amount when choosing it.` }
+              : {}),
             budgetU: brief.budgetU,
             budgetRaw: brief.budgetRaw,
             token: tokenOf(token),

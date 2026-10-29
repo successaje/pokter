@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getAddress, isHex, type Hex } from 'viem';
 
 import { awardMessage } from '@/lib/briefs/model';
+import { fundsAboveBudget } from '@/lib/briefs/proposal-price';
 import { getBriefStore } from '@/lib/briefs/store';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 import { signedByWallet } from '@/lib/wallet/signed-by';
@@ -42,7 +43,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'That bid is not on this brief.' }, { status: 400 });
   }
 
-  const message = awardMessage(id, bidId, brief.poster);
+  /* Above the budget, the amount the poster agrees to is part of what they sign. */
+  const message = awardMessage(id, bidId, brief.poster, fundsAboveBudget(bid, brief));
   if (!(await signedByWallet(brief.chainId, getAddress(brief.poster), message, signature as Hex))) {
     return NextResponse.json({ error: 'Only the wallet that posted this brief can award it.' }, { status: 403 });
   }
