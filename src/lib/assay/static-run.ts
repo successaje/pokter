@@ -3,7 +3,7 @@ import 'server-only';
 import { freeRunStatus } from './run-status';
 import type { Category } from '@/lib/agents/categories';
 import { NotAskableError, PaidOnlyError, prepareAgent, sendPreparedBrief } from '@/lib/erc8183/courier';
-import { STATIC_SUITES, judgeStaticAnswer, staticSuiteFor, type StaticAssayCategory } from './category-suites';
+import { GRADING_RULES, NOT_COUNTED, STATIC_SUITES, judgeStaticAnswer, staticSuiteFor, unstatedNote, type StaticAssayCategory } from './category-suites';
 import { dueForCheck } from './queue';
 import { getAssayStore, type AssayRun, type AssayScenarioResult } from './store';
 import { RECHECK_MS } from './run';
@@ -49,7 +49,7 @@ export async function runStaticCategorySuite(
         observed: verdict.observed,
         excerpt: excerptOf(reply.answer),
         pass: verdict.pass,
-        outcome: verdict.pass ? 'correct' : 'wrong',
+        outcome: verdict.pass ? 'correct' : verdict.observed && !verdict.stated ? 'not-stated' : 'wrong',
         reason: verdict.reason,
         latencyMs: reply.latencyMs,
       });
@@ -63,7 +63,17 @@ export async function runStaticCategorySuite(
     }
   }
   const { status, detail } = freeRunStatus(results);
-  const run = { ...base, status, detail, passed: results.filter((result) => result.pass).length, results };
+  /* An answer that states nothing the check compares is kept, with its reply, but not counted (`judgeStaticAnswer`). */
+  const unstated = results.filter((result) => result.outcome === 'not-stated').length;
+  const run = {
+    ...base,
+    status,
+    detail: [detail, status === 'checked' && unstated > 0 ? unstatedNote(unstated, results.length) : null].filter(Boolean).join(' ') || null,
+    passed: results.filter((result) => result.pass).length,
+    total: results.filter((result) => !NOT_COUNTED.has(result.outcome)).length,
+    results,
+    rules: GRADING_RULES,
+  };
   store.record(target, run);
   return run;
 }

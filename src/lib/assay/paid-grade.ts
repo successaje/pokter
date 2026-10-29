@@ -116,7 +116,7 @@ export function gradePaidScenario(input: {
     observed: verdict.observed,
     excerpt: excerptOf(answer.data ? JSON.stringify(answer.data) : answer.text),
     pass: verdict.pass,
-    outcome: verdict.pass ? 'correct' : verdict.observed ? 'wrong' : 'unreadable',
+    outcome: verdict.pass ? 'correct' : !verdict.observed ? 'unreadable' : verdict.stated ? 'wrong' : 'not-stated',
     reason: verdict.reason,
   };
 }

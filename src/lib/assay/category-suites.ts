@@ -1,4 +1,5 @@
 import type { Category } from '@/lib/agents/categories';
+import type { AssayRun } from './types';
 
 /*
  * Version 2 for grid and yield: the fixture changed, so the id changes.
@@ -145,7 +146,7 @@ export const STATIC_SUITES: Record<StaticAssayCategory, StaticSuite> = {
   yield: {
     id: CATEGORY_SUITE_IDS.yield,
     category: 'yield',
-    label: 'Net yield at your size',
+    label: 'Yield brief terms read back',
     provenance: "Briefs naming an amount, a stablecoin, a horizon and a threshold, checked against the terms the brief itself states.",
     limitation: 'Checks that the answer is about the amount, asset and horizon it was asked for. It does not check the rates quoted, the venue chosen or the net figure, which are live and rest on the agent\'s own cost model.',
     scenarios: [
@@ -226,8 +227,10 @@ function find(record: Record<string, unknown>, key: string, depth = 0): unknown 
  * otherwise never revisited and would keep showing the old verdict.
  *
  * 1: outputs read under their common names (`FIELD_NAMES`, `DERIVED`).
+ * 2: an answer that states none of the compared outputs is not graded
+ *    (`statesAnyOutput`), rather than failed.
  */
-export const GRADING_RULES = 1;
+export const GRADING_RULES = 2;
 
 const FIELD_NAMES: Record<string, string[]> = {
   // Not `symbol`: a grid answer's symbol is usually the base alone ("BNB"), and would fail as the pair before base and quote were read.
@@ -281,25 +284,87 @@ export function verdictClass(value: unknown): string {
   return VERDICT_CLASSES[word] ?? word;
 }
 
-export function judgeStaticAnswer(expected: Record<string, unknown>, answer: { text: string | null; data: Record<string, unknown> | null }): { pass: boolean; observed: Record<string, unknown> | null; reason: string } {
+/** Whether an answer states any output a scenario compares. One that states none gives the check nothing to grade. */
+export function statesAnyOutput(expected: Record<string, unknown>, observed: Record<string, unknown> | null): boolean {
+  return observed !== null && Object.keys(expected).some((key) => observed[key] !== undefined && observed[key] !== null);
+}
+
+/* What a reader is told about an answer that states none of the compared outputs. */
+const unstatedReason = (expected: Record<string, unknown>) =>
+  `The answer states none of what this check compares (${Object.keys(expected).map((key) => key.replaceAll('_', ' ')).join(', ')}), so it was not graded. That is not counted for or against the agent.`;
+
+/**
+ * An answer, graded against the outputs its scenario fixes.
+ *
+ * `stated` is false when the answer states none of them. That is not a
+ * wrong answer: the yield briefs fix only the buyer's own terms, so an
+ * agent that answered the question it was asked (a venue, a net rate)
+ * without repeating those terms was failed on every scenario for leaving
+ * out what it was never asked to repeat. Such an answer is set aside, and
+ * the reply itself is kept for a reader to judge. An answer that states
+ * some of the outputs is still graded on all of them.
+ */
+export function judgeStaticAnswer(expected: Record<string, unknown>, answer: { text: string | null; data: Record<string, unknown> | null }): { pass: boolean; stated: boolean; observed: Record<string, unknown> | null; reason: string } {
   const record = answerRecord(answer);
-  if (!record) return { pass: false, observed: null, reason: 'No JSON object could be read from the answer.' };
-  const observed: Record<string, unknown> = {};
+  if (!record) return { pass: false, stated: false, observed: null, reason: 'No JSON object could be read from the answer.' };
+  const observed: Record<string, unknown> = Object.fromEntries(Object.keys(expected).map((key) => [key, stated(record, key)]));
+  if (!statesAnyOutput(expected, observed)) return { pass: false, stated: false, observed, reason: unstatedReason(expected) };
   for (const [key, wanted] of Object.entries(expected)) {
-    const got = stated(record, key);
-    observed[key] = got;
+    const got = observed[key];
     // Not stated is not the same as stated wrongly, and "answered undefined" told a builder nothing.
-    if (got === undefined || got === null) return { pass: false, observed, reason: `The answer does not state ${key.replaceAll('_', ' ')}; the scenario expects ${String(wanted)}.` };
+    if (got === undefined || got === null) return { pass: false, stated: true, observed, reason: `The answer does not state ${key.replaceAll('_', ' ')}; the scenario expects ${String(wanted)}.` };
     if (typeof wanted === 'number') {
       const numeric = typeof got === 'number' ? got : typeof got === 'string' ? Number(got) : Number.NaN;
       const tolerance = Math.max(0.01, Math.abs(wanted) * 0.005);
-      if (!Number.isFinite(numeric) || Math.abs(numeric - wanted) > tolerance) return { pass: false, observed, reason: `${key} should be ${wanted}; answered ${String(got)}.` };
+      if (!Number.isFinite(numeric) || Math.abs(numeric - wanted) > tolerance) return { pass: false, stated: true, observed, reason: `${key} should be ${wanted}; answered ${String(got)}.` };
     } else if (typeof wanted === 'string') {
       const answered = key === 'verdict' ? verdictClass(got) : String(got).trim().toUpperCase();
-      if (answered !== wanted.toUpperCase()) return { pass: false, observed, reason: `${key} should be ${wanted}; answered ${String(got)}.` };
+      if (answered !== wanted.toUpperCase()) return { pass: false, stated: true, observed, reason: `${key} should be ${wanted}; answered ${String(got)}.` };
     } else if (got !== wanted) {
-      return { pass: false, observed, reason: `${key} should be ${String(wanted)}; answered ${String(got)}.` };
+      return { pass: false, stated: true, observed, reason: `${key} should be ${String(wanted)}; answered ${String(got)}.` };
     }
   }
-  return { pass: true, observed, reason: 'All required outputs matched the published scenario.' };
+  return { pass: true, stated: true, observed, reason: 'All required outputs matched the published scenario.' };
+}
+
+const STATIC_SUITE_IDS: ReadonlySet<string> = new Set(Object.values(CATEGORY_SUITE_IDS));
+
+/**
+ * The scenarios a run counts: everything but the rows set aside as not
+ * stated, still in their delivery window, or not comparable. `total` on a
+ * run is this count, so `passed === total` means every graded answer matched.
+ */
+export const NOT_COUNTED: ReadonlySet<string> = new Set(['not-stated', 'pending', 'not-comparable']);
+
+/** Why some answers were not graded, said once for the run. */
+export function unstatedNote(count: number, of: number): string {
+  return count === of
+    ? 'Answered, but no answer stated any of what this check compares, so none could be graded.'
+    : `${count} of ${of} answers stated none of what this check compares and were not graded.`;
+}
+
+/**
+ * A static run read with today's rule for answers that state nothing it
+ * compares (`GRADING_RULES` 2).
+ *
+ * Runs recorded before the rule failed those answers, and a free run is
+ * not repeated for days, so the page kept saying "0 of 3" in the meantime.
+ * Read here, the same rows are set aside without rewriting the record,
+ * the way `freeRunStatus` is applied to older free runs.
+ */
+export function setAsideUnstated(run: AssayRun): AssayRun {
+  if (run.status !== 'checked' || !STATIC_SUITE_IDS.has(run.suite)) return run;
+  let moved = 0;
+  const results = run.results.map((result) => {
+    if (result.pass || result.outcome !== 'wrong') return result;
+    const expected = object(result.expected);
+    const observed = object(result.observed);
+    if (!expected || !observed || statesAnyOutput(expected, observed)) return result;
+    moved += 1;
+    return { ...result, outcome: 'not-stated', reason: unstatedReason(expected) };
+  });
+  if (moved === 0) return run;
+  const total = Math.max(0, run.total - moved);
+  const note = unstatedNote(moved, run.total);
+  return { ...run, results, total, detail: [run.detail, note].filter(Boolean).join(' ') };
 }

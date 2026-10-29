@@ -37,6 +37,24 @@ function Provenance({ row, agentKey, chainRead }: { row: ComparisonRow; agentKey
   return <p className="flex flex-wrap gap-x-1.5 text-[11.5px] text-ink-3">{parts.flatMap((part, i) => (i === 0 ? [part] : [<span key={`dot-${i}`} aria-hidden>·</span>, part]))}</p>;
 }
 
+/*
+ * The agent's reply as received, folded away. A grade is Pokter's reading
+ * of it; with the reply beside it, a reader can check that reading, which
+ * matters most where Pokter could not grade it at all.
+ */
+function Reply({ reply }: { reply: string | null }) {
+  if (!reply) return null;
+  return (
+    <details className="group text-[12px] text-ink-3">
+      <summary className="inline-flex cursor-pointer list-none items-center gap-1 hover:text-ink [&::-webkit-details-marker]:hidden">
+        <Icon.ChevronRight size={12} className="transition-transform group-open:rotate-90" aria-hidden />
+        Its reply{reply.endsWith('…') ? ', as received (first 400 characters)' : ', as received'}
+      </summary>
+      <pre className="t-readout mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-[8px] bg-sunken px-3 py-2 text-[12px] leading-relaxed text-ink-2">{reply}</pre>
+    </details>
+  );
+}
+
 function Result({ row }: { row: ComparisonRow }) {
   return <span className={cn('inline-block shrink-0 whitespace-nowrap rounded-[5px] px-1.5 py-px text-[11.5px] font-medium', BADGE[row.result.tone])}>{row.result.label}</span>;
 }
@@ -90,6 +108,7 @@ export function AnswerComparison({ comparison: c, agentKey }: { comparison: Comp
             </dl>
             <p className="text-[12px] leading-snug text-ink-3">{row.reason}</p>
             <Provenance row={row} agentKey={agentKey} chainRead={c.kind !== 'scenario'} />
+            <Reply reply={row.reply} />
           </li>
         ))}
       </ul>
@@ -123,7 +142,10 @@ export function AnswerComparison({ comparison: c, agentKey }: { comparison: Comp
                 </tr>
                 {/* Where the reference came from, across the row rather than squeezed into its first cell. */}
                 <tr className="border-t-0">
-                  <td colSpan={5} className="px-4 pb-3 pt-0"><Provenance row={row} agentKey={agentKey} chainRead={c.kind !== 'scenario'} /></td>
+                  <td colSpan={5} className="px-4 pb-3 pt-0">
+                    <Provenance row={row} agentKey={agentKey} chainRead={c.kind !== 'scenario'} />
+                    <div className="mt-1.5"><Reply reply={row.reply} /></div>
+                  </td>
                 </tr>
               </Fragment>
             ))}

@@ -72,7 +72,7 @@ const ROWS: Row[] = [
    * "0 of 3 passed" read as an endorsement of answers nobody had checked.
    */
   { label: 'Availability', hint: 'Whether it replies to Pokter’s probes', value: (c) => <VerdictLabel verdict={availability(c)} />, raw: (c) => AVAILABILITY_LABEL[availability(c)] },
-  { label: 'Correctness', hint: 'Whether its answers match what Pokter reads on chain', value: (c) => <CheckResult check={c.check} />, raw: (c) => checkReading(c.check).text, rank: { of: (c) => checkReading(c.check).score, better: 'higher' } },
+  { label: 'Answer check', hint: 'Whether its answers match Pokter’s published check for its kind', value: (c) => <CheckResult check={c.check} />, raw: (c) => checkReading(c.check).text, rank: { of: (c) => checkReading(c.check).score, better: 'higher' } },
   {
     label: 'Answered probes',
     hint: 'All time, by Pokter',
