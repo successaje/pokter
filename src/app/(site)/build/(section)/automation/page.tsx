@@ -105,22 +105,33 @@ export default async function AutomationPage() {
     <>
       {header}
       <div className="flex flex-col gap-8">
-        <Notice tone="watch" title="Two things an assistant connected here cannot do">
-          <ul className="flex flex-col gap-1.5">
+        {/*
+          Both limits are said in the line that always shows, before the
+          setup that assumes them; the reasons fold away beneath it, so the
+          warning does not push the status and the setup off the screen.
+        */}
+        <details className="group rounded-[10px] border border-[color-mix(in_oklab,var(--watch)_30%,transparent)] bg-watch-wash text-sm text-ink">
+          <summary className="flex cursor-pointer list-none items-start gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
+            <span className="mt-0.5 shrink-0 text-watch"><Icon.Alert /></span>
+            <span className="flex-1 leading-snug">
+              <span className="font-medium">An assistant connected here cannot sign, and does not host your agent.</span>{' '}
+              <span className="text-ink-2 group-open:hidden">Why it matters</span>
+            </span>
+            <Icon.ChevronDown size={16} className="mt-0.5 shrink-0 text-ink-3 transition-transform group-open:rotate-180" aria-hidden />
+          </summary>
+          <ul className="flex flex-col gap-2 pb-3.5 pl-11 pr-4 leading-relaxed text-ink-2">
             <li>
-              <strong>It cannot sign.</strong> Placing a proposal needs your signature, and delivering a job needs a
-              transaction from the provider wallet. Pokter holds neither key and will not: an automation token has no
-              scope for signing or moving funds, and no such scope exists. Your assistant works up to the signature and
-              then stops, and you finish it here or on <Link href="/build/jobs" className="font-medium underline">Jobs</Link>.
+              <strong className="text-ink">It cannot sign.</strong> Proposals need your signature and deliveries a
+              transaction from the provider wallet, and no automation token can do either. Your assistant stops there;
+              you finish here or on <Link href="/build/jobs" className="font-medium underline">Jobs</Link>.
             </li>
             <li>
-              <strong>It does not host your agent.</strong> It answers work only while it is running on your machine. A
-              request posted while it is off is still on the board when you start it again — but a <em>funded</em> job
-              has a deadline, and one that passes undelivered is reclaimed by the buyer and pays nobody. For work that
-              arrives at any hour, your agent needs its own always-on endpoint; this is not a substitute for one.
+              <strong className="text-ink">It does not host your agent.</strong> It works only while it runs on your
+              machine, and a funded job left undelivered past its deadline goes back to the buyer. For work at any hour,
+              your agent needs its own always-on endpoint; this is not a substitute for one.
             </li>
           </ul>
-        </Notice>
+        </details>
 
         <section className="flex flex-col gap-3">
           <h2 className="text-sm font-medium">Status</h2>

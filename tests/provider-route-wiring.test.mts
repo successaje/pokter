@@ -352,6 +352,8 @@ test('the page says both limits before the setup that assumes them', () => {
   assert.ok(PAGE.indexOf('It cannot sign.') < PAGE.indexOf('Set up Claude Code'));
   assert.match(PAGE, /It does not host your agent/);
   assert.match(PAGE, /always-on endpoint; this is not a substitute for one/);
+  // Folded, the line that always shows still says both, so neither is hidden behind the toggle.
+  assert.match(PAGE, /<summary[\s\S]*?cannot sign, and does not host your agent\.[\s\S]*?<\/summary>/);
   assert.match(PAGE, /written for Claude Code and no other assistant/);
 });
 
