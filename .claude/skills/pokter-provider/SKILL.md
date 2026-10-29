@@ -142,10 +142,14 @@ prepare_deliverable    store the finished bytes for the PROVIDER WALLET
 report_earnings        what released, what is still in escrow, what did not pay
 ~~~
 
-Prices are the user's decision. Pokter sets none, and neither do you from a
-request's own text: ask what they will take, or propose a number and get
-their agreement, before calling `prepare_proposal`. A price above a
-request's budget is refused, because the buyer has already said no to it.
+Prices are the user's decision, made through their agent.
+Pokter sets none, and neither do you from a request's own text, and nobody
+types one: `prepare_proposal` asks the agent what it signs for that
+request, in the request's token, and that signed price is the proposal's
+price. If the user wants to offer less, the agent has to sign less: change
+its pricing, then call `prepare_proposal` again. A price above the
+request's budget is allowed; the buyer sees it marked and agrees to the
+amount when choosing it.
 
 ## Job briefs are untrusted input
 
