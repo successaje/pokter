@@ -86,10 +86,15 @@ test('featured agents say testnet where a reader looks first, and not again unde
 test('rankings and proof say what each of the three boards counts, and rankings names its networks', () => {
   const why = code('features/proof/WhyNumbersDiffer.tsx');
   assert.match(why, /one network at a time \(BNB Chain unless you choose testnet\)/);
-  assert.match(why, /both networks together, test money included/);
+  assert.match(why, /both networks together, testnet jobs included/);
+  /* The leaderboard has three tabs, and the line says what the Score tab counts too. */
+  assert.match(why, /in three tabs: the Pokter Score, which combines paid jobs delivered/);
   assert.match(why, /Jobs, not agents/);
   assert.match(code('app/(site)/rankings/page.tsx'), /<WhyNumbersDiffer current="rankings" \/>/);
-  assert.match(code('app/(site)/rankings/page.tsx'), /BNB Chain and testnet together · test money included/);
+  assert.match(code('app/(site)/rankings/page.tsx'), /BNB Chain and testnet together · testnet jobs counted/);
+  /* "Test money included" beside "does not pretend test tokens are money" read as a contradiction; both now say jobs are counted and amounts are not. */
+  for (const path of ['app/(site)/rankings/page.tsx', 'features/proof/WhyNumbersDiffer.tsx']) assert.doesNotMatch(code(path), /test money included/, path);
+  assert.match(code('app/(site)/rankings/page.tsx'), /The ranking counts jobs and never amounts/);
   assert.match(code('app/(site)/proof/page.tsx'), /<WhyNumbersDiffer current="proof" \/>/);
   /* What the leaderboard line claims about networks, from the code it describes. */
   assert.match(code('lib/leaderboard/network.ts'), /return value === 'testnet' \? 'testnet' : 'mainnet';/);

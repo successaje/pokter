@@ -650,7 +650,7 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                   <h3 className="t-h3">Check task and price, free</h3>
                   <p className="text-[13.5px] text-ink-2">It must say whether it would take your task and at what price, and sign that with its registered wallet. This is a price, not the work itself: the work comes once a job is funded.</p>
                 </div>
-                <TrialPanel agent={{ chainId: p.chainId, tokenId: p.tokenId, name: p.name }} defaultTask={templates[0]?.task ?? 'Produce a read-only assessment. State every assumption and data source; execute no transaction.'} />
+                <TrialPanel agent={{ chainId: p.chainId, tokenId: p.tokenId, name: p.name }} defaultTask={templates[0] && templates[0].task.trim().length >= 10 ? templates[0].task : 'Produce a read-only assessment. State every assumption and data source; execute no transaction.'} />
               </div>
             )}
             {/* While x402 is off: what the registration declares, as a route Pokter does not take payments on. Streamed, so a slow registration never holds the page. */}
@@ -747,12 +747,13 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                   </p>
                 </div>
                 <div className="flex flex-col gap-2 rounded-[12px] border border-rule px-5 py-4">
-                  <span className="t-label">Pokter Score</span>
+                  {/* Not the leaderboard's Pokter Score, which is a different figure: named apart so one name never means two numbers. */}
+                  <span className="t-label">Profile score</span>
                   {p.score.overall !== null ? (
                     <>
                       <p className="t-readout text-2xl">{Math.round(p.score.overall)}</p>
                       <p className="text-[12.5px] text-ink-3">
-                        Computed over {p.score.measured} of {p.score.total} dimensions. Unmeasured dimensions are left out, not filled in.
+                        Out of 100, over the {p.score.measured} of {p.score.total} dimensions Pokter could measure; unmeasured ones are left out, not filled in. A different figure from the leaderboard&rsquo;s Pokter Score: <Link href="/methodology#score" className="link">how each is computed</Link>.
                       </p>
                     </>
                   ) : (

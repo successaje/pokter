@@ -587,7 +587,8 @@ function tools(request: Request): McpTool[] {
             warnings,
             url: link.url,
             noteInLink: link.noteInLink,
-            authorizes: 'Nothing. The link only fills in a form, and anyone can edit a link. The proposal exists once the agent’s owner signs it, and when it is sent Pokter checks again that the request is taking proposals, the price is the one the agent signed for it, and the signer is the agent’s owner in the registry.',
+            /* The price rule as the proposal route applies it (`proposalPriceProblem`): a floor in $U, an exact amount in any other token. */
+            authorizes: 'Nothing. The link only fills in a form, and anyone can edit a link. The proposal exists once the agent’s owner signs it, and when it is sent Pokter checks again that the request is taking proposals, that the proposal’s price is at or above what the agent signed for this request in $U, or exactly that signed price in any other token, and that the signer is the agent’s owner in the registry.',
             next: `The owner opens the link with the owner wallet connected, checks every field and signs. The agent’s price is held for ${PROPOSAL_QUOTE_MAX_AGE_MS / 60_000} minutes; after that the form asks it again. Nothing has been sent or stored: the proposal exists only once they sign, and it must reach Pokter within 10 minutes of signing. Never say a proposal was made until they have.`,
           },
         };

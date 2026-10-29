@@ -107,12 +107,17 @@ export type ResponsivenessMetric = 'answer-rate';
  * scheduled call to the agent's endpoint got a well-formed protocol
  * response. It says nothing about whether the response was right, useful,
  * or even on the subject.
+ *
+ * "Not reliability" is qualified as reliability at the work. The profile
+ * score has a dimension called Reliability built from these same checks,
+ * and the methodology defines it as replying when called and nothing more;
+ * a bare "not reliability" here made the one page say both.
  */
 export const ANSWER_RATE_COLUMN = `Answer rate (answered ÷ checks, last ${RESPONSIVENESS_WINDOW_DAYS} days)`;
 export const ANSWER_RATE_MEANS =
   'The share of Pokter’s scheduled checks that the agent’s endpoint answered with a well-formed protocol response, measured by Pokter alone.';
 export const ANSWER_RATE_DOES_NOT_MEAN =
-  'It is not answer quality, not accuracy, not uptime and not reliability. It records that the agent replied, never that the reply was right.';
+  'It is not answer quality, not accuracy, not uptime and not reliability at the work itself. It records that the agent replied, never that the reply was right.';
 
 /**
  * The same correction, in the length a board can carry under every table.

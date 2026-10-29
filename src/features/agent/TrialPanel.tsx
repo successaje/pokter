@@ -21,6 +21,16 @@ interface TrialResult {
 
 const STAGES = ['Contacting the agent', 'Sending your task', 'Waiting for a signed price', 'Checking the signature'];
 
+/*
+ * The shortest task the button sends. The route takes anything up to 500
+ * characters; this is the panel's own floor, so a stray keystroke does not
+ * ask an agent to price nothing. It is said beside the button while the
+ * task is under it, because a disabled button with no reason reads as
+ * broken (and a screen reader cannot reach a disabled button to ask).
+ */
+const MIN_TASK_LENGTH = 10;
+const TOO_SHORT_ID = 'trial-task-too-short';
+
 function obj(v: unknown): Record<string, unknown> | null {
   return typeof v === 'object' && v !== null ? (v as Record<string, unknown>) : null;
 }
@@ -38,6 +48,7 @@ export function TrialPanel({ agent, defaultTask }: { agent: { chainId: number; t
   const [stage, setStage] = useState(0);
   const [result, setResult] = useState<TrialResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const tooShort = task.trim().length < MIN_TASK_LENGTH;
 
   const run = async () => {
     setState('running');
@@ -91,12 +102,18 @@ export function TrialPanel({ agent, defaultTask }: { agent: { chainId: number; t
       <label htmlFor="trial-task" className="text-sm font-medium">
         Your task
       </label>
-      <Textarea id="trial-task" value={task} onChange={(e) => setTask(e.target.value)} maxLength={500} className="min-h-24 text-[14px]" />
-      <div className="flex flex-wrap items-center gap-3">
-        <Button onClick={run} busy={state === 'running'} disabled={task.trim().length < 10} intent="secondary" icon={<Icon.Play size={14} />}>
-          Check task and price
-        </Button>
-        <span className="text-[12.5px] text-ink-3">Free · no wallet · nothing is executed</span>
+      <Textarea id="trial-task" value={task} onChange={(e) => setTask(e.target.value)} maxLength={500} aria-describedby={TOO_SHORT_ID} className="min-h-24 text-[14px]" />
+      <div className="flex flex-col gap-2">
+        <div className="flex flex-wrap items-center gap-3">
+          <Button onClick={run} busy={state === 'running'} disabled={tooShort} aria-describedby={TOO_SHORT_ID} intent="secondary" icon={<Icon.Play size={14} />}>
+            Check task and price
+          </Button>
+          <span className="text-[12.5px] text-ink-3">Free · no wallet · nothing is executed</span>
+        </div>
+        {/* Always mounted, so the live region exists before it has anything to say; visually hidden while the task is long enough. */}
+        <p id={TOO_SHORT_ID} aria-live="polite" className={tooShort ? 'text-[12.5px] text-ink-2' : 'sr-only'}>
+          {tooShort ? `Describe the task in at least ${MIN_TASK_LENGTH} characters.` : null}
+        </p>
       </div>
 
       {state === 'running' && (

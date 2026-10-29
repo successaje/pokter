@@ -17,6 +17,12 @@ const source = (path: string) => readFileSync(new URL(`../${path}`, import.meta.
 test('the agent page names each amount by what it is, never every amount a quote', () => {
   assert.equal(priceSummary({ quote: quote(true), suggestion: null } as never).caption, 'Escrow quote · signed by the agent');
   assert.match(priceSummary({ quote: quote(false), suggestion: null } as never).caption, /^Last signed escrow quote · expired/);
+  /* An expired quote says when, and that a hire is priced by a quote for the buyer's own brief. */
+  const expired = priceSummary({ quote: { label: '0.05 $U', current: false, expiresAt: '2026-10-26T20:39:00.000Z' }, suggestion: null } as never);
+  assert.equal(expired.caption, 'Last signed escrow quote · expired 26 Oct 2026, 20:39 UTC; a quote for your brief is asked for before payment');
+  assert.equal(expired.expired, true);
+  assert.equal(priceSummary({ quote: quote(true), suggestion: null } as never).expired, false);
+  assert.match(source('src/features/agent/HirePanel.tsx'), /\{price\.expired && <span className="text-\[11\.5px\] text-ink-3">last signed, expired<\/span>\}/, 'the phone bar says an expired price is expired');
   assert.equal(priceSummary({ quote: null, suggestion: { label: '~0.1 $U' } } as never).caption, 'Suggested escrow budget · it has not signed a quote');
   assert.equal(priceSummary({ quote: null, suggestion: null } as never).caption, 'Default escrow budget · it has not signed a quote');
   for (const p of [{ quote: null, suggestion: { label: '~0.1 $U' } }, { quote: null, suggestion: null }]) {

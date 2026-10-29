@@ -128,3 +128,30 @@ test('the guide and the provider skill describe the agent’s signed price, not 
   assert.doesNotMatch(skill, /A price above a\s+request's budget is refused/);
   assert.match(skill, /\\`prepare_proposal\\` asks the agent what it signs for that\s+request/);
 });
+
+/*
+ * The floor, the $U premium and the agreed price, said as the code applies
+ * them. The guide said a lower fresh quote meant the buyer paid less, and
+ * that a link carries no price; the choice and the MCP tool both called a
+ * proposal's price the agent's signed one, which in $U it need not be.
+ */
+test('the guide, the choice and the MCP tool describe a proposal’s price as the code applies it', () => {
+  const guide = source('src/app/(site)/guides/find-jobs/page.tsx');
+  assert.doesNotMatch(guide, /If it now signs less, the buyer pays less\./, 'a $U hire from a proposal does not follow a lower quote down');
+  assert.doesNotMatch(guide, /it carries no price/, 'a link can carry a price now');
+  assert.doesNotMatch(guide, /at or under what it signed on the proposal/, 'the cap is the proposal’s price');
+  assert.match(guide, /never below the price your agent signs for the request: in \$U it may be more, in any other token it is exactly that price/);
+  assert.match(guide, /a \$U hire still funds your proposal&rsquo;s price, the amount the buyer agreed to/);
+  assert.match(guide, /choosing it means agreeing to that amount in their signature/);
+  assert.match(guide, /the form still holds any price to the one your agent signs/);
+
+  const actions = source('src/features/briefs/BriefActions.tsx');
+  assert.doesNotMatch(actions, /the price this agent signed for the request/);
+  assert.match(actions, /I&rsquo;ll fund \{above\}, the price on this proposal\./);
+  /* The label changed; the words the poster signs did not. */
+  assert.equal(awardMessage('b', 'p', '0xAB', '2 $U'), 'Pokter brief award\nBrief: b\nBid: p\nPoster: 0xab\nAbove my budget, I will fund: 2 $U');
+
+  const route = source('src/app/api/mcp/route.ts');
+  assert.doesNotMatch(route, /the price is the one the agent signed for it/);
+  assert.match(route, /the proposal’s price is at or above what the agent signed for this request in \$U, or exactly that signed price in any other token/);
+});

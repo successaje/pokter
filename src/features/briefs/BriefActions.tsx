@@ -82,12 +82,17 @@ export function AwardBid({
         Choosing records your decision with a signature and moves no money. Next you review the agent&rsquo;s quote for this
         request and fund the escrow on {chainLabel(chainId)} yourself.
       </p>
-      {/* Above the budget, agreeing to the amount is a step of its own, and the amount goes into the signature. */}
+      {/*
+        Above the budget, agreeing to the amount is a step of its own, and the amount goes into the signature.
+        The amount is the proposal's price. It used to be called the price the agent signed, which is true
+        only outside $U: in $U an owner may propose above what the agent signs (`proposal-price.ts`). This
+        line is the label beside the checkbox; the words signed are `awardMessage`'s, and do not change here.
+      */}
       {above && (
         <label className="flex items-start gap-2.5 rounded-[8px] border border-[color-mix(in_oklab,var(--watch)_35%,transparent)] bg-watch-wash px-3 py-2.5 text-[13px] leading-snug text-ink">
           <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-0.5 size-4 shrink-0 accent-[var(--ink)]" />
           <span>
-            <span className="font-medium">This is above your budget of {budget.label}.</span> I&rsquo;ll fund {above}, the price this agent signed for the request.
+            <span className="font-medium">This is above your budget of {budget.label}.</span> I&rsquo;ll fund {above}, the price on this proposal.
           </span>
         </label>
       )}
