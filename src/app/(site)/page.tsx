@@ -17,6 +17,8 @@ import { Reveal } from '@/ui/Reveal';
 import { StepRail } from '@/features/home/StepRail';
 import { LogoAssembly } from '@/features/home/LogoAssembly';
 import { Mark } from '@/shell/Logo';
+import { lastCheckAt } from '@/lib/history/last-check';
+import { Ago } from '@/ui/Ago';
 
 export const revalidate = 300;
 
@@ -30,6 +32,7 @@ function count(value: number | null | undefined) {
 
 export default async function HomePage() {
   const home = await loadHome();
+  const checkedAt = lastCheckAt();
   const hireableCount = home.featured.length;
   /*
    * Four counts, not one funnel.
@@ -129,16 +132,22 @@ export default async function HomePage() {
               the destination is that collection.
             */}
             <p className="anim-rise flex flex-wrap items-center gap-2 text-[13px] font-medium">
-              <span className="inline-flex h-7 items-center gap-2 rounded-full border border-ok/30 bg-ok-wash px-3 text-ok">
+              <span className="inline-flex min-h-7 items-center gap-2 rounded-full border border-ok/30 bg-ok-wash px-3 py-1 leading-snug text-ok">
                 <span aria-hidden className="size-1.5 rounded-full bg-ok" />
                 {escrowAvailabilityLine() ?? 'The agent marketplace for BNB Chain'}
               </span>
               {home.catalogue.hireable > 0 && (
                 <Link
                   href="/discover?hireable=1"
-                  className="inline-flex h-7 items-center gap-1.5 rounded-full border border-rule-strong bg-sunken px-3 text-ink-2 transition-colors hover:border-ink hover:text-ink"
+                  className="inline-flex min-h-7 flex-wrap items-center gap-x-1.5 rounded-full border border-rule-strong bg-sunken px-3 py-1 leading-snug text-ink-2 transition-colors hover:border-ink hover:text-ink"
                 >
                   <span className="t-readout">{home.catalogue.hireable}</span> hireable right now
+                  {/* When Pokter last called an agent, so the count beside it has an age. */}
+                  {checkedAt && (
+                    <span className="whitespace-nowrap text-ink-3">
+                      · checked <Ago at={checkedAt} />
+                    </span>
+                  )}
                   <Icon.Arrow size={13} />
                 </Link>
               )}

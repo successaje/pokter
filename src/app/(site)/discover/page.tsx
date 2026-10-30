@@ -25,6 +25,8 @@ import { LinkButton } from '@/ui/Button';
 import { CATEGORIES } from '@/lib/agents/categories';
 import type { FindRow } from '@/lib/find/rows';
 import { requestHrefFor } from '@/features/discover/params';
+import { lastCheckAt } from '@/lib/history/last-check';
+import { Ago } from '@/ui/Ago';
 
 export const metadata: Metadata = {
   title: 'Find an agent for the job',
@@ -104,6 +106,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
   );
   const deliveryByKey = new Map(timed);
   const activity = await outsideActivity();
+  const checkedAt = lastCheckAt();
   /* The newest few requests still taking proposals. */
   const now = renderedAt();
   const open = requestRows(now)
@@ -147,9 +150,15 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
               <Link
                 href={discoverHref({ hireable: true }, base)}
                 scroll={false}
-                className="inline-flex h-7 items-center gap-1.5 rounded-full border border-rule-strong bg-sunken px-3 text-ink-2 transition-colors hover:border-ink hover:text-ink"
+                className="inline-flex min-h-7 flex-wrap items-center gap-x-1.5 rounded-full border border-rule-strong bg-sunken px-3 py-1 leading-snug text-ink-2 transition-colors hover:border-ink hover:text-ink"
               >
                 <span className="t-readout">{result.collections.hireable}</span> hireable right now
+                {/* When Pokter last called an agent, so the count beside it has an age. */}
+                {checkedAt && (
+                  <span className="whitespace-nowrap text-ink-3">
+                    · checked <Ago at={checkedAt} />
+                  </span>
+                )}
                 <Icon.Arrow size={13} />
               </Link>
             )}

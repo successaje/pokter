@@ -19,7 +19,18 @@ import { cn } from '@/lib/ui/cn';
  * Once hydrated, a picture that loads takes the plain ground back, so a
  * transparent one is not drawn over somebody else's rings, and one that
  * fails is swapped for the mark as before.
+ *
+ * Under the mark, the agent's initial, drawn inline so it needs no
+ * request. The picture and the mark both come over the network, the
+ * picture often from a slow host, and until either arrived the frame was
+ * an empty square: on a catalogue page that read as a missing picture.
+ * Whichever loads covers it.
  */
+function initialArt(name: string): string {
+  const letter = (name.match(/[\p{L}\p{N}]/u)?.[0] ?? '·').toUpperCase();
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text x="50" y="52" dominant-baseline="central" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif" font-size="46" font-weight="600" fill="#8a877e">${letter.replace(/[<>&"']/g, '')}</text></svg>`;
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
 export function AvatarImage({ src, fallback, name, size, className, eager }: { src: string | null; fallback: string; name: string; size: number; className?: string; eager?: boolean }) {
   // Keyed to the source, so a new picture (the profile editor's draft) starts over.
   const [settled, setSettled] = useState<{ src: string | null; state: 'loaded' | 'failed' } | null>(null);
@@ -35,7 +46,11 @@ export function AvatarImage({ src, fallback, name, size, className, eager }: { s
   return (
     <span
       className={cn('block shrink-0 overflow-hidden rounded-[10px] border border-rule bg-sunken bg-cover bg-center', className)}
-      style={{ width: size, height: size, backgroundImage: showing === src && state !== 'loaded' ? `url("${fallback}")` : undefined }}
+      style={{
+        width: size,
+        height: size,
+        backgroundImage: state === 'loaded' ? undefined : [showing === src ? `url("${fallback}")` : null, `url("${initialArt(name)}")`].filter(Boolean).join(', '),
+      }}
       title={name}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}

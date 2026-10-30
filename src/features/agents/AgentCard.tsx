@@ -164,7 +164,8 @@ export function NetworkTag({ chainId }: { chainId: number | null }) {
   const money = escrowMoney(chainId);
   if (money.real === null) return null;
   return (
-    <span className={cn('inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11.5px] font-medium', money.real ? 'border border-rule text-ink-2' : 'bg-watch-wash text-watch')}>
+    /* Coloured both ways, so the two read apart at a glance across a grid: green for money that is real, amber for money that is not. The words carry it too, for anyone who cannot tell the colours apart. */
+    <span className={cn('inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11.5px] font-medium', money.real ? 'bg-ok-wash text-ok' : 'bg-watch-wash text-watch')}>
       {money.real ? 'BNB Chain · real funds' : 'Testnet · test tokens'}
     </span>
   );
@@ -386,10 +387,18 @@ export function AgentCard({
           on the evidence readouts above it. */}
       <div aria-hidden className="min-h-4 flex-1" />
       <div className="relative z-10 flex items-end justify-between gap-3 border-t border-rule pt-4">
+        {/*
+          Where the money settles, as a pill beside the price rather than a
+          third grey line under it: "Test tokens · BNB Testnet" was easy to
+          read past, and it is the fact a buyer most needs before the price.
+        */}
         <div className="flex min-w-0 flex-col">
-          <PriceText row={row} className="text-[1.45rem] font-medium leading-none tracking-[-0.02em]" />
+          <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+            <PriceText row={row} className="text-[1.45rem] font-medium leading-none tracking-[-0.02em]" />
+            <NetworkTag chainId={row.hireChainId} />
+          </span>
           <span className="mt-1.5 flex flex-col gap-0.5">
-            <HiringLines row={row} />
+            <HiringLines row={row} network={false} />
           </span>
         </div>
         <NextStep row={row} />
