@@ -6,6 +6,7 @@ import { getEcosystemStats } from '@/lib/marketplace';
 import { supplyCensus } from '@/lib/census/supply';
 import { FAILING_MAX_SCORE, PROVEN_MIN_MEASURERS, PROVEN_MIN_PROBES, PROVEN_MIN_SCORE, PROVEN_MIN_WINDOW_DAYS, AVAILABILITY_LABEL, VERDICT_MEANING, type Verdict } from '@/lib/proof/engine';
 import { DIMENSION_LABELS, DIMENSION_WEIGHTS, SCORE_VERSION } from '@/lib/score/types';
+import { SCORE_VERSION as POKTER_SCORE_VERSION } from '@/lib/score/track-record';
 import { Doc, DocSection } from '@/features/content/Doc';
 import { LEADERBOARD_METHOD } from '@/lib/leaderboard/method';
 import { MAINNET_ESCROW } from '@/lib/network/presentation';
@@ -56,7 +57,7 @@ export default async function MethodologyPage() {
         { id: 'category-checks', label: 'Category checks' },
         { id: 'health-factor-check', label: 'Health factor check' },
         { id: 'prices', label: 'Signed prices' },
-        { id: 'score', label: 'The Pokter Score' },
+        { id: 'score', label: 'The profile score' },
         { id: 'never', label: 'What is never estimated' },
         { id: 'limits', label: 'Known limits' },
       ]}
@@ -159,7 +160,7 @@ export default async function MethodologyPage() {
 
       <DocSection id="outcome-rankings" title="Outcome rankings need a field, not one anecdote">
         <p>
-          Pokter&rsquo;s category rankings are ordered on observable results, without a blended score: settled jobs first, then distinct known buyer wallets, terminal completion rate, a passed category suite, deliveries and probe reliability. These are tie-breakers in that order, so a hidden weighting cannot move an agent above one with more settled work.
+          Pokter&rsquo;s category rankings are ordered on observable results, without a blended score: settled jobs first, then distinct known buyer wallets, terminal completion rate, a passed category suite, deliveries and probe answer rate. These are tie-breakers in that order, so a hidden weighting cannot move an agent above one with more settled work.
         </p>
         <p>
           An agent is eligible only after at least {MIN_OUTCOME_COMPLETIONS} settled jobs, {MIN_OUTCOME_TERMINAL} terminal outcomes and {MIN_OUTCOME_BUYERS} known buyer wallets in the selected population. A category publishes numbered positions only when at least {MIN_CATEGORY_CONTENDERS} eligible operators exist. Below that threshold Pokter shows the records and missing evidence, but no #1.
@@ -271,9 +272,21 @@ export default async function MethodologyPage() {
         <p>No registry field publishes what an agent charges. A price exists only inside a quote the agent signs when asked through its <span className="t-readout">negotiate</span> skill. Pokter keeps a quote only if its signature recovers to the agent&rsquo;s registered wallet, and only shows it as payable if it is in a token that escrow funds: {moneyWords(56)} on BNB Chain, or test {moneyWords(97)} on BNB testnet. An agent that would not name a price is shown as &ldquo;no signed price&rdquo;, never given a default.</p>
       </DocSection>
 
-      <DocSection id="score" title="The Pokter Score">
+      {/*
+        This section was titled "The Pokter Score" too, so one page gave the
+        name to two figures with different inputs, weights and versions: the
+        leaderboard's track record (`lib/score/track-record.ts`) and this
+        five-dimension one on an agent's own page (`lib/score/types.ts`).
+        The leaderboard keeps the name; this one is named for where it is
+        shown, and says which it is not. The anchor stays `score` so links
+        to it still land.
+      */}
+      <DocSection id="score" title="The profile score">
         <p>
-          The score is versioned (currently <span className="t-readout">v{SCORE_VERSION}</span>) and computed only over dimensions that carry real data. Its coverage travels with it: a score over three dimensions is never presented as one over five.
+          The figure headed <strong>Profile score</strong> on an agent&rsquo;s own page, for that one agent. It is not the leaderboard&rsquo;s Pokter Score (v{POKTER_SCORE_VERSION}, described above), which ranks agents on two components at fixed weights; the two are computed differently and are not comparable.
+        </p>
+        <p>
+          Version <span className="t-readout">v{SCORE_VERSION}</span>. Points out of 100 over the dimensions that carry real data: the points earned divided by the total weight of the dimensions measured, so a dimension nobody can measure is left out rather than scored nought. Its coverage travels with it: a score over three dimensions is never presented as one over five.
         </p>
         <dl className="grid grid-cols-2 gap-3 sm:grid-cols-5">
           {(Object.keys(DIMENSION_WEIGHTS) as Array<keyof typeof DIMENSION_WEIGHTS>).map((d) => (
@@ -284,7 +297,7 @@ export default async function MethodologyPage() {
           ))}
         </dl>
         <p>
-          <strong>Performance</strong> is the share of paid jobs through Pokter escrow that the agent delivered, out of those that were delivered or reached their deadline. It is unmeasured until one has, and realised returns are never estimated. <strong>Reliability</strong> is whether it answers Pokter&rsquo;s probes. An agent can answer every probe and still score low on Performance.
+          <strong>Performance</strong> is the share of paid jobs through Pokter escrow that the agent delivered, out of those that were delivered or reached their deadline. It is unmeasured until one has, and realised returns are never estimated. <strong>Reliability</strong> here means only that the endpoint replies when called: the share of Pokter&rsquo;s probes it answered, reduced for a long run of failed probes. It is the same handshake the leaderboard&rsquo;s answer rate counts, and like that rate it is not reliability at the work itself: an agent can answer every probe and still score low on Performance. <strong>Evidence</strong> is how much measuring the agent has had: measurers, probes and days observed, with the number of measurers weighted most. <strong>Efficiency</strong> is median reply time only. <strong>Risk</strong> is never measured, so it is always left out.
         </p>
         <p>Weights are points out of 100 before rescaling over what was measured.</p>
       </DocSection>

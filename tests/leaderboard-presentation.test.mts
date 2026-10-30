@@ -539,7 +539,8 @@ test('the probe span appears on responsiveness and nowhere near the outcomes evi
 test('every rule the board used to print is published on the methodology page', () => {
   const method = JSON.stringify(LEADERBOARD_METHOD);
   for (const [name, pattern] of [
-    ['no overall score', /There is no overall score/],
+    /* Was "There is no overall score", which the Pokter Score tab made untrue; what replaced it says which figure combines and which never do. */
+    ['the one combined figure, and the boards never combined', /The Pokter Score is the only figure on the leaderboard that combines two measures[\s\S]*never combined with each other or with the score/],
     ['the exclusions', /Excluded from every figure/],
     ['what a settled job does not prove', /does not prove the answer was correct/],
     ['what the answer rate is not', /not answer quality/],

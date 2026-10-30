@@ -10,6 +10,7 @@ import type { AgentProfile } from './profile';
 import { mainnetHireBlocked } from '@/lib/hire/mainnet-blocked';
 import { defaultHireToken, escrowMoney as tokenMoney, paymentTokenAt } from '@/lib/network/tokens';
 import { AskForPrice } from './AskForPrice';
+import { utcWhen } from '@/lib/jobs/evidence-view';
 
 /*
  * Every amount named by the route it belongs to, and by what it is. Only a
@@ -17,11 +18,22 @@ import { AskForPrice } from './AskForPrice';
  * signed escrow quote, and a budget the agent never signed is a budget.
  * Pay-per-call (x402) is another route with its own prices, which Pokter
  * does not take, so an amount here never stands for it.
+ *
+ * An expired quote says when it expired, and that the price a hire is
+ * held to is a new one signed for the buyer's own brief. "Expired" with no
+ * date left a reader to guess whether it lapsed a minute or a month ago,
+ * and the stored quote was signed for Pokter's standing price enquiry, not
+ * for anything the reader has written. `expired` is for the phone bar,
+ * which has room for the word and not the sentence.
  */
 export function priceSummary(p: AgentProfile) {
-  if (p.quote) return { headline: p.quote.label, caption: p.quote.current ? 'Escrow quote · signed by the agent' : 'Last signed escrow quote · expired; a fresh quote is requested before payment', signed: true };
-  if (p.suggestion) return { headline: p.suggestion.label, caption: 'Suggested escrow budget · it has not signed a quote', signed: false };
-  return { headline: DEFAULT_BUDGET_LABEL, caption: 'Default escrow budget · it has not signed a quote', signed: false };
+  if (p.quote) {
+    if (p.quote.current) return { headline: p.quote.label, caption: 'Escrow quote · signed by the agent', signed: true, expired: false };
+    const when = utcWhen(p.quote.expiresAt);
+    return { headline: p.quote.label, caption: `Last signed escrow quote · expired${when ? ` ${when}` : ''}; a quote for your brief is asked for before payment`, signed: true, expired: true };
+  }
+  if (p.suggestion) return { headline: p.suggestion.label, caption: 'Suggested escrow budget · it has not signed a quote', signed: false, expired: false };
+  return { headline: DEFAULT_BUDGET_LABEL, caption: 'Default escrow budget · it has not signed a quote', signed: false, expired: false };
 }
 
 /**
@@ -201,6 +213,8 @@ export function MobileHireBar({ profile }: { profile: AgentProfile }) {
             <span className="t-readout text-[15px]">{price.headline}</span>
             {/* The "~" is a suggested budget, which the desktop panel says in its caption; say it here too. */}
             {!price.signed && <span className="text-[11.5px] text-ink-3">escrow budget, no signed quote</span>}
+            {/* The desktop caption dates it; the bar only has room to say the number is no longer a standing price. */}
+            {price.expired && <span className="text-[11.5px] text-ink-3">last signed, expired</span>}
           </span>
           {/*
             The bar showed a bare number and "Escrowed until delivered", so

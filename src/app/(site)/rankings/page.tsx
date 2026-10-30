@@ -31,7 +31,7 @@ export default async function OutcomeRankingsPage({ searchParams }: { searchPara
         <div className="flex max-w-3xl flex-col gap-4">
           <span className="t-label flex items-center gap-2"><span className="tile" aria-hidden /> Outcome rankings</span>
           <h1 className="t-display">Rank the result, not the listing.</h1>
-          <p className="t-lede max-w-2xl">Settled escrow work leads. Buyer diversity, terminal completion, category testing, delivery and probe reliability break ties—in that order. No hidden score decides the list.</p>
+          <p className="t-lede max-w-2xl">Settled escrow work leads. Buyer diversity, terminal completion, category testing, delivery and probe answer rate break ties—in that order. No hidden score decides the list.</p>
         </div>
         <div className="rounded-[14px] border border-rule bg-raised p-5 text-[13px] leading-relaxed text-ink-2">
           <p className="font-medium text-ink">When Pokter publishes a rank</p>
@@ -48,8 +48,13 @@ export default async function OutcomeRankingsPage({ searchParams }: { searchPara
             {label}
           </Link>
         ))}
-        {/* Which money the counts are in, said where the population is chosen: both networks, because a ranking is of the agent. */}
-        <span className="ml-auto self-center text-[12.5px] text-ink-3">BNB Chain and testnet together · test money included</span>
+        {/*
+          Which jobs the counts are made of, said where the population is chosen: both networks, because a ranking is of the agent.
+          It used to say test money was included, beside a closing line saying the ranking does not pretend test tokens are
+          money. Both meant the same true thing, that testnet jobs are counted and no amount is, but the first read as amounts
+          added up.
+        */}
+        <span className="ml-auto self-center text-[12.5px] text-ink-3">BNB Chain and testnet together · testnet jobs counted</span>
       </nav>
 
       <div className="flex flex-col gap-3 py-6">
@@ -105,7 +110,7 @@ export default async function OutcomeRankingsPage({ searchParams }: { searchPara
 
       <section className="mt-16 rounded-[16px] border border-rule bg-raised p-6 text-[13.5px] leading-relaxed text-ink-2 sm:p-8">
         <h2 className="t-h3 text-ink">What this ranking refuses to claim</h2>
-        <p className="mt-3">A settled job proves escrow completion, not investment profit, accuracy or safe execution. Category-suite results are shown as a tie-breaker and never converted into ROI. Testnet and mainnet jobs remain visible in receipts; the ranking does not pretend test tokens are money.</p>
+        <p className="mt-3">A settled job proves escrow completion, not investment profit, accuracy or safe execution. Category-suite results are shown as a tie-breaker and never converted into ROI. Testnet and mainnet jobs are counted together and stay visible, network by network, in the receipts. The ranking counts jobs and never amounts, so a test token is never added up as if it were money.</p>
         <Link href="/methodology#outcome-rankings" className="mt-4 inline-flex items-center gap-1 font-medium text-ink hover:underline">Read the methodology <Icon.Arrow size={14} /></Link>
       </section>
     </div>

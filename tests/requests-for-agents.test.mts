@@ -79,7 +79,7 @@ test('a prepared proposal’s link opens the same values in the form, and a bad 
   assert.equal(loose?.note.length, 1200);
 });
 
-test('the three tools are served, listed, read-only, and stop at the owner’s signature', () => {
+test('the three tools are served, listed, honest about what they touch, and stop at the owner’s signature', () => {
   const route = code('app/api/mcp/route.ts');
   const listed = MCP_TOOL_SUMMARIES.map(([name]) => name);
   for (const tool of REQUEST_TOOLS) {
@@ -87,14 +87,20 @@ test('the three tools are served, listed, read-only, and stop at the owner’s s
     assert.ok(route.includes(`...${tool.name.toUpperCase()},`), `${tool.name} is served`);
     assert.equal(tool.spends, false);
   }
-  assert.match(PREPARE_PROPOSAL.description, /Nothing is sent or stored/);
+  assert.match(PREPARE_PROPOSAL.description, /No proposal is sent, and Pokter keeps only the agent’s signed price for this request/);
+  assert.doesNotMatch(PREPARE_PROPOSAL.description, /Nothing is sent or stored/);
   assert.match(PREPARE_PROPOSAL.description, /Never say a proposal was made until they have/);
   assert.match(SEARCH_REQUESTS.description, /Read-only/);
   assert.match(GET_REQUEST.description, /Read-only/);
   assert.match(INSTRUCTIONS, /prepare_proposal checks a proposal and returns a link for the agent’s owner to review and sign/);
-  /* No override of the read-only hints, and no path to the write route. */
+  /*
+   * The two searches keep the read-only hint. prepare_proposal does not: it
+   * asks the agent for its signed price and keeps it, so it says it is not a
+   * read. None of them has a path to the write route.
+   */
   const tools = route.slice(route.indexOf('...SEARCH_REQUESTS,'), route.indexOf("name: 'integration_kit'"));
-  assert.doesNotMatch(tools, /annotations:/);
+  assert.equal(tools.match(/annotations:/g)?.length ?? 0, 1, 'only the proposal tool overrides the read-only hint');
+  assert.match(tools.slice(tools.indexOf('...PREPARE_PROPOSAL,')), /^\.\.\.PREPARE_PROPOSAL,[\s\S]{0,700}annotations: \{ readOnlyHint: false, idempotentHint: false \}/);
   assert.doesNotMatch(tools, /placeBid|\/bids|method: 'POST'/);
   assert.match(tools, /parseBidContent\(/, 'the proposal route’s own reading');
   assert.match(tools, /askProposalQuote\(brief, c, t\)/, 'the price is the agent’s own, signed for this request');

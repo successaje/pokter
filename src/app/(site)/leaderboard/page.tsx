@@ -75,8 +75,9 @@ import { Icon } from '@/ui/icons';
 export const dynamic = 'force-dynamic';
 
 const TITLE = 'Who buyers actually paid';
+/* Three tabs, not two: the Pokter Score tab arrived after this was written, and is the one figure here that combines two measures. */
 const DESCRIPTION =
-  'Two separate boards per network: settled escrow jobs with delivery evidence from external buyers, and the share of Pokter’s scheduled checks each agent answered. Sorted by one named metric at a time, with the receipt behind every figure.';
+  'Three boards per network: the Pokter Score, combining paid work delivered with Pokter’s checks answered; settled escrow jobs with delivery evidence from external buyers; and the share of Pokter’s scheduled checks each agent answered. One named figure at a time, with the sample behind every one.';
 
 export const metadata: Metadata = {
   title: 'Leaderboard',

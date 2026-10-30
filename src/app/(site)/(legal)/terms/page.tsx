@@ -63,9 +63,15 @@ export default function TermsPage() {
         suitable for you.
       </p>
       <p>
-        Two of the five scoring dimensions are permanently reported as not
-        measured, because nobody publishes realised returns or drawdown for
-        these agents. No figure here claims an agent makes money. The{' '}
+        {/* It said two of the five dimensions were never measured. Performance
+            has been measured from paid jobs since profile score 1.1.0, which
+            leaves Risk the only one that never is; realised returns are
+            measured nowhere, in either score. */}
+        Risk, one of the five dimensions of an agent&rsquo;s profile score, is
+        permanently reported as not measured, because nobody publishes
+        drawdown for these agents. Performance is measured only as paid jobs
+        delivered, never as realised returns, which nobody publishes either.
+        No figure here claims an agent makes money. The{' '}
         <Link className="link" href="/methodology">
           methodology
         </Link>{' '}

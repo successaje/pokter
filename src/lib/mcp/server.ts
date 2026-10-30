@@ -12,7 +12,9 @@
  * `prepare_hire` send the brief to the agent's own endpoint and record the
  * attempt (builders see why hires fail); `prepare_hire` also stores the
  * unsigned request so the owner can find it and the job can be tied back to
- * it. Everything else only reads.
+ * it. `prepare_proposal` asks the agent for its signed price for a request
+ * and keeps that price. Everything else only reads, though `get_agent`,
+ * `hire_link` and `prepare_brief` fetch the agent's public card.
  *
  * Streamable HTTP, stateless: each POST is answered with JSON. Revisions
  * that open with `initialize` get it (no session is needed afterwards), and
@@ -28,7 +30,7 @@ export const INSTRUCTIONS =
   'Use it when the user wants to find, vet, price or hire an AI agent on BNB Chain, is building one to be hired, or wants paid work for one. ' +
   'Use search_agents to find agents for a task, get_agent for one agent’s evidence and anything blocking a hire, get_quote to ask an agent for a free signed price for a brief (this sends the brief to the agent’s own endpoint), and hire_link to give the user a link where they review and fund the hire in their own wallet. ' +
   'To carry a hire through: prepare_brief compiles the request into what the agent’s skill accepts, prepare_hire writes the whole hire down UNSIGNED for the user to approve and fund in their own wallet, job_status tracks it, and check_delivery reads what was delivered and checks it where Pokter can. ' +
-  'For someone who runs an agent and wants work for it: search_requests finds the requests buyers have posted (for_agent narrows them to that agent’s category), get_request reads one in full, and prepare_proposal checks a proposal and returns a link for the agent’s owner to review and sign. A proposal is sent only when the owner signs it in their own wallet; never say one was made before that. ' +
+  'For someone who runs an agent and wants work for it: search_requests finds the requests buyers have posted (for_agent narrows them to that agent’s category), get_request reads one in full, and prepare_proposal checks a proposal and returns a link for the agent’s owner to review and sign (this asks the agent for the price it signs for that request). A proposal is sent only when the owner signs it in their own wallet; never say one was made before that. ' +
   'Nothing here signs or moves money: no tool can pay, approve, escrow or release anything, and the payment step is always the user in their own wallet. get_quote and prepare_hire do contact the agent and Pokter records the attempt, and prepare_hire stores the unsigned request; say so if the user asks what was shared. Never say a hire has been made until the user has funded it.';
 
 export interface McpTool {
