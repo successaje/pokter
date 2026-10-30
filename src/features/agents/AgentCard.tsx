@@ -292,9 +292,24 @@ export function AgentCard({
           left a short description with a blank one under it. */}
       <p className="mt-3.5 line-clamp-3 text-[13.5px] leading-[1.45] text-ink-2 sm:line-clamp-2 sm:min-h-[2.9em]">{row.description || 'No description published.'}</p>
 
-      <p className="mt-3 flex items-center gap-2 text-[12.5px] text-ink-2" title={row.probes ? `${row.probes} probes in total` : 'Pokter has never called this agent'}>
-        <span className={cn('size-1.5 shrink-0 rounded-full', DOT[availability.tone])} aria-hidden />
-        {availability.text}
+      <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] text-ink-2">
+        <span className="flex items-center gap-2" title={row.probes ? `${row.probes} probes in total` : 'Pokter has never called this agent'}>
+          <span className={cn('size-1.5 shrink-0 rounded-full', DOT[availability.tone])} aria-hidden />
+          {availability.text}
+        </span>
+        {/*
+          A passed answer check, said only where there is one, and linked to
+          the comparison behind it: each position, Pokter's own reading, the
+          agent's answer and the difference. As a column it read "None on
+          record" on all but a handful of cards, which is the catalogue's
+          normal state and not something a buyer needs told on every one.
+        */}
+        {checked && (
+          <Link href={`${agentHref(row)}#answer-check`} className="relative z-10 inline-flex items-center gap-1 font-medium text-ok hover:underline">
+            <Icon.Check size={12} aria-hidden />
+            Passed answer check
+          </Link>
+        )}
       </p>
 
       {/*
@@ -317,11 +332,11 @@ export function AgentCard({
         so a card could read "2/2 settled" beside "No proof yet". Both were
         true and together they read as a contradiction. Settled jobs now
         carry how many were for outside buyers on the same reading, and a
-        passed answer check is named as a check. The settled count shows on
-        a phone too: hidden there, "No proof yet" was the only evidence a
-        phone reader saw.
+        passed answer check is named beside the answer rate above. The
+        settled count shows on a phone too: hidden there, "No proof yet" was
+        the only evidence a phone reader saw.
       */}
-      <dl className="mt-5 grid grid-cols-3 gap-3 text-[13px]">
+      <dl className="mt-5 grid grid-cols-2 gap-3 text-[13px] sm:grid-cols-3">
         <div className="flex min-w-0 flex-col gap-1.5">
           <dt className="t-label">Paid jobs</dt>
           <dd
@@ -358,16 +373,6 @@ export function AgentCard({
             ) : (
               <span className="text-ink-3">Not yet</span>
             )}
-          </dd>
-        </div>
-        <div className="flex min-w-0 flex-col gap-1.5">
-          <dt className="t-label">Answer check</dt>
-          <dd
-            className={cn('flex items-center gap-1 truncate', checked ? 'text-ink' : 'text-ink-3')}
-            title={checked ? 'Passed the latest answer check for its category.' : 'No passing answer check on record. Not every category has a check yet, and a failed check is shown on the agent\u2019s page.'}
-          >
-            {checked && <Icon.Check size={12} className="shrink-0 text-ok" aria-hidden />}
-            {checked ? 'Passed' : 'None on record'}
           </dd>
         </div>
       </dl>
