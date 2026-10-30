@@ -146,7 +146,7 @@ export default async function HomePage() {
                   href="/discover?hireable=1"
                   className="inline-flex min-h-6 flex-wrap items-center gap-x-1.5 rounded-full border border-rule-strong bg-sunken px-2.5 py-0.5 leading-snug text-ink-2 transition-colors hover:border-ink hover:text-ink"
                 >
-                  <span className="t-readout">{home.catalogue.hireable}</span> hireable right now
+                  <span className="t-readout">{home.catalogue.hireable}</span> hireable now
                   {/* When Pokter last called an agent, so the count beside it has an age. */}
                   {checkedAt && (
                     <span className="whitespace-nowrap text-ink-3">
@@ -215,25 +215,32 @@ export default async function HomePage() {
               catalogue keeps everywhere else, and the one a buyer is
               most likely to get wrong here.
             */}
-            <p className="anim-rise max-w-[32rem] text-[12.5px] leading-relaxed text-ink-3" style={{ animationDelay: '180ms' }}>
-              {MAINNET_ESCROW ? (
-                /* One line now, keeping both halves of the rule: who does a free run, and that a paid one is at the agent's own signed price. */
-                <>
-                  <span className="font-medium text-ink-2">Try free</span> on testnet, run by Pokter&rsquo;s own agent. <span className="font-medium text-ink-2">Pay</span> on BNB Chain in {moneyWords(56)}, at a price the agent signed.
-                </>
-              ) : (
-                <>
-                  <span className="font-medium text-ink-2">Free</span> while escrow runs on BNB testnet: test tokens only, with Pokter&rsquo;s own agent doing the work.
-                </>
-              )}
-            </p>
-            <div className="anim-rise flex flex-wrap items-center gap-x-6 gap-y-3 text-[13px]" style={{ animationDelay: '220ms' }}>
-              <Link href="/build" className="inline-flex items-center gap-1.5 font-medium text-ink hover:underline">
-                Build an agent <Icon.Arrow size={15} />
-              </Link>
-              <Link href="/how-it-works" className="text-ink-3 hover:text-ink">
-                How hiring works
-              </Link>
+            {/*
+              The rule and the two ways onward on one row. Stacked, the links
+              sat a line below the rule and, on a laptop, just under the
+              fold; beside it they cost no height of their own.
+            */}
+            <div className="anim-rise flex max-w-[32rem] flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-6" style={{ animationDelay: '180ms' }}>
+              <p className="max-w-[24rem] text-[12.5px] leading-relaxed text-ink-3">
+                {MAINNET_ESCROW ? (
+                  /* One line now, keeping both halves of the rule: who does a free run, and that a paid one is at the agent's own signed price. */
+                  <>
+                    <span className="font-medium text-ink-2">Try free</span> on testnet, run by Pokter&rsquo;s own agent. <span className="font-medium text-ink-2">Pay</span> on BNB Chain in {moneyWords(56)}, at a price the agent signed.
+                  </>
+                ) : (
+                  <>
+                    <span className="font-medium text-ink-2">Free</span> while escrow runs on BNB testnet: test tokens only, with Pokter&rsquo;s own agent doing the work.
+                  </>
+                )}
+              </p>
+              <div className="flex shrink-0 flex-wrap items-center gap-x-5 gap-y-1.5 text-[13px] sm:flex-col sm:items-end">
+                <Link href="/build" className="inline-flex items-center gap-1.5 font-medium text-ink hover:underline">
+                  Build an agent <Icon.Arrow size={15} />
+                </Link>
+                <Link href="/how-it-works" className="text-ink-3 hover:text-ink">
+                  How hiring works
+                </Link>
+              </div>
             </div>
           </div>
           <div className="anim-rise" style={{ animationDelay: '160ms' }}>
