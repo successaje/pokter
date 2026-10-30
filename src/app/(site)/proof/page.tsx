@@ -298,9 +298,9 @@ export default async function ProductionProofPage({ searchParams }: { searchPara
             The verifier reads Pokter&rsquo;s receipt index, asks each escrow contract itself and recomputes the totals. It needs nothing from Pokter but the job numbers.
           </p>
           <CodeBlock label="Copy the commands" wrap>{`curl -o pokter-receipt-verifier.mjs https://pokter.xyz/api/v1/receipts/verifier\nnode pokter-receipt-verifier.mjs`}</CodeBlock>
-          <a href="/api/v1/receipts" className="inline-flex w-fit items-center gap-1.5 text-[13px] font-medium hover:underline">
+          <Link href="/api/v1/receipts" className="inline-flex w-fit items-center gap-1.5 text-[13px] font-medium hover:underline">
             Machine-readable receipts <Icon.Arrow size={13} />
-          </a>
+          </Link>
         </aside>
       </header>
 

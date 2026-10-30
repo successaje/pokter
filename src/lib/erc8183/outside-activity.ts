@@ -61,8 +61,7 @@ export async function outsideActivity(): Promise<OutsideActivity> {
   return {
     funded: totals.indexedJobs,
     open: totals.activeJobs,
-    answered: answeredAtAll.length - viaCourier,
-    viaCourier,
+    answered: answeredAtAll.length - viaCourier, viaCourier,
     answeredMainnet,
     buyers: { wallets: wallets.size, mainnet: [...wallets.values()].filter(Boolean).length },
   };
