@@ -82,3 +82,15 @@ test('the agent page passes its job history to the profile', () => {
   assert.match(code('app/(site)/agents/[chainId]/[tokenId]/page.tsx'), /<StructuredProfile s=\{structuredProfile\(p\)\}/);
   assert.match(code('features/agent/profile.ts'), /jobHistory/);
 });
+
+test('a sample reads the way its job page reads it, never as serialised field values', () => {
+  const loader = code('lib/agent/sample-delivery.ts');
+  /* Both readers carry the whole parsed answer, with the brief kept only where it may be shown. */
+  assert.equal(loader.match(/answer: \{ \.\.\.answer, asked: briefIsPublic\(funder\) \? answer\.asked : null \},/g)?.length, 2);
+  const page = code('app/(site)/agents/[chainId]/[tokenId]/page.tsx');
+  assert.match(page, /<DeliveredAnswerView answer=\{p\.sample\.answer\} chainId=\{p\.sample\.chainId\} when=\{\(value\) => utcWhen\(value\) \?\? value\} \/>/);
+  assert.doesNotMatch(page, /JSON\.stringify\(f\.value\)/, 'a nested result printed as braces');
+  /* A lifecycle receipt is not an answer: its fields stay plain, formatted by the same value renderer. */
+  assert.match(page, /p\.sample\.kind === 'lifecycle' \? \(/);
+  assert.match(page, /<AnswerValue value=\{f\.value\} \/>/);
+});

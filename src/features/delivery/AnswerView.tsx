@@ -122,7 +122,7 @@ export function DeliveredAnswerView({ answer, chainId, when }: { answer: Deliver
         <div className="flex flex-col gap-1.5">
           <span className="t-label">Where it came from</span>
           <ul className="flex list-disc flex-col gap-1 pl-5 text-[13px] text-ink-2">
-            {answer.sources.slice(0, 8).map((s) => <li key={s} className="break-all">{s}</li>)}
+            {answer.sources.slice(0, 8).map((s) => <li key={s} className="break-words">{s}</li>)}
           </ul>
         </div>
       )}
