@@ -186,3 +186,81 @@ export function flatText(value: unknown): string | null {
   if (!entries.every(([, v]) => v === null || ['string', 'number', 'boolean'].includes(typeof v))) return null;
   return entries.map(([k, v]) => `${k.replace(/_/g, ' ')} ${v === null ? '—' : String(v)}`).join(' · ');
 }
+
+/**
+ * How a field value is laid out: text, labelled rows, a table, or a list.
+ * Compact JSON only past MAX_DEPTH, where a layout would not be read.
+ *
+ * Any structure that did not fit on one line used to be printed as JSON,
+ * so a delivery's own data reached the buyer as braces and quotes. Nothing
+ * here interprets a value: each one is shown as the agent wrote it.
+ */
+export type ValueShape =
+  | { kind: 'empty' }
+  | { kind: 'text'; text: string }
+  | { kind: 'rows'; rows: Array<{ label: string; value: ValueShape }>; more: number }
+  | { kind: 'table'; columns: string[]; rows: string[][]; more: number }
+  | { kind: 'list'; items: ValueShape[]; more: number }
+  | { kind: 'json'; text: string };
+
+const MAX_DEPTH = 4;
+/** A flat object longer than this reads better as rows than as one line. */
+const INLINE_FLAT = 80;
+const MAX_ROWS = 30;
+const MAX_ITEMS = 20;
+const MAX_COLUMNS = 6;
+
+const primitive = (value: unknown): value is string | number | boolean | null => value === null || ['string', 'number', 'boolean'].includes(typeof value);
+const record = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+const keyLabel = (key: string) => key.replace(/_/g, ' ');
+const cell = (value: unknown) => (value === null || value === undefined || value === '' ? '—' : String(value));
+
+/** The columns of a list of same-shaped flat records, or null when it is not one. */
+function tableColumns(list: unknown[]): string[] | null {
+  if (list.length < 2 || !list.every((row) => record(row) && Object.values(row).every(primitive))) return null;
+  const columns = [...new Set(list.flatMap((row) => Object.keys(row as Record<string, unknown>)))];
+  return columns.length > 0 && columns.length <= MAX_COLUMNS ? columns : null;
+}
+
+export function valueShape(value: unknown, depth = 0): ValueShape {
+  if (value === null || value === undefined || value === '') return { kind: 'empty' };
+  if (primitive(value)) return { kind: 'text', text: String(value) };
+  if (depth >= MAX_DEPTH) return { kind: 'json', text: JSON.stringify(value).slice(0, 600) };
+  if (Array.isArray(value)) {
+    if (value.length === 0) return { kind: 'empty' };
+    if (value.every(primitive)) return { kind: 'text', text: value.map(cell).join(', ') };
+    const columns = tableColumns(value);
+    if (columns) {
+      const rows = value.slice(0, MAX_ROWS).map((row) => columns.map((column) => cell((row as Record<string, unknown>)[column])));
+      return { kind: 'table', columns: columns.map(keyLabel), rows, more: Math.max(0, value.length - MAX_ROWS) };
+    }
+    return { kind: 'list', items: value.slice(0, MAX_ITEMS).map((item) => valueShape(item, depth + 1)), more: Math.max(0, value.length - MAX_ITEMS) };
+  }
+  const flat = flatText(value);
+  if (flat !== null && flat.length <= INLINE_FLAT) return { kind: 'text', text: flat };
+  const entries = Object.entries(value as Record<string, unknown>);
+  if (entries.length === 0) return { kind: 'empty' };
+  return {
+    kind: 'rows',
+    rows: entries.slice(0, MAX_ROWS).map(([key, v]) => ({ label: keyLabel(key), value: valueShape(v, depth + 1) })),
+    more: Math.max(0, entries.length - MAX_ROWS),
+  };
+}
+
+/** Whether a shape lays out as a block under its label rather than beside it. */
+export const shapeIsBlock = (shape: ValueShape) => shape.kind === 'rows' || shape.kind === 'table' || shape.kind === 'list';
+
+/** How many lines a shape takes: past a few, it is folded behind a toggle. */
+export function shapeLines(shape: ValueShape): number {
+  const more = 'more' in shape && shape.more > 0 ? 1 : 0;
+  switch (shape.kind) {
+    case 'rows':
+      return shape.rows.reduce((n, row) => n + (shapeIsBlock(row.value) ? 1 + shapeLines(row.value) : 1), 0) + more;
+    case 'table':
+      return shape.rows.length + 1 + more;
+    case 'list':
+      return shape.items.reduce((n, item) => n + shapeLines(item), 0) + more;
+    default:
+      return 1;
+  }
+}
