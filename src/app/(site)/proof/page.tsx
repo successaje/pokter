@@ -26,6 +26,9 @@ import { cn } from '@/lib/ui/cn';
 import { AgentAvatar } from '@/ui/Agent';
 import { Icon } from '@/ui/icons';
 import { WhyNumbersDiffer } from '@/features/proof/WhyNumbersDiffer';
+import { CORRECTIONS } from '@/lib/corrections/entries';
+import { outsideActivity } from '@/lib/erc8183/outside-activity';
+import { CodeBlock } from '@/ui/Data';
 
 export const dynamic = 'force-dynamic';
 
@@ -184,6 +187,8 @@ export default async function ProductionProofPage({ searchParams }: { searchPara
    * Counted apart and labelled on its row (`courierDeliveries`).
    */
   const paidToCourier = await courierPaidTest(jobs, team, registeredWalletRead);
+  /* Both networks and outside the team only, whatever the filters below are set to: the sentence at the top is about Pokter, not about this view. */
+  const outside = await outsideActivity();
   const summary = summarizeProductionProof(jobs, isTeam, isLifecycleDemo, paidToCourier);
   /*
    * The split beside the total is of funded hires (`fundingEvidence`), and
@@ -248,13 +253,55 @@ export default async function ProductionProofPage({ searchParams }: { searchPara
   );
 
   return (
-    <div className="frame pb-24 pt-10 sm:pt-16">
-      <header className="flex max-w-3xl flex-col gap-4 pb-10">
-        <span className="t-label flex items-center gap-2"><span className="tile" aria-hidden /> Production proof</span>
-        <h1 className="t-display">Real jobs. Delivered answers.</h1>
-        <p className="t-lede max-w-2xl">
-          Agents hired through Pokter&rsquo;s escrow, what they delivered, and the on-chain receipt for every job. Jobs that expired or were refunded stay in the record further down.
-        </p>
+    <div className="frame pb-24 pt-10 sm:pt-14">
+      {/*
+        The finding first, then where to check it.
+
+        This opened on a display headline and a description of the page, and
+        the figures a visitor came for were below the fold. It now leads with
+        one sentence of them, outside buyers only and with how much is on BNB
+        Chain, because most outside work so far is testnet and a total that
+        hid that would flatter it. The verifier, which was at the foot of the
+        page, sits beside it: the claim and the way to test it in one screen.
+      */}
+      <header className="grid grid-cols-1 gap-8 pb-10 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:items-end lg:gap-12">
+        <div className="flex flex-col gap-4">
+          <span className="t-label flex items-center gap-2"><span className="tile" aria-hidden /> Production proof</span>
+          <h1 className="t-h1">Real jobs. Delivered answers.</h1>
+          <p className="t-lede max-w-2xl">
+            <span className="text-ink">
+              {outside.answered.toLocaleString('en-US')} paid {outside.answered === 1 ? 'job has' : 'jobs have'} settled with the agent&rsquo;s answer for buyers outside Pokter&rsquo;s team
+            </span>
+            {outside.answered > 0 &&
+              (outside.answeredMainnet === 0
+                ? ', none on BNB Chain yet.'
+                : outside.answeredMainnet === outside.answered
+                  ? ', all on BNB Chain.'
+                  : `, ${outside.answeredMainnet} of them on BNB Chain.`)}
+            {outside.answered === 0 && '.'} {outside.buyers.wallets.toLocaleString('en-US')} outside {outside.buyers.wallets === 1 ? 'wallet has' : 'wallets have'} funded a job. Every job is below, the misses included.
+          </p>
+          <nav aria-label="About these figures" className="flex flex-wrap gap-x-5 gap-y-2 text-sm">
+            <Link href="/leaderboard" className="inline-flex items-center gap-1.5 font-medium hover:underline">
+              Compare performance <Icon.Arrow size={14} />
+            </Link>
+            <Link href="/methodology" className="text-ink-2 hover:text-ink hover:underline">
+              How we measure
+            </Link>
+            <Link href="/corrections" className="text-ink-2 hover:text-ink hover:underline">
+              {CORRECTIONS.length} corrections, dated
+            </Link>
+          </nav>
+        </div>
+        <aside aria-labelledby="verify-title" className="flex flex-col gap-3 rounded-[14px] border border-rule bg-raised p-5">
+          <h2 id="verify-title" className="text-[15px] font-semibold tracking-[-0.01em]">Check every receipt against the chain</h2>
+          <p className="text-[13px] leading-relaxed text-ink-2">
+            The verifier reads Pokter&rsquo;s receipt index, asks each escrow contract itself and recomputes the totals. It needs nothing from Pokter but the job numbers.
+          </p>
+          <CodeBlock label="Copy the commands" wrap>{`curl -o pokter-receipt-verifier.mjs https://pokter.xyz/api/v1/receipts/verifier\nnode pokter-receipt-verifier.mjs`}</CodeBlock>
+          <a href="/api/v1/receipts" className="inline-flex w-fit items-center gap-1.5 text-[13px] font-medium hover:underline">
+            Machine-readable receipts <Icon.Arrow size={13} />
+          </a>
+        </aside>
       </header>
 
       <section aria-label="Filters" className="flex flex-col gap-5 border-y border-rule py-5 lg:flex-row lg:items-end lg:justify-between">
