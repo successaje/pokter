@@ -112,6 +112,7 @@ export function Inspection({ specimens }: { specimens: Specimen[] }) {
 
       <div className="flex flex-col gap-5 px-5 pb-5 pt-5 sm:px-6" aria-live="polite">
         <div key={specimen.key} className="anim-fade flex flex-col gap-3">
+          <span className="t-label -mb-1.5 text-ink-3">{specimen.role}</span>
           <div className="flex items-baseline justify-between gap-3">
             <Link href={specimen.href} className="t-h3 truncate hover:underline">
               {specimen.name}

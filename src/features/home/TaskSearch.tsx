@@ -37,7 +37,7 @@ export function TaskSearch({ size = 'l', autoFocus, className }: { size?: 'l' | 
   };
 
   return (
-    <div className={cn('flex flex-col gap-3', className)}>
+    <div className={cn('flex flex-col', size === 'l' ? 'gap-3' : 'gap-2.5', className)}>
       <form
         role="search"
         onSubmit={(event) => {
@@ -57,7 +57,7 @@ export function TaskSearch({ size = 'l', autoFocus, className }: { size?: 'l' | 
           id="task-search"
           value={value}
           onChange={(event) => setValue(event.target.value)}
-          placeholder="What do you need an agent to do?"
+          placeholder="What do you need done?"
           autoComplete="off"
           enterKeyHint="search"
           maxLength={400}
@@ -81,7 +81,7 @@ export function TaskSearch({ size = 'l', autoFocus, className }: { size?: 'l' | 
           <li key={suggestion.query} className={cn('shrink-0', i === 2 && 'max-sm:hidden')}>
             <Link
               href={`/discover?q=${encodeURIComponent(suggestion.query)}`}
-              className="inline-flex h-8 items-center whitespace-nowrap rounded-full border border-rule bg-paper px-3 text-[13px] text-ink-2 transition-colors hover:border-ink hover:text-ink"
+              className={cn('inline-flex items-center whitespace-nowrap rounded-full border border-rule bg-paper text-ink-2 transition-colors hover:border-ink hover:text-ink', size === 'l' ? 'h-8 px-3 text-[13px]' : 'h-7 px-2.5 text-[12.5px]')}
             >
               {suggestion.label}
             </Link>

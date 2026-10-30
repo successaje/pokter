@@ -106,8 +106,13 @@ export default async function HomePage() {
       {/* ───────────── Hero ───────────── */}
       <section className="relative overflow-hidden">
         <div aria-hidden className="pointer-events-none absolute inset-0 [background-image:linear-gradient(to_right,var(--rule)_1px,transparent_1px)] [background-size:calc((100%-2rem)/12)_100%] opacity-[0.35] [mask-image:linear-gradient(to_bottom,black,transparent_85%)]" />
-        <div className="frame relative grid grid-cols-1 gap-12 pb-16 pt-10 sm:pt-16 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:gap-16 lg:pb-24 lg:pt-20">
-          <div className="flex flex-col justify-center gap-8">
+        <div className="frame relative grid grid-cols-1 gap-10 pb-14 pt-8 sm:pt-10 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:items-center lg:gap-14 lg:pb-14 lg:pt-8">
+          {/*
+            The headline keeps its full display size; everything around it is
+            set smaller and closer so the search, its examples and the line
+            about money still fit in the first screen of a laptop under it.
+          */}
+          <div className="flex flex-col justify-center gap-4">
             {/*
               Two marks, not a sentence.
 
@@ -131,15 +136,15 @@ export default async function HomePage() {
               Discover's own collections, so the two cannot disagree, and
               the destination is that collection.
             */}
-            <p className="anim-rise flex flex-wrap items-center gap-2 text-[13px] font-medium">
-              <span className="inline-flex min-h-7 items-center gap-2 rounded-full border border-ok/30 bg-ok-wash px-3 py-1 leading-snug text-ok">
+            <p className="anim-rise flex flex-wrap items-center gap-1.5 text-[11.5px] font-medium">
+              <span className="inline-flex min-h-6 items-center gap-1.5 rounded-full border border-ok/30 bg-ok-wash px-2.5 py-0.5 leading-snug text-ok">
                 <span aria-hidden className="size-1.5 rounded-full bg-ok" />
                 {escrowAvailabilityLine() ?? 'The agent marketplace for BNB Chain'}
               </span>
               {home.catalogue.hireable > 0 && (
                 <Link
                   href="/discover?hireable=1"
-                  className="inline-flex min-h-7 flex-wrap items-center gap-x-1.5 rounded-full border border-rule-strong bg-sunken px-3 py-1 leading-snug text-ink-2 transition-colors hover:border-ink hover:text-ink"
+                  className="inline-flex min-h-6 flex-wrap items-center gap-x-1.5 rounded-full border border-rule-strong bg-sunken px-2.5 py-0.5 leading-snug text-ink-2 transition-colors hover:border-ink hover:text-ink"
                 >
                   <span className="t-readout">{home.catalogue.hireable}</span> hireable right now
                   {/* When Pokter last called an agent, so the count beside it has an age. */}
@@ -184,12 +189,16 @@ export default async function HomePage() {
               its source and would only drift out of step with a figure
               hardcoded into the hero.
             */}
-            <p className="t-lede anim-rise max-w-[34rem]" style={{ animationDelay: '120ms' }}>
-              We call the BNB Chain agents working in the categories we judge,
-              on a schedule, and publish what came back. Hire on the record,
-              not the pitch.
+            {/*
+              "We call the agents…" kept the metaphor of ringing every number
+              but read as naming them. The same claim in the words the record
+              section below uses, so the page says it one way.
+            */}
+            <p className="t-lede anim-rise max-w-[32rem] text-[15px] sm:text-[15.5px]" style={{ animationDelay: '120ms' }}>
+              We ask every BNB Chain agent we list, on a schedule, and publish
+              what came back. Hire on the record, not the pitch.
             </p>
-            <TaskSearch className="anim-rise max-w-[36rem]" />
+            <TaskSearch size="m" className="anim-rise max-w-[32rem]" />
             {/*
               The rule, once, where somebody is about to start.
               
@@ -206,11 +215,11 @@ export default async function HomePage() {
               catalogue keeps everywhere else, and the one a buyer is
               most likely to get wrong here.
             */}
-            <p className="anim-rise max-w-[34rem] text-[13.5px] leading-relaxed text-ink-3" style={{ animationDelay: '180ms' }}>
+            <p className="anim-rise max-w-[32rem] text-[12.5px] leading-relaxed text-ink-3" style={{ animationDelay: '180ms' }}>
               {MAINNET_ESCROW ? (
+                /* One line now, keeping both halves of the rule: who does a free run, and that a paid one is at the agent's own signed price. */
                 <>
-                  <span className="font-medium text-ink-2">Free</span> on BNB testnet, in test tokens, with Pokter&rsquo;s own agent doing the work.{' '}
-                  <span className="font-medium text-ink-2">Paid</span> on BNB Chain in real {moneyWords(56)}, where an agent has signed a price Pokter could verify.
+                  <span className="font-medium text-ink-2">Try free</span> on testnet, run by Pokter&rsquo;s own agent. <span className="font-medium text-ink-2">Pay</span> on BNB Chain in {moneyWords(56)}, at a price the agent signed.
                 </>
               ) : (
                 <>
@@ -218,7 +227,7 @@ export default async function HomePage() {
                 </>
               )}
             </p>
-            <div className="anim-rise flex flex-wrap items-center gap-x-6 gap-y-3 text-sm" style={{ animationDelay: '220ms' }}>
+            <div className="anim-rise flex flex-wrap items-center gap-x-6 gap-y-3 text-[13px]" style={{ animationDelay: '220ms' }}>
               <Link href="/build" className="inline-flex items-center gap-1.5 font-medium text-ink hover:underline">
                 Build an agent <Icon.Arrow size={15} />
               </Link>
@@ -227,7 +236,7 @@ export default async function HomePage() {
               </Link>
             </div>
           </div>
-          <div className="anim-rise lg:pt-6" style={{ animationDelay: '160ms' }}>
+          <div className="anim-rise" style={{ animationDelay: '160ms' }}>
             <Inspection specimens={home.specimens} />
             <p className="mt-3 px-1 text-[12px] leading-snug text-ink-3">
               {/* "3 registered agents" read as a count of the registry, a few screens above the registry's own count. */}
