@@ -11,7 +11,8 @@ import { cn } from '@/lib/ui/cn';
 import { formatDelivery, formatMs, shortAddress } from '@/lib/ui/format';
 import type { ChainId } from '@/lib/scan/types';
 import { commissionTaskTemplates, templatesFromSkills } from '@/lib/hire/taskTemplates';
-import { jobEvidencePath } from '@/lib/jobs/evidence-view';
+import { jobEvidencePath, utcWhen } from '@/lib/jobs/evidence-view';
+import { AnswerValue, DeliveredAnswerView } from '@/features/delivery/AnswerView';
 import { clipAtWord } from '@/lib/ui/clip';
 import { FollowButton, SaveButton, ShareButton } from '@/features/agent/AgentActions';
 import { HirePanel, MobileHireBar } from '@/features/agent/HirePanel';
@@ -613,9 +614,7 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                         ? ' · carried by Pokter’s delivery agent: the task went to this agent and its answer is shown unchanged'
                         : p.sample.kind === 'lifecycle'
                           ? ' · receipt submitted by Pokter’s seller, with no answer from the agent'
-                          : p.sample.producer
-                            ? ` · produced by ${p.sample.producer}`
-                            : ''}
+                          : ''}
                     </span>
                     <span className="t-readout" title={p.sample.manifestHash}>
                       hash {p.sample.manifestHash.slice(0, 10)}…
@@ -628,16 +627,30 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                         {p.sample.asked.slice(0, 400)}
                       </p>
                     )}
-                    {p.sample.title && <p className="font-medium">{p.sample.title.slice(0, 200)}</p>}
-                    <dl className="flex flex-col gap-2">
-                      {p.sample.fields.slice(0, 6).map((f) => (
-                        <div key={f.label} className="grid grid-cols-1 gap-1 sm:grid-cols-[160px_minmax(0,1fr)]">
-                          <dt className="t-readout text-[12px] text-ink-3">{f.label}</dt>
-                          <dd className="line-clamp-4 break-words text-ink-2">{typeof f.value === 'string' ? f.value.slice(0, 600) : JSON.stringify(f.value).slice(0, 600)}</dd>
-                        </div>
-                      ))}
-                    </dl>
-                    {p.sample.raw && <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded-[8px] bg-sunken p-3 text-[12px]">{p.sample.raw.slice(0, 1500)}</pre>}
+                    {/*
+                      A delivery reads the same here as on its own job page:
+                      verdict and reasons first, what it does not cover, then
+                      the data behind it, with who produced it. Field values
+                      were printed with JSON.stringify, so a nested result
+                      arrived as a wall of braces. A lifecycle receipt is not
+                      an answer, so it keeps its plain fields, formatted
+                      rather than serialised.
+                    */}
+                    {p.sample.kind === 'lifecycle' ? (
+                      <>
+                        {p.sample.title && <p className="font-medium">{p.sample.title.slice(0, 200)}</p>}
+                        <dl className="flex flex-col gap-2">
+                          {p.sample.fields.slice(0, 6).map((f) => (
+                            <div key={f.label} className="grid grid-cols-1 gap-1 sm:grid-cols-[160px_minmax(0,1fr)]">
+                              <dt className="t-readout text-[12px] text-ink-3">{f.label}</dt>
+                              <dd className="min-w-0 break-words text-ink-2"><AnswerValue value={f.value} /></dd>
+                            </div>
+                          ))}
+                        </dl>
+                      </>
+                    ) : (
+                      <DeliveredAnswerView answer={p.sample.answer} chainId={p.sample.chainId} when={(value) => utcWhen(value) ?? value} />
+                    )}
                   </div>
                 </div>
               </div>

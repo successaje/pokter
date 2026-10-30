@@ -5,7 +5,7 @@ import { keccak256, stringToBytes } from 'viem';
 import { deliverableKey, readDeliverable } from '@/lib/erc8183/deliverables';
 import { getJobStore } from '@/lib/erc8183/store';
 import type { HiredJob } from '@/lib/erc8183/types';
-import { readDeliveredAnswer } from '@/lib/delivery/answer';
+import { readDeliveredAnswer, type DeliveredAnswer } from '@/lib/delivery/answer';
 import { briefIsPublic, jobFunder, publishableAnswerText, type JobFunder } from '@/lib/jobs/evidence-view';
 import { altanaNetworkFor } from '@/lib/altana/client';
 import { readDeliveryText } from '@/lib/delivery/read-delivery';
@@ -43,6 +43,12 @@ export interface SampleDelivery {
   result: string | null;
   /** What the agent itself said the answer does not cover. */
   limitations: string[];
+  /**
+   * The whole delivery read the way a job's own page reads it, so the
+   * profile shows a sample in the same renderer rather than as raw field
+   * values. `asked` is cleared unless the brief may be shown.
+   */
+  answer: DeliveredAnswer;
 }
 
 const SHOWABLE: HiredJob['status'][] = ['COMPLETED', 'SUBMITTED'];
@@ -121,6 +127,7 @@ function storedSample(job: HiredJob, funder: JobFunder): SampleDelivery | null {
     asked: briefIsPublic(funder) ? unpacked.asked : null,
     result: answer.result,
     limitations: answer.limitations,
+    answer: { ...answer, asked: briefIsPublic(funder) ? answer.asked : null },
   };
 }
 
@@ -163,6 +170,7 @@ async function publishedSample(job: HiredJob, funder: JobFunder): Promise<Sample
     raw: answer.raw,
     result: answer.result,
     limitations: answer.limitations,
+    answer: { ...answer, asked: briefIsPublic(funder) ? answer.asked : null },
   });
 }
 
