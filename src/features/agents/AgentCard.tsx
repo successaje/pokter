@@ -60,25 +60,6 @@ export function availabilityText(row: FindRow): { text: string; tone: 'ok' | 'wa
 
 const DOT = { ok: 'bg-ok', watch: 'bg-watch', bad: 'bg-bad', none: 'bg-rule-strong' } as const;
 
-function cardProof(row: FindRow): { label: string; detail: string } {
-  const proven = row.maturity.steps.find((step) => step.id === 'proven-in-use');
-  if (proven?.earned) return { label: 'Buyer-proven', detail: proven.detail };
-  if (row.paid.outsideCompleted > 0) {
-    return {
-      label: `${row.paid.outsideCompleted} outside`,
-      detail: `${row.paid.outsideCompleted} settled paid ${row.paid.outsideCompleted === 1 ? 'job was' : 'jobs were'} funded outside Pokter’s team.`,
-    };
-  }
-  const checked = row.maturity.steps.find((step) => step.id === 'checked');
-  if (checked?.earned) return { label: 'Checked', detail: checked.detail };
-  /*
-   * "No proof yet", not "Not checked": an agent can have been checked and
-   * failed (Mandate Guard-1 scored 0 / 3), and "Not checked" said the check
-   * never happened. This is true either way; the profile says which.
-   */
-  return { label: 'No proof yet', detail: 'No passing answer check or settled outside-buyer delivery on record.' };
-}
-
 /**
  * Which money the price is in, on the card.
  *
@@ -265,8 +246,8 @@ export function AgentCard({
   deliveryMs?: number | null;
 }) {
   const availability = availabilityText(row);
-  const proof = cardProof(row);
   const terminalJobs = row.paid.completed + row.paid.missed;
+  const checked = row.maturity.steps.find((step) => step.id === 'checked')?.earned ?? false;
   return (
     <article className={cn('group relative flex h-full flex-col rounded-[12px] border border-rule bg-raised p-5 transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-rule-strong hover:shadow-lift sm:rounded-[16px]', className)}>
       <div className="flex items-start gap-3.5">
@@ -327,24 +308,37 @@ export function AgentCard({
         5d ago" was the only reason the first dot was there, and the answer
         dot on the avatar now carries it on every card, in one glyph.
       */}
-      <dl className="mt-5 grid grid-cols-2 gap-3 text-[13px] sm:grid-cols-3">
-        <div className="hidden min-w-0 flex-col gap-1.5 sm:flex">
-          {/* "Replies", not "Answers": one of the maturity badges in the
-              third column is the word "Answers", and a column headed
-              Answers showing Answers two columns over reads as an error. */}
-          <dt className="t-label">Paid result</dt>
+      {/*
+        Each reading names what it counts.
+
+        "Paid result" counted every settled job, Pokter's own test hires
+        included, and "Proof" only outside buyers and passed answer checks,
+        so a card could read "2/2 settled" beside "No proof yet". Both were
+        true and together they read as a contradiction. Settled jobs now
+        carry how many were for outside buyers on the same reading, and a
+        passed answer check is named as a check. The settled count shows on
+        a phone too: hidden there, "No proof yet" was the only evidence a
+        phone reader saw.
+      */}
+      <dl className="mt-5 grid grid-cols-3 gap-3 text-[13px]">
+        <div className="flex min-w-0 flex-col gap-1.5">
+          <dt className="t-label">Paid jobs</dt>
           <dd
-            className={cn('t-readout truncate', row.paid.missed ? 'text-watch' : undefined)}
-            title={terminalJobs > 0 ? `${row.paid.completed} settled and ${row.paid.missed} missed deadline` : 'No paid job has reached a terminal outcome yet'}
+            className="flex min-w-0 flex-col gap-0.5"
+            title={
+              terminalJobs > 0
+                ? `${row.paid.completed} settled and ${row.paid.missed} missed deadline. ${row.paid.outsideCompleted} of the settled jobs were funded by wallets outside Pokter\u2019s declared team.`
+                : 'No paid job has reached a terminal outcome yet'
+            }
           >
-            {terminalJobs > 0 ? `${row.paid.completed}/${terminalJobs} settled` : row.paid.jobs > 0 ? 'In progress' : <span className="text-ink-3">Not hired</span>}
+            <span className={cn('t-readout truncate', row.paid.missed ? 'text-watch' : undefined)}>
+              {terminalJobs > 0 ? `${row.paid.completed}/${terminalJobs} settled` : row.paid.jobs > 0 ? 'In progress' : <span className="text-ink-3">Not hired</span>}
+            </span>
+            {row.paid.completed > 0 && <span className="truncate text-[11.5px] text-ink-3">{row.paid.outsideCompleted} outside</span>}
           </dd>
         </div>
         <div className="flex min-w-0 flex-col gap-1.5">
-          {/* How long it takes, not which rung of the ladder it is on. The
-              rung was a chip with a dot in it and it is on the agent's own
-              page; a buyer choosing between three cards is asking how long
-              this takes, and that question had no answer here at all. */}
+          {/* How long it takes: a buyer choosing between three cards is asking that, and the rung of the ladder is on the agent's own page. */}
           <dt className="t-label">Delivers</dt>
           <dd
             className="t-readout truncate"
@@ -366,9 +360,13 @@ export function AgentCard({
           </dd>
         </div>
         <div className="flex min-w-0 flex-col gap-1.5">
-          <dt className="t-label">Proof</dt>
-          <dd className={cn('t-readout truncate', proof.label === 'No proof yet' ? 'text-ink-3' : undefined)} title={proof.detail}>
-            {proof.label}
+          <dt className="t-label">Answer check</dt>
+          <dd
+            className={cn('flex items-center gap-1 truncate', checked ? 'text-ink' : 'text-ink-3')}
+            title={checked ? 'Passed the latest answer check for its category.' : 'No passing answer check on record. Not every category has a check yet, and a failed check is shown on the agent\u2019s page.'}
+          >
+            {checked && <Icon.Check size={12} className="shrink-0 text-ok" aria-hidden />}
+            {checked ? 'Passed' : 'None on record'}
           </dd>
         </div>
       </dl>
