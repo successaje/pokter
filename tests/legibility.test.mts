@@ -24,7 +24,7 @@ test('home and Discover say when Pokter last checked an agent, beside the hireab
 test('a card shows where its money settles as a coloured pill beside the price', () => {
   const card = code('features/agents/AgentCard.tsx');
   assert.match(card, /money\.real \? 'bg-ok-wash text-ok' : 'bg-watch-wash text-watch'/);
-  assert.match(card, /<PriceText row=\{row\} className="text-\[1\.45rem\][^"]*" \/>\n\s*<NetworkTag chainId=\{row\.hireChainId\} \/>/);
+  assert.match(card, /<PriceText row=\{row\} className="text-\[1\.45rem\][^"]*" \/>\n[^\n]*per job[^\n]*\n\s*<NetworkTag chainId=\{row\.hireChainId\} \/>/);
 });
 
 test('Proof opens with what outside buyers got, its mainnet share, and the verifier beside it', () => {
