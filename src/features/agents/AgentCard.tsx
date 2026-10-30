@@ -60,6 +60,15 @@ export function availabilityText(row: FindRow): { text: string; tone: 'ok' | 'wa
 
 const DOT = { ok: 'bg-ok', watch: 'bg-watch', bad: 'bg-bad', none: 'bg-rule-strong' } as const;
 
+/** The second line of the Replies reading: when it last answered, said in words. */
+function replyState(row: FindRow): string {
+  if (row.probes === 0) return 'not checked yet';
+  if (row.rate === 0) return 'never answered';
+  if (row.answeringToday) return 'answering today';
+  if (row.sinceAnswer !== null) return row.sinceAnswer === 0 ? 'answered today' : `last answered ${row.sinceAnswer}d ago`;
+  return 'not answering lately';
+}
+
 /**
  * Which money the price is in, on the card.
  *
@@ -258,10 +267,17 @@ export function AgentCard({
             three card variants finally draw the avatar the same way. */}
         <AgentAvatar name={row.name} imageUrl={row.imageUrl} seed={row.key} size={48} status={answerState(row)} />
         <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <h3 className="truncate text-[16px] font-semibold tracking-[-0.015em]">
-            <Link href={agentHref(row)} className="after:absolute after:inset-0 after:rounded-[16px] focus-visible:outline-none">
+          {/*
+            The token ID beside the name, where there is always room for it.
+            In the chip row it wrapped onto a line of its own whenever the
+            on-chain tag was there, so one card's description started lower
+            than its neighbour's.
+          */}
+          <h3 className="flex min-w-0 items-baseline gap-2 text-[16px] font-semibold tracking-[-0.015em]">
+            <Link href={agentHref(row)} className="min-w-0 truncate after:absolute after:inset-0 after:rounded-[16px] focus-visible:outline-none">
               {row.name}
             </Link>
+            <span className="t-readout shrink-0 text-[12px] font-normal tracking-normal text-ink-3">#{row.tokenId}</span>
           </h3>
           {/*
             The registration is said once, in the money block below, where
@@ -278,7 +294,7 @@ export function AgentCard({
           <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[12px] text-ink-3">
             <span className="max-w-full truncate rounded-full border border-rule bg-sunken px-2 py-0.5 text-ink-2">{row.categoryLabel}</span>
             <OnChainTag row={row} />
-            <span className="t-readout shrink-0">#{row.tokenId}</span>{isHouseAgent({ owner_address: row.owner }) ? <span className="shrink-0">· Run by Pokter</span> : null}
+            {isHouseAgent({ owner_address: row.owner }) ? <span className="shrink-0">Run by Pokter</span> : null}
           </span>
         </div>
         {/* The footer that used to hold this went with "View evidence";
@@ -292,25 +308,6 @@ export function AgentCard({
           left a short description with a blank one under it. */}
       <p className="mt-3.5 line-clamp-3 text-[13.5px] leading-[1.45] text-ink-2 sm:line-clamp-2 sm:min-h-[2.9em]">{row.description || 'No description published.'}</p>
 
-      <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] text-ink-2">
-        <span className="flex items-center gap-2" title={row.probes ? `${row.probes} probes in total` : 'Pokter has never called this agent'}>
-          <span className={cn('size-1.5 shrink-0 rounded-full', DOT[availability.tone])} aria-hidden />
-          {availability.text}
-        </span>
-        {/*
-          A passed answer check, said only where there is one, and linked to
-          the comparison behind it: each position, Pokter's own reading, the
-          agent's answer and the difference. As a column it read "None on
-          record" on all but a handful of cards, which is the catalogue's
-          normal state and not something a buyer needs told on every one.
-        */}
-        {checked && (
-          <Link href={`${agentHref(row)}#answer-check`} className="relative z-10 inline-flex items-center gap-1 font-medium text-ok hover:underline">
-            <Icon.Check size={12} aria-hidden />
-            Passed answer check
-          </Link>
-        )}
-      </p>
 
       {/*
         The evidence as three readings, not a panel.
@@ -332,11 +329,32 @@ export function AgentCard({
         so a card could read "2/2 settled" beside "No proof yet". Both were
         true and together they read as a contradiction. Settled jobs now
         carry how many were for outside buyers on the same reading, and a
-        passed answer check is named beside the answer rate above. The
-        settled count shows on a phone too: hidden there, "No proof yet" was
-        the only evidence a phone reader saw.
+        passed answer check is named under the reply rate. The settled count
+        shows on a phone too: hidden there, "No proof yet" was the only
+        evidence a phone reader saw.
+
+        Replies is a reading like the other two now, rather than a line of
+        its own above them. It filled the slot the answer-check column left
+        empty on every card, and took a line off each one.
       */}
-      <dl className="mt-5 grid grid-cols-2 gap-3 text-[13px] sm:grid-cols-3">
+      <dl className="mt-4 grid grid-cols-3 gap-3 text-[13px]">
+        <div className="flex min-w-0 flex-col gap-1.5">
+          <dt className="t-label">Replies</dt>
+          <dd className="flex min-w-0 flex-col gap-0.5" title={row.probes ? `${row.probes} probes in total` : 'Pokter has never called this agent'}>
+            <span className="flex items-center gap-1.5">
+              <span className={cn('size-1.5 shrink-0 rounded-full', DOT[availability.tone])} aria-hidden />
+              {row.probes > 0 ? <span className="t-readout">{Math.round((row.rate ?? 0) * 100)}%</span> : <span className="t-readout text-ink-3">Not yet</span>}
+            </span>
+            <span className="truncate text-[11.5px] text-ink-3">{replyState(row)}</span>
+            {/* A passed answer check, only where there is one, linked to the comparison behind it on the agent's Evidence tab. */}
+            {checked && (
+              <Link href={`${agentHref(row)}#answer-check`} className="relative z-10 inline-flex items-center gap-1 text-[11.5px] font-medium text-ok hover:underline">
+                <Icon.Check size={11} aria-hidden />
+                Passed check
+              </Link>
+            )}
+          </dd>
+        </div>
         <div className="flex min-w-0 flex-col gap-1.5">
           <dt className="t-label">Paid jobs</dt>
           <dd
@@ -350,7 +368,7 @@ export function AgentCard({
             <span className={cn('t-readout truncate', row.paid.missed ? 'text-watch' : undefined)}>
               {terminalJobs > 0 ? `${row.paid.completed}/${terminalJobs} settled` : row.paid.jobs > 0 ? 'In progress' : <span className="text-ink-3">Not hired</span>}
             </span>
-            {row.paid.completed > 0 && <span className="truncate text-[11.5px] text-ink-3">{row.paid.outsideCompleted} outside</span>}
+            {row.paid.completed > 0 && <span className="text-[11.5px] leading-snug text-ink-3">{row.paid.outsideCompleted} for outside buyers</span>}
           </dd>
         </div>
         <div className="flex min-w-0 flex-col gap-1.5">
@@ -400,6 +418,7 @@ export function AgentCard({
         <div className="flex min-w-0 flex-col">
           <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
             <PriceText row={row} className="text-[1.45rem] font-medium leading-none tracking-[-0.02em]" />
+            {row.priceU !== null && <span className="-ml-1 text-[12.5px] text-ink-3">per job</span>}
             <NetworkTag chainId={row.hireChainId} />
           </span>
           <span className="mt-1.5 flex flex-col gap-0.5">
