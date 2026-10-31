@@ -24,6 +24,7 @@ import {
 import { browserRpcUrls, RECEIPT_POLL_MS } from '@/lib/wallet/browser-rpc';
 import { WALLET_NETWORK, walletNetworkFor } from '@/lib/wallet/passkey';
 import { describeFundingOutcome, fundingOutcome, retrySafe, type FundingOutcome } from '@/lib/hire/funding-outcome';
+import { batchId } from '@/lib/hire/funding-journal';
 import { jobCreatedFromReceipt } from '@/lib/wallet/external-receipt';
 import { checkPurchaseIntent, type PurchaseIntent } from '@/lib/hire/purchase-intent';
 import { assertEscrowSupportsToken, buildTokenHireCalls, confirmJobToken, nonDefaultHireToken, readJobPaymentToken } from '@/lib/erc8183/hire-calls';
@@ -887,12 +888,22 @@ export async function hireFromExternalWallet(input: ExternalHireInput): Promise<
     });
     report({ step: 'creating', jobId: predictedJobId, predictedJobId });
     ask('batch');
-    const callsId = (await provider().request({ method: 'wallet_sendCalls', params: [{
+    const sent = await provider().request({ method: 'wallet_sendCalls', params: [{
       version: '2.0.0', chainId: `0x${chainId.toString(16)}`,
       from: account, atomicRequired: true,
       calls: calls.map((call) => ({ to: call.to, data: call.data,
         value: call.value ? `0x${call.value.toString(16)}` : '0x0' })),
-    }] })) as string;
+    }] });
+    /* `{ id }` in version 2.0.0, the id itself before: `batchId` reads either. */
+    const callsId = batchId(sent);
+    if (!callsId) {
+      /*
+       * Sent, with nothing to follow it by. Thrown while the batch prompt is
+       * the open one, so the attempt is kept and settled from the chain by
+       * its predicted job, never closed as if nothing went out.
+       */
+      throw new Error('The wallet accepted the batch but returned no id to follow it by. Pokter is checking the chain for the job instead.');
+    }
     report({ step: 'confirming', jobId: predictedJobId, predictedJobId, callsId });
     let transactionHash: Hex | null;
     try {
