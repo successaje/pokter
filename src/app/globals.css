@@ -233,6 +233,18 @@ body {
   border-radius: 4px;
 }
 
+/*
+ * A stretched link — a card or a row whose name links the whole area
+ * through an `after:absolute` overlay — turns its own outline off, because
+ * a ring round the name alone says nothing about the area it covers. The
+ * ring goes on the overlay instead. Without this, tabbing through Discover
+ * moved focus with nothing on screen to say where.
+ */
+a[class*="after:absolute"]:focus-visible::after {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
 a { color: inherit; text-decoration: none; }
 
 button { cursor: pointer; }

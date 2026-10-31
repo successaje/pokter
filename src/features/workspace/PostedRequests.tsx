@@ -82,7 +82,7 @@ export function PostedRequestsPage() {
               /* The title's link covers the row, so "Post again" can sit inside it without one link inside another, and the column on the right stays aligned. */
               <li key={request.id} className="relative flex flex-col gap-1.5 py-4 hover:bg-sunken/40 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
                 <span className="flex min-w-0 flex-col gap-1">
-                  <Link href={`/requests/${request.id}`} className="block truncate text-sm font-medium after:absolute after:inset-0">
+                  <Link href={`/requests/${request.id}`} className="block truncate text-sm font-medium after:absolute after:inset-0 focus-visible:outline-none">
                     {request.title}
                   </Link>
                   <span className="text-[12.5px] text-ink-3">
