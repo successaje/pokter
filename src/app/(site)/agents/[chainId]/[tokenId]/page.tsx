@@ -13,6 +13,7 @@ import type { ChainId } from '@/lib/scan/types';
 import { commissionTaskTemplates, templatesFromSkills } from '@/lib/hire/taskTemplates';
 import { jobEvidencePath, utcWhen } from '@/lib/jobs/evidence-view';
 import { AnswerValue, DeliveredAnswerView } from '@/features/delivery/AnswerView';
+import { PlanChecks, planCheckTally } from '@/features/delivery/PlanChecks';
 import { clipAtWord } from '@/lib/ui/clip';
 import { FollowButton, SaveButton, ShareButton } from '@/features/agent/AgentActions';
 import { HirePanel, MobileHireBar } from '@/features/agent/HirePanel';
@@ -652,6 +653,20 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                       <DeliveredAnswerView answer={p.sample.answer} chainId={p.sample.chainId} when={(value) => utcWhen(value) ?? value} />
                     )}
                   </div>
+                  {/* The tally sits closed under the answer it is about; the job page shows it open. */}
+                  {p.sample.kind !== 'lifecycle' && p.sample.checks && (
+                    <details className="group border-t border-rule px-5 py-3 text-[13.5px]">
+                      <summary className="flex cursor-pointer list-none items-center gap-2 text-ink-2 hover:text-ink [&::-webkit-details-marker]:hidden">
+                        <Icon.ChevronRight size={13} className="shrink-0 transition-transform group-open:rotate-90" aria-hidden />
+                        <span>
+                          <span className="font-medium text-ink">What Pokter checked in this answer</span> · {p.sample.checks.label} · {planCheckTally(p.sample.checks)}
+                        </span>
+                      </summary>
+                      <div className="pt-3">
+                        <PlanChecks report={p.sample.checks} tally={false} />
+                      </div>
+                    </details>
+                  )}
                 </div>
               </div>
             )}

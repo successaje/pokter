@@ -5,6 +5,7 @@ import type { Hex } from 'viem';
 
 import { altanaNetworkFor } from '@/lib/altana/client';
 import { readDeliveredAnswer, type DeliveredAnswer } from '@/lib/delivery/answer';
+import { checkDeliveredPlan, type PlanCheckReport } from '@/lib/delivery/plan-checks';
 import { readDeliveryText } from '@/lib/delivery/read-delivery';
 import { correctedErc8183Addresses, escrowCommerceAddress } from '@/lib/erc8183/addresses';
 import { disputeWindowSeconds } from '@/lib/erc8183/dispute-window';
@@ -72,6 +73,8 @@ export interface JobEvidence {
   brief: string | null;
   /** For a delivered job whose record matches its hash, when its answer is public (`answerIsPublic`). */
   answer: DeliveredAnswer | null;
+  /** Pokter's checks on that answer, against itself and the brief when the brief may be shown (`checkDeliveredPlan`). */
+  checks: PlanCheckReport | null;
   /** Delivered and matching its hash, but the buyer has not chosen to publish the answer. */
   answerWithheld: boolean;
   receipt: { href: string; hash: string | null };
@@ -110,6 +113,7 @@ export async function loadJobEvidence(chainId: 56 | 97, jobId: string, now = Dat
 
   let delivery: JobEvidence['delivery'];
   let answer: DeliveredAnswer | null = null;
+  let checks: PlanCheckReport | null = null;
   let answerWithheld = false;
   if (!chain) delivery = { state: 'chain-unread' };
   else if (!wasDelivered(status)) delivery = { state: 'not-delivered' };
@@ -128,8 +132,11 @@ export async function loadJobEvidence(chainId: 56 | 97, jobId: string, now = Dat
        * renders `answer.asked`.
        */
       if (matchedBy) {
-        if (answerIsPublic(funder, getJobStore().answerPublication(chainId, jobId))) answer = readDeliveredAnswer(publishableAnswerText(read.text, funder, chain.client));
-        else answerWithheld = true;
+        if (answerIsPublic(funder, getJobStore().answerPublication(chainId, jobId))) {
+          const shown = publishableAnswerText(read.text, funder, chain.client);
+          answer = readDeliveredAnswer(shown);
+          checks = checkDeliveredPlan(shown, briefIsPublic(funder) ? indexed.task : null);
+        } else answerWithheld = true;
       }
     }
   }
@@ -156,6 +163,7 @@ export async function loadJobEvidence(chainId: 56 | 97, jobId: string, now = Dat
     delivery,
     brief: briefIsPublic(funder) ? indexed.task : null,
     answer,
+    checks,
     answerWithheld,
     receipt: jobReceipt({ ...indexed, status: status as HiredJob['status'] }, escrowCommerceAddress),
     fundingTx: indexed.hireTxHash,
