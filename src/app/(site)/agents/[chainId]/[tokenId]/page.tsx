@@ -280,7 +280,9 @@ function EvidenceSummary({ p, comparison }: { p: AgentProfile; comparison: Compa
       : !run
         ? 'Not checked yet.'
         : run.status !== 'checked'
-          ? `Not checked: ${run.detail ?? (run.status === 'paid-only' ? 'it asks for payment before doing the work.' : 'it could not be asked.')}`
+          ? run.detail
+            ? `Not checked. ${run.detail}`
+            : `Not checked: ${run.status === 'paid-only' ? 'it asks for payment before doing the work.' : 'it could not be asked.'}`
           : run.detail ?? 'Delivered, but none of it could be scored.';
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

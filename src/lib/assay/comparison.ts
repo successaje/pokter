@@ -1,6 +1,7 @@
 import { STATIC_SUITES, verdictClass } from './category-suites';
 import { HF_SUITE_ID, HF_TOLERANCE } from './health-factor';
 import { HF_COMPARABLE_MS } from './paid-hf-grade';
+import { CHECK_FRESH_DAYS, checkStanding } from './standing';
 import type { AssayRun } from './types';
 import { V3_COMPARABLE_BLOCKS } from './v3-grade';
 
@@ -222,8 +223,18 @@ function scenarioRow(result: AssayRun['results'][number], ranAt: string, tasks: 
 /**
  * The comparison for a checked run, or null when the run graded nothing to
  * compare (not asked, paid only, or no rows).
+ *
+ * A full pass older than `CHECK_FRESH_DAYS` keeps its rows and its date and
+ * loses its green: it no longer earns "Checked" anywhere, and a summary that
+ * still read as a clean pass would say otherwise.
  */
-export function answerComparison(run: AssayRun | null): Comparison | null {
+export function answerComparison(run: AssayRun | null, now = Date.now()): Comparison | null {
+  const comparison = compare(run);
+  if (!comparison || checkStanding(run, now) !== 'stale') return comparison;
+  return { ...comparison, summary: { text: `${comparison.summary.text} That was over ${CHECK_FRESH_DAYS} days ago, so it no longer counts until it is graded again.`, tone: 'watch' } };
+}
+
+function compare(run: AssayRun | null): Comparison | null {
   if (!run || run.status !== 'checked' || run.results.length === 0) return null;
   const paid = run.via === 'paid-hire';
   const method = paid ? 'Graded from the work funded jobs delivered' : 'Asked directly, outside escrow';

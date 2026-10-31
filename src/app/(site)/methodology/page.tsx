@@ -16,6 +16,7 @@ import { VerdictGlyph } from '@/ui/Verdict';
 import { LADDER, RELIABLE_MIN_RATE, RELIABLE_OBSERVED_DAYS, RELIABLE_TERMINAL_JOBS } from '@/lib/agents/maturity';
 import { MIN_CATEGORY_CONTENDERS, MIN_OUTCOME_BUYERS, MIN_OUTCOME_COMPLETIONS, MIN_OUTCOME_TERMINAL } from '@/lib/rankings/outcomes';
 import { getProbeStore } from '@/lib/history/store';
+import { CHECK_FRESH_DAYS } from '@/lib/assay/standing';
 
 export const metadata: Metadata = {
   title: 'Methodology',
@@ -213,13 +214,13 @@ export default async function MethodologyPage() {
 
       <DocSection id="category-checks" title="Category-specific answer checks">
         <p>
-          Answering a probe proves availability, not competence. Pokter therefore sends agents work-shaped, read-only scenarios for the category they claim and publishes every expected value, answer and result. Passing every scenario earns the <strong>Checked</strong> step on the evidence ladder; it does not change the agent&rsquo;s availability or prove profitable operation.
+          Answering a probe proves availability, not competence. Pokter therefore sends agents work-shaped, read-only scenarios for the category they claim and publishes every expected value, answer and result. Passing every scenario earns the <strong>Checked</strong> step on the evidence ladder for {CHECK_FRESH_DAYS} days from the run, after which the pass is shown with its date and stops counting until the agent is graded again; it does not change the agent&rsquo;s availability or prove profitable operation.
         </p>
         <div className="overflow-hidden rounded-[14px] border border-rule">
           <table className="w-full text-left text-sm">
             <thead className="bg-sunken/70"><tr><th className="t-label px-4 py-2.5 font-medium">Category</th><th className="t-label px-4 py-2.5 font-medium">What is checked</th><th className="t-label px-4 py-2.5 font-medium">What is not proved</th></tr></thead>
             <tbody className="divide-y divide-rule bg-raised">
-              <tr><th className="px-4 py-3 font-medium">Rebalancing (LP range)</th><td className="px-4 py-3 text-ink-2">Whether each PancakeSwap v3 position in a real wallet is reported as earning at the current price, with none invented or left out, against Pokter&rsquo;s own reading of the pool.</td><td className="px-4 py-3 text-ink-2">Position value, fees or the re-centre plan.</td></tr>
+              <tr><th className="px-4 py-3 font-medium">Rebalancing (LP range)</th><td className="px-4 py-3 text-ink-2">Whether each PancakeSwap v3 position in a real wallet is reported as earning at the current price, with none left out, against Pokter&rsquo;s own reading of the pool.</td><td className="px-4 py-3 text-ink-2">Position value, fees or the re-centre plan; an extra position the answer names, unless the wallet holds none.</td></tr>
               <tr><th className="px-4 py-3 font-medium">Grid trading</th><td className="px-4 py-3 text-ink-2">That a plan keeps the asset, budget and range it was given, and spaces the grid correctly.</td><td className="px-4 py-3 text-ink-2">The live price quoted, or whether a range will make money.</td></tr>
               <tr><th className="px-4 py-3 font-medium">Yield optimisation</th><td className="px-4 py-3 text-ink-2">That the answer is about the amount, stablecoin, horizon and threshold it was asked about.</td><td className="px-4 py-3 text-ink-2">The rates quoted, the venue chosen, future APY or protocol safety.</td></tr>
               <tr><th className="px-4 py-3 font-medium">Token safety</th><td className="px-4 py-3 text-ink-2">The verdict class on real BNB Chain addresses whose deciding fact is public: an address with no code, tokens whose owner can mint, and WBNB.</td><td className="px-4 py-3 text-ink-2">Measured taxes, liquidity, or how a service handles a new token with a hidden sell block.</td></tr>

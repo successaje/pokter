@@ -44,6 +44,8 @@ export interface StaticSuite {
   limitation: string;
   /** What a pass leaves unchecked, short enough to stand beside the result. */
   unverified: string;
+  /** What it checks in two or three words (`AssayDefinition.scope`). */
+  scope: string;
   scenarios: StaticScenario[];
 }
 
@@ -140,6 +142,7 @@ export const STATIC_SUITES: Record<StaticAssayCategory, StaticSuite> = {
     provenance: 'Briefs naming an asset, a budget, a range and a grid count, with the step and level count those numbers imply calculated by Pokter.',
     limitation: 'Checks that the plan keeps the budget and bounds it was given and spaces the grid correctly. It does not check the live price quoted beside them, and says nothing about whether a range will be profitable.',
     unverified: 'The live price beside the plan, and whether the grid would make money',
+    scope: 'grid plan',
     scenarios: [
       grid('bnb-stated-range', 'BNB', 1_000, 900, 1_100, 8),
       grid('cake-wide-range', 'CAKE', 500, 600, 900, 6),
@@ -153,6 +156,7 @@ export const STATIC_SUITES: Record<StaticAssayCategory, StaticSuite> = {
     provenance: "Briefs naming an amount, a stablecoin, a horizon and a threshold, checked against the terms the brief itself states.",
     limitation: 'Checks that the answer is about the amount, asset and horizon it was asked for. It does not check the rates quoted, the venue chosen or the net figure, which are live and rest on the agent\'s own cost model.',
     unverified: 'The rates quoted, the venue chosen and the net yield',
+    scope: 'yield terms',
     scenarios: [
       yieldScenario('usdt-30-days', 1_000, 'USDT', 30, 0, 0.5),
       yieldScenario('usdc-at-size', 25_000, 'USDC', 90, 2, 1),
@@ -166,6 +170,7 @@ export const STATIC_SUITES: Record<StaticAssayCategory, StaticSuite> = {
     provenance: 'BNB Chain addresses whose deciding fact is public and long-standing: one with no contract code, two Binance-Peg stablecoins whose owner wallet keeps a mint function (one is also an upgradable proxy), and WBNB, which has no owner or admin functions.',
     limitation: 'Checks the class of the verdict (safe, caution or avoid) on cases anyone can settle. It does not check the measured taxes, liquidity or reasons, and clear-cut cases say nothing about how a service handles a new token with a hidden sell block.',
     unverified: 'The taxes, liquidity and reasons it reports, and new tokens that hide a sell block',
+    scope: 'token verdicts',
     scenarios: [
       // No contract code at this address, so there is no token to buy.
       tokenSafety('not-a-contract', '0x000000000000000000000000000000000000dEaD', 'FAIL'),

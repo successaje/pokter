@@ -15,7 +15,7 @@ test('the agents row sticks, and nothing between it and the scroller breaks stic
   assert.equal(head.match(/sticky top-\[var\(--compare-top,0px\)\] z-10/g)?.length, 2, 'the label cell and every agent cell');
   assert.doesNotMatch(head, /Hire/, 'the pinned row is the names only, so it covers as little as it can');
   const body = view.slice(view.indexOf('<tbody'), view.indexOf('</tbody>'));
-  assert.match(body, /<LinkButton href=\{`\/hire\/\$\{c\.agent\.chain_id\}\/\$\{c\.agent\.token_id\}`\} size="s">/, 'Hire is its own row, after the evidence');
+  assert.match(body, /<HireAction c=\{c\} \/>/, 'Hire is its own row, after the evidence');
   /* A scroller, overflow-x-auto or overflow-hidden, would become what the header sticks to. */
   assert.doesNotMatch(view, /overflow-x-auto|overflow-hidden/);
   assert.match(view, /overflow-clip rounded-\[16px\]/);

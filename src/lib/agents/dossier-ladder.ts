@@ -4,6 +4,7 @@ import { agentHistory } from '@/lib/agent/credited-history';
 import { deriveMaturity, type AgentMaturity } from '@/lib/agents/maturity';
 import { getAssayStore, type AssayRun } from '@/lib/assay/store';
 import { assayForCategory, type AssayDefinition } from '@/lib/assay/catalog';
+import { passedCheck } from '@/lib/assay/standing';
 import type { AgentEconomicHistory } from '@/lib/erc8183/economic-history';
 import { quotePayableOn } from '@/lib/erc8183/payable';
 import { getJobStore } from '@/lib/erc8183/store';
@@ -39,7 +40,8 @@ export function dossierLadder(d: AgentDossier, escrowChain: number, { liveAnswer
     reachable: record.totalAnswered > 0,
     // Priced means a signed price an escrow can pay, not merely no unpayable one.
     compatible: (record.totalAnswered > 0 || (record.totalProbes === 0 && liveAnswered === true)) && escrowOptions.length > 0 && d.quote != null && payable === true,
-    tested: Boolean(categoryCheck?.run && categoryCheck.run.status === 'checked' && categoryCheck.run.total > 0 && categoryCheck.run.passed === categoryCheck.run.total),
+    tested: passedCheck(categoryCheck?.run),
+    check: categoryCheck ? { label: categoryCheck.definition.label, scope: categoryCheck.definition.scope, run: categoryCheck.run } : null,
     hired: history.jobs > 0,
     delivered: history.selfDelivered > 0,
     deliveredByOperator: history.operatorDelivered > 0,

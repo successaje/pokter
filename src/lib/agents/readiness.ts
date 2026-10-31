@@ -1,3 +1,5 @@
+import { checkStanding } from '@/lib/assay/standing';
+
 /**
  * What Pokter has observed about an agent, one fact per row.
  *
@@ -137,7 +139,8 @@ export function readinessRows(input: ReadinessInput): ReadinessRow[] {
     id: 'correctness',
     label: 'Answer check',
     value: !categoryCheck ? 'No check for its kind' : !check ? 'Not checked yet' : check.total > 0 ? `${check.passed} of ${check.total} passed` : ungraded ? 'Not graded' : 'Could not be checked',
-    tone: !check || check.total === 0 ? 'unknown' : check.passed === check.total ? 'ok' : 'bad',
+    /* A full pass past `CHECK_FRESH_DAYS` is real but no longer counts: amber, as a partial step is. */
+    tone: !check || check.total === 0 ? 'unknown' : check.passed !== check.total ? 'bad' : checkStanding(check, now) === 'stale' ? 'watch' : 'ok',
     detail: !categoryCheck
       ? 'Pokter has no answer check for this kind of agent, so answers are not graded.'
       : !check

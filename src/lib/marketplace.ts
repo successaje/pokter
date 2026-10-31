@@ -50,6 +50,7 @@ import { declaredAction, onChainSummary, type CapabilityRead, type Declared } fr
 import { reviewCoordination, type Coordination } from '@/lib/proof/coordination';
 import type { WalletActivity } from '@/lib/activity/reading';
 import { assayForCategory } from '@/lib/assay/catalog';
+import { passedCheck } from '@/lib/assay/standing';
 import type { SearchableAgent } from '@/lib/search/match';
 import { catalogueVersion } from '@/lib/catalogue-version';
 export { preferDistinctOwners };
@@ -84,7 +85,7 @@ function passedCategoryCheck(agent: ScanAgent, category: Category | 'unclassifie
   const assay = assayForCategory(category);
   if (!assay) return false;
   const run = getAssayStore().latest({ chainId: agent.chain_id, tokenId: agent.token_id }, assay.id);
-  return Boolean(run && run.status === 'checked' && run.total > 0 && run.passed === run.total);
+  return passedCheck(run);
 }
 
 /**

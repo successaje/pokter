@@ -17,6 +17,19 @@ export const HF_SUITE_ID = 'hf-venus-1';
 /** Relative tolerance on the health factor: rounding and oracle movement, not judgement. */
 export const HF_TOLERANCE = 0.02;
 
+/**
+ * The revision of the rules a health factor answer is graded by, recorded
+ * on every run as the static suites record `GRADING_RULES`, so a run can
+ * be told apart from one graded after the rules change. Runs recorded
+ * before this was kept read 0. Unlike the static suites, a raise does not
+ * grade old runs again: the reference is a reading of the chain taken
+ * beside the reply, which a later pass cannot take.
+ *
+ * 1: within `HF_TOLERANCE` of a Venus reading taken around a direct reply,
+ *    or within `HF_COMPARABLE_MS` of a paid delivery.
+ */
+export const HF_GRADING_RULES = 1;
+
 export interface HfExpected {
   /** Null when there is no debt: the health factor is unbounded. */
   healthFactor: number | null;

@@ -28,7 +28,8 @@ export function CategoryCheck({ definition, run, agentKey }: { definition: Assay
         <p className="text-[13px] text-ink-3">Not checked yet. Eligible agents enter Pokter&rsquo;s rotating category-check schedule.</p>
       ) : run.status !== 'checked' ? (
         <p className="text-[13px] text-ink-3">
-          Not checked: {run.detail ?? (run.status === 'paid-only' ? 'the agent requires payment before doing the work.' : 'the agent could not be asked.')}
+          {/* A recorded reason is a sentence of its own, capital and all. */}
+          {run.detail ? `Not checked. ${run.detail}` : `Not checked: ${run.status === 'paid-only' ? 'the agent requires payment before doing the work.' : 'the agent could not be asked.'}`}
           {run.status === 'paid-only' && ' Pokter checks these by hiring the published scenarios and grading what is delivered; this agent has not been checked that way yet.'}
         </p>
       ) : (

@@ -10,6 +10,7 @@ const definition = {
   provenance: 'Fixture',
   limitation: 'Checks arithmetic, not execution.',
   unverified: 'Execution',
+  scope: 'yield terms',
   live: false,
 };
 
@@ -38,11 +39,27 @@ test('share copy states only observed evidence and a passed category check', () 
     definition,
     run: { suite: 'yield-v1', status: 'checked', detail: null, passed: 3, total: 3, ranAt: '2026-10-13T00:00:00Z', via: 'free-call', results: [] },
     outcomes,
+    now: Date.parse('2026-10-31T00:00:00Z'),
   });
   const copy = evidenceShareText('Agent A', growth);
   assert.match(copy, /2 settled outside-team jobs from 2 known buyer wallets/);
-  assert.match(copy, /yield check passed/i);
+  assert.match(copy, /On 13 Oct 2026 it passed Pokter’s yield terms check\./);
   assert.doesNotMatch(copy, /independent/i);
+});
+
+test('a pass over 30 days old is shown as stale and leaves the share copy', () => {
+  const growth = buildGrowthSnapshot({
+    category: 'yield',
+    categoryLabel: 'Yield Optimisation',
+    definition,
+    run: { suite: 'yield-v1', status: 'checked', detail: null, passed: 3, total: 3, ranAt: '2026-10-13T00:00:00Z', via: 'free-call', results: [] },
+    outcomes,
+    now: Date.parse('2026-11-13T00:00:00Z'),
+  });
+  assert.equal(growth.check?.status, 'stale');
+  assert.match(growth.check!.summary, /no longer counts/);
+  assert.doesNotMatch(evidenceShareText('Agent A', growth), /passed/);
+  assert.doesNotMatch(launchPostText('Agent A', growth), /passed/);
 });
 
 test('share copy does not turn an empty record into a performance claim', () => {
@@ -64,10 +81,11 @@ test('launch copy names the actual hire networks and category check', () => {
     run: { suite: 'yield-v1', status: 'checked', detail: null, passed: 3, total: 3, ranAt: '2026-10-13T00:00:00Z', via: 'free-call', results: [] },
     outcomes,
     hireNetworks: [{ chainId: 56, label: 'BNB Chain' }, { chainId: 97, label: 'BNB Testnet' }],
+    now: Date.parse('2026-10-31T00:00:00Z'),
   });
   const copy = launchPostText('Agent A', growth);
   assert.match(copy, /hired through escrow on BNB Chain and BNB Testnet/);
-  assert.match(copy, /yield check passed/i);
+  assert.match(copy, /On 13 Oct 2026 it passed Pokter’s yield terms check\./);
   assert.doesNotMatch(copy, /independent/i);
 });
 

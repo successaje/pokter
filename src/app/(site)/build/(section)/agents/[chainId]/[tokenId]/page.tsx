@@ -253,8 +253,8 @@ export default async function ManageAgent({ params }: { params: Promise<{ chainI
               <div className="rounded-[10px] border border-rule bg-paper p-3">
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-[13px] font-medium">{agent.growth.check.label}</span>
-                  <span className={agent.growth.check.status === 'passed' ? 'text-[12px] font-medium text-ok' : 'text-[12px] font-medium text-ink-3'}>
-                    {agent.growth.check.status === 'passed' ? 'Passed' : agent.growth.check.status === 'partial' ? 'Needs work' : 'Not verified'}
+                  <span className={agent.growth.check.status === 'passed' ? 'text-[12px] font-medium text-ok' : agent.growth.check.status === 'stale' ? 'text-[12px] font-medium text-watch' : 'text-[12px] font-medium text-ink-3'}>
+                    {agent.growth.check.status === 'passed' ? 'Passed' : agent.growth.check.status === 'stale' ? 'Lapsed' : agent.growth.check.status === 'partial' ? 'Needs work' : 'Not verified'}
                   </span>
                 </div>
                 <p className="mt-1 text-[12.5px] text-ink-2">{agent.growth.check.summary}</p>

@@ -6,6 +6,7 @@ import { FiltersButton, PillRow, SortSelect } from './DiscoverControls';
 import type { FilterCounts } from './search';
 import { chainLabel } from '@/lib/network/presentation';
 import { Icon } from '@/ui/icons';
+import { CHECK_FRESH_DAYS } from '@/lib/assay/standing';
 
 /*
  * The catalogue's filters, shared by Discover and the full listing.
@@ -110,7 +111,7 @@ const SIGNALS = [
   { key: 'hireable', label: 'Hireable via escrow', hint: 'Answering, and payable through escrow' },
   { key: 'priced', label: 'Has an escrow quote', hint: 'Has signed an escrow price with its wallet, current or expired' },
   { key: 'outsideDelivery', label: 'Outside buyer delivered', hint: 'Settled work funded outside Pokter’s team' },
-  { key: 'checked', label: 'Correctness checked', hint: 'Passed the latest check for its category' },
+  { key: 'checked', label: 'Correctness checked', hint: `Passed its category’s latest check in the last ${CHECK_FRESH_DAYS} days` },
   { key: 'answering', label: 'Answered this week', hint: 'Replied to a Pokter probe in 7 days' },
 ] as const satisfies ReadonlyArray<{ key: keyof FilterCounts & keyof DiscoverParams; label: string; hint: string }>;
 

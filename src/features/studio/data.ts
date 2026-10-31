@@ -19,6 +19,7 @@ import { agentHistory } from '@/lib/agent/credited-history';
 import { escrowChainForCurrency } from '@/lib/network/escrow';
 import { getAssayStore } from '@/lib/assay/store';
 import { assayForCategory } from '@/lib/assay/catalog';
+import { passedCheck } from '@/lib/assay/standing';
 import { CATEGORY_BY_ID } from '@/lib/agents/categories';
 import { buildGrowthSnapshot, type BuilderGrowthSnapshot } from '@/lib/builders/growth';
 import { escrowOptionsForHire } from '@/lib/network/escrow';
@@ -137,7 +138,8 @@ export async function loadFleet(owner: string): Promise<{ agents: FleetAgent[]; 
         reachable: record.totalAnswered > 0,
         // Priced means a signed price an escrow can pay, not merely no unpayable one.
         compatible: record.totalAnswered > 0 && quote != null && escrowChainForCurrency(quote.currency) !== null,
-        tested: Boolean(assay && assay.status === 'checked' && assay.total > 0 && assay.passed === assay.total),
+        tested: passedCheck(assay),
+        check: assayDefinition ? { label: assayDefinition.label, scope: assayDefinition.scope, run: assay } : null,
         hired: history.jobs > 0,
         delivered: history.selfDelivered > 0,
         deliveredByOperator: history.operatorDelivered > 0,
