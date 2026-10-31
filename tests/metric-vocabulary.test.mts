@@ -38,7 +38,7 @@ test('the leaderboard’s Pokter Score and the profile score are two names, each
   assert.match(method, /It is not the profile score on an agent's own page/);
 
   const profile = source('src/app/(site)/agents/[chainId]/[tokenId]/page.tsx');
-  assert.match(profile, /<span className="t-label">Profile score<\/span>/);
+  assert.match(profile, /<dt className="[^"]*">\s*Profile score\{' '\}/);
   assert.doesNotMatch(profile, /<span className="t-label">Pokter Score<\/span>/);
 });
 

@@ -29,8 +29,8 @@ import { LinkButton } from '@/ui/Button';
 import { Breadcrumbs } from '@/ui/Controls';
 import { Address, Details, Facts, Readout } from '@/ui/Data';
 import { CategoryCheck } from '@/features/agent/CategoryCheck';
-import { AnswerCheckSummary } from '@/features/agent/AnswerComparison';
-import { answerComparison } from '@/lib/assay/comparison';
+import { AnswerCheckSummary, utc } from '@/features/agent/AnswerComparison';
+import { answerComparison, type Comparison } from '@/lib/assay/comparison';
 import { ago } from '@/lib/compare/rows';
 import { TestAgentPanel } from '@/features/proofrun/TestAgentPanel';
 import { EmailLinkNotice } from '@/features/workspace/EmailLinkNotice';
@@ -258,6 +258,149 @@ function LastCheck({ p }: { p: AgentProfile }) {
         Last checked <time dateTime={p.lastCheck.at}>{ago(p.lastCheck.at).replace('Just now', 'just now')}</time>: {p.lastCheck.reading.charAt(0).toLowerCase()}{p.lastCheck.reading.slice(1)}.
       </span>
     </p>
+  );
+}
+
+const TONE_DOT: Record<Comparison['summary']['tone'], string> = { ok: 'bg-ok', watch: 'bg-watch', bad: 'bg-bad', none: 'bg-rule-strong' };
+
+/*
+ * What is verified, and what is not, side by side and before anything about
+ * uptime. The first card is the answer check as it stands, with how and
+ * when it ran; the second is what a pass leaves unchecked, so a reader
+ * never takes one for the other.
+ */
+function EvidenceSummary({ p, comparison }: { p: AgentProfile; comparison: Comparison | null }) {
+  const check = p.categoryCheck;
+  const run = check?.run ?? null;
+  const tone = comparison?.summary.tone ?? 'none';
+  const result = comparison
+    ? comparison.summary.text
+    : !check
+      ? 'Pokter has no check yet for what this agent does.'
+      : !run
+        ? 'Not checked yet.'
+        : run.status !== 'checked'
+          ? `Not checked: ${run.detail ?? (run.status === 'paid-only' ? 'it asks for payment before doing the work.' : 'it could not be asked.')}`
+          : run.detail ?? 'Delivered, but none of it could be scored.';
+  return (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <a href={check ? '#answer-check' : '/methodology#category-checks'} className="group flex flex-col gap-1.5 rounded-[12px] border border-rule bg-raised px-4 py-3.5 transition-colors hover:border-rule-strong">
+        <span className="flex items-center gap-2 text-[14px] font-medium text-ink">
+          <span className={cn('size-2 shrink-0 rounded-full', TONE_DOT[tone])} aria-hidden />
+          {check ? check.definition.label : 'Answer check'}
+        </span>
+        <span className="text-[13px] leading-snug text-ink-2">{result}</span>
+        {comparison && (
+          <span className="text-[12px] text-ink-3">
+            {comparison.method}, {utc(comparison.checkedAt)}
+          </span>
+        )}
+      </a>
+      <div className="flex flex-col gap-1.5 rounded-[12px] border border-rule bg-watch-wash px-4 py-3.5">
+        <span className="flex items-center gap-2 text-[14px] font-medium text-ink">
+          <Icon.Alert size={14} className="shrink-0 text-watch" aria-hidden />
+          Not verified
+        </span>
+        <span className="text-[13px] leading-snug text-ink-2">
+          {check ? `${check.definition.unverified}.` : 'Whether its answers are right.'} Nor whether acting on them makes money: Pokter does not measure returns.
+        </span>
+      </div>
+    </div>
+  );
+}
+
+const STRIP_LEGEND = [
+  { id: 'ok', label: 'Answered', swatch: 'bg-ok' },
+  { id: 'watch', label: 'Some missed', swatch: 'bg-watch' },
+  { id: 'bad', label: 'None answered', swatch: 'bg-bad' },
+  { id: 'none', label: 'Not probed', swatch: 'bg-rule' },
+] as const;
+
+function stripKind(cell: AgentProfile['record']['cells'][number]): (typeof STRIP_LEGEND)[number]['id'] {
+  if (cell.probes === 0 || cell.ratio === null) return 'none';
+  return cell.ratio >= 0.9 ? 'ok' : cell.ratio > 0 ? 'watch' : 'bad';
+}
+
+function median(values: number[]): number | null {
+  if (!values.length) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : Math.round((sorted[mid - 1] + sorted[mid]) / 2);
+}
+
+/*
+ * Reliability in one place: how often it answered, day by day, and how fast.
+ * The daily bars lead and the reply-time line stays small, since whether
+ * it answered matters more than its milliseconds.
+ */
+function Reliability({ p }: { p: AgentProfile }) {
+  const { record } = p;
+  const kinds = new Set(record.cells.map(stripKind));
+  const replyMedian = median(p.latency.map((point) => point.ms));
+  const outageHours = record.longestOutage ? Math.max(1, Math.round((Date.parse(record.longestOutage.to) - Date.parse(record.longestOutage.from)) / 3_600_000)) : null;
+  return (
+    <section aria-labelledby="reliability-h" className="flex flex-col gap-5 rounded-[14px] border border-rule bg-raised p-5 sm:p-6">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
+        <h3 id="reliability-h" className="text-[16px] font-semibold tracking-[-0.01em]">
+          Reliability <span className="text-[13px] font-normal text-ink-3">last 30 days</span>
+        </h3>
+        {record.totalProbes > 0 && (
+          <ul className="flex flex-wrap gap-x-3 gap-y-1 text-[12px] text-ink-3">
+            {STRIP_LEGEND.filter((item) => kinds.has(item.id)).map((item) => (
+              <li key={item.id} className="inline-flex items-center gap-1.5">
+                <span className={cn('size-2.5 rounded-[2px]', item.swatch)} aria-hidden />
+                {item.label}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      {record.totalProbes > 0 ? (
+        <>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="flex flex-col gap-1">
+              <span className="t-readout text-[26px] leading-none tracking-[-0.02em] sm:text-[30px]">{pct(record.totalAnswered / record.totalProbes)}</span>
+              <span className="text-[12.5px] text-ink-3">of probes answered</span>
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="t-readout text-[20px] leading-none sm:text-[22px]">
+                {record.totalAnswered}/{record.totalProbes}
+              </span>
+              <span className="text-[12.5px] text-ink-3">probes</span>
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="t-readout text-[20px] leading-none sm:text-[22px]">{Math.round(record.observedDays)} d</span>
+              <span className="text-[12.5px] text-ink-3">watched</span>
+            </div>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <ProbeStrip cells={record.cells} scale={80} empty="slot" className="h-20 [&>span]:w-full [&>span]:flex-1 [&>span]:rounded-[2px]" label="Daily answer rate, last 30 days" />
+            {record.cells.length > 1 && (
+              <div className="t-readout flex justify-between text-[11px] text-ink-3">
+                <span>{stripDay(record.cells[0].date)}</span>
+                <span>{stripDay(record.cells[record.cells.length - 1].date)}</span>
+              </div>
+            )}
+          </div>
+          {p.corrections.map((c) => (
+            <p key={c.rule} className="rounded-[10px] border border-rule bg-paper px-3 py-2 text-[12.5px] leading-snug text-ink-2">
+              <span className="font-medium text-ink">{c.count} earlier probe{c.count === 1 ? '' : 's'} left out as Pokter’s own error.</span> {c.reason} The raw rows are kept.
+            </p>
+          ))}
+          <div className="grid grid-cols-3 gap-4 border-t border-rule pt-4">
+            <Readout label="Reply just now" value={p.live.medianMs ? formatMs(p.live.medianMs) : '—'} muted={!p.live.medianMs} />
+            <Readout label="Median reply" value={replyMedian !== null ? formatMs(replyMedian) : '—'} muted={replyMedian === null} />
+            <Readout label="Longest outage" value={outageHours ? `${outageHours} h` : 'None'} muted={!outageHours} />
+          </div>
+          {p.latency.length >= 2 && <LatencyTrend points={p.latency} height={72} />}
+        </>
+      ) : (
+        <p className="text-[13px] text-ink-3">No scheduled checks yet. An agent enters the schedule once it is listed, enrolled, has signed a price or has been hired.</p>
+      )}
+      <p className="border-t border-rule pt-4 text-[13px] leading-relaxed text-ink-2">
+        <span className="font-medium text-ink">{p.verdict.meaning}</span> {p.verdict.rationale}
+      </p>
+    </section>
   );
 }
 
@@ -707,131 +850,115 @@ export default async function AgentPage({ params, searchParams }: { params: Para
           {/* Evidence */}
           <AgentTabPanel id="evidence">
           <Section id="evidence" label="Evidence" title="What is known, and what is not" aside={<VerdictLabel verdict={p.verdict.id} />}>
+            {/*
+              Whether it can do the task comes before how often it answers:
+              a tall green strip read first makes availability look like
+              competence. So the order is what is verified and what is not,
+              then reliability, then the evidence behind both, then how it
+              is measured and where that falls short.
+            */}
             <div className="flex flex-col gap-8">
-              <div className="flex flex-col gap-2 rounded-[12px] border border-rule bg-paper px-5 py-4">
-                <p className="text-[14px] font-medium">{p.verdict.meaning}</p>
-                <p className="text-[13.5px] leading-relaxed text-ink-2">{p.verdict.rationale}</p>
-              </div>
-              <div className="flex flex-col gap-3">
-                <span className="t-label">Observed, one fact at a time</span>
-                <dl className="grid grid-cols-1 gap-px overflow-hidden rounded-[12px] border border-rule bg-rule sm:grid-cols-2">
-                  {p.readiness.map((row) => (
-                    <div key={row.id} className="flex flex-col gap-1 bg-raised px-4 py-3">
-                      <dt className="text-[12px] text-ink-3">{row.label}</dt>
-                      <dd className="flex flex-col gap-0.5">
-                        <span className={`text-[14px] font-medium ${row.tone === 'ok' ? 'text-ok' : row.tone === 'watch' ? 'text-watch' : row.tone === 'bad' ? 'text-bad' : 'text-ink'}`}>{row.value}</span>
-                        <span className="text-[12.5px] leading-snug text-ink-3">{row.detail}</span>
-                      </dd>
-                    </div>
-                  ))}
-                </dl>
-              </div>
-              <ClaimVsObserved p={p} />
-              {p.categoryCheck && (
-                <div id="answer-check" className="scroll-mt-32">
-                  <CategoryCheck definition={p.categoryCheck.definition} run={p.categoryCheck.run} agentKey={`${p.chainId}:${p.tokenId}`} />
-                </div>
-              )}
-              {/*
-                ProofRun, on the agents it can actually check.
-                Offered only to `health-factor` agents: the scenarios are
-                Venus Core Pool positions, and on a grid-trading agent every
-                run would print "could not verify" — which a reader takes as
-                a failed check rather than as a check that does not apply.
-                The same reasoning is written into `venusHealthJob`.
-              */}
-              {p.category?.id === 'health-factor' && (
-                <div id="proofrun" className="scroll-mt-32 rounded-[14px] border border-rule bg-raised p-5 sm:p-6">
-                  <TestAgentPanel agent={{ chainId: p.chainId, tokenId: p.tokenId, name: p.name }} />
-                </div>
-              )}
-              <div className="flex flex-col gap-3">
-                <div className="flex items-baseline justify-between gap-3">
-                  <span className="t-label">Daily answer rate, last 30 days</span>
-                  <span className="text-[12px] text-ink-3">Grey ticks: not probed that day</span>
-                </div>
-                {p.corrections.map((c) => (
-                  <p key={c.rule} className="rounded-[10px] border border-rule bg-paper px-3 py-2 text-[12.5px] leading-snug text-ink-2">
-                    <span className="font-medium text-ink">{c.count} earlier probe{c.count === 1 ? '' : 's'} left out as Pokter’s own error.</span> {c.reason} The raw rows are kept.
-                  </p>
-                ))}
-                {p.record.totalProbes > 0 ? (
-                  <div className="flex flex-col gap-1.5">
-                    <ProbeStrip cells={p.record.cells} scale={80} className="h-20 [&>span]:w-full [&>span]:flex-1 [&>span]:rounded-[2px]" label="Daily answer rate, last 30 days" />
-                    {p.record.cells.length > 1 && (
-                      <div className="t-readout flex justify-between text-[11px] text-ink-3">
-                        <span>{stripDay(p.record.cells[0].date)}</span>
-                        <span>{stripDay(p.record.cells[p.record.cells.length - 1].date)}</span>
+              <EvidenceSummary p={p} comparison={checkComparison} />
+              <Reliability p={p} />
+
+              <div className="flex flex-col gap-8">
+                <h3 className="-mb-4 text-[16px] font-semibold tracking-[-0.01em]">Evidence in detail</h3>
+                <div className="flex flex-col gap-3">
+                  <span className="t-label">Observed, one fact at a time</span>
+                  <dl className="grid grid-cols-1 gap-px overflow-hidden rounded-[12px] border border-rule bg-rule sm:grid-cols-2">
+                    {p.readiness.map((row) => (
+                      <div key={row.id} className="flex flex-col gap-1 bg-raised px-4 py-3">
+                        <dt className="text-[12px] text-ink-3">{row.label}</dt>
+                        <dd className="flex flex-col gap-0.5">
+                          <span className={`text-[14px] font-medium ${row.tone === 'ok' ? 'text-ok' : row.tone === 'watch' ? 'text-watch' : row.tone === 'bad' ? 'text-bad' : 'text-ink'}`}>{row.value}</span>
+                          <span className="text-[12.5px] leading-snug text-ink-3">{row.detail}</span>
+                        </dd>
                       </div>
-                    )}
+                    ))}
+                  </dl>
+                </div>
+                <ClaimVsObserved p={p} />
+                {p.categoryCheck && (
+                  <div id="answer-check" className="scroll-mt-32">
+                    <CategoryCheck definition={p.categoryCheck.definition} run={p.categoryCheck.run} agentKey={`${p.chainId}:${p.tokenId}`} />
                   </div>
-                ) : (
-                  <p className="text-[13px] text-ink-3">No scheduled checks yet. An agent enters the schedule once it is listed, enrolled, has signed a price or has been hired.</p>
                 )}
-                <div className="grid grid-cols-2 gap-4 pt-2 sm:grid-cols-4">
-                  <Readout label="Answered" value={`${p.record.totalAnswered}/${p.record.totalProbes}`} />
-                  <Readout label="Watched for" value={`${Math.round(p.record.observedDays)} d`} />
-                  <Readout label="Reply just now" value={p.live.medianMs ? formatMs(p.live.medianMs) : '—'} muted={!p.live.medianMs} />
-                  <Readout label="Longest outage" value={p.record.longestOutage ? `${Math.max(1, Math.round((Date.parse(p.record.longestOutage.to) - Date.parse(p.record.longestOutage.from)) / 3_600_000))} h` : 'None'} muted={!p.record.longestOutage} />
-                </div>
-              </div>
-
-              {p.latency.length >= 2 && <LatencyTrend points={p.latency} height={160} />}
-
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="flex flex-col gap-2 rounded-[12px] border border-dashed border-rule-strong px-5 py-4">
-                  <span className="t-label">Not measured</span>
-                  <p className="text-[13.5px] leading-relaxed text-ink-2">
-                    <strong className="font-medium text-ink">Returns and risk.</strong> No agent publishes realised returns, and nothing on chain attributes profit or loss to an agent&rsquo;s decision. Pokter will not infer them from uptime.
-                  </p>
-                </div>
-                <div className="flex flex-col gap-2 rounded-[12px] border border-rule px-5 py-4">
-                  {/* Not the leaderboard's Pokter Score, which is a different figure: named apart so one name never means two numbers. */}
-                  <span className="t-label">Profile score</span>
-                  {p.score.overall !== null ? (
-                    <>
-                      <p className="t-readout text-2xl">{Math.round(p.score.overall)}</p>
-                      <p className="text-[12.5px] text-ink-3">
-                        Out of 100, over the {p.score.measured} of {p.score.total} dimensions Pokter could measure; unmeasured ones are left out, not filled in. A different figure from the leaderboard&rsquo;s Pokter Score: <Link href="/methodology#score" className="link">how each is computed</Link>.
-                      </p>
-                    </>
-                  ) : (
-                    <p className="text-[13px] text-ink-3">Not enough measured dimensions to compute a score.</p>
-                  )}
-                </div>
-              </div>
-
-              {p.defectsByMeasurer.length > 0 && (
-                <Details summary={`Known limits of the measurement (${p.defectsByMeasurer.reduce((n, g) => n + g.defects.length, 0)})`}>
-                  <div className="flex flex-col gap-4">
-                    {p.defectsByMeasurer.map((group) => (
-                      <div key={group.measurer} className="flex flex-col gap-1.5">
-                        <span className="text-[12.5px] font-medium text-ink">
-                          {group.measurer === 'Pokter' ? 'Pokter’s own' : `Disclosed by ${group.measurer}`}
-                        </span>
-                        <ul className="flex list-disc flex-col gap-1.5 pl-5 text-[13px] text-ink-2">
-                          {group.defects.map((d) => (
-                            <li key={d}>{d}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    ))}
+                {/*
+                  ProofRun, on the agents it can actually check.
+                  Offered only to `health-factor` agents: the scenarios are
+                  Venus Core Pool positions, and on a grid-trading agent every
+                  run would print "could not verify" — which a reader takes as
+                  a failed check rather than as a check that does not apply.
+                  The same reasoning is written into `venusHealthJob`.
+                */}
+                {p.category?.id === 'health-factor' && (
+                  <div id="proofrun" className="scroll-mt-32 rounded-[14px] border border-rule bg-raised p-5 sm:p-6">
+                    <TestAgentPanel agent={{ chainId: p.chainId, tokenId: p.tokenId, name: p.name }} />
                   </div>
-                </Details>
-              )}
-              {p.score.overall !== null && (
-                <Details summary="How the score breaks down">
-                  <ul className="ruled text-[13px]">
-                    {p.score.dimensions.map((d) => (
-                      <li key={d.label} className="grid grid-cols-[120px_80px_minmax(0,1fr)] gap-3 py-2.5">
-                        <span className="font-medium">{d.label}</span>
-                        <span className="t-readout text-ink-2">{d.earned === null ? 'n/m' : `${d.earned.toFixed(0)}/${d.weight}`}</span>
-                        <span className="text-ink-3">{d.explanation}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </Details>
-              )}
+                )}
+                {p.sample && (
+                  <a href="#sample" className="inline-flex items-center gap-1 self-start text-[13.5px] font-medium text-ink hover:underline">
+                    Read a real delivery{p.sample.checks ? ', and what Pokter checked in it' : ''} <Icon.Arrow size={14} />
+                  </a>
+                )}
+              </div>
+
+              <div className="flex flex-col gap-3">
+                <h3 className="text-[16px] font-semibold tracking-[-0.01em]">How it is measured, and where that falls short</h3>
+                <dl className="flex flex-col divide-y divide-rule rounded-[12px] border border-rule bg-raised">
+                  <div className="flex flex-col gap-1 px-5 py-3.5">
+                    <dt className="flex flex-wrap items-baseline gap-x-2 text-[14px] font-medium text-ink">
+                      Returns and risk <span className="text-[12.5px] font-normal text-ink-3">Not measured</span>
+                    </dt>
+                    <dd className="text-[13px] leading-relaxed text-ink-2">No agent publishes realised returns, and nothing on chain attributes profit or loss to an agent&rsquo;s decision. Pokter will not infer them from uptime.</dd>
+                  </div>
+                  {/* Not the leaderboard's Pokter Score, which is a different figure: named apart so one name never means two numbers. */}
+                  <div className="flex flex-col gap-1 px-5 py-3.5">
+                    <dt className="flex flex-wrap items-baseline gap-x-2 text-[14px] font-medium text-ink">
+                      Profile score{' '}
+                      {p.score.overall !== null ? (
+                        <span className="t-readout text-[15px]">{Math.round(p.score.overall)}/100</span>
+                      ) : (
+                        <span className="text-[12.5px] font-normal text-ink-3">Not enough measured to score</span>
+                      )}
+                    </dt>
+                    <dd className="text-[13px] leading-relaxed text-ink-2">
+                      {p.score.overall !== null ? `Over the ${p.score.measured} of ${p.score.total} dimensions Pokter could measure; unmeasured ones are left out, not filled in. ` : ''}A different figure from the leaderboard&rsquo;s Pokter Score: <Link href="/methodology#score" className="link">how each is computed</Link>.
+                    </dd>
+                  </div>
+                </dl>
+                {p.defectsByMeasurer.length > 0 && (
+                  <Details summary={`Known limits of the measurement (${p.defectsByMeasurer.reduce((n, g) => n + g.defects.length, 0)})`}>
+                    <div className="flex flex-col gap-4">
+                      {p.defectsByMeasurer.map((group) => (
+                        <div key={group.measurer} className="flex flex-col gap-1.5">
+                          <span className="text-[12.5px] font-medium text-ink">
+                            {group.measurer === 'Pokter' ? 'Pokter’s own' : `Disclosed by ${group.measurer}`}
+                          </span>
+                          <ul className="flex list-disc flex-col gap-1.5 pl-5 text-[13px] text-ink-2">
+                            {group.defects.map((d) => (
+                              <li key={d}>{d}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      ))}
+                    </div>
+                  </Details>
+                )}
+                {p.score.overall !== null && (
+                  <Details summary="How the score breaks down">
+                    <ul className="ruled text-[13px]">
+                      {p.score.dimensions.map((d) => (
+                        <li key={d.label} className="grid grid-cols-[120px_80px_minmax(0,1fr)] gap-3 py-2.5">
+                          <span className="font-medium">{d.label}</span>
+                          <span className="t-readout text-ink-2">{d.earned === null ? 'n/m' : `${d.earned.toFixed(0)}/${d.weight}`}</span>
+                          <span className="text-ink-3">{d.explanation}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </Details>
+                )}
+              </div>
             </div>
           </Section>
 

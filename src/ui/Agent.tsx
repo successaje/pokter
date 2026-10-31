@@ -127,16 +127,21 @@ export function AgentAvatar({
  * probes are drawn as a baseline tick, never as zero, because "not asked"
  * and "did not answer" are different facts. `scale` is a full day's height
  * in pixels, and the container's height should match it.
+ *
+ * `empty="slot"` draws a day with no probes as a full-height pale slot
+ * instead, for a strip tall enough that a tick would vanish: the slot
+ * reads as "nothing to show", where a red stub reads as "asked, and no
+ * answer". A legend beside the strip has to say so.
  */
-export function ProbeStrip({ cells, className, label = 'Daily answer rate, last 14 days', scale = 24 }: { cells: StripCell[]; className?: string; label?: string; scale?: number }) {
+export function ProbeStrip({ cells, className, label = 'Daily answer rate, last 14 days', scale = 24, empty = 'tick' }: { cells: StripCell[]; className?: string; label?: string; scale?: number; empty?: 'tick' | 'slot' }) {
   return (
     <div className={cn('flex h-6 items-end gap-[2px]', className)} role="img" aria-label={label}>
       {cells.map((cell, index) => {
         const ratio = cell.ratio;
         const measured = cell.probes > 0 && ratio !== null;
-        const height = measured ? Math.max(3, Math.round(ratio! * scale)) : 2;
-        const tone = !measured ? 'bg-rule-strong' : ratio! >= 0.9 ? 'bg-ok' : ratio! > 0 ? 'bg-watch' : 'bg-bad';
-        return <span key={index} className={cn('w-[5px] rounded-[1px]', tone, !measured && 'opacity-60')} style={{ height }} title={`${cell.date}: ${cell.probes ? `${cell.answered}/${cell.probes} answered` : "not probed"}`} />;
+        const height = measured ? Math.max(3, Math.round(ratio! * scale)) : empty === 'slot' ? scale : 2;
+        const tone = !measured ? (empty === 'slot' ? 'bg-rule' : 'bg-rule-strong') : ratio! >= 0.9 ? 'bg-ok' : ratio! > 0 ? 'bg-watch' : 'bg-bad';
+        return <span key={index} className={cn('w-[5px] rounded-[1px]', tone, !measured && empty === 'tick' && 'opacity-60')} style={{ height }} title={`${cell.date}: ${cell.probes ? `${cell.answered}/${cell.probes} answered` : "not probed"}`} />;
       })}
     </div>
   );
