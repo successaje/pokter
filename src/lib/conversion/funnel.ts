@@ -38,7 +38,7 @@ export function conversionField(event: ConversionEvent): keyof Omit<ConversionCo
 /** Which count a hire that stopped belongs to, by the layer it stopped in. */
 export function stoppedHireEvent(layer: string | null): 'hire_refused' | 'hire_failed' | null {
   if (layer === 'seller') return 'hire_refused';
-  if (layer === 'protocol' || layer === 'network' || layer === 'payment' || layer === 'terms') return 'hire_failed';
+  if (layer === 'protocol' || layer === 'network' || layer === 'payment' || layer === 'terms' || layer === 'attempt') return 'hire_failed';
   // The buyer declining in their wallet, or fixing their own brief, is neither.
   return null;
 }

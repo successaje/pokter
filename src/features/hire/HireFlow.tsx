@@ -374,10 +374,21 @@ export function HireFlow(props: HireFlowProps) {
         nativeSymbol,
       })
     : null;
+  /* What the fund button needs; "continue" past another hire's warning funds only when the button itself could. */
+  const canFund = confirmed && hire.riskAccepted && !budgetError && !hire.fundBlock && Boolean(pay) && !hire.pendingAttempt;
+  const [continuing, setContinuing] = useState(false);
+  const continuePastRemote = async () => {
+    setContinuing(true);
+    try {
+      if ((await hire.acknowledgeRemote()) === 'continue' && canFund) await hire.commission();
+    } finally {
+      setContinuing(false);
+    }
+  };
   const busy = hire.state === 'hiring';
   const waitingOnWallet = useWaitingOnWallet(busy && hire.active.mode === 'external' ? hire.externalStep : null);
   const done = hire.state === 'hired' && hire.job;
-  const failure = hire.state === 'error' && hire.error ? explainFailure(hire.error, hire.errorLayer) : null;
+  const failure = hire.state === 'error' && hire.error ? explainFailure(hire.error, hire.errorLayer, hire.errorCode) : null;
 
   /* Which networks this agent can be hired on, switched in place by `HireNetworks`. */
   const network = props.network ?? { options: [{ chainId: escrowChainId, deliveredByAgent: hire.provider?.relationship === 'registry-agent' }], onChange: () => {} };
@@ -584,26 +595,40 @@ export function HireFlow(props: HireFlowProps) {
         </Notice>
       )}
       {!hire.pendingAttempt && hire.reconcileNote && <Notice tone="ok" title="The earlier attempt is resolved">{hire.reconcileNote}</Notice>}
-      {/* Another device's attempt for this wallet, from the server. Blocking only with chain evidence that the wallet acted. */}
+      {/*
+        Another hire from this wallet, from the server: a different device,
+        or this one before a reload lost track of it. Blocking only with
+        chain evidence that the wallet acted. Without it, Pokter cannot tell
+        whether the wallet signed anything for it, and says so: "has not
+        sent anything" claimed more than the record shows.
+      */}
       {hire.remoteOpen && (
         <Notice
           tone="watch"
-          title={hire.remoteOpen.blocking ? 'This wallet is funding a hire on another device' : 'Another device started a hire from this wallet'}
+          className="mb-6"
+          title={hire.remoteOpen.blocking ? 'Another hire from this wallet is being funded' : 'Another hire from this wallet was not finished'}
           action={
             <div className="flex flex-wrap gap-2">
               {!hire.remoteOpen.blocking && (
-                <Button size="s" intent="secondary" onClick={() => hire.acknowledgeRemote()}>I’ve checked; continue here</Button>
+                <Button size="s" busy={continuing} onClick={() => void continuePastRemote()}>{canFund ? 'I’ve checked my wallet; fund this hire' : 'I’ve checked my wallet; continue'}</Button>
               )}
-              <Button size="s" intent="secondary" onClick={() => void hire.recheckRemote()}>Check again</Button>
+              <Button size="s" intent="secondary" disabled={continuing} onClick={() => void hire.recheckRemote()}>Check again</Button>
             </div>
           }
         >
           {hire.remoteOpen.blocking
-            ? `The chain shows that attempt acted (${[hire.remoteOpen.attempt.jobId ? `job ${hire.remoteOpen.attempt.jobId}` : null, ...hire.remoteOpen.attempt.txHashes.slice(0, 2).map((h) => `transaction ${shortAddress(h)}`)].filter(Boolean).join(', ')}), so it may still pay. Nothing new is funded from this wallet until it is funded or can no longer pay; finish it on that device, or reject any pending request in your wallet.`
-            : `It began ${new Date(hire.remoteOpen.attempt.startedAt).toLocaleString()} and has not sent anything yet. If it is still open there, finishing both would be two hires. Confirm only once you have checked that device or your wallet.`}
+            ? `The chain shows that attempt acted (${[hire.remoteOpen.attempt.jobId ? `job ${hire.remoteOpen.attempt.jobId}` : null, ...hire.remoteOpen.attempt.txHashes.slice(0, 2).map((h) => `transaction ${shortAddress(h)}`)].filter(Boolean).join(', ')}), so it may still pay. Nothing new is funded from this wallet until it is funded or can no longer pay; finish it where it started, or reject any pending request in your wallet.`
+            : `It was started ${new Date(hire.remoteOpen.attempt.startedAt).toLocaleString()}, on another device or before this page was reloaded. Pokter has no transaction from it on record, but cannot tell whether your wallet signed one. Look in your wallet’s activity for a job created or funded since then: if there is one, finish that hire instead. If there is none, continue here.`}
+          {hire.remoteCheck && (
+            <span className="mt-1.5 block text-[12.5px] text-ink-3">
+              {`Checked again at ${new Date(hire.remoteCheck.at).toLocaleTimeString()}: `}
+              {hire.remoteCheck.result === 'unchanged' ? 'no change, still no transaction from it on record.' : hire.remoteCheck.result === 'changed' ? 'it has changed since you last looked; read it again before going on.' : 'Pokter could not be reached, so nothing was checked. Try again in a moment.'}
+            </span>
+          )}
         </Notice>
       )}
-      {failure && (
+      {/* The warning above already says why; the same stop again in red read as a second, different problem. */}
+      {failure && !(hire.remoteOpen && hire.errorLayer === 'attempt') && (
         <Notice tone="bad" title={failure.title} className="mb-6" action={step !== 'pay' ? undefined : <span className="text-[12.5px] text-ink-2">Check the details below and confirm again to retry.</span>}>
           {failure.body}
           {hire.heldAfterFailure && ` The ${hire.heldAfterFailure} $U swapped in for this hire stays in your wallet.`}
@@ -1379,7 +1404,7 @@ export function HireFlow(props: HireFlowProps) {
                       : 'Your wallet will ask you to approve the job’s transactions, either as one batch or a few in a row. A signature for the quote is not a payment; only the funding transaction moves money.'}
                 </p>
                 <Checkbox checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} label="I’ve checked the amount, network and recipient" />
-                <Button intent="signal" size="l" onClick={() => void hire.commission()} disabled={!confirmed || !hire.riskAccepted || Boolean(budgetError) || Boolean(hire.fundBlock) || !pay || Boolean(hire.pendingAttempt)} className="w-full">
+                <Button intent="signal" size="l" onClick={() => void hire.commission()} disabled={!canFund} className="w-full">
                   {pay?.buttonLabel ?? 'Fund escrow'}
                 </Button>
                 {hire.fundBlock && <p className="text-[12.5px] text-bad">{hire.fundBlock.message}</p>}
