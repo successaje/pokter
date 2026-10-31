@@ -1,4 +1,4 @@
-import { flatText, type DeliveredAnswer } from '@/lib/delivery/answer';
+import { shapeIsBlock, shapeLines, valueShape, type DeliveredAnswer, type ValueShape } from '@/lib/delivery/answer';
 import { chainLabel } from '@/lib/network/presentation';
 import { cn } from '@/lib/ui/cn';
 import { Icon } from '@/ui/icons';
@@ -14,20 +14,89 @@ import { Icon } from '@/ui/icons';
  * this decides whether the buyer's own words may be shown beside it.
  */
 
-/** A field value as text: short values inline, structures as indented text, nothing interpreted. */
+/** Past this many lines a value is folded, so one field never buries the rest. */
+const FOLD_AFTER = 6;
+
+/** A field value as the agent wrote it: short values inline, structures as rows and tables, nothing interpreted. */
 export function AnswerValue({ value }: { value: unknown }) {
-  if (value === null || value === undefined || value === '') return <span className="text-ink-3">—</span>;
-  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return <span className="whitespace-pre-line break-words">{String(value)}</span>;
-  const flat = flatText(value);
-  if (flat) return <span className="break-words">{flat}</span>;
-  const json = JSON.stringify(value, null, 2);
-  if (json.length <= 160) return <span className="t-readout break-words text-[12.5px]">{JSON.stringify(value)}</span>;
+  const shape = valueShape(value);
+  if (shapeLines(shape) <= FOLD_AFTER) return <Shape shape={shape} />;
   return (
     <details className="group">
       <summary className="cursor-pointer text-[12.5px] font-medium text-ink-2 hover:text-ink">Show {Array.isArray(value) ? `${value.length} items` : 'details'}</summary>
-      <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap rounded-[8px] bg-sunken p-3 text-[12px]">{json.slice(0, 6000)}</pre>
+      <div className="mt-2">
+        <Shape shape={shape} />
+      </div>
     </details>
   );
+}
+
+function More({ count }: { count: number }) {
+  return count > 0 ? <p className="text-[12.5px] text-ink-3">and {count} more</p> : null;
+}
+
+function Shape({ shape }: { shape: ValueShape }) {
+  switch (shape.kind) {
+    case 'empty':
+      return <span className="text-ink-3">—</span>;
+    case 'text':
+      return <span className="whitespace-pre-line break-words">{shape.text}</span>;
+    case 'json':
+      return <span className="t-readout break-words text-[12.5px]">{shape.text}</span>;
+    case 'rows':
+      return (
+        <>
+          <dl className="flex flex-col gap-1">
+            {shape.rows.map((row, i) => (
+              <div key={`${i}:${row.label}`} className="flex flex-wrap gap-x-2">
+                <dt className="text-ink-3">{row.label}</dt>
+                <dd className={shapeIsBlock(row.value) ? 'mt-0.5 w-full border-l border-rule pl-3' : 'min-w-0 break-words'}>
+                  <Shape shape={row.value} />
+                </dd>
+              </div>
+            ))}
+          </dl>
+          <More count={shape.more} />
+        </>
+      );
+    case 'table':
+      return (
+        <div className="overflow-x-auto">
+          <table className="text-[12.5px] tabular-nums">
+            <thead>
+              <tr>
+                {shape.columns.map((column) => (
+                  <th key={column} scope="col" className="pb-1 pr-4 text-left font-normal text-ink-3">{column}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {shape.rows.map((row, i) => (
+                <tr key={i}>
+                  {row.map((value, j) => (
+                    <td key={j} className="py-0.5 pr-4 align-top">{value}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <More count={shape.more} />
+        </div>
+      );
+    case 'list':
+      return (
+        <>
+          <ol className="flex flex-col gap-2">
+            {shape.items.map((item, i) => (
+              <li key={i} className="border-l border-rule pl-3">
+                <Shape shape={item} />
+              </li>
+            ))}
+          </ol>
+          <More count={shape.more} />
+        </>
+      );
+  }
 }
 
 const TONE: Record<'ok' | 'watch' | 'bad', { mark: React.ReactNode; said: string; text: string; wash: string }> = {
