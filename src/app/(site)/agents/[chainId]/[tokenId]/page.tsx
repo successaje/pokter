@@ -129,6 +129,9 @@ function pct(n: number | null | undefined) {
   return n === null || n === undefined ? '—' : `${(n * 100).toFixed(n === 1 ? 0 : 1)}%`;
 }
 
+/** A strip day, YYYY-MM-DD, as "2 Oct". */
+const stripDay = (date: string) => new Date(`${date}T00:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+
 function Section({ id, label, title, children, aside }: { id: string; label: string; title: string; children: React.ReactNode; aside?: React.ReactNode }) {
   return (
     <section aria-labelledby={`${id}-title`}>
@@ -753,7 +756,15 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                   </p>
                 ))}
                 {p.record.totalProbes > 0 ? (
-                  <ProbeStrip cells={p.record.cells} className="h-10 [&>span]:w-full [&>span]:flex-1" label="Daily answer rate, last 30 days" />
+                  <div className="flex flex-col gap-1.5">
+                    <ProbeStrip cells={p.record.cells} scale={80} className="h-20 [&>span]:w-full [&>span]:flex-1 [&>span]:rounded-[2px]" label="Daily answer rate, last 30 days" />
+                    {p.record.cells.length > 1 && (
+                      <div className="t-readout flex justify-between text-[11px] text-ink-3">
+                        <span>{stripDay(p.record.cells[0].date)}</span>
+                        <span>{stripDay(p.record.cells[p.record.cells.length - 1].date)}</span>
+                      </div>
+                    )}
+                  </div>
                 ) : (
                   <p className="text-[13px] text-ink-3">No scheduled checks yet. An agent enters the schedule once it is listed, enrolled, has signed a price or has been hired.</p>
                 )}
@@ -765,7 +776,7 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                 </div>
               </div>
 
-              {p.latency.length >= 2 && <LatencyTrend points={p.latency} />}
+              {p.latency.length >= 2 && <LatencyTrend points={p.latency} height={160} />}
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="flex flex-col gap-2 rounded-[12px] border border-dashed border-rule-strong px-5 py-4">

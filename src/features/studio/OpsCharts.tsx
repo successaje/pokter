@@ -81,8 +81,16 @@ export function WeeklyJobs({ weeks }: { weeks: AgentOps['weeks'] }) {
   );
 }
 
-/** Reply latency of successful probes: one line, recessive axis, crosshair on hover. */
-export function LatencyTrend({ points }: { points: AgentOps['latency'] }) {
+/**
+ * Reply latency of successful probes: one line, recessive axis, crosshair on hover.
+ *
+ * The drawing stretches to the box rather than keeping its aspect ratio:
+ * kept, a 400-wide drawing in a 100px-tall box came out 444px wide in the
+ * middle of a 760px column. The line and rules keep their stroke width
+ * however it stretches, and the hover dot is drawn over it in HTML so it
+ * stays round.
+ */
+export function LatencyTrend({ points, height = 100 }: { points: AgentOps['latency']; height?: number }) {
   const [hover, setHover] = useState<number | null>(null);
   if (points.length < 2) {
     return <p className="text-[13px] text-ink-3">Not enough answered probes in 30 days to draw a trend.</p>;
@@ -105,7 +113,9 @@ export function LatencyTrend({ points }: { points: AgentOps['latency'] }) {
       <div className="relative">
         <svg
           viewBox={`0 0 ${W} ${H}`}
-          className="h-[100px] w-full overflow-visible"
+          preserveAspectRatio="none"
+          className="block w-full overflow-visible"
+          style={{ height }}
           role="img"
           aria-label={`Reply time over the last ${points.length} answered probes, median ${median} milliseconds`}
           onMouseMove={(e) => {
@@ -114,21 +124,28 @@ export function LatencyTrend({ points }: { points: AgentOps['latency'] }) {
           }}
           onMouseLeave={() => setHover(null)}
         >
-          <line x1="0" x2={W} y1={y(median)} y2={y(median)} stroke="var(--rule-strong)" strokeDasharray="3 3" />
+          <line x1="0" x2={W} y1={H} y2={H} stroke="var(--rule)" vectorEffect="non-scaling-stroke" />
+          <line x1="0" x2={W} y1={y(median)} y2={y(median)} stroke="var(--rule-strong)" strokeDasharray="3 3" vectorEffect="non-scaling-stroke" />
           <path d={d} fill="none" stroke="var(--ink)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
-          {hover !== null && (
-            <>
-              <line x1={x(hover)} x2={x(hover)} y1="0" y2={H} stroke="var(--rule-strong)" vectorEffect="non-scaling-stroke" />
-              <circle cx={x(hover)} cy={y(points[hover].ms)} r="4" fill="var(--ink)" stroke="var(--raised)" strokeWidth="2" vectorEffect="non-scaling-stroke" />
-            </>
-          )}
+          {hover !== null && <line x1={x(hover)} x2={x(hover)} y1="0" y2={H} stroke="var(--rule-strong)" vectorEffect="non-scaling-stroke" />}
         </svg>
+        {hover !== null && (
+          <span
+            className="pointer-events-none absolute size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-raised bg-ink"
+            style={{ left: `${(x(hover) / W) * 100}%`, top: `${(y(points[hover].ms) / H) * 100}%` }}
+            aria-hidden
+          />
+        )}
         {hover !== null && (
           <div className={cn('pointer-events-none absolute -top-2 rounded-[8px] border border-rule bg-raised px-2.5 py-1.5 text-[12px] shadow-lift')} style={{ left: `min(${(hover / (points.length - 1)) * 100}%, calc(100% - 140px))` }}>
             <p className="t-readout font-medium">{points[hover].ms} ms</p>
             <p className="text-ink-3">{fmtTime(points[hover].at)}</p>
           </div>
         )}
+      </div>
+      <div className="t-readout flex justify-between text-[11px] text-ink-3">
+        <span>{fmtDate(points[0].at)}</span>
+        <span>{fmtDate(points[points.length - 1].at)}</span>
       </div>
     </figure>
   );
