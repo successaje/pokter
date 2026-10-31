@@ -32,7 +32,7 @@ test('a sample is a delivered job whose answer is public; the brief depends on w
   assert.match(code('features/agent/StructuredProfile.tsx'), /An outside buyer&rsquo;s answer appears here only once the buyer publishes it, and any answer only once it matches its hash on chain\./);
   /* The buyer's own address is taken out of what is shown, as on the evidence pages; the hash is of the original bytes. */
   assert.match(loader, /const shown = publishableAnswerText\(stored\.manifestText, funder, job\.client\);/);
-  assert.match(loader, /readDeliveredAnswer\(publishableAnswerText\(read\.text, funder, onchain\.client\)\)/);
+  assert.match(loader, /const shown = publishableAnswerText\(read\.text, funder, onchain\.client\);\s*const answer = readDeliveredAnswer\(shown\);/);
   assert.match(loader, /manifestHash: keccak256\(stringToBytes\(stored\.manifestText\)\)/);
 });
 

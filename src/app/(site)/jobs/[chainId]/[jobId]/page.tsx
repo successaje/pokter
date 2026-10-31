@@ -5,6 +5,7 @@ import { cache, type ReactNode } from 'react';
 
 import { Doc, DocSection } from '@/features/content/Doc';
 import { DeliveredAnswerView } from '@/features/delivery/AnswerView';
+import { PlanChecks } from '@/features/delivery/PlanChecks';
 import { loadJobEvidence, type JobEvidence } from '@/lib/jobs/evidence';
 import { FUNDER_LABEL, fundedWhen, jobEvidencePath, jobStatusWords, utcWhen } from '@/lib/jobs/evidence-view';
 import { jobChainParam, jobHref } from '@/lib/jobs/href';
@@ -219,6 +220,15 @@ export default async function JobEvidencePage({ params }: { params: Promise<Para
           </p>
         )}
       </DocSection>
+
+      {e.checks && (
+        <DocSection id="checks" title="What Pokter checked in the answer">
+          <p>
+            Pokter repeated the answer’s own arithmetic and held it to the brief{e.brief === null ? ' where the brief may be shown' : ''}. A passed check means that comparison held. It does not mean the advice is good, and the delivery hash above says only that the record was not changed.
+          </p>
+          <PlanChecks report={e.checks} />
+        </DocSection>
+      )}
 
       <DocSection id="verify" title="Check it yourself">
         <ul className="flex list-disc flex-col gap-2 pl-5">

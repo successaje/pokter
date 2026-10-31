@@ -30,7 +30,7 @@ test('that a job was delivered is public on every job; its answer only when publ
   for (const funder of ['self', 'outside', 'unknown'] as const) assert.equal(briefIsPublic(funder), false, funder);
   const loader = code('lib/jobs/evidence.ts');
   assert.match(loader, /brief: briefIsPublic\(funder\) \? indexed\.task : null/);
-  assert.match(loader, /if \(answerIsPublic\(funder, getJobStore\(\)\.answerPublication\(chainId, jobId\)\)\) answer = readDeliveredAnswer\(publishableAnswerText\(read\.text, funder, chain\.client\)\);\s*else answerWithheld = true;/, 'a published answer, never one that fails its own hash');
+  assert.match(loader, /if \(answerIsPublic\(funder, getJobStore\(\)\.answerPublication\(chainId, jobId\)\)\) \{\s*const shown = publishableAnswerText\(read\.text, funder, chain\.client\);\s*answer = readDeliveredAnswer\(shown\);\s*checks = checkDeliveredPlan\(shown, briefIsPublic\(funder\) \? indexed\.task : null\);\s*\} else answerWithheld = true;/, 'a published answer, never one that fails its own hash, and its checks on the same text');
   const view = code('features/delivery/AnswerView.tsx').replace(/\/\*[\s\S]*?\*\//g, '');
   assert.doesNotMatch(view, /\.asked\b/, 'the shared answer view never prints the brief');
   const page = code('app/(site)/jobs/[chainId]/[jobId]/page.tsx');
@@ -95,7 +95,7 @@ test('an answer is shown in full, with the buyer’s own address taken out unles
   assert.equal(publishableAnswerText(text, 'team', buyer), text, 'Pokter’s own test shows what it sent');
   assert.equal(publishableAnswerText(text, 'outside', null), text);
   /* Applied wherever an answer is shown; the hash is checked on the original bytes. */
-  assert.match(code('lib/jobs/evidence.ts'), /readDeliveredAnswer\(publishableAnswerText\(read\.text, funder, chain\.client\)\)/);
+  assert.match(code('lib/jobs/evidence.ts'), /const shown = publishableAnswerText\(read\.text, funder, chain\.client\);\s*answer = readDeliveredAnswer\(shown\);/);
 });
 
 test('a courier job says the escrow pays Pokter’s courier, and a Pokter-owned agent is not called a courier', () => {

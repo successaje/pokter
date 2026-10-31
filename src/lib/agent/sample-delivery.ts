@@ -6,6 +6,7 @@ import { deliverableKey, readDeliverable } from '@/lib/erc8183/deliverables';
 import { getJobStore } from '@/lib/erc8183/store';
 import type { HiredJob } from '@/lib/erc8183/types';
 import { readDeliveredAnswer, type DeliveredAnswer } from '@/lib/delivery/answer';
+import { checkDeliveredPlan, type PlanCheckReport } from '@/lib/delivery/plan-checks';
 import { briefIsPublic, jobFunder, publishableAnswerText, type JobFunder } from '@/lib/jobs/evidence-view';
 import { altanaNetworkFor } from '@/lib/altana/client';
 import { readDeliveryText } from '@/lib/delivery/read-delivery';
@@ -49,6 +50,8 @@ export interface SampleDelivery {
    * values. `asked` is cleared unless the brief may be shown.
    */
   answer: DeliveredAnswer;
+  /** Pokter's checks on the answer, against the brief only when the brief may be shown. */
+  checks: PlanCheckReport | null;
 }
 
 const SHOWABLE: HiredJob['status'][] = ['COMPLETED', 'SUBMITTED'];
@@ -128,6 +131,7 @@ function storedSample(job: HiredJob, funder: JobFunder): SampleDelivery | null {
     result: answer.result,
     limitations: answer.limitations,
     answer: { ...answer, asked: briefIsPublic(funder) ? answer.asked : null },
+    checks: checkDeliveredPlan(shown, briefIsPublic(funder) ? job.task : null),
   };
 }
 
@@ -151,7 +155,8 @@ async function publishedSample(job: HiredJob, funder: JobFunder): Promise<Sample
   if (!onchain || !SHOWABLE.includes(onchain.statusName as HiredJob['status'])) return remember(null);
   const read = await readDeliveryText(job.chainId, job.jobId, { deliverable: onchain.deliverable as `0x${string}`, submittedAt: onchain.submittedAt }, 6_000);
   if (!read.ok || !manifestMatch(read.text, onchain.deliverable)) return remember(null);
-  const answer = readDeliveredAnswer(publishableAnswerText(read.text, funder, onchain.client));
+  const shown = publishableAnswerText(read.text, funder, onchain.client);
+  const answer = readDeliveredAnswer(shown);
   return remember({
     chainId: job.chainId,
     jobId: job.jobId,
@@ -171,6 +176,7 @@ async function publishedSample(job: HiredJob, funder: JobFunder): Promise<Sample
     result: answer.result,
     limitations: answer.limitations,
     answer: { ...answer, asked: briefIsPublic(funder) ? answer.asked : null },
+    checks: checkDeliveredPlan(shown, briefIsPublic(funder) ? job.task : null),
   });
 }
 
