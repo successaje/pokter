@@ -9,6 +9,7 @@ const definition = {
   label: 'Yield check',
   provenance: 'Fixture',
   limitation: 'Checks arithmetic, not execution.',
+  unverified: 'Execution',
   live: false,
 };
 
