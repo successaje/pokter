@@ -25,7 +25,7 @@ import { displaySymbol, offeredTokens, type PaymentToken } from '@/lib/network/t
 import { planCommission, type CommissionPlan } from '@/lib/hire/commission-plan';
 import { AttemptOwnershipLost, DeadlineNotRecorded, finishableJob, fundingCoordinator, promptMovesMoney, reconcileAttempt, type AttemptSession, type BeginInput, type FundingAttempt, type KeyValue, type LockManagerLike } from '@/lib/hire/funding-journal';
 import { fundedJobRecord } from '@/lib/hire/funded-job';
-import { fetchOpenAttempt, remoteAttempt, remoteDecision, type PublicAttempt } from '@/lib/hire/remote-attempt-client';
+import { acknowledgeAttempt, acknowledgedAttempt, attemptUnchanged, fetchOpenAttempt, remoteAttempt, remoteDecision, type PublicAttempt } from '@/lib/hire/remote-attempt-client';
 import {
   encodePokterJobEnvelope,
   type PokterJobQuote,
@@ -577,7 +577,11 @@ export function useHire({
    * past (once, for that record) when it shows nothing yet.
    */
   const [remoteOpen, setRemoteOpen] = useState<{ attempt: PublicAttempt; blocking: boolean } | null>(null);
-  const [remoteAcknowledged, setRemoteAcknowledged] = useState<string | null>(null);
+  /*
+   * The last time the buyer asked for the record again, and what came back,
+   * so "Check again" visibly did something even when nothing had changed.
+   */
+  const [remoteCheck, setRemoteCheck] = useState<{ at: string; result: 'unchanged' | 'changed' | 'unavailable' } | null>(null);
   /*
    * On load, and whenever the wallet or network changes: an attempt this
    * wallet left open (a reload mid-funding, a closed tab, another tab) is
@@ -598,6 +602,8 @@ export function useHire({
   const [error, setError] = useState<string | null>(null);
   /** Which layer the last failure came from; only 'wallet' may say the buyer declined. */
   const [errorLayer, setErrorLayer] = useState<FailureLayer | null>(null);
+  /** The failure's own code, where the layer alone does not say enough (`explainFailure`). */
+  const [errorCode, setErrorCode] = useState<string | null>(null);
   const [heldAfterFailure, setHeldAfterFailure] = useState<string | null>(null);
   const [externalStep, setExternalStep] = useState<HireStep | null>(null);
   const [externalJobId, setExternalJobId] = useState<bigint | null>(null);
@@ -1124,6 +1130,7 @@ export function useHire({
     setSwapQuote(null);
     setError(null);
     setErrorLayer(null);
+    setErrorCode(null);
     setHeldAfterFailure(null);
     setExternalStep(null);
     setRevoked(false);
@@ -1146,11 +1153,11 @@ export function useHire({
         const decision = remoteDecision(remoteNow, ownRecord?.remotePublicId ?? null);
         if (decision === 'block' && remoteNow) {
           setRemoteOpen({ attempt: remoteNow, blocking: true });
-          throw new HireFailure('Another device is funding a hire from this wallet, and the chain shows it acted. Nothing new was sent. Finish or resolve that one first; Pokter checks the chain for it.', 'payment', 'funding-pending-elsewhere');
+          throw new HireFailure('Another hire from this wallet is being funded, and the chain shows it acted. Nothing was sent from this page. Finish or resolve that one first; Pokter checks the chain for it.', 'attempt', 'funding-pending-elsewhere');
         }
-        if (decision === 'warn' && remoteNow && remoteAcknowledged !== remoteNow.publicId) {
+        if (decision === 'warn' && remoteNow && acknowledgedAttempt(walletAddress, escrowChainId) !== remoteNow.publicId) {
           setRemoteOpen({ attempt: remoteNow, blocking: false });
-          throw new HireFailure('Another device started a hire from this wallet and has not sent anything yet. Nothing new was sent. Check that device or your wallet, then confirm to continue here.', 'payment', 'remote-attempt-warning');
+          throw new HireFailure('Another hire from this wallet was started and not finished, and Pokter has no transaction from it on record. Nothing was sent from this page.', 'attempt', 'remote-attempt-warning');
         }
       }
       setRemoteOpen(null);
@@ -1161,7 +1168,7 @@ export function useHire({
         if (!begun.ok) {
           localSession.close();
           if (begun.open) setRemoteOpen({ attempt: begun.open, blocking: begun.open.verified });
-          throw new HireFailure('Another device began funding from this wallet a moment ago. Nothing was sent here.', 'payment', 'funding-pending-elsewhere');
+          throw new HireFailure('Another hire from this wallet began funding a moment ago. Nothing was sent from this page.', 'attempt', 'funding-pending-elsewhere');
         }
         if (begun.publicId) localSession.note({ remotePublicId: begun.publicId });
         /*
@@ -1221,16 +1228,16 @@ export function useHire({
         }
       });
       if (!result.ok && result.reason === 'already-funded') {
-        throw new HireFailure(`This exact brief and signed quote already funded job ${result.jobId} from this wallet. Nothing new was sent; open that job, or ask for a fresh quote to hire again.`, 'payment', 'already-funded');
+        throw new HireFailure(`This exact brief and signed quote already funded job ${result.jobId} from this wallet. Nothing was sent from this page; open that job, or ask for a fresh quote to hire again.`, 'attempt', 'already-funded');
       }
       if (!result.ok) {
         const blocking = result.reason === 'open-attempt' ? result.blocking : coordinator.read(walletAddress, escrowChainId);
         if (blocking) setPendingAttempt(blocking);
         throw new HireFailure(
           result.reason === 'in-progress-elsewhere'
-            ? 'This wallet is funding a hire in another tab or window. Nothing new was sent; finish or close that one first.'
-            : 'An earlier funding attempt from this wallet has not resolved yet. Nothing new was sent; Pokter is checking the chain for it first.',
-          'payment',
+            ? 'This wallet is funding a hire in another tab or window. Nothing was sent from this page; finish or close that one first.'
+            : 'An earlier funding attempt from this wallet has not resolved yet. Nothing was sent from this page; Pokter is checking the chain for it first.',
+          'attempt',
           'funding-pending',
         );
       }
@@ -1247,7 +1254,7 @@ export function useHire({
       if (open) {
         setPendingAttempt(open);
         void recheckFunding(open);
-        throw new HireFailure('An earlier funding attempt from this wallet has not resolved yet. Nothing new was sent; Pokter is checking the chain for it first.', 'payment', 'funding-pending');
+        throw new HireFailure('An earlier funding attempt from this wallet has not resolved yet. Nothing was sent from this page; Pokter is checking the chain for it first.', 'attempt', 'funding-pending');
       }
       // Guards belong here, not only in the UI: any caller of commission()
       // gets the same refusal before a wallet is touched.
@@ -1654,6 +1661,7 @@ export function useHire({
         return;
       }
       setErrorLayer(caught instanceof HireFailure ? caught.layer : isWalletRejection(caught) ? 'wallet' : null);
+      setErrorCode(caught instanceof HireFailure ? caught.code ?? null : null);
       setError(caught instanceof HireFailure ? caught.message : walletActionError(caught, 'Commissioning'));
       setHeldAfterFailure(acquired > 0n ? formatUnits(acquired, 18) : null);
       setState('error');
@@ -1973,14 +1981,61 @@ export function useHire({
     startOver,
     /** Another device's open attempt for this wallet, and the buyer's confirmation past an unverified one. */
     remoteOpen,
-    acknowledgeRemote: () => {
-      if (remoteOpen && !remoteOpen.blocking) setRemoteAcknowledged(remoteOpen.attempt.publicId);
+    remoteCheck,
+    /*
+     * "I've checked; continue": asks for the record again first, and goes on
+     * only if it is still the one the buyer checked, unverified and with
+     * nothing recorded since. Then the confirmation is kept (it survives a
+     * reload) and the warning and its error are cleared, so the page is
+     * back at the funding step; `'continue'` tells the caller to fund. A
+     * record that changed is shown as it now is and nothing continues.
+     */
+    acknowledgeRemote: async (): Promise<'continue' | 'changed' | 'unavailable'> => {
+      const address = active.address ?? wallet?.address;
+      if (!address || !remoteOpen || remoteOpen.blocking) return 'changed';
+      const now = await fetchOpenAttempt(address, escrowChainId);
+      const at = new Date().toISOString();
+      if (now === 'unavailable') {
+        setRemoteCheck({ at, result: 'unavailable' });
+        return 'unavailable';
+      }
+      if (now && !attemptUnchanged(remoteOpen.attempt, now)) {
+        setRemoteOpen({ attempt: now, blocking: now.verified });
+        setRemoteCheck({ at, result: 'changed' });
+        return 'changed';
+      }
+      if (now) acknowledgeAttempt(address, escrowChainId, now.publicId);
+      setRemoteOpen(null);
+      setRemoteCheck(null);
+      setError(null);
+      setErrorLayer(null);
+      setErrorCode(null);
+      setState('idle');
+      return 'continue';
     },
+    /* A server that cannot be asked keeps the warning: it used to clear it, as if the record had gone. */
     recheckRemote: async () => {
       const address = active.address ?? wallet?.address;
-      if (!address) return;
+      if (!address || !remoteOpen) return;
       const now = await fetchOpenAttempt(address, escrowChainId);
-      setRemoteOpen(now && now !== 'unavailable' ? { attempt: now, blocking: now.verified } : null);
+      const at = new Date().toISOString();
+      if (now === 'unavailable') {
+        setRemoteCheck({ at, result: 'unavailable' });
+        return;
+      }
+      if (!now) {
+        setRemoteOpen(null);
+        setRemoteCheck(null);
+        if (errorLayer === 'attempt') {
+          setError(null);
+          setErrorLayer(null);
+          setErrorCode(null);
+          setState('idle');
+        }
+        return;
+      }
+      setRemoteCheck({ at, result: attemptUnchanged(remoteOpen.attempt, now) ? 'unchanged' : 'changed' });
+      setRemoteOpen({ attempt: now, blocking: now.verified });
     },
     /** The non-$U token the quoted price is in, or null for $U. */
     hireToken,
@@ -2011,6 +2066,7 @@ export function useHire({
     job,
     error,
     errorLayer,
+    errorCode,
     briefSource,
     previewSkill,
     recipeId,
