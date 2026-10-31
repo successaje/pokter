@@ -5,15 +5,14 @@ import { getJobStore } from '@/lib/erc8183/store';
 import { courierPaidTest } from '@/lib/erc8183/courier-paid';
 import { fundingEvidence } from '@/lib/erc8183/funding-evidence';
 import { isSelfHire } from '@/lib/erc8183/production-proof';
-import { summarizeMarketplaceActivity } from '@/lib/erc8183/activity-stats';
 import { registeredWalletRead } from '@/lib/registry/live-agent';
 import { teamWalletSet } from '@/lib/team/server';
 import { fundedByTeam } from '@/lib/team/wallets';
 
 export interface OutsideActivity {
-  /** Jobs an outside buyer funded through escrow, on either chain. */
+  /** Jobs an outside buyer funded through escrow, on either chain: the escrow proves the funding, and demonstrations and self-hires are left out. */
   funded: number;
-  /** Funded or submitted: the escrow is still holding the money. */
+  /** Of `funded`, funded or submitted: the escrow is still holding the money. */
   open: number;
   /** Settled with the agent's answer and paid to the agent: demonstrations, self-hires and courier jobs removed. */
   answered: number;
@@ -44,23 +43,29 @@ export interface OutsideActivity {
 export async function outsideActivity(): Promise<OutsideActivity> {
   const team = teamWalletSet();
   const buyerJobs = getJobStore().all().filter((job) => !fundedByTeam(job, team));
-  const totals = summarizeMarketplaceActivity(buyerJobs);
-  const completed = buyerJobs.filter((job) => job.status === 'COMPLETED');
-  const answeredAtAll = completed.filter((job) => !isLifecycleDemo(job) && !isSelfHire(job));
+  /*
+   * One population for every figure, the one `answered` and `buyers` are
+   * drawn from. Counting every indexed job put demonstrations and
+   * self-hires in "funded" but not in "deliveries", so the gap between the
+   * two read as misses, and a job created but never funded would have
+   * counted as funded.
+   */
+  const bought = buyerJobs.filter((job) => !isSelfHire(job) && !isLifecycleDemo(job) && fundingEvidence(job) === 'funded');
+  const answeredAtAll = bought.filter((job) => job.status === 'COMPLETED');
   /* Paid to Pokter's courier: the courier's job, not the agent's paid work. The same rule as the proof page. */
   const paidToCourier = await courierPaidTest(answeredAtAll, team, registeredWalletRead);
   const viaCourier = answeredAtAll.filter(paidToCourier).length;
   const answeredMainnet = answeredAtAll.filter((job) => job.chainId === 56 && !paidToCourier(job)).length;
   /* By wallet, so one busy buyer is one buyer; a funding the escrow does not prove is not a purchase. */
   const wallets = new Map<string, boolean>();
-  for (const job of buyerJobs) {
-    if (!job.client || isSelfHire(job) || isLifecycleDemo(job) || fundingEvidence(job) !== 'funded') continue;
+  for (const job of bought) {
+    if (!job.client) continue;
     const wallet = job.client.toLowerCase();
     wallets.set(wallet, (wallets.get(wallet) ?? false) || job.chainId === 56);
   }
   return {
-    funded: totals.indexedJobs,
-    open: totals.activeJobs,
+    funded: bought.length,
+    open: bought.filter((job) => job.status === 'FUNDED' || job.status === 'SUBMITTED').length,
     answered: answeredAtAll.length - viaCourier, viaCourier,
     answeredMainnet,
     buyers: { wallets: wallets.size, mainnet: [...wallets.values()].filter(Boolean).length },

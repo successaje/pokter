@@ -35,5 +35,12 @@ test('Proof opens with what outside buyers got, its mainnet share, and the verif
   assert.match(proof, /\{CORRECTIONS\.length\} corrections, dated/);
   const activity = code('lib/erc8183/outside-activity.ts');
   assert.match(activity, /const answeredMainnet = answeredAtAll\.filter\(\(job\) => job\.chainId === 56 && !paidToCourier\(job\)\)\.length;/);
-  assert.match(activity, /fundingEvidence\(job\) !== 'funded'/);
+  assert.match(activity, /const bought = buyerJobs\.filter\(\(job\) => !isSelfHire\(job\) && !isLifecycleDemo\(job\) && fundingEvidence\(job\) === 'funded'\);/);
+});
+
+test('Discover counts funded jobs, open jobs and deliveries from one population', () => {
+  const activity = code('lib/erc8183/outside-activity.ts');
+  // Every indexed job put demonstrations and self-hires in "funded" but not in "deliveries".
+  assert.doesNotMatch(activity, /indexedJobs|activeJobs/);
+  for (const figure of [/funded: bought\.length,/, /open: bought\.filter\(/, /const answeredAtAll = bought\.filter\(/, /for \(const job of bought\)/]) assert.match(activity, figure);
 });
