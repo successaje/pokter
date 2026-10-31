@@ -45,6 +45,17 @@ export type RangeStatus = 'in-range' | 'out-of-range' | 'closed';
  */
 export const V3_COMPARABLE_BLOCKS = 2_000;
 
+/**
+ * The revision of the rules a position answer is graded by, recorded on
+ * every run (see `HF_GRADING_RULES`, which it follows; 0 on runs recorded
+ * before).
+ *
+ * 1: each position Pokter reads, by status, within `V3_COMPARABLE_BLOCKS`
+ *    of the delivery; an invented position is caught only in an empty
+ *    wallet.
+ */
+export const V3_GRADING_RULES = 1;
+
 /** The block the answer says it read, from its own `as_of`. */
 export function answerReadBlock(manifestText: string): number | null {
   let manifest: unknown;

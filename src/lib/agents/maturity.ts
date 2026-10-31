@@ -1,4 +1,6 @@
 import type { OutsideTeamHistory } from '@/lib/erc8183/economic-history';
+import { CHECK_FRESH_DAYS, checkStanding } from '@/lib/assay/standing';
+import type { AssayRun } from '@/lib/assay/types';
 
 /**
  * The evidence ladder: what Pokter has seen an agent do, in the order a
@@ -58,6 +60,16 @@ export interface MaturityFacts {
    */
   liveAnswered?: boolean;
   observedDays: number;
+  /**
+   * The answer check behind `tested`, so the step can say which check it
+   * was and when. "Checked" alone read as a verdict on the agent: it is a
+   * pass of one named check, on one date, and the label now says both.
+   * Absent where no run is to hand, and the step falls back to its old
+   * wording.
+   */
+  check?: { label: string; scope: string; run: Pick<AssayRun, 'status' | 'passed' | 'total' | 'ranAt' | 'via'> | null } | null;
+  /** For the check's age; the time of the call otherwise. */
+  now?: number;
 }
 
 /**
@@ -151,12 +163,34 @@ export const LADDER_MEANING: Record<MaturityId, string> = {
   answers: 'Answered Pokter’s checks of its published endpoint.',
   priced: 'A buyer can get current terms, signed by the agent’s wallet, that an escrow can pay.',
   delivered: 'At least one paid job delivered from the agent’s own wallet. Lifecycle demonstrations do not count, and nor does a delivery Pokter’s courier submitted — but a courier delivery carrying the agent’s own answer is reported as that rather than as nothing.',
-  checked: 'Passed the latest answer check for its category: chain data for a live check, the published scenario for the others.',
+  checked: `Passed the latest answer check for its category in the last ${CHECK_FRESH_DAYS} days: chain data for a live check, the published scenario for the others.`,
   'proven-in-use': `Settled work from at least ${MARKET_PROVEN_BUYERS} buyer wallets outside Pokter’s team, ${MARKET_PROVEN_COMPLETIONS} or more jobs.`,
 };
 
 /** The ladder's steps, in order, for pages that describe it. */
 export const LADDER: ReadonlyArray<{ id: MaturityId; label: string; meaning: string }> = ORDER.map((id) => ({ id, label: LABEL[id], meaning: LADDER_MEANING[id] }));
+
+const day = (iso: string, year = false) =>
+  new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', ...(year ? { year: 'numeric' } : {}), timeZone: 'UTC' });
+
+/**
+ * The fourth rung, from the run itself: which check, how much of it
+ * matched, how it was asked, and when. A pass older than
+ * `CHECK_FRESH_DAYS` is real evidence about the agent as it was, so it is
+ * shown, as partial, and does not earn the step.
+ */
+function checkedStep(facts: MaturityFacts, earned: boolean): Pick<MaturityStep, 'state' | 'detail'> {
+  const run = facts.check?.run;
+  if (!facts.check || !run || run.status !== 'checked' || run.total === 0) {
+    return { state: earned ? 'earned' : 'unmet', detail: earned ? 'Passed the latest answer check for its category.' : 'No passing answer check on record.' };
+  }
+  const standing = checkStanding(run, facts.now);
+  const result = `${facts.check.label}: ${run.passed} of ${run.total} matched ${run.via === 'paid-hire' ? 'in paid work' : 'when asked directly'}`;
+  if (standing === 'stale') {
+    return { state: 'partial', detail: `${result}, ${day(run.ranAt, true)}: over ${CHECK_FRESH_DAYS} days ago, so it no longer counts.` };
+  }
+  return { state: earned ? 'earned' : 'unmet', detail: `${result}, ${day(run.ranAt)}.` };
+}
 
 /**
  * The evidence ladder for one agent.
@@ -232,7 +266,7 @@ export function deriveMaturity(facts: MaturityFacts): AgentMaturity {
               ? 'Hired, with no delivery from the agent yet.'
               : 'No paid delivery yet.',
     },
-    { id: 'checked', label: LABEL.checked, earned: earned.checked, state: earned.checked ? 'earned' : 'unmet', detail: earned.checked ? 'Passed the latest answer check for its category.' : 'No passing answer check on record.' },
+    { id: 'checked', label: LABEL.checked, earned: earned.checked, ...checkedStep(facts, earned.checked) },
     {
       id: 'proven-in-use',
       label: LABEL['proven-in-use'],
@@ -246,11 +280,19 @@ export function deriveMaturity(facts: MaturityFacts): AgentMaturity {
 
   const current = [...ORDER].reverse().find((id) => earned[id]) ?? null;
   const badge = current ? LABEL[current] : 'Not answering yet';
-  const label = current === 'delivered' && teamOnlyDeliveries ? 'Delivered (team hires)' : badge;
-  const summary = current
-    ? LADDER_MEANING[current]
-    : facts.probeRate === null
-      ? 'Listed in the registry; Pokter has not checked it yet.'
-      : 'Listed in the registry; it has not answered Pokter’s checks.';
+  /* Scoped and dated where the run is to hand: "Checked: health factor, 15 Oct". */
+  const checkRun = facts.check?.run;
+  const label = current === 'delivered' && teamOnlyDeliveries
+    ? 'Delivered (team hires)'
+    : current === 'checked' && facts.check && checkRun
+      ? `${badge}: ${facts.check.scope}, ${day(checkRun.ranAt)}`
+      : badge;
+  const summary = current === 'checked' && facts.check
+    ? steps.find((step) => step.id === 'checked')!.detail
+    : current
+      ? LADDER_MEANING[current]
+      : facts.probeRate === null
+        ? 'Listed in the registry; Pokter has not checked it yet.'
+        : 'Listed in the registry; it has not answered Pokter’s checks.';
   return { current, label, badge, summary, steps, sustained: reliable };
 }

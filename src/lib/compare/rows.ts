@@ -1,3 +1,5 @@
+import { CHECK_FRESH_DAYS, checkStanding } from '@/lib/assay/standing';
+
 /*
  * Plain-language readings for the compare rows, from data Pokter holds.
  * Each says what was observed, and says "unknown" rather than guess.
@@ -32,12 +34,15 @@ export function ago(iso: string | null, now = Date.now()): string {
 }
 
 /** A correctness check, as passed of total, or why there is no score. */
-export function checkReading(check: { passed: number; total: number; status: string; via: string } | null): { text: string; score: number | null } {
+export function checkReading(check: { passed: number; total: number; status: string; via: string; ranAt?: string } | null, now = Date.now()): { text: string; score: number | null } {
   if (!check) return { text: 'Not checked yet', score: null };
   if (check.status === 'not-askable') return { text: 'Could not be asked', score: null };
   if (check.status === 'paid-only') return { text: 'Needs a paid check, not run yet', score: null };
   if (check.total === 0) return { text: check.via === 'paid-hire' ? 'Delivered, but none of it could be graded' : 'Answered, but none of it could be graded', score: null };
-  return { text: `${check.passed} of ${check.total} passed${check.via === 'paid-hire' ? ' (paid hire)' : ''}`, score: check.passed / check.total };
+  const text = `${check.passed} of ${check.total} passed${check.via === 'paid-hire' ? ' (paid hire)' : ''}`;
+  /* A lapsed pass is shown with its age and ranks with nothing: it no longer counts as a pass anywhere else. */
+  if (check.ranAt && checkStanding({ ...check, ranAt: check.ranAt }, now) === 'stale') return { text: `${text}, over ${CHECK_FRESH_DAYS} days ago`, score: null };
+  return { text, score: check.passed / check.total };
 }
 
 /** The protocols it publishes, as declared, never as verified. */
@@ -70,7 +75,8 @@ export function distinctPercents(rates: ReadonlyArray<number | null>): { labels:
 }
 
 /** A correctness result as a pass, a failure or neither, so it can be marked as plainly as availability is. */
-export function checkTone(check: { passed: number; total: number; status: string } | null): 'pass' | 'fail' | 'none' {
+export function checkTone(check: { passed: number; total: number; status: string; ranAt?: string } | null, now = Date.now()): 'pass' | 'fail' | 'none' {
   if (!check || check.total === 0 || check.status === 'not-askable' || check.status === 'paid-only') return 'none';
-  return check.passed === check.total ? 'pass' : 'fail';
+  if (check.passed !== check.total) return 'fail';
+  return check.ranAt && checkStanding({ ...check, ranAt: check.ranAt }, now) === 'stale' ? 'none' : 'pass';
 }

@@ -4,7 +4,7 @@ import { freeRunStatus } from './run-status';
 import type { Address } from 'viem';
 
 import { NotAskableError, PaidOnlyError, prepareAgent, sendPreparedBrief } from '@/lib/erc8183/courier';
-import { hfBrief, HF_SUITE_ID, judgeHf, readHfAnswer, type HfExpected } from './health-factor';
+import { hfBrief, HF_GRADING_RULES, HF_SUITE_ID, judgeHf, readHfAnswer, type HfExpected } from './health-factor';
 import { getAssayStore, type AssayRun, type AssayScenarioResult } from './store';
 import { dueForCheck } from './queue';
 import { readVenusPosition, sampleVenusBorrowers, venusClient, type VenusReading } from './venus';
@@ -48,7 +48,7 @@ export async function currentSample(): Promise<Address[]> {
 export async function runHealthFactorSuite(target: { chainId: number; tokenId: string }, accounts: Address[]): Promise<Omit<AssayRun, 'ranAt'>> {
   const store = getAssayStore();
   const client = venusClient();
-  const base = { suite: HF_SUITE_ID, total: accounts.length, via: 'free-call' as const };
+  const base = { suite: HF_SUITE_ID, total: accounts.length, via: 'free-call' as const, rules: HF_GRADING_RULES };
   let agent;
   try {
     agent = await prepareAgent({ ...target, category: 'health-factor' });

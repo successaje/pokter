@@ -12,9 +12,9 @@ import { getJobStore } from '@/lib/erc8183/store';
 import { mayStartSideEffect } from '@/lib/history/budget';
 
 import { GRADING_RULES, NOT_COUNTED, STATIC_SUITES, unstatedNote, type StaticAssayCategory } from './category-suites';
-import { HF_SUITE_ID } from './health-factor';
+import { HF_GRADING_RULES, HF_SUITE_ID } from './health-factor';
 import { readV3Positions, sampleV3PositionHolders, v3Client } from './pancakeswap-v3';
-import { gradePaidV3Scenarios } from './v3-grade';
+import { gradePaidV3Scenarios, V3_GRADING_RULES } from './v3-grade';
 import { V3_SUITE_ID, categoryOfSuite, fixtureJobsBySuite, readCheckMarker } from './paid-brief';
 import { gradePaidHfScenario } from './paid-hf-grade';
 import { readVenusPosition, venusClient } from './venus';
@@ -262,6 +262,7 @@ export async function gradePaidHealthFactorCheck(
     via: 'paid-hire',
     // Every row is kept, including the ones set aside, so a reader sees them.
     results: graded,
+    rules: HF_GRADING_RULES,
   };
 
   if (record) getAssayStore().record(target, run);
@@ -426,6 +427,7 @@ export async function gradePaidV3Check(
     total: scored.length,
     via: 'paid-hire',
     results: graded,
+    rules: V3_GRADING_RULES,
   };
 
   if (record) getAssayStore().record(target, run);

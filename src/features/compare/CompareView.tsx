@@ -72,7 +72,12 @@ const ROWS: Row[] = [
    * "0 of 3 passed" read as an endorsement of answers nobody had checked.
    */
   { label: 'Availability', hint: 'Whether it replies to Pokter’s probes', value: (c) => <VerdictLabel verdict={availability(c)} />, raw: (c) => AVAILABILITY_LABEL[availability(c)] },
-  { label: 'Answer check', hint: 'Whether its answers match Pokter’s published check for its kind', value: (c) => <CheckResult check={c.check} />, raw: (c) => checkReading(c.check).text, rank: { of: (c) => checkReading(c.check).score, better: 'higher' } },
+  /*
+   * Ranked only among agents that took the same check. Each kind of agent
+   * has its own, so a grid plan's 3 of 3 marked Best over a token
+   * verdict's 2 of 3 compared two different questions.
+   */
+  { label: 'Answer check', hint: 'Whether its answers match Pokter’s published check for its kind', value: (c) => <CheckResult check={c.check} />, raw: (c) => checkReading(c.check).text, rank: { of: (c, all) => (all.every((o) => o.category === c.category) ? checkReading(c.check).score : null), better: 'higher' } },
   {
     label: 'Answered probes',
     hint: 'All time, by Pokter',
@@ -101,6 +106,27 @@ const ROWS: Row[] = [
 
 function capabilityRow(c: Comparison): string {
   return capabilityText({ category: String(c.category), declared: c.capability.declared, wallet: c.agent.agent_wallet, reads: c.capability.reads, chainLabel }).text;
+}
+
+/*
+ * No Hire for an agent Pokter has called and never had an answer from: a
+ * button beside it read as an offer of work it has never shown it can
+ * take. One not called yet keeps the button, and the hire page checks it
+ * then.
+ */
+function HireAction({ c, wide }: { c: Comparison; wide?: boolean }) {
+  if (c.record.totalProbes > 0 && c.record.totalAnswered === 0) {
+    return <span className="text-[12.5px] text-ink-3">Has never answered Pokter</span>;
+  }
+  return wide ? (
+    <LinkButton href={`/hire/${c.agent.chain_id}/${c.agent.token_id}`} size="s" intent="secondary" className="min-w-0">
+      <span className="truncate">Hire {c.agent.name}</span>
+    </LinkButton>
+  ) : (
+    <LinkButton href={`/hire/${c.agent.chain_id}/${c.agent.token_id}`} size="s">
+      Hire
+    </LinkButton>
+  );
 }
 
 function bestOf(row: Row, items: readonly Comparison[]): Set<number> {
@@ -183,9 +209,7 @@ export function CompareView({ items, images }: { items: readonly Comparison[]; i
                   </th>
                   {items.map((c) => (
                     <td key={key(c)} className="border-l border-rule p-4 text-center">
-                      <LinkButton href={`/hire/${c.agent.chain_id}/${c.agent.token_id}`} size="s">
-                        Hire
-                      </LinkButton>
+                      <HireAction c={c} />
                     </td>
                   ))}
                 </tr>
@@ -216,9 +240,9 @@ export function CompareView({ items, images }: { items: readonly Comparison[]; i
             })}
             <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${Math.min(items.length, 2)}, minmax(0, 1fr))` }}>
               {items.map((c) => (
-                <LinkButton key={key(c)} href={`/hire/${c.agent.chain_id}/${c.agent.token_id}`} size="s" intent="secondary" className="min-w-0">
-                  <span className="truncate">Hire {c.agent.name}</span>
-                </LinkButton>
+                <div key={key(c)} className="flex min-w-0 items-center justify-center">
+                  <HireAction c={c} wide />
+                </div>
               ))}
             </div>
           </div>
