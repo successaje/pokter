@@ -379,7 +379,7 @@ test('the hire hook drives every attempt as its owner and settles only through t
   assert.match(hook, /await coordinator\.settle\(snapshot, verdict, chainNow/);
   assert.ok(!/journal\.close|journal\.note|journal\.begin/.test(hook), 'nothing writes the journal outside the coordinator');
   const wallet = readFileSync('src/lib/wallet/external.ts', 'utf8');
-  assert.match(wallet, /ask\('batch'\);\s*const callsId/);
+  assert.match(wallet, /ask\('batch'\);\s*const sent = await provider\(\)\.request\(\{ method: 'wallet_sendCalls'/);
   assert.match(wallet, /ask\(step as Parameters<typeof ask>\[0\]\);\s*const sending = wallet\.sendTransaction/);
   assert.match(wallet, /input\.beforePrompt\?\.\('swapping'\);\s*await acquireShortfall/);
 });

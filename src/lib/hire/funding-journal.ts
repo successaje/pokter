@@ -127,11 +127,35 @@ export type RunResult<T> =
   | { ok: false; reason: 'open-attempt'; blocking: FundingAttempt }
   | { ok: false; reason: 'already-funded'; jobId: string };
 
+/**
+ * A batch's id from what `wallet_sendCalls` returned.
+ *
+ * Pokter asks for version 2.0.0 of the batch call, which answers with an
+ * object, `{ id }`; version 1 answered with the id itself. The answer was
+ * cast to a string and stored whole, so the object reached
+ * `wallet_getCallsStatus`, which could not read it, and a batch that had
+ * paid ended as an unclear attempt. Its pending notice then called
+ * `.slice` on the object and the hire page crashed, on every visit, for as
+ * long as the record stayed in the browser (31 October, BNB Chain).
+ */
+export function batchId(value: unknown): string | null {
+  if (typeof value === 'string') return value || null;
+  if (value && typeof value === 'object' && typeof (value as { id?: unknown }).id === 'string') return (value as { id: string }).id || null;
+  return null;
+}
+
 export function fundingCoordinator(kv: KeyValue, locks: LockManagerLike | null, tabId: string, now: () => Date = () => new Date()) {
+  /*
+   * Read through `batchId`, so a record stored with the whole answer as its
+   * batch id is repaired on read: the page renders, and the attempt can be
+   * settled against the wallet and the chain like any other.
+   */
   const read = (wallet: string, chainId: number): FundingAttempt | null => {
     try {
       const raw = kv.getItem(storageKey(wallet, chainId));
-      return raw ? (JSON.parse(raw) as FundingAttempt) : null;
+      if (!raw) return null;
+      const stored = JSON.parse(raw) as FundingAttempt;
+      return { ...stored, callsId: batchId(stored.callsId), txHashes: Array.isArray(stored.txHashes) ? stored.txHashes.filter((h) => typeof h === 'string') : [] };
     } catch {
       return null;
     }
