@@ -23,7 +23,10 @@ test('home and Discover say when Pokter last checked an agent, beside the hireab
 
 test('a card shows where its money settles as a coloured pill on its own line under the price', () => {
   const card = code('features/agents/AgentCard.tsx');
-  assert.match(card, /real \? 'bg-ok-wash text-ok' : 'bg-watch-wash text-watch'/);
+  // One tag for every card that shows money, agents and requests alike (ui/Network.tsx).
+  assert.match(code('ui/Network.tsx'), /real \? 'bg-ok-wash text-ok' : 'bg-watch-wash text-watch'/);
+  assert.match(card, /import \{ NetworkTag \} from '@\/ui\/Network';/);
+  assert.match(code('features/briefs/RequestRow.tsx'), /<NetworkTag chainId=\{request\.chainId\} \/>/);
   // The price line holds the price and "per job" only; the tag follows it, one tag or two, never beside it.
   assert.match(card, /<PriceText row=\{row\} className="text-\[1\.45rem\][^"]*" \/>\n[^\n]*per job[^\n]*\n\s*<\/span>\n\s*<NetworkTag chainId=\{row\.hireChainId\} alsoHireOn=\{hireChainIds\} className="mt-2 self-start" \/>/);
 });

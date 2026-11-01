@@ -7,6 +7,7 @@ import { cn } from '@/lib/ui/cn';
 import { formatDelivery } from '@/lib/ui/format';
 import { AgentAvatar, answerState } from '@/ui/Agent';
 import { Icon } from '@/ui/icons';
+import { NetworkTag } from '@/ui/Network';
 import { VerdictLabel } from '@/ui/Verdict';
 import { MaturityLabel } from '@/ui/Maturity';
 import { LinkButton } from '@/ui/Button';
@@ -165,49 +166,6 @@ export function HiringLines({ row, align, network = true }: { row: FindRow; alig
 }
 
 /**
- * Where a hire settles, as a tag a reader sees before the price: on the
- * homepage three of four featured agents were testnet, and the only sign
- * was the last line of a caption under the price, wrapped to two lines.
- *
- * "Mainnet" or "Testnet": every agent here is on BNB Chain, so the chain's
- * name told nobody anything. What the money is stays in the tooltip and
- * the screen-reader text (`hireNetworkTags`).
- *
- * An agent that can be hired on both is one tag in two halves, Mainnet
- * first, rather than two tags or a sentence: the price beside it is the
- * mainnet one, and the tooltip says the testnet hire is in test tokens.
- * `alsoHireOn` is only ever networks where the agent has a verified price
- * of its own (Discover's `hireChainIds`), never a registration alone.
- */
-export function NetworkTag({ chainId, alsoHireOn = [], className }: { chainId: number | null; alsoHireOn?: number[]; className?: string }) {
-  /* Nothing without a price on this card: a testnet tag beside no price would read as this card's price being in test tokens. */
-  if (chainId === null) return null;
-  const tags = hireNetworkTags([chainId, ...alsoHireOn]);
-  if (tags.length === 0) return null;
-  /* Coloured both ways, so the two read apart at a glance across a grid: green for money that is real, amber for money that is not. The words carry it too, for anyone who cannot tell the colours apart. */
-  const tone = (real: boolean) => (real ? 'bg-ok-wash text-ok' : 'bg-watch-wash text-watch');
-  if (tags.length === 1) {
-    const [tag] = tags;
-    return (
-      <span className={cn('inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11.5px] font-medium', tone(tag.real), className)} title={tag.meaning}>
-        {tag.label}
-        <span className="sr-only">: {tag.meaning.toLowerCase()}</span>
-      </span>
-    );
-  }
-  return (
-    <span className={cn('inline-flex shrink-0 items-stretch overflow-hidden rounded-full text-[11.5px] font-medium', className)} title={tags.map((tag) => `${tag.label}: ${tag.meaning.toLowerCase()}`).join('. ')}>
-      {tags.map((tag, i) => (
-        <span key={tag.chainId} className={cn('px-2 py-0.5', tone(tag.real), i > 0 && 'border-l border-paper/70')}>
-          {tag.label}
-          <span className="sr-only">: {tag.meaning.toLowerCase()}{i < tags.length - 1 ? ';' : ''}</span>
-        </span>
-      ))}
-    </span>
-  );
-}
-
-/**
  * The free testnet trial, named as a trial.
  *
  * Offered for an agent with no payable price, and it is not the agent
@@ -341,7 +299,6 @@ export function AgentCard({
           card a row and nothing to line up with, and reserving three lines
           left a short description with a blank one under it. */}
       <p className="mt-3.5 line-clamp-3 text-[13.5px] leading-[1.45] text-ink-2 sm:line-clamp-2 sm:min-h-[2.9em]">{row.description || 'No description published.'}</p>
-
 
       {/*
         The evidence as three readings, not a panel.
