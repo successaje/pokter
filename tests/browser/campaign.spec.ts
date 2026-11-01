@@ -8,11 +8,18 @@ import { expect, test, type Page } from '@playwright/test';
  * the deadline. These run the browser's clock to each side of the moment and
  * check what is on screen. The deadline itself still counts as live; one
  * millisecond after, nothing may say the campaign is on.
+ *
+ * Every clock is set: the server's by the run (1 November unless the run is
+ * @after-deadline), the browser's by each test. Nothing depends on the day
+ * the tests run.
  */
 
 const END = Date.parse('2026-11-05T12:00:00Z');
 const bar = (page: Page) => page.locator('#campaign-bar');
 const homeCampaign = (page: Page) => page.locator('section[data-campaign-live]');
+/** Whether the strip's sentence is clipped: wider than its box, or taller than it. */
+const cutOff = (page: Page) =>
+  page.locator('#campaign-bar p').evaluate((p) => p.scrollWidth > p.clientWidth + 1 || p.scrollHeight > p.clientHeight + 1);
 
 test.describe('while the server says the campaign is live', () => {
   test.setTimeout(120_000);
@@ -24,6 +31,19 @@ test.describe('while the server says the campaign is live', () => {
     await expect(bar(page)).toContainText('Set and Earn is live.');
     await expect(bar(page)).toContainText('Register first, hire three different agents across at least two marketplaces, and build one agent of your own.');
     await expect(bar(page)).toContainText('Ends 5 Nov · 12:00 UTC');
+    expect(await cutOff(page)).toBe(false);
+  });
+
+  test('on a phone the strip still names the rules, in full, not cut off', async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 740 });
+    await page.clock.install({ time: END - 86_400_000 });
+    await page.goto('/methodology');
+    await expect(bar(page)).toBeVisible();
+    await expect(bar(page).getByText('Register, hire 3 different agents on 2+ marketplaces, build 1 of your own.')).toBeVisible();
+    await expect(bar(page).getByText('Ends 5 Nov · 12:00 UTC.')).toBeVisible();
+    expect(await cutOff(page)).toBe(false);
+    // The strip wraps inside the page; it never widens it.
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   });
 
   test('a page opened at the deadline itself still shows the campaign', async ({ page }) => {
@@ -47,7 +67,8 @@ test.describe('while the server says the campaign is live', () => {
   });
 
   test('a page left open across the deadline closes the campaign when it passes', async ({ page }) => {
-    await page.clock.install({ time: END - 3_000 });
+    await page.clock.install({ time: END - 60_000 });
+    await page.clock.pauseAt(END - 3_000);
     await page.goto('/');
     await expect(bar(page)).toBeVisible();
     await expect(homeCampaign(page)).toBeVisible();
@@ -66,6 +87,42 @@ test.describe('while the server says the campaign is live', () => {
     await expect(bar(page)).toBeHidden();
   });
 
+  test('the guide left open across the deadline stops offering the campaign', async ({ page }) => {
+    // Held three seconds before the deadline while the page loads, however long that takes.
+    await page.clock.install({ time: END - 60_000 });
+    await page.clock.pauseAt(END - 3_000);
+    await page.goto('/set-and-earn');
+    const closed = page.getByRole('status').filter({ hasText: 'Set and Earn has closed' });
+    await expect(page.getByText('Track both here, and get a reminder before time runs out.')).toBeVisible();
+    await expect(closed).toBeHidden();
+    await page.clock.runFor(5_000);
+    await expect(closed).toBeVisible();
+    await expect(closed).toContainText('announces winners after 13 November');
+    await expect(page.getByText('Track both here, and get a reminder before time runs out.')).toBeHidden();
+    await expect(page.getByText('The steps stay here for reference.')).toBeVisible();
+    await expect(page.getByText('Closed', { exact: true })).toBeVisible();
+    await expect(page.getByText(/· closes 5 November, 12:00 UTC/)).toBeHidden();
+  });
+
+  test('the tracker left open across the deadline says it closed, and still looks a wallet up', async ({ page }) => {
+    await page.clock.install({ time: END - 60_000 });
+    await page.clock.pauseAt(END - 3_000);
+    await page.goto('/quest');
+    const closed = page.getByRole('status').filter({ hasText: 'Set and Earn has closed' });
+    const ends = page.getByText('Ends 5 Nov · 12:00 UTC', { exact: true });
+    const closedLabel = page.getByText('Closed 5 Nov · 12:00 UTC', { exact: true });
+    await expect(ends).toBeVisible();
+    await expect(closedLabel).toBeHidden();
+    await expect(closed).toBeHidden();
+    await page.clock.runFor(5_000);
+    await expect(closed).toBeVisible();
+    await expect(closedLabel).toBeVisible();
+    await expect(ends).toBeHidden();
+    await page.getByRole('textbox', { name: 'Wallet address' }).fill('not an address');
+    await page.getByRole('button', { name: 'Check' }).click();
+    await expect(page.getByText('That is not a wallet address.')).toBeVisible();
+  });
+
   test('a dismissed strip stays hidden after a reload, and the home section stays', async ({ page }) => {
     await page.clock.install({ time: END - 86_400_000 });
     await page.goto('/');
@@ -81,6 +138,9 @@ test.describe('while the server says the campaign is live', () => {
 
 test.describe('@after-deadline once the server is past the deadline', () => {
   test.setTimeout(120_000);
+  test.beforeEach(async ({ page }) => {
+    await page.clock.install({ time: END + 3_600_000 });
+  });
 
   test('the guide says entries closed, when winners come, and where to check hires', async ({ page }) => {
     await page.goto('/set-and-earn');

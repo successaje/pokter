@@ -118,6 +118,14 @@ function Result({ data }: { data: QuestLookup }) {
   );
 }
 
+function ClosedNotice() {
+  return (
+    <Notice title="Set and Earn has closed">
+      Entries closed on {CAMPAIGN_DEADLINE}. BNB Chain decides who qualified from its own data and announces winners after {CAMPAIGN_RESULTS_AFTER}. You can still check a wallet&rsquo;s hires below, but the escrow contract does not record when a job was made, so a hire made after the deadline also appears here and does not count.
+    </Notice>
+  );
+}
+
 export default async function QuestPage({ searchParams }: { searchParams: Promise<{ address?: string }> }) {
   const { address: raw } = await searchParams;
   const address = raw?.trim() ?? '';
@@ -129,7 +137,15 @@ export default async function QuestPage({ searchParams }: { searchParams: Promis
     <div className="frame max-w-4xl pb-24 pt-10 sm:pt-16">
       <header className="flex flex-col gap-4">
         <span className="t-label flex items-center gap-2">
-          <span className="tile" aria-hidden /> BNB Chain · Set and Earn · {live ? CAMPAIGN_END_LABEL : CAMPAIGN_CLOSED_LABEL}
+          <span className="tile" aria-hidden /> BNB Chain · Set and Earn ·{' '}
+          {live ? (
+            <>
+              <span data-campaign-live>{CAMPAIGN_END_LABEL}</span>
+              <span data-campaign-closed>{CAMPAIGN_CLOSED_LABEL}</span>
+            </>
+          ) : (
+            CAMPAIGN_CLOSED_LABEL
+          )}
         </span>
         <h1 className="t-h1">Your hires, across marketplaces</h1>
         <p className="t-lede">
@@ -139,12 +155,15 @@ export default async function QuestPage({ searchParams }: { searchParams: Promis
          * The lookup stays up after the deadline: people check what they did.
          * The escrow contract records a job's deadline, not when it was made,
          * so a hire made after the cut-off cannot be told apart here, and the
-         * page must not let one read as counting.
+         * page must not let one read as counting. A page opened before the
+         * deadline carries the notice hidden, shown when it passes.
          */}
-        {!live && (
-          <Notice title="Set and Earn has closed">
-            Entries closed on {CAMPAIGN_DEADLINE}. BNB Chain decides who qualified from its own data and announces winners after {CAMPAIGN_RESULTS_AFTER}. You can still check a wallet&rsquo;s hires below, but the escrow contract does not record when a job was made, so a hire made after the deadline also appears here and does not count.
-          </Notice>
+        {live ? (
+          <div data-campaign-closed>
+            <ClosedNotice />
+          </div>
+        ) : (
+          <ClosedNotice />
         )}
         <form action="/quest" className="flex flex-col gap-2 pt-2 sm:flex-row" role="search">
           <label className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-[10px] border border-rule-strong bg-paper px-3 focus-within:border-ink">
