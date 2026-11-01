@@ -1,0 +1,69 @@
+name: Browser tests
+
+# The pages driven in a real browser (tests/browser), on every pull request
+# into main: a development server, the same with its clock moved past the
+# Set and Earn deadline, and a production build.
+#
+# Replay only, and no secrets. The test server answers every outside request
+# from the fixtures committed with the tests and refuses the rest; the
+# browser resolves no host but localhost; the config blanks every key the
+# app reads. Nothing here may reach the indexer, a node, an agent or
+# pokter.xyz, so a run cannot depend on them or touch them.
+on:
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: browser-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  browser:
+    name: Browser tests (replay)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      POKTER_TEST_NETWORK: replay
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Run the browser tests
+        run: |
+          mkdir -p .playwright
+          npm run test:browser 2>&1 | tee .playwright/run.log
+
+      - name: Refuse any request that left the fixtures
+        if: always()
+        run: |
+          # The server logs every request it refused. One to the indexer, a
+          # node or Pokter itself means a fixture is missing, and the page
+          # rendered without data it needed: a pass that proves less than it says.
+          if grep -hE '\[test-network\] refused .*(8004scan|publicnode|bnbchain|pokter\.xyz)' .playwright/run.log; then
+            echo '::error::A request the fixtures should answer was refused; record it (npm run test:browser:record) and commit the fixture.'
+            exit 1
+          fi
+
+      - name: Keep the results of a failed run
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-test-results
+          path: .playwright/
+          retention-days: 7

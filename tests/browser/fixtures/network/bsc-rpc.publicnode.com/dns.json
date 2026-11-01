@@ -1,0 +1,15 @@
+{
+  "kind": "dns",
+  "hostname": "bsc-rpc.publicnode.com",
+  "addresses": [
+    {
+      "address": "104.20.24.117",
+      "family": 4
+    },
+    {
+      "address": "172.66.150.162",
+      "family": 4
+    }
+  ],
+  "recordedAt": "2026-11-01T09:15:00.375Z"
+}

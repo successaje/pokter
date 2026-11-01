@@ -1,0 +1,17 @@
+{
+  "kind": "http",
+  "method": "GET",
+  "url": "https://api.8004scan.io/api/v1/agents?chain_id=56&limit=1",
+  "requestBodySha256": null,
+  "response": {
+    "status": 200,
+    "statusText": "OK",
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "text": "{\"items\":[{\"token_agent_provider\":null,\"id\":\"b195d79a-50b5-4139-8997-f349e6f01d8e\",\"agent_id\":\"56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:400182\",\"token_id\":\"400182\",\"chain_id\":56,\"chain_type\":\"evm\",\"contract_address\":\"0x8004a169fb4a3325136eb29fa0ceb6d2e539a432\",\"is_testnet\":false,\"owner_id\":\"4f542959-f879-4986-96ac-f968837e1ef3\",\"owner_address\":\"0x6dbb8e4732480fb6379bb96260237a1455b37888\",\"owner_ens\":null,\"owner_username\":null,\"owner_avatar_url\":null,\"owner_publisher_tier\":null,\"owner_certified_name\":null,\"name\":\"Sub99372\",\"description\":\"An EvoEvo AI Agent focused on crypto.\",\"image_url\":\"https://api.8004scan.io/api/v1/media/agents/56/400182/image\",\"is_verified\":false,\"star_count\":0,\"supported_protocols\":[\"Web\"],\"x402_supported\":false,\"total_score\":0.0,\"rank\":null,\"network_rank\":null,\"health_score\":null,\"total_feedbacks\":0,\"average_score\":0.0,\"cross_chain_versions\":null,\"created_at\":\"2026-11-01T09:14:11Z\",\"updated_at\":\"2026-11-01T09:14:23.624021Z\"}],\"total\":367177,\"limit\":1,\"offset\":0,\"next_cursor\":\"eyJ2IjoxLCJzb3J0X2J5IjoiY3JlYXRlZF9hdCIsInNvcnRfb3JkZXIiOiJkZXNjIiwic2NvcGUiOiI4MGMyM2QwOTVmYTJkNGU3NTBiODdhZjEiLCJ2YWx1ZSI6IjIwMjYtMTEtMDFUMDk6MTQ6MTErMDA6MDAiLCJpZCI6ImIxOTVkNzlhLTUwYjUtNDEzOS04OTk3LWYzNDllNmYwMWQ4ZSIsInRvdGFsIjozNjcxNzd9\",\"has_more\":true}"
+    }
+  },
+  "recordedAt": "2026-11-01T09:14:55.332Z"
+}

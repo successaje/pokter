@@ -17,7 +17,9 @@
     "figures": "tsx scripts/figures.mts",
     "smoke": "tsx scripts/smoke-routes.mts",
     "verify": "npm run lint && NODE_OPTIONS=--max-old-space-size=6144 tsc --noEmit && npm test && npm run audit:protocol && npm run audit:rate-limit && npm run audit:notifications",
-    "verify:build": "npm run verify && next build --webpack"
+    "verify:build": "npm run verify && next build --webpack",
+    "test:browser": "playwright test -c tests/browser && POKTER_TEST_NOW=2026-11-05T12:00:00.001Z playwright test -c tests/browser && POKTER_TEST_SERVER=production playwright test -c tests/browser",
+    "test:browser:record": "POKTER_TEST_NETWORK=record npm run test:browser"
   },
   "dependencies": {
     "@altananetwork/sdk": "^0.9.0",
@@ -40,6 +42,7 @@
     "wagmi": "^3.7.7"
   },
   "devDependencies": {
+    "@playwright/test": "1.64.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^24.13.3",
     "@types/react": "^19",
