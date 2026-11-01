@@ -2,14 +2,11 @@
 
 import { useState, type ReactNode } from 'react';
 
-import { requestTokenOf } from '@/lib/briefs/model';
 import type { ProposalPrefill } from '@/lib/briefs/public-view';
-import { escrowMoney } from '@/lib/network/presentation';
-import { displaySymbol } from '@/lib/network/tokens';
-import { cn } from '@/lib/ui/cn';
 import { useActiveWallet } from '@/lib/wallet/active';
 import { Button, LinkButton } from '@/ui/Button';
 import { Icon } from '@/ui/icons';
+import { NetworkTag } from '@/ui/Network';
 import { ProposalForm, type ProposalRequest } from './ProposalForm';
 
 /**
@@ -49,9 +46,6 @@ export function RequestDetail({
   const isPoster = Boolean(address && address.toLowerCase() === request.poster.toLowerCase());
   const canPropose = taking && !isPoster;
   const [proposing, setProposing] = useState(Boolean(prefill));
-  const money = escrowMoney(request.chainId);
-  /* The request's own money: a USDT request said "real $U" here. */
-  const token = requestTokenOf(request);
 
   return (
     <div className="mt-6 grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_380px] lg:grid-rows-[auto_1fr] lg:gap-x-12">
@@ -64,9 +58,8 @@ export function RequestDetail({
               <div className="flex items-start justify-between gap-3">
                 <div className="flex min-w-0 flex-col gap-1.5">
                   <h2 className="text-[20px] font-semibold tracking-[-0.02em]">Make a proposal</h2>
-                  <span className={cn('w-fit rounded-full px-2.5 py-0.5 text-[12px] font-medium', money.real === false ? 'bg-watch-wash text-watch' : 'bg-sunken text-ink-2')}>
-                    {money.real === false ? 'Testnet · test tokens' : `BNB Chain · real ${token ? displaySymbol(token) : 'money'}`}
-                  </span>
+                  {/* The same Mainnet or Testnet tag as the request's card and the summary; the form's budget line names the money. */}
+                  <NetworkTag chainId={request.chainId} className="self-start" />
                 </div>
                 <button type="button" onClick={() => setProposing(false)} className="inline-flex h-8 shrink-0 items-center gap-1 rounded-[8px] px-2 text-[13px] text-ink-3 hover:bg-sunken hover:text-ink">
                   <Icon.ChevronLeft size={14} aria-hidden /> Summary

@@ -10,7 +10,6 @@ import { proposalCards } from '@/features/briefs/proposal-cards';
 import { ProposalList } from '@/features/briefs/ProposalList';
 import { closingDate, RequestTerms } from '@/features/briefs/RequestTerms';
 import { escrowMoney } from '@/lib/network/presentation';
-import { cn } from '@/lib/ui/cn';
 import { acceptsProposals, requestStatus } from '@/lib/briefs/model';
 import { getBriefStore } from '@/lib/briefs/store';
 import { readProposalPrefill } from '@/lib/briefs/public-view';
@@ -23,6 +22,7 @@ import { avatarUrl } from '@/lib/ui/avatar-art';
 import { publicIdentity } from '@/lib/profiles/identity';
 import { Notice } from '@/ui/Feedback';
 import { Icon } from '@/ui/icons';
+import { NetworkTag } from '@/ui/Network';
 
 export const dynamic = 'force-dynamic';
 
@@ -152,7 +152,8 @@ function RequestSummary({ brief, proposals, now }: { brief: Brief; proposals: nu
   const rows: Array<[string, React.ReactNode]> = [
     ['Posted', ago(brief.postedAt, now)],
     ['Posted at', `${new Date(brief.postedAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })} UTC`],
-    ['Network', <span key="n" className={cn(testnet && 'text-watch')}>{testnet ? 'BNB Testnet · test tokens' : `BNB Chain · real ${symbol}`}</span>],
+    /* The same Mainnet or Testnet tag as the request's card. The budget above says "test" on test money, and "Paid in" names the token, chain and contract. */
+    ['Network', <NetworkTag key="n" chainId={brief.chainId} />],
     ...(token && !token.offered
       ? ([['Paid in', <span key="t" className="t-readout wrap-anywhere text-[12px]">{tokenIdentity(token)}{token.disclosure ? ` · ${token.disclosure}` : ''}</span>]] as Array<[string, React.ReactNode]>)
       : []),
