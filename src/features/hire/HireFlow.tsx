@@ -56,11 +56,11 @@ type Step = 'describe' | 'request' | 'review' | 'pay';
  * quoted, signed and funded without anyone seeing what would be sent; the
  * step exists so that cannot happen again.
  */
-const STEPS: Array<{ id: Step; label: string }> = [
-  { id: 'describe', label: 'Describe the job' },
-  { id: 'request', label: 'Check the request' },
-  { id: 'review', label: 'Review terms' },
-  { id: 'pay', label: 'Fund escrow' },
+const STEPS: Array<{ id: Step; label: string; short: string }> = [
+  { id: 'describe', label: 'Describe the job', short: 'Brief' },
+  { id: 'request', label: 'Check the request', short: 'Request' },
+  { id: 'review', label: 'Review terms', short: 'Terms' },
+  { id: 'pay', label: 'Fund escrow', short: 'Fund' },
 ];
 
 export interface HireFlowProps {
@@ -1449,44 +1449,56 @@ function Balance({ label, value, ok, known, note }: { label: string; value: stri
  * about 360px and the sheet on a small phone has less. The current one
  * always shows, so the tracker never degrades to unlabelled circles.
  */
+/*
+ * Sized by the room the tracker has, not by the screen. In the sheet over
+ * the catalogue (680px at most) the four full labels and their fixed rails
+ * needed about 680px of the 640 there are, so "Fund escrow" ran into the
+ * sheet's edge on a wide screen. Under 44rem the steps take their short
+ * names and spread across the row; under 26rem only the current one is
+ * named, as on a phone before.
+ */
 function StepTracker({ index, className }: { index: number; className?: string }) {
   return (
-    <ol className={cn('flex items-center gap-2 sm:gap-3', className)} aria-label="Steps">
-      {STEPS.map((step, i) => {
-        const done = i < index;
-        const current = i === index;
-        return (
-          <li
-            key={step.id}
-            className="flex items-center gap-2"
-            aria-current={current ? 'step' : undefined}
-          >
-            {/* Fixed and short. Stretched to fill the row they ran to 105px
-                of empty rail between one step and the next, which separates
-                the three rather than joining them — the connector is there
-                to say these are one sequence. */}
-            {i > 0 && <span aria-hidden className={cn('h-px w-7 shrink-0 sm:w-10', done || current ? 'bg-ink-3' : 'bg-rule')} />}
-            <span
-              className={cn(
-                'grid size-5 shrink-0 place-items-center rounded-full border text-[10.5px] font-medium transition-colors',
-                done ? 'border-ok bg-ok text-paper' : current ? 'border-ink bg-ink text-paper' : 'border-rule-strong text-ink-3',
-              )}
+    <div className="@container">
+      <ol className={cn('flex items-center gap-2', className)} aria-label="Steps">
+        {STEPS.map((step, i) => {
+          const done = i < index;
+          const current = i === index;
+          return (
+            <li
+              key={step.id}
+              className={cn('flex min-w-0 items-center gap-2', i > 0 && 'flex-1 @[44rem]:flex-none')}
+              aria-current={current ? 'step' : undefined}
             >
-              {done ? <Icon.Check size={11} /> : i + 1}
-            </span>
-            <span
-              className={cn(
-                'whitespace-nowrap text-[13px]',
-                current ? 'font-medium text-ink' : done ? 'text-ink-2' : 'text-ink-3',
-                !current && 'hidden sm:inline',
-              )}
-            >
-              {step.label}
-            </span>
-          </li>
-        );
-      })}
-    </ol>
+              {/* Fixed and short where the full labels fit. Stretched to fill
+                  the page's row they ran to 105px of empty rail between one
+                  step and the next, which separates the steps rather than
+                  joining them; in the sheet the short labels leave room, and
+                  the rails share it so the row ends at the sheet's edge. */}
+              {i > 0 && <span aria-hidden className={cn('h-px min-w-3 flex-1 @[44rem]:w-10 @[44rem]:flex-none', done || current ? 'bg-ink-3' : 'bg-rule')} />}
+              <span
+                className={cn(
+                  'grid size-5 shrink-0 place-items-center rounded-full border text-[10.5px] font-medium transition-colors',
+                  done ? 'border-ok bg-ok text-paper' : current ? 'border-ink bg-ink text-paper' : 'border-rule-strong text-ink-3',
+                )}
+              >
+                {done ? <Icon.Check size={11} /> : i + 1}
+              </span>
+              <span
+                className={cn(
+                  'whitespace-nowrap text-[13px]',
+                  current ? 'font-medium text-ink' : done ? 'text-ink-2' : 'text-ink-3',
+                  !current && 'hidden @[26rem]:inline',
+                )}
+              >
+                <span className="@[44rem]:hidden">{current ? step.label : step.short}</span>
+                <span className="hidden @[44rem]:inline">{step.label}</span>
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
   );
 }
 

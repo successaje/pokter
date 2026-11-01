@@ -8,13 +8,16 @@ import { useActiveWallet } from '@/lib/wallet/active';
 import { signPasskeyMessage } from '@/lib/wallet/passkey-message';
 import { usePasskeyWallet } from '@/lib/wallet/PasskeyProvider';
 import { useHydrated } from '@/lib/ui/use-hydrated';
+import { cn } from '@/lib/ui/cn';
 import { Button } from '@/ui/Button';
-import { Segmented } from '@/ui/Controls';
 import { Notice } from '@/ui/Feedback';
 import { Checkbox, Input, Textarea } from '@/ui/Field';
+import { Icon } from '@/ui/icons';
+import { FeedbackCard } from './FeedbackCard';
 import { useLiveSignMessage } from '@/lib/wallet/use-live-sign-message';
 
-const ANSWER_LABEL: Record<UsefulAnswer, string> = { yes: 'Yes', partly: 'Partly', no: 'No' };
+const ANSWER_LABEL: Record<UsefulAnswer, string> = { yes: 'Yes, fully', partly: 'Partly', no: 'No' };
+const ANSWERS: UsefulAnswer[] = ['yes', 'partly', 'no'];
 
 /*
  * What this browser last answered for a job, so a returning buyer sees it.
@@ -51,16 +54,26 @@ export function UsefulnessQuestion({ job }: { job: HiredJob }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const card = (body: React.ReactNode) => (
+    <FeedbackCard kind="Private feedback" icon={<Icon.Lock size={13} />} title="Did this answer your question?" lede="Only shared with Pokter. Optional, and nothing waits on it.">
+      <div className="flex flex-col gap-4 px-5 pb-5 pt-4">{body}</div>
+      <p className="mt-auto flex items-center gap-1.5 border-t border-rule px-5 py-3 text-[12px] text-ink-3">
+        <Icon.Info size={13} className="shrink-0" aria-hidden />
+        Separate from your public review, and never shown on the agent&rsquo;s page.
+      </p>
+    </FeedbackCard>
+  );
+
   if (prior && !editing) {
-    return (
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    return card(
+      <div className="flex flex-col items-start gap-2">
         <p className="text-[13.5px] text-ink-2">
-          You answered <span className="font-medium text-ink">{ANSWER_LABEL[prior.answered]}</span>. Thank you: it stays private to Pokter.
+          You answered <span className="font-medium text-ink">{ANSWER_LABEL[prior.answered]}</span>. Thank you.
         </p>
         <button type="button" onClick={() => setEditing(true)} className="text-[13px] font-medium text-ink-2 hover:text-ink hover:underline">
           Change your answer
         </button>
-      </div>
+      </div>,
     );
   }
 
@@ -117,15 +130,29 @@ export function UsefulnessQuestion({ job }: { job: HiredJob }) {
     }
   };
 
-  return (
-    <div className="flex flex-col gap-4">
-      <Segmented
-        size="s"
-        label="Did this answer the question you hired it for?"
-        value={answered ?? ('' as UsefulAnswer)}
-        onChange={setAnswered}
-        options={[{ value: 'yes', label: 'Yes' }, { value: 'partly', label: 'Partly' }, { value: 'no', label: 'No' }]}
-      />
+  return card(
+    <>
+      <div role="radiogroup" aria-label="Did this answer the question you hired it for?" className="flex flex-col gap-2">
+        {ANSWERS.map((value) => {
+          const chosen = answered === value;
+          return (
+            <button
+              key={value}
+              type="button"
+              role="radio"
+              aria-checked={chosen}
+              onClick={() => setAnswered(value)}
+              className={cn(
+                'flex h-11 items-center justify-between rounded-[10px] border px-4 text-left text-[14px] font-medium transition-colors',
+                chosen ? 'border-ink bg-sunken text-ink' : 'border-rule-strong text-ink-2 hover:border-ink hover:text-ink',
+              )}
+            >
+              {ANSWER_LABEL[value]}
+              {chosen && <Icon.Check size={15} aria-hidden />}
+            </button>
+          );
+        })}
+      </div>
       {answered && (
         <>
           <div className="flex flex-col gap-1.5">
@@ -147,14 +174,14 @@ export function UsefulnessQuestion({ job }: { job: HiredJob }) {
             </div>
           )}
           {error && <Notice tone="watch">{error}</Notice>}
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-col items-start gap-1.5">
             <Button size="s" onClick={() => void send()} busy={busy}>
               {busy ? 'Approve the signature' : 'Send privately'}
             </Button>
-            <span className="text-[12px] text-ink-3">A signature, not a transaction: no gas. It proves you funded this job. Not shown on the agent&rsquo;s page.</span>
+            <span className="text-[12px] text-ink-3">A signature, not a transaction: no gas. It proves you funded this job.</span>
           </div>
         </>
       )}
-    </div>
+    </>,
   );
 }
