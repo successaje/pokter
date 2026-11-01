@@ -4,6 +4,8 @@ import { join } from 'node:path';
 
 import { defineConfig, devices } from '@playwright/test';
 
+import { clockAnchor, DEFAULT_SERVER_NOW } from './support/clock';
+
 import { STORES } from '../../src/lib/health/stores';
 import { HOUSE_AGENT_WALLETS } from '../../src/lib/house/wallets';
 import { TEST_AGENT } from './support/test-agent.mjs';
@@ -45,15 +47,13 @@ import { TEST_AGENT } from './support/test-agent.mjs';
 
 // POKTER_TEST_PORT lets two checkouts run their tests at once.
 const PORT = Number(process.env.POKTER_TEST_PORT ?? 4391);
-/** The server's "now" when a run does not say: a fixed day while the campaign is live. */
-const DEFAULT_SERVER_NOW = '2026-11-01T12:00:00.000Z';
 const movedTo = process.env.POKTER_TEST_NOW ?? '';
 const serverNow = movedTo || DEFAULT_SERVER_NOW;
 const production = process.env.POKTER_TEST_SERVER === 'production';
 const recording = process.env.POKTER_TEST_NETWORK === 'record';
 const only = production ? /@production/ : movedTo ? /@after-deadline/ : undefined;
 // One anchor for every server process, so they all agree on the moved time.
-process.env.POKTER_TEST_CLOCK_ANCHOR ??= String(Date.now());
+const anchor = clockAnchor();
 /*
  * A fresh directory for the server's stores on every run, so what one run
  * wrote (a recorded quote, a rate limit, a hire attempt) never changes what
@@ -77,7 +77,7 @@ const dataDir = process.env.POKTER_TEST_DATA_DIR;
 const houseKeys = Object.fromEntries(Object.keys(HOUSE_AGENT_WALLETS).map((slug) => [`HOUSE_AGENT_${slug.toUpperCase()}_KEY`, '']));
 const serverEnv: Record<string, string> = {
   POKTER_TEST_NOW: serverNow,
-  POKTER_TEST_CLOCK_ANCHOR: process.env.POKTER_TEST_CLOCK_ANCHOR,
+  POKTER_TEST_CLOCK_ANCHOR: String(anchor),
   POKTER_TEST_PORT: String(PORT),
   POKTER_TEST_NETWORK: recording ? 'record' : 'replay',
   // One preload for both: Next keeps only the last --import it is given (support/server-preload.mjs).

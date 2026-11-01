@@ -1,6 +1,7 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 import { parseUnits } from 'viem';
 
+import { alignBrowserClock, chainNowSeconds } from './clock';
 import { mockChain, type MockChainState } from './mock-chain';
 import { installMockWallet, type MockWallet } from './mock-wallet';
 import { TEST_AGENT } from './test-agent.mjs';
@@ -82,10 +83,12 @@ export async function reachReviewStep(page: Page, options: HireOptions = {}): Pr
       return route.abort('blockedbyclient');
     },
   );
+  // The browser and the chain on the server's clock: the quote it signs is checked against the browser's.
+  await alignBrowserClock(page);
   await installMockWallet(page, { address: BUYER, chainId: TEST_AGENT.chainId, ...options.wallet });
   const chain = await mockChain(page, {
     chainId: TEST_AGENT.chainId,
-    now: Math.floor(Date.now() / 1000),
+    now: chainNowSeconds(),
     native: parseUnits('1', 18),
     tokens: { [TESTNET_ESCROW.paymentToken]: { balance: parseUnits('100', 18), decimals: 18, symbol: 'U' } },
     jobCounter: 1000n,
