@@ -94,3 +94,5 @@ docs/release/*-screens/
 
 # browser tests (tests/browser)
 /.playwright/
+# a fixture half-written when a recording server stopped (tests/browser/support/server-network.mjs)
+tests/browser/fixtures/**/*.tmp

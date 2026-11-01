@@ -1,0 +1,11 @@
+{
+  "kind": "dns",
+  "hostname": "pokter.xyz",
+  "addresses": [
+    {
+      "address": "66.241.125.129",
+      "family": 4
+    }
+  ],
+  "recordedAt": "2026-11-01T09:25:30.168Z"
+}

@@ -1,0 +1,15 @@
+{
+  "kind": "dns",
+  "hostname": "api.8004scan.io",
+  "addresses": [
+    {
+      "address": "172.67.131.47",
+      "family": 4
+    },
+    {
+      "address": "104.21.3.207",
+      "family": 4
+    }
+  ],
+  "recordedAt": "2026-11-01T09:14:53.914Z"
+}

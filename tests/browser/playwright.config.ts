@@ -1,4 +1,12 @@
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { defineConfig, devices } from '@playwright/test';
+
+import { STORES } from '../../src/lib/health/stores';
+import { HOUSE_AGENT_WALLETS } from '../../src/lib/house/wallets';
+import { TEST_AGENT } from './support/test-agent.mjs';
 
 /*
  * Tests that drive the real pages in a browser, for behaviour the unit tests
@@ -19,6 +27,12 @@ import { defineConfig, devices } from '@playwright/test';
  * the server answers can only be seen against a build. `npm run test:browser`
  * runs all three.
  *
+ * The server never reaches the network. Every request it makes to another
+ * host is answered from tests/browser/fixtures/network, and anything without
+ * a fixture fails as an unreachable host would (support/server-network.mjs).
+ * POKTER_TEST_NETWORK=record fills in missing fixtures from the indexer and
+ * BNB Chain nodes, read-only; nothing else is ever reached.
+ *
  * Only Pokter's own house agents are opened: opening an outside agent's page
  * on a local server can send that agent a quote request.
  */
@@ -27,9 +41,60 @@ import { defineConfig, devices } from '@playwright/test';
 const PORT = Number(process.env.POKTER_TEST_PORT ?? 4391);
 const serverNow = process.env.POKTER_TEST_NOW ?? '';
 const production = process.env.POKTER_TEST_SERVER === 'production';
+const recording = process.env.POKTER_TEST_NETWORK === 'record';
 const only = production ? /@production/ : serverNow ? /@after-deadline/ : undefined;
 // One anchor for every server process, so they all agree on the moved time.
 process.env.POKTER_TEST_CLOCK_ANCHOR ??= String(Date.now());
+/*
+ * A fresh directory for the server's stores on every run, so what one run
+ * wrote (a recorded quote, a rate limit, a hire attempt) never changes what
+ * the next one renders. Made once, here, and inherited by the workers.
+ */
+process.env.POKTER_TEST_DATA_DIR ??= mkdtempSync(join(tmpdir(), 'pokter-test-data-'));
+const dataDir = process.env.POKTER_TEST_DATA_DIR;
+
+/*
+ * The server's environment, pinned so a run on a laptop with `.env.local`
+ * and a run in CI without one see the same app (Next lets a variable set
+ * here win over the file).
+ *
+ * It holds no real key. Every secret the app would sign, send or alert with
+ * is blank, so nothing it does can move funds, mail anyone or post anywhere,
+ * and no house agent has a wallet but Brinkwatch, which is handed the test
+ * key (support/test-agent.mjs). The indexer key is kept only while
+ * recording, against the indexer's anonymous rate limit; it travels in a
+ * header, which no fixture keeps.
+ */
+const houseKeys = Object.fromEntries(Object.keys(HOUSE_AGENT_WALLETS).map((slug) => [`HOUSE_AGENT_${slug.toUpperCase()}_KEY`, '']));
+const serverEnv: Record<string, string> = {
+  POKTER_TEST_NOW: serverNow,
+  POKTER_TEST_CLOCK_ANCHOR: process.env.POKTER_TEST_CLOCK_ANCHOR,
+  POKTER_TEST_PORT: String(PORT),
+  POKTER_TEST_NETWORK: recording ? 'record' : 'replay',
+  // The network first, so it captures the real clock for what it records.
+  NODE_OPTIONS: [
+    process.env.NODE_OPTIONS,
+    '--import=./tests/browser/support/server-network.mjs',
+    serverNow ? '--import=./tests/browser/support/server-clock.mjs' : '',
+  ].filter(Boolean).join(' '),
+  NEXT_TELEMETRY_DISABLED: '1',
+  ALTANA_NETWORK: 'bnb-testnet',
+  NEXT_PUBLIC_ALTANA_NETWORK: '',
+  NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID: '',
+  ALTANA_ADMIN_KEY: '',
+  PRIVATE_KEY: '',
+  SWEEP_SCHEDULER: '',
+  SWEEP_SECRET: '',
+  POKTER_DEMO_WRITE_SECRET: '',
+  NODEREAL_API_KEY: '',
+  RESEND_API_KEY: '',
+  TELEGRAM_BOT_TOKEN: '',
+  TELEGRAM_ALERT_CHAT_ID: '',
+  ...(recording ? {} : { SCAN_API_KEY: '' }),
+  ...houseKeys,
+  [`HOUSE_AGENT_${TEST_AGENT.slug.toUpperCase()}_KEY`]: TEST_AGENT.privateKey,
+  ...Object.fromEntries(STORES.map((store) => [store.variable, join(dataDir, store.fallback.replace(/^.*\//, ''))])),
+};
 
 export default defineConfig({
   testDir: '.',
@@ -58,10 +123,6 @@ export default defineConfig({
     timeout: production ? 900_000 : 180_000,
     stdout: 'ignore',
     stderr: 'pipe',
-    env: {
-      POKTER_TEST_NOW: serverNow,
-      POKTER_TEST_CLOCK_ANCHOR: process.env.POKTER_TEST_CLOCK_ANCHOR,
-      NODE_OPTIONS: [process.env.NODE_OPTIONS, serverNow ? '--import=./tests/browser/support/server-clock.mjs' : ''].filter(Boolean).join(' '),
-    },
+    env: serverEnv,
   },
 });

@@ -1,0 +1,16 @@
+{
+  "kind": "rpc",
+  "url": "https://bsc-testnet-rpc.publicnode.com/",
+  "method": "eth_call",
+  "params": [
+    {
+      "data": "0xff96092a",
+      "to": "0xa206c0517B6371C6638CD9e4a42Cc9f02A33B0DE"
+    },
+    "latest"
+  ],
+  "reply": {
+    "result": "0x0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "recordedAt": "2026-11-01T09:32:54.651Z"
+}
