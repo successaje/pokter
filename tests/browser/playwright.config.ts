@@ -16,10 +16,16 @@ import { TEST_AGENT } from './support/test-agent.mjs';
  * They run against a development server of their own on a port nothing else
  * uses, so a dev server already open on 4311 is never reused or disturbed.
  *
- * Two runs, two server clocks. Most tests run with the server on real time.
- * Those tagged @after-deadline run only when POKTER_TEST_NOW moves the
- * server's clock (support/server-clock.mjs), so a page can be rendered as it
- * will be after a date that has not happened yet.
+ * The server's clock is always set (support/server-clock.mjs), so a test
+ * reads the same whatever day it runs: 1 November 2026, 12:00 UTC, while Set
+ * and Earn is live. Tests tagged @after-deadline run only when POKTER_TEST_NOW
+ * sets it explicitly, so a page renders as it will after a date that has
+ * not come yet.
+ *
+ * Neither side reaches the internet. The server answers from fixtures
+ * (support/server-network.mjs); the browser resolves no host but localhost,
+ * so anything a test does not stand in for itself fails like a host that
+ * does not exist.
  *
  * A third run, POKTER_TEST_SERVER=production, builds the app and serves the
  * build, for the tests tagged @production. Some behaviour exists only there:
@@ -39,10 +45,13 @@ import { TEST_AGENT } from './support/test-agent.mjs';
 
 // POKTER_TEST_PORT lets two checkouts run their tests at once.
 const PORT = Number(process.env.POKTER_TEST_PORT ?? 4391);
-const serverNow = process.env.POKTER_TEST_NOW ?? '';
+/** The server's "now" when a run does not say: a fixed day while the campaign is live. */
+const DEFAULT_SERVER_NOW = '2026-11-01T12:00:00.000Z';
+const movedTo = process.env.POKTER_TEST_NOW ?? '';
+const serverNow = movedTo || DEFAULT_SERVER_NOW;
 const production = process.env.POKTER_TEST_SERVER === 'production';
 const recording = process.env.POKTER_TEST_NETWORK === 'record';
-const only = production ? /@production/ : serverNow ? /@after-deadline/ : undefined;
+const only = production ? /@production/ : movedTo ? /@after-deadline/ : undefined;
 // One anchor for every server process, so they all agree on the moved time.
 process.env.POKTER_TEST_CLOCK_ANCHOR ??= String(Date.now());
 /*
@@ -71,11 +80,10 @@ const serverEnv: Record<string, string> = {
   POKTER_TEST_CLOCK_ANCHOR: process.env.POKTER_TEST_CLOCK_ANCHOR,
   POKTER_TEST_PORT: String(PORT),
   POKTER_TEST_NETWORK: recording ? 'record' : 'replay',
-  // The network first, so it captures the real clock for what it records.
+  // One preload for both: Next keeps only the last --import it is given (support/server-preload.mjs).
   NODE_OPTIONS: [
     process.env.NODE_OPTIONS,
-    '--import=./tests/browser/support/server-network.mjs',
-    serverNow ? '--import=./tests/browser/support/server-clock.mjs' : '',
+    '--import=./tests/browser/support/server-preload.mjs',
   ].filter(Boolean).join(' '),
   NEXT_TELEMETRY_DISABLED: '1',
   ALTANA_NETWORK: 'bnb-testnet',
@@ -112,6 +120,8 @@ export default defineConfig({
     baseURL: `http://localhost:${PORT}`,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
+    // Requests a test answers itself (page.route) are answered before any lookup; everything else outside this machine fails.
+    launchOptions: { args: ['--host-resolver-rules=MAP * ~NOTFOUND , EXCLUDE localhost'] },
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: {

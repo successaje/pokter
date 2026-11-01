@@ -56,7 +56,8 @@ import { TEST_AGENT } from './test-agent.mjs';
 
 const require = createRequire(import.meta.url);
 /* Captured before support/server-clock.mjs can move it: fixtures record when they were really made. */
-const RealDate = globalThis.Date;
+/* The real clock, even though the server's clock is moved first (server-clock.mjs): recordings are dated when they were made. */
+const RealDate = globalThis.__pokterRealDate ?? globalThis.Date;
 const undici = require('undici');
 
 const MODE = process.env.POKTER_TEST_NETWORK === 'record' ? 'record' : 'replay';

@@ -33,5 +33,7 @@ if (Number.isFinite(target) && Number.isFinite(anchor)) {
    */
   MovedDate.parse = RealDate.parse;
   MovedDate.UTC = RealDate.UTC;
+  // For the network preload, loaded after this one, to date what it records by the real clock.
+  globalThis.__pokterRealDate = RealDate;
   globalThis.Date = MovedDate;
 }
