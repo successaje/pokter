@@ -278,7 +278,7 @@ export default async function HomePage() {
             <div className="-mr-4 flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 [scrollbar-width:none] sm:mr-0 sm:grid sm:grid-cols-2 sm:gap-4 sm:overflow-x-visible sm:pb-0 lg:grid-cols-4 [&::-webkit-scrollbar]:hidden">
               {home.featured.map((row, i) => (
                 <Reveal key={row.key} delay={i * 70} className="w-[84vw] max-w-[360px] shrink-0 snap-start sm:w-auto sm:max-w-none">
-                  <FeaturedAgent row={row} />
+                  <FeaturedAgent row={row} hireChainIds={row.hireChainIds} />
                 </Reveal>
               ))}
             </div>

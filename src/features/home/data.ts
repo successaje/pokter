@@ -9,6 +9,7 @@ import { getJobStore } from '@/lib/erc8183/store';
 import { findRows, type FindRow } from '@/lib/find/rows';
 import { getEcosystemStats, listSearchableWithStatus, type EcosystemStats } from '@/lib/marketplace';
 import { outcomeShortlist } from '@/lib/home/outcome-shortlist';
+import { hireChainIdsOf } from '@/lib/network/hire-networks';
 import { chainLabel } from '@/lib/network/presentation';
 import { letsJobsLapse, type SearchableAgent } from '@/lib/search/match';
 import { catalogueCounts } from '@/lib/agents/catalogue-counts';
@@ -154,7 +155,8 @@ export interface HomeData {
   reachable: boolean;
   stats: EcosystemStats | null;
   specimens: Specimen[];
-  featured: FindRow[];
+  /** `hireChainIds`: every network the agent can be hired on with a verified price, across its registrations. */
+  featured: Array<FindRow & { hireChainIds: number[] }>;
   outcomes: Array<{ id: Category; label: string; count: number; top: FindRow[] }>;
   /**
    * Jobs outside buyers funded; Pokter's own test hires are counted apart in
@@ -200,14 +202,17 @@ export async function loadHome(): Promise<HomeData> {
    * mainnet listing starts with no completed jobs and lost the sort to its
    * own twin. `distinct.ts` names this failure; only Discover was fixed.
    */
-  const { items: oneEach } = mainnetFirstPerAgent(hireable, (row) => ({
+  const { items: oneEach, others } = mainnetFirstPerAgent(hireable, (row) => ({
     owner_address: row.owner,
     name: row.name,
     chain_id: row.chainId,
     token_id: row.tokenId,
   }));
   const owners = new Set<string>();
-  const featured = oneEach.filter((row) => (owners.has(row.owner) ? false : (owners.add(row.owner), true))).slice(0, 4);
+  const featured = oneEach
+    .filter((row) => (owners.has(row.owner) ? false : (owners.add(row.owner), true)))
+    .slice(0, 4)
+    .map((row) => ({ ...row, hireChainIds: hireChainIdsOf(row.hireChainId, (others.get(row) ?? []).map((twin) => twin.hireChainId)) }));
 
   const outcomes = CATEGORIES.map((category) => {
     const top = outcomeShortlist(entries, category.id, 3).map((entry) => byKey.get(`${entry.listing.agent.chain_id}:${entry.listing.agent.token_id}`)!);
