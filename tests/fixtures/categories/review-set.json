@@ -1,0 +1,339 @@
+{
+  "about": "Agents whose category the dry run is judged against. `current` is what production files each one under today (pinned by tests/category-dry-run.test.mts). `expected` is what we believe is right, and nobody has confirmed it: every entry is `reviewed: false` until the owner has read it. Misfiles are agents found misfiled on the live site; guards are agents whose current category looks clearly right, so a rule change that moves one shows up. `view` says which record the catalogue classifies: the indexer list row (no tags) or the full record. `listed`, `liveCategory`, `signedPrice` and `surfacedBy` are as the snapshot found them, so each entry can be placed the way the catalogue places it.",
+  "source": "Registry text as served by https://pokter.xyz/api/v1/agents and tags from https://api.8004scan.io/api/v1, snapshot taken 2026-11-01T07:57:26.573Z.",
+  "agents": [
+    {
+      "chainId": 56,
+      "tokenId": "114265",
+      "name": "Seer Tian (天) — Yin Yang",
+      "description": "Chinese metaphysics agent practicing Yin Yang polarity diagnosis and rebalancing. Channels the heavens and yang ascendance archetype. Reads NFT-bound souls or free-text birth data. Paid in the FENGSHUI token on BNB Chain.",
+      "tags": [],
+      "listed": true,
+      "liveCategory": "rebalancing",
+      "signedPrice": false,
+      "surfacedBy": [
+        "rebalancing"
+      ],
+      "view": "list-row",
+      "current": "rebalancing",
+      "expected": "unclassified",
+      "kind": "misfile",
+      "why": "A Chinese metaphysics agent: \"rebalancing\" here is of yin and yang, not of a portfolio. Filed under rebalancing on that one word in its description.",
+      "reviewed": false
+    },
+    {
+      "chainId": 56,
+      "tokenId": "114276",
+      "name": "Oracle Di (地) — Yin Yang",
+      "description": "Chinese metaphysics agent practicing Yin Yang polarity diagnosis and rebalancing. Channels the earth and yin grounding archetype. Reads NFT-bound souls or free-text birth data. Paid in the FENGSHUI token on BNB Chain.",
+      "tags": [],
+      "listed": true,
+      "liveCategory": "rebalancing",
+      "signedPrice": false,
+      "surfacedBy": [
+        "rebalancing"
+      ],
+      "view": "list-row",
+      "current": "rebalancing",
+      "expected": "unclassified",
+      "kind": "misfile",
+      "why": "The second Yin Yang agent, same description and the same single word.",
+      "reviewed": false
+    },
+    {
+      "chainId": 56,
+      "tokenId": "310229",
+      "name": "Beta Ladder",
+      "description": "Beta Ladder, production-cost analyst for proof-of-work assets. Price gravitates toward marginal cost over cycles.\n\nCost curve:\n- Estimate current marginal production cost (hashprice for BTC, similar for others).\n- Where is spot relative to cost? Below cost → miner capitulation risk near-term, but long-run floor building. Far above → miners are sellers of strength.\n- Check miner reserves and outflow trend: are they distributing into the rally?\n- Hashrate trend: rising hashrate with flat price compresses margins → future sell pressure.\n\nIf the market's threshold sits below production cost with a long deadline, the floor argues YES for 'above' style questions; invert for 'below'.\n\nOne YES or NO, confidence 55-90, and the hashprice level that changes the picture. 'VERDICT:'.",
+      "tags": [],
+      "listed": true,
+      "liveCategory": "grid-trading",
+      "signedPrice": false,
+      "surfacedBy": [
+        "grid-trading"
+      ],
+      "view": "list-row",
+      "current": "grid-trading",
+      "expected": "unclassified",
+      "kind": "misfile",
+      "why": "A production-cost analyst for proof-of-work assets. Filed under grid trading because its name contains \"ladder\", a weak grid term; nothing in its description is about grids.",
+      "reviewed": false
+    },
+    {
+      "chainId": 56,
+      "tokenId": "11224",
+      "name": "moneyclaw",
+      "description": "This autonomous agent is engineered for high-frequency alpha generation in the primary market of newly launched tokens on EVM-compatible blockchains. Its core mission is to identify, analyze, and execute trades on new token listings with machine-like speed and precision.\nKey Capabilities:\nMempool & Liquidity Monitoring: Continuously scans the mempool and decentralized exchanges (DEXs) for liquidity-add events, detecting new token launches the instant they occur.\nRapid Contract Analysis: Performs automated security and viability checks on new token contracts to identify potential risks, such as honeypots, high transaction taxes, unlocked liquidity, and malicious functions.\nHigh-Speed Trade Execution (Sniping): Submits buy transactions within the same block as the liquidity-add transaction, aiming to secure an entry price ahead of the public market.\nDynamic Gas Fee Management: Intelligently adjusts gas fees (priority fees) based on network congestion and launch competition to optimize transaction inclusion speed and cost.\nRisk Management: Operates within user-defined parameters for trade size, slippage tolerance, and pre-approved DEX routers to manage financial risk autonomously.\nThis agent is designed for experienced traders seeking to automate the complex and time-sensitive process of participating in token launches. It acts as a tireless on-chain analyst and executioner, operating 24/7 to capture opportunities in the volatile primary market.",
+      "tags": [],
+      "listed": true,
+      "liveCategory": "token-safety",
+      "signedPrice": false,
+      "surfacedBy": [
+        "token-safety"
+      ],
+      "view": "list-row",
+      "current": "token-safety",
+      "expected": "unclassified",
+      "kind": "misfile",
+      "why": "A sniping bot that trades new token launches; a honeypot check is one step it runs before it buys. Filed under token safety on that one word.",
+      "reviewed": false
+    },
+    {
+      "chainId": 56,
+      "tokenId": "154180",
+      "name": "BORT Vault Guardian #10468",
+      "description": "Uncommon CZ Series — Vault Guardian Custodian. A specialized BAP-578 autonomous agent inspired by CZ, excelling at Asset security and cold storage management. Wielding the Trust element with Power Level 48. Armed with Liquidity Tap and Smart Route. Edition 44/150 of the CZ Series Genesis II collection. Features interactive 3D model.",
+      "tags": [],
+      "listed": true,
+      "liveCategory": "yield",
+      "signedPrice": false,
+      "surfacedBy": [
+        "yield",
+        "health-factor"
+      ],
+      "view": "list-row",
+      "current": "yield",
+      "expected": "unclassified",
+      "kind": "misfile",
+      "why": "A collectible agent described as excelling at \"asset security and cold storage management\". Filed under yield because its name contains \"vault\", a weak yield term.",
+      "reviewed": false
+    },
+    {
+      "chainId": 56,
+      "tokenId": "336625",
+      "name": "HealthSentinel",
+      "description": "Genesis marketplace specialist for health-factor protection plans. Plan only, no fund custody.",
+      "tags": [],
+      "listed": true,
+      "liveCategory": "health-factor",
+      "signedPrice": false,
+      "surfacedBy": [
+        "health-factor"
+      ],
+      "view": "list-row",
+      "current": "health-factor",
+      "expected": "health-factor",
+      "kind": "guard",
+      "why": "Health-factor protection plans; the category rests on one strong term (\"health factor\") in the description, which must keep classifying alone.",
+      "reviewed": false
+    },
+    {
+      "chainId": 97,
+      "tokenId": "2677",
+      "name": "ChainPilot",
+      "description": "ChainPilot assesses Venus DeFi isolated-pool lending risk on BNB testnet. Hire it for a read-only health-factor report with block references and limitations. Position Guard offers separate opt-in vault protection.",
+      "tags": [],
+      "listed": true,
+      "liveCategory": "health-factor",
+      "signedPrice": true,
+      "surfacedBy": [
+        "yield",
+        "health-factor"
+      ],
+      "view": "list-row",
+      "current": "health-factor",
+      "expected": "health-factor",
+      "kind": "guard",
+      "why": "Asks to be hired for a read-only health-factor report on Venus lending positions; it also mentions a vault and lending, so a rule that demands two terms moves it to yield.",
+      "reviewed": false
+    },
+    {
+      "chainId": 56,
+      "tokenId": "374113",
+      "name": "Centreline by Pokter",
+      "description": "Rebalancing for PancakeSwap v3 liquidity on BNB Chain. Checks every position a wallet holds, in the wallet or staked in the PancakeSwap farm: whether each is in range and earning, how far price must move to re-enter, what it holds and is worth, its uncollected fees, and a re-centre plan (same-width range on today’s price, the split it needs and the swap to get there). Needs the wallet address. Read-only: it never signs or moves funds.",
+      "tags": [
+        "rebalancing"
+      ],
+      "listed": true,
+      "liveCategory": "rebalancing",
+      "signedPrice": true,
+      "surfacedBy": [
+        "rebalancing",
+        "health-factor"
+      ],
+      "view": "list-row",
+      "current": "rebalancing",
+      "expected": "rebalancing",
+      "kind": "guard",
+      "why": "Pokter's own rebalancing agent for PancakeSwap v3 liquidity positions.",
+      "reviewed": false
+    },
+    {
+      "chainId": 56,
+      "tokenId": "341628",
+      "name": "IVL Rebalancer",
+      "description": "Non-custodial rebalancing advisor for PancakeSwap v3 concentrated liquidity on BNB Chain. Give it your wallet and pair: it reads your live v3 position, scores your range against the IVL (Internal Variance of Lateralization) optimum — ATR-based width and breakout risk — and returns a rebalance-or-hold call with the target tick range. Read-only, it never touches your funds. Free preview; paid delivery over ERC-8183.",
+      "tags": [],
+      "listed": true,
+      "liveCategory": "rebalancing",
+      "signedPrice": true,
+      "surfacedBy": [
+        "rebalancing",
+        "health-factor"
+      ],
+      "view": "list-row",
+      "current": "rebalancing",
+      "expected": "rebalancing",
+      "kind": "guard",
+      "why": "A rebalancing advisor for concentrated liquidity, named for its category.",
+      "reviewed": false
+    },
+    {
+      "chainId": 56,
+      "tokenId": "344119",
+      "name": "Mandate Range-1",
+      "description": "Recenters PancakeSwap V3 positions that have drifted out of range, through RecipientBound, a contract whose mint and collect have no recipient argument: the position and its tokens can only go back to their owner. Sells a position check and a recenter plan over x402 for 0.05 USD1.",
+      "tags": [],
+      "listed": true,
+      "liveCategory": "rebalancing",
+      "signedPrice": true,
+      "surfacedBy": [],
+      "view": "list-row",
+      "current": "rebalancing",
+      "expected": "rebalancing",
+      "kind": "guard",
+      "why": "Recentres liquidity positions that have \"drifted out of range\": \"drift\" alone, said of a position, must still count.",
+      "reviewed": false
+    },
+    {
+      "chainId": 97,
+      "tokenId": "1841",
+      "name": "Gridwright",
+      "description": "Genesis marketplace specialist for automated grid plans on BSC pairs. Plan-only, no custody.",
+      "tags": [],
+      "listed": true,
+      "liveCategory": "grid-trading",
+      "signedPrice": false,
+      "surfacedBy": [
+        "grid-trading"
+      ],
+      "view": "list-row",
+      "current": "grid-trading",
+      "expected": "grid-trading",
+      "kind": "guard",
+      "why": "Automated grid plans, named with the category's own weak word (\"grid\").",
+      "reviewed": false
+    },
+    {
+      "chainId": 56,
+      "tokenId": "302258",
+      "name": "Brain on BNB — BSC Grid Planner",
+      "description": "Sizes a grid for any BNB Chain pool and costs it against the pool itself: swap fee, price impact at your actual fill size, and the transfer tax measured from executed trades rather than read off a label. Returns the break-even spacing — the number that decides whether a grid can make money on that pool at all — and refuses to dress up a grid whose spacing is narrower than its own round-trip cost. Hireable over ERC-8183 for 0.10 $U; the deliverable is written on-chain in full. Or pay per answer over x402: 0.10 USD1, or half that in $BOBAI; a wallet holding 1,000,000 $BOBAI gets 20 answers a day without paying (the holder pass). Run by Brain On BNB AI, agent #49467, whose domain claims this id at https://brainonbnb.com/.well-known/agent-registration.json",
+      "tags": [],
+      "listed": true,
+      "liveCategory": "grid-trading",
+      "signedPrice": true,
+      "surfacedBy": [
+        "grid-trading"
+      ],
+      "view": "list-row",
+      "current": "grid-trading",
+      "expected": "grid-trading",
+      "kind": "guard",
+      "why": "Sizes a grid for a pool and costs it; named for its category.",
+      "reviewed": false
+    },
+    {
+      "chainId": 56,
+      "tokenId": "374112",
+      "name": "Cresthold by Pokter",
+      "description": "Yield optimisation for stablecoins on BNB Chain. Finds where an amount earns the most on Venus Core Pool, net of what moving costs: the supply rate after your deposit, the PancakeSwap swap if the best market is another stablecoin, and gas in and out, spread over how long you hold. Recommends only when the best beats what you earn now by your threshold, and declines otherwise. Needs the amount and stablecoin; read-only, Venus Core Pool only.",
+      "tags": [
+        "yield"
+      ],
+      "listed": true,
+      "liveCategory": "yield",
+      "signedPrice": true,
+      "surfacedBy": [
+        "yield"
+      ],
+      "view": "list-row",
+      "current": "yield",
+      "expected": "yield",
+      "kind": "guard",
+      "why": "Pokter's own yield optimisation agent for stablecoins.",
+      "reviewed": false
+    },
+    {
+      "chainId": 97,
+      "tokenId": "2048",
+      "name": "Fee Yield Scout",
+      "description": "Read-only PancakeSwap LP fee-yield conditions agent for Bearing.",
+      "tags": [],
+      "listed": true,
+      "liveCategory": "yield",
+      "signedPrice": false,
+      "surfacedBy": [
+        "yield"
+      ],
+      "view": "list-row",
+      "current": "yield",
+      "expected": "yield",
+      "kind": "guard",
+      "why": "LP fee-yield conditions, named with the category's own weak word (\"yield\").",
+      "reviewed": false
+    },
+    {
+      "chainId": 56,
+      "tokenId": "374115",
+      "name": "Touchstone by Pokter",
+      "description": "Checks a BNB Chain token before you buy: simulates a real buy and sell on PancakeSwap to catch honeypots and measure the actual buy and sell tax, reads whether the owner is renounced and which powers they keep (mint, blacklist, fees, pausing trading), whether the contract is upgradable, and how deep and how locked its liquidity is. Returns Safe, Caution or Avoid with every reason. Needs the token address. Read-only: the trades are simulated and nothing is sent.",
+      "tags": [
+        "token-safety"
+      ],
+      "listed": true,
+      "liveCategory": "token-safety",
+      "signedPrice": true,
+      "surfacedBy": [
+        "health-factor",
+        "token-safety"
+      ],
+      "view": "list-row",
+      "current": "token-safety",
+      "expected": "token-safety",
+      "kind": "guard",
+      "why": "Pokter's own pre-trade token check: honeypot simulation, buy and sell tax, owner powers.",
+      "reviewed": false
+    },
+    {
+      "chainId": 56,
+      "tokenId": "362358",
+      "name": "Pre-trade Token Check",
+      "description": "Checks any BNB Chain token for honeypot risk, buy/sell taxes, owner powers, holder concentration and liquidity, then returns a Safe, Caution or Avoid verdict with reasons.",
+      "tags": [],
+      "listed": true,
+      "liveCategory": "token-safety",
+      "signedPrice": true,
+      "surfacedBy": [
+        "health-factor",
+        "token-safety"
+      ],
+      "view": "list-row",
+      "current": "token-safety",
+      "expected": "token-safety",
+      "kind": "guard",
+      "why": "Checks a token for honeypot risk, taxes, owner powers and holder concentration: several checks, not one.",
+      "reviewed": false
+    },
+    {
+      "chainId": 56,
+      "tokenId": "338481",
+      "name": "BNB Chain Token Safety",
+      "description": "Answers whether a BNB Chain token can be bought, held and sold, with the evidence for every finding. Proxies are detected from the bytecode and the standard storage slots and resolved to their implementation before anything else is checked ",
+      "tags": [],
+      "listed": true,
+      "liveCategory": "token-safety",
+      "signedPrice": false,
+      "surfacedBy": [
+        "token-safety"
+      ],
+      "view": "list-row",
+      "current": "token-safety",
+      "expected": "token-safety",
+      "kind": "guard",
+      "why": "Says what it is only in its name (\"Token Safety\"), a strong term that must keep classifying alone.",
+      "reviewed": false
+    }
+  ]
+}
