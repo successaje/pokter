@@ -253,12 +253,15 @@ test('a list beside an unreadable one is checked too, and an unreadable one is n
   assert.equal(JSON.parse(kv.getItem(`${FUNDED_KEY}:beside-unreadable:2`)!)[0].jobId, '105');
 });
 
-test('an unreadable paid-quotes list is rebuilt from the chain, or stays', async () => {
-  const broken = JSON.stringify([{ hash: 'h1', jobId: '1', until: 1_500 }, { hash: 7, jobId: '2' }]);
+test('an unreadable paid-quotes list is rebuilt from the chain with its own hashes, or stays', async () => {
+  const H1 = descriptionHash('quote one');
+  const H2 = descriptionHash('quote two');
+  // Unreadable only for its deadlines: every quote and job it names can be read.
+  const broken = JSON.stringify([{ hash: H1, jobId: '1', until: 'soon' }, { hash: H2, jobId: '2' }]);
   const jobs = { '1': { client: BUYER, statusName: 'COMPLETED', expiredAt: 9_000n, description: 'quote one' }, '2': { client: BUYER, statusName: 'FUNDED', expiredAt: 9_500n, description: 'quote two' } };
 
   for (const [what, over, expect] of [
-    ['every entry found funded from this wallet', {}, 'resolved'],
+    ['every entry found paid, by its own quote, from this wallet', {}, 'resolved'],
     ['an entry whose job is still open', { '2': { ...jobs['2'], statusName: 'OPEN' } }, 'unresolved'],
     ['an entry whose job is another wallet’s', { '2': { ...jobs['2'], client: OTHER } }, 'unresolved'],
   ] as const) {
@@ -272,18 +275,50 @@ test('an unreadable paid-quotes list is rebuilt from the chain, or stays', async
       assert.equal(kv.getItem(FUNDED_KEY), broken, what);
       continue;
     }
+    // The entries' own hashes, as stored; the chain supplies only the deadlines.
     assert.deepEqual(JSON.parse(kv.getItem(FUNDED_KEY)!), [
-      { hash: descriptionHash('quote one'), jobId: '1', until: 9_000 },
-      { hash: descriptionHash('quote two'), jobId: '2', until: 9_500 },
+      { hash: H1, jobId: '1', until: 9_000 },
+      { hash: H2, jobId: '2', until: 9_500 },
     ]);
     assert.equal(at(kv, `${FUNDED_KEY}:set-aside:`).length, 1);
     const again = await journal.run(begin({ description: 'quote two' }), async () => 'paid');
     assert.equal(!again.ok && again.reason, 'already-funded', 'its quotes stay paid');
   }
-  const noJob = memory();
-  noJob.setItem(FUNDED_KEY, JSON.stringify([{ hash: 7 }]));
-  const j = fundingCoordinator(noJob, locks(), 'B');
-  assert.equal((await j.resolveUnreadable(j.unresolved(BUYER, 97)[0], BUYER, 97, chain({ jobs }), 1_000)).outcome, 'unresolved');
+});
+
+/*
+ * The regression: a same-wallet job that paid a different quote. Rebuilding
+ * from the chain's description would have replaced the guard on the quote
+ * the entry recorded with a guard on another, leaving the recorded one free
+ * to be paid again.
+ */
+test('a paid-quotes entry whose job paid a different quote from the same wallet is refused, and the list kept', async () => {
+  const H2 = descriptionHash('quote two');
+  const broken = JSON.stringify([{ hash: H2, jobId: '2', until: 'soon' }]);
+  const kv = memory();
+  kv.setItem(FUNDED_KEY, broken);
+  const journal = fundingCoordinator(kv, locks(), 'B');
+  const [record] = journal.unresolved(BUYER, 97);
+  const outcome = await journal.resolveUnreadable(record, BUYER, 97, chain({ jobs: { '2': { client: BUYER, statusName: 'FUNDED', expiredAt: 9_500n, description: 'quote three' } } }), 1_000);
+  assert.equal(outcome.outcome, 'unresolved');
+  assert.match(outcome.outcome === 'unresolved' ? outcome.detail : '', /paid a different quote/);
+  assert.equal(kv.getItem(FUNDED_KEY), broken, 'the list, and the guard it holds, are untouched');
+  assert.equal(at(kv, `${FUNDED_KEY}:set-aside:`).length, 0);
+  const blocked = await journal.run(begin({ description: 'quote two' }), async () => 'paid');
+  assert.equal(!blocked.ok && blocked.reason, 'unreadable-record', 'nothing is funded while it stands');
+});
+
+test('a paid-quotes entry without a readable quote hash or job number cannot be rebuilt', async () => {
+  const jobs = { '2': { client: BUYER, statusName: 'FUNDED', description: 'quote two' } };
+  for (const entry of [{ hash: 7, jobId: '2' }, { jobId: '2' }, { hash: descriptionHash('quote two') }, null]) {
+    const kv = memory();
+    const broken = JSON.stringify([entry]);
+    kv.setItem(FUNDED_KEY, broken);
+    const journal = fundingCoordinator(kv, locks(), 'B');
+    const outcome = await journal.resolveUnreadable(journal.unresolved(BUYER, 97)[0], BUYER, 97, chain({ jobs }), 1_000);
+    assert.equal(outcome.outcome, 'unresolved', JSON.stringify(entry));
+    assert.equal(kv.getItem(FUNDED_KEY), broken);
+  }
 });
 
 test('resolving a funded attempt while the paid list cannot be read records its quote beside the list', async () => {

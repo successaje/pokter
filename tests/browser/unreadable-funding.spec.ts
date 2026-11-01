@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
+import { alignBrowserClock, chainNowSeconds } from './support/clock';
 import { mockChain, type MockJob } from './support/mock-chain';
 import { installMockWallet, SIGNING_METHODS, walletCalls } from './support/mock-wallet';
 
@@ -16,7 +17,13 @@ import { installMockWallet, SIGNING_METHODS, walletCalls } from './support/mock-
 
 const WALLET = '0x3333333333333333333333333333333333333333' as const;
 const KEY = `pokter:funding-attempt:97:${WALLET}`;
-const NOW = Date.parse('2026-11-01T12:00:00Z') / 1000;
+/*
+ * The server, the browser and the chain share one clock (support/clock.ts),
+ * which starts at 1 November 12:00 UTC. Deadlines here are fixed instants
+ * on that day, so what the page says about them does not depend on how long
+ * the run has taken.
+ */
+const JOB_DEADLINE = Date.parse('2026-11-01T18:00:00Z') / 1000;
 const HIRE = '/hire/97/2618';
 const PAYEE = '0x93847647d7eb72a69E162117df6a8697dF53EDda' as const;
 /** The record's own brief and quote: what binds a job on chain to it. */
@@ -26,13 +33,14 @@ const BRIEF = 'earlier brief + quote';
 const missingPrompt = JSON.stringify({
   attemptId: 'earlier', ownerTab: 'gone', wallet: WALLET, chainId: 97, provider: '0x93847647d7eb72a69E162117df6a8697dF53EDda',
   agent: { chainId: 97, tokenId: '2618', name: 'House agent' }, task: 'Earlier task', description: 'earlier brief + quote', token: '0x93847647d7eb72a69E162117df6a8697dF53EDda',
-  amountRaw: '1000', fundableUntil: NOW + 86_400, startedAt: '2026-11-01T10:00:00.000Z', updatedAt: '2026-11-01T10:00:00.000Z',
+  amountRaw: '1000', fundableUntil: JOB_DEADLINE, startedAt: '2026-11-01T10:00:00.000Z', updatedAt: '2026-11-01T10:00:00.000Z',
   predictedJobId: '105', jobId: '105', callsId: null, txHashes: [], state: 'pending',
 });
 
 async function openWith(page: Page, record: string, jobs: Record<string, MockJob>) {
+  await alignBrowserClock(page);
   await installMockWallet(page, { address: WALLET, chainId: 97 });
-  await mockChain(page, { chainId: 97, now: NOW, jobs });
+  await mockChain(page, { chainId: 97, now: chainNowSeconds(), jobs });
   await page.addInitScript(
     ({ key, record }) => {
       if (sessionStorage.getItem('seeded')) return;
@@ -52,10 +60,10 @@ test.describe('a stored payment record this browser cannot read', () => {
   test.setTimeout(120_000);
 
   test('blocks funding while the job it names can still be paid, and keeps the record', async ({ page }) => {
-    await openWith(page, missingPrompt, { '105': { client: WALLET, provider: PAYEE, description: BRIEF, status: 'OPEN', expiredAt: NOW + 3_600 } });
+    await openWith(page, missingPrompt, { '105': { client: WALLET, provider: PAYEE, description: BRIEF, status: 'OPEN', expiredAt: JOB_DEADLINE } });
     await expect(notice(page)).toBeVisible();
     await expect(notice(page)).toContainText('The record does not say which wallet request was last made.');
-    await expect(notice(page)).toContainText('Job 105 from this wallet carries its brief and quote and is open on chain until 1 Nov, 13:00 UTC.');
+    await expect(notice(page)).toContainText('Job 105 from this wallet carries its brief and quote and is open on chain until 1 Nov, 18:00 UTC.');
     expect(await stored(page)).toBe(missingPrompt);
     expect(await signingRequests(page)).toEqual([]);
 
@@ -65,7 +73,7 @@ test.describe('a stored payment record this browser cannot read', () => {
   });
 
   test('is set aside, not deleted, once the chain shows the job it names was funded, and its quote stays paid', async ({ page }) => {
-    await openWith(page, missingPrompt, { '105': { client: WALLET, provider: PAYEE, description: BRIEF, status: 'FUNDED', expiredAt: NOW + 3_600 } });
+    await openWith(page, missingPrompt, { '105': { client: WALLET, provider: PAYEE, description: BRIEF, status: 'FUNDED', expiredAt: JOB_DEADLINE } });
     const resolved = page.getByRole('status').filter({ hasText: 'The earlier payment record is resolved' });
     await expect(resolved).toBeVisible();
     await expect(resolved).toContainText('Job 105 from this wallet carries its brief and quote and is past funding on chain (funded)');
@@ -77,12 +85,12 @@ test.describe('a stored payment record this browser cannot read', () => {
     expect(aside.raw).toBe(missingPrompt);
     expect(aside.rule).toBe('job-funded');
     const paid = JSON.parse((await stored(page, `pokter:funded-attempts:97:${WALLET}`))!);
-    expect(paid).toEqual([expect.objectContaining({ jobId: '105', until: NOW + 3_600 })]);
+    expect(paid).toEqual([expect.objectContaining({ jobId: '105', until: JOB_DEADLINE })]);
     expect(await signingRequests(page)).toEqual([]);
   });
 
   test('stays when the funded job it names carries a different brief and quote', async ({ page }) => {
-    await openWith(page, missingPrompt, { '105': { client: WALLET, provider: PAYEE, description: 'an older brief + quote', status: 'FUNDED', expiredAt: NOW + 3_600 } });
+    await openWith(page, missingPrompt, { '105': { client: WALLET, provider: PAYEE, description: 'an older brief + quote', status: 'FUNDED', expiredAt: JOB_DEADLINE } });
     await expect(notice(page)).toBeVisible();
     await expect(notice(page)).toContainText('No job on chain carries its brief and quote');
     expect(await stored(page)).toBe(missingPrompt);
@@ -103,7 +111,7 @@ test.describe('a stored payment record this browser cannot read', () => {
 
   test('can be copied exactly as stored', async ({ page, context }) => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
-    await openWith(page, missingPrompt, { '105': { client: WALLET, provider: PAYEE, description: BRIEF, status: 'OPEN', expiredAt: NOW + 3_600 } });
+    await openWith(page, missingPrompt, { '105': { client: WALLET, provider: PAYEE, description: BRIEF, status: 'OPEN', expiredAt: JOB_DEADLINE } });
     await notice(page).getByRole('button', { name: 'Copy the record' }).click();
     await expect(notice(page).getByRole('button', { name: 'Copied' })).toBeVisible();
     expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(missingPrompt);

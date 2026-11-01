@@ -152,7 +152,7 @@ export interface UnreadableRecord {
    * deadline written in the record is not salvaged: only the chain's own
    * deadline for a job bound to the record counts.
    */
-  salvage: { jobId: string | null; predictedJobId: string | null; txHashes: string[]; provider: string | null; description: string | null; listJobIds: Array<string | null> };
+  salvage: { jobId: string | null; predictedJobId: string | null; txHashes: string[]; provider: string | null; description: string | null; listEntries: Array<{ hash: string | null; jobId: string | null }> };
 }
 
 /** What checking an unreadable record against the chain found. A resolved record is moved aside, never deleted. */
@@ -230,7 +230,7 @@ const isFundedEntry = (e: unknown): e is FundedEntry =>
 
 /** The parts of an unreadable record that stand on their own, each checked by type. */
 function salvageOf(raw: string): UnreadableRecord['salvage'] {
-  const empty: UnreadableRecord['salvage'] = { jobId: null, predictedJobId: null, txHashes: [], provider: null, description: null, listJobIds: [] };
+  const empty: UnreadableRecord['salvage'] = { jobId: null, predictedJobId: null, txHashes: [], provider: null, description: null, listEntries: [] };
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
@@ -238,7 +238,13 @@ function salvageOf(raw: string): UnreadableRecord['salvage'] {
     return empty;
   }
   if (Array.isArray(parsed)) {
-    return { ...empty, listJobIds: parsed.map((e) => (e && typeof e === 'object' && digits((e as FundedEntry).jobId) ? (e as FundedEntry).jobId : null)) };
+    return {
+      ...empty,
+      listEntries: parsed.map((e) => {
+        const entry = (e && typeof e === 'object' ? e : {}) as Partial<Record<keyof FundedEntry, unknown>>;
+        return { hash: isStr(entry.hash) && entry.hash ? entry.hash : null, jobId: digits(entry.jobId) ? entry.jobId : null };
+      }),
+    };
   }
   if (!parsed || typeof parsed !== 'object') return empty;
   const r = parsed as Record<string, unknown>;
@@ -416,9 +422,11 @@ export function fundingCoordinator(kv: KeyValue, locks: LockManagerLike | null, 
      * - Bound jobs all still OPEN and past the deadline the escrow holds for
      *   them: the escrow will not fund them, nor create a job with that
      *   deadline. The deadline is the chain's, never one the record wrote.
-     * - A list of paid quotes is rebuilt from the chain: every entry must
-     *   name a job of this wallet that is past OPEN, and each is written
-     *   back with the description and deadline the chain holds.
+     * - A list of paid quotes is rebuilt only when every entry names its
+     *   quote and its job, and that job is this wallet's, past OPEN, with
+     *   that quote as its description. Each entry keeps its own hash and
+     *   takes the deadline the chain holds. A job that paid another quote
+     *   leaves the list as it is.
      *
      * Anything else stays: nothing bound to check, a bound job still open
      * before its deadline, a transaction not mined, a record that changed
@@ -731,23 +739,34 @@ async function judgeUnreadable(record: UnreadableRecord, wallet: string, chain: 
   };
 
   if (record.kind === 'funded-list') {
-    if (salvage.listJobIds.length === 0) return { outcome: 'unresolved', detail: 'Nothing in it can be checked against the chain.' };
+    /*
+     * Each entry is the guard on one paid quote. It is rebuilt only when the
+     * chain confirms that guard exactly: this wallet's job, past funding,
+     * whose description is the quote the entry names. The entry's own hash
+     * is kept as stored. A job of this wallet that paid some other quote
+     * is a mismatch, and the list stays: rebuilding it from that job would
+     * move the guard off the quote it was written for.
+     */
+    if (salvage.listEntries.length === 0) return { outcome: 'unresolved', detail: 'Nothing in it can be checked against the chain.' };
     const rebuilt: FundedEntry[] = [];
-    for (const jobId of salvage.listJobIds) {
-      if (!jobId) return { outcome: 'unresolved', detail: 'An entry in it names no job, so the quote it paid cannot be found on chain.' };
-      const onchain = await read(jobId);
+    for (const entry of salvage.listEntries) {
+      if (!entry.hash || !entry.jobId) return { outcome: 'unresolved', detail: 'An entry in it does not name both the quote it paid and its job, so it cannot be confirmed.' };
+      const onchain = await read(entry.jobId);
       if (onchain === 'error') return { outcome: 'unresolved', detail: 'The escrow could not be read just now.' };
       if (!onchain?.client || !same(onchain.client, wallet) || OPEN.has(onchain.statusName)) {
-        return { outcome: 'unresolved', detail: `Job ${jobId} in it is not a funded job from this wallet on chain, so the quote it paid cannot be confirmed.` };
+        return { outcome: 'unresolved', detail: `Job ${entry.jobId} in it is not a funded job from this wallet on chain, so the quote it paid cannot be confirmed.` };
       }
-      rebuilt.push({ hash: descriptionHash(onchain.description), jobId, until: onchain.expiredAt !== undefined ? Number(onchain.expiredAt) : null });
+      if (descriptionHash(onchain.description) !== entry.hash) {
+        return { outcome: 'unresolved', detail: `Job ${entry.jobId} from this wallet paid a different quote than the one its entry records, so the list cannot be rebuilt from it.` };
+      }
+      rebuilt.push({ hash: entry.hash, jobId: entry.jobId, until: onchain.expiredAt !== undefined ? Number(onchain.expiredAt) : null });
     }
     return {
       outcome: 'resolved',
       rule: 'list-rebuilt',
       jobId: null,
       rebuilt,
-      detail: `Every quote in it was found on chain, in ${rebuilt.length === 1 ? `job ${rebuilt[0].jobId}` : `jobs ${rebuilt.map((e) => e.jobId).join(', ')}`} from this wallet. The list is rebuilt from the chain, so none of them can be paid again.`,
+      detail: `Every quote in it was found paid on chain, in ${rebuilt.length === 1 ? `job ${rebuilt[0].jobId}` : `jobs ${rebuilt.map((e) => e.jobId).join(', ')}`} from this wallet. The list is rebuilt with its own entries, so none of them can be paid again.`,
     };
   }
 
