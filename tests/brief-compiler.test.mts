@@ -930,7 +930,7 @@ test('the buyer is shown both their own words and every value that will be sent'
   // Confirming is a separate act from writing the brief, and comes before the price.
   assert.match(screen, /Confirm this request/);
   const flow = src('features/hire/HireFlow.tsx');
-  assert.match(flow, /\{ id: 'request', label: 'Check the request' \}/);
+  assert.match(flow, /\{ id: 'request', label: 'Check the request', short: 'Request' \}/);
   assert.match(flow, /const payload = hire\.approveRequest\(\);\n\s*if \(payload && \(await hire\.prepareQuote\(payload\)\)\) setStep\('review'\)/);
 });
 

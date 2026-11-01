@@ -69,6 +69,9 @@ export const Icon = {
   Shield: (p: IconProps) => (
     <svg {...base(p)}><path d="M10 2.75 16 5v4.6c0 3.6-2.6 6.4-6 7.65-3.4-1.25-6-4.05-6-7.65V5l6-2.25Z" /><path d="m7.5 10 1.75 1.75L12.75 8" /></svg>
   ),
+  Globe: (p: IconProps) => (
+    <svg {...base(p)}><circle cx="10" cy="10" r="6.75" /><path d="M3.25 10h13.5M10 3.25c1.85 1.9 2.8 4.15 2.8 6.75s-.95 4.85-2.8 6.75C8.15 14.85 7.2 12.6 7.2 10S8.15 5.15 10 3.25Z" /></svg>
+  ),
   Lock: (p: IconProps) => (
     <svg {...base(p)}><rect x="4.5" y="8.75" width="11" height="8" rx="1.5" /><path d="M7 8.75V6.5a3 3 0 0 1 6 0v2.25" /></svg>
   ),

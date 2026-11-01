@@ -508,23 +508,25 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
         </aside>
       </div>
 
+      {/*
+        The public review and the private answer side by side, each saying
+        who sees it. They were two full-width sections, the private one
+        first, each with its own title and a paragraph explaining it; the
+        review can be written only once escrow settles, so until then the
+        private question stands alone.
+      */}
       {(job.status === 'SUBMITTED' || job.status === 'COMPLETED') && owned && (
-        <section aria-labelledby="useful-title" className="flex flex-col gap-4 rounded-[16px] border border-rule bg-raised p-5 sm:p-6">
+        <section aria-labelledby="feedback-title" className="flex flex-col gap-4">
           <div>
-            <h2 id="useful-title" className="t-h3">Did this answer the question you hired it for?</h2>
-            <p className="text-[13.5px] text-ink-2">Private to Pokter, so we can see where agents help and where they fall short. Optional, and nothing waits on it.</p>
+            <h2 id="feedback-title" className="t-h3">How did the agent do?</h2>
+            <p className="text-[13.5px] text-ink-2">
+              {job.status === 'COMPLETED' ? 'Share how this job went.' : 'Tell Pokter privately whether the answer helped. You can review the job once escrow settles.'}
+            </p>
           </div>
-          <UsefulnessQuestion job={job} />
-        </section>
-      )}
-
-      {job.status === 'COMPLETED' && owned && (
-        <section aria-labelledby="review-title" className="flex flex-col gap-4 rounded-[16px] border border-rule bg-raised p-5 sm:p-6">
-          <div>
-            <h2 id="review-title" className="t-h3">Review this job</h2>
-            <p className="text-[13.5px] text-ink-2">Only you can, because only the funding wallet can. It is shown on the agent&rsquo;s page.</p>
+          <div className={cn('grid items-start gap-4', job.status === 'COMPLETED' ? 'lg:grid-cols-[minmax(0,1fr)_minmax(0,21rem)]' : 'max-w-xl')}>
+            {job.status === 'COMPLETED' && <ReviewForm job={job} />}
+            <UsefulnessQuestion job={job} />
           </div>
-          <ReviewForm job={job} />
         </section>
       )}
     </div>
