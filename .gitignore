@@ -91,3 +91,6 @@ scripts/venus-testnet-position.mts
 
 # Test screenshots show wallet addresses and balances; keep them on the machine that took them.
 docs/release/*-screens/
+
+# browser tests (tests/browser)
+/.playwright/
