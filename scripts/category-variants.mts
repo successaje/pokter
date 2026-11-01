@@ -296,6 +296,10 @@ export const CATEGORY_WORDS: Record<Category, string[]> = {
  * metaphysics agent practising "polarity diagnosis and rebalancing". The
  * other strong terms ("health factor", "token safety", "honeypot", "yield
  * optimi…") have no sense outside the category, so they are left alone.
+ *
+ * `objects` is D's test. It proved too narrow on the snapshot of 1
+ * November: it also drops rebalancers of stocks, vaults and DeFi
+ * protocols. F widens it to `MONEY_WORDS`.
  */
 export const EVERYDAY_STRONG: Partial<Record<Category, { terms: string[]; objects: string[] }>> = {
   rebalancing: {
@@ -304,27 +308,64 @@ export const EVERYDAY_STRONG: Partial<Record<Category, { terms: string[]; object
   },
 };
 
+/**
+ * What a lone "rebalancing" or "drift" must be said in to count, under F:
+ * money, rather than one of the objects D names.
+ *
+ * D's list was drawn from liquidity rebalancers, and in this registry the
+ * two words are financial far more often than not. Rebalancers of other
+ * holdings name what they rebalance in other words: a desk selling
+ * "rebalance plans" for "tokenized US stocks", a keeper that "rebalances
+ * 24/7" a set of "savings vaults" and lending legs, "automated rebalancing"
+ * for "DeFi protocols". D drops all three. F keeps D's list and adds the
+ * other things money is held in (a vault, a stock or equity, capital, a
+ * treasury) and the places it is held (DeFi, a DEX, lending), so the
+ * everyday sense is recognised by money being absent from the prose. The
+ * Yin Yang agents show what that looks like: their one money word is the
+ * token they are paid in.
+ *
+ * Words for being paid ("token", "paid", "funded", "per job") are left out
+ * on purpose. Every agent on the chain says how it is paid, so they say
+ * nothing about what it rebalances. "Holding" is left out because it has
+ * an everyday sense of its own.
+ */
+export const MONEY_WORDS: Partial<Record<Category, string[]>> = {
+  rebalancing: [...(EVERYDAY_STRONG.rebalancing?.objects ?? []), 'vault', 'stock', 'equit', 'capital', 'treasur', 'defi', 'dex', 'lending'],
+};
+
 const startsWord = finder('word-start');
 
-/** A lone everyday-sense strong term, found only in the description, said of nothing it could rebalance. */
-const unanchoredEverydayTerm = (e: CategoryEvidence, prose: string) => {
+const D_ANCHORS: Partial<Record<Category, string[]>> = Object.fromEntries(
+  Object.entries(EVERYDAY_STRONG).map(([category, everyday]) => [category, everyday?.objects ?? []]),
+);
+
+/**
+ * A lone everyday-sense strong term, found only in the description, with
+ * none of the anchor words anywhere in the prose: under D the objects
+ * `EVERYDAY_STRONG` lists, under F any of `MONEY_WORDS`.
+ */
+const unanchoredEverydayTerm = (e: CategoryEvidence, prose: string, anchors: Partial<Record<Category, string[]>> = D_ANCHORS) => {
   const everyday = EVERYDAY_STRONG[e.category];
   const only = loneTerm(e);
   if (!everyday || !only || !everyday.terms.includes(only.term) || only.fields.includes('name')) return false;
-  return !everyday.objects.some((object) => startsWord(prose, object));
+  return !(anchors[e.category] ?? everyday.objects).some((anchor) => startsWord(prose, anchor));
 };
 
 /**
  * Strong terms that name one check rather than the service.
  *
  * Sniping and trading bots run a honeypot test before they buy and say so
- * in their description; an agent whose job is token safety names more
- * than one thing it checks (taxes, owner powers, minting, blacklists,
- * liquidity), because a honeypot test alone does not tell a holder whether
- * they can sell later. So one of these, alone in the description, is read
- * as a feature of an agent in some other line of work. Terms that name the
- * service itself ("token safety", "contract safety", "can i sell") still
- * stand alone.
+ * in their description, as a step of their own trading. So one of these,
+ * as the only token-safety term in the description, is read as a feature
+ * of an agent in some other line of work. Terms that name the service
+ * itself ("token safety", "contract safety", "can i sell") still stand
+ * alone, and so does a check in the name or a tag.
+ *
+ * The condition counts matched terms, not the checks an agent describes.
+ * moneyclaw names four ("honeypots, high transaction taxes, unlocked
+ * liquidity, and malicious functions") and is read out of token safety
+ * only because three of them are worded outside the term list; a term
+ * added for any of them would bring it back.
  */
 export const SINGLE_CHECKS: Partial<Record<Category, string[]>> = {
   'token-safety': ['honeypot', 'rug pull', 'rugpull', 'sell tax', 'buy tax', 'mint authority'],
@@ -390,6 +431,16 @@ export const VARIANTS: RuleSet[] = [
     matching: 'substring',
     admits: (e, prose) =>
       declared(e) || ((!loneWeakNameTerm(e) || namesItsCategory(e)) && !unanchoredEverydayTerm(e, prose) && !loneCheck(e)),
+  },
+  {
+    id: 'f-e-with-money-context',
+    label: 'F: E, with "rebalancing" or "drift" alone counting wherever the prose is about money',
+    rule:
+      'As E, except that a lone "rebalanc" or "drift" in the description (not the name, no tag) is admitted when the prose names anything money is held in or at: D\'s list, or a vault, stock, equity, capital, treasury, DeFi, a DEX or lending. Words for being paid ("token", "paid", "funded") do not count.',
+    matching: 'substring',
+    admits: (e, prose) =>
+      declared(e) ||
+      ((!loneWeakNameTerm(e) || namesItsCategory(e)) && !unanchoredEverydayTerm(e, prose, MONEY_WORDS) && !loneCheck(e)),
   },
 ];
 
@@ -647,7 +698,16 @@ export interface VariantResult {
   id: string;
   label: string;
   rule: string;
-  counts: { before: Counts; after: Counts };
+  counts: {
+    before: Counts;
+    after: Counts;
+    /**
+     * The alternative to removal: every listed agent the rule would take
+     * out of the catalogue stays in it as Unclassified instead. Production
+     * cannot do this today (see `renderMarkdown`, "Leaving the catalogue").
+     */
+    ifKept: Counts;
+  };
   changes: Change[];
   summary: {
     changed: number;
@@ -662,6 +722,13 @@ export interface VariantResult {
   };
   /** Agents outside the catalogue today that this rule would place in a category listing. */
   wouldJoin: Array<{ key: string; name: string; category: Category; terms: TermReport[] }>;
+  /**
+   * Every agent read, in the catalogue or not, whose list row this rule
+   * classifies differently from production: the rule's reach over the
+   * registry rather than over today's listings, so a misfile or a false
+   * negative among agents not listed yet still shows.
+   */
+  reclassified: Array<{ key: string; name: string; listed: boolean; from: Classification; to: Classification }>;
   review: ReviewScore | null;
 }
 
@@ -684,6 +751,12 @@ export interface DryRunReport {
     tagged: number;
     /** Terms production can never match, and how many agents' text holds what they were meant to find. */
     deadTerms: Array<{ category: Category; term: string; normalised: string; agents: number }>;
+    /**
+     * Agents this snapshot's discovery reads returned that production
+     * leaves out of the catalogue as Unclassified: what a policy of keeping
+     * discovered agents listed as Unclassified would also have to list.
+     */
+    unclassifiedDiscovered: number;
   };
   liveCounts: Record<string, number> | null;
   variants: VariantResult[];
@@ -734,12 +807,19 @@ export function runDryRun(
       if (!isCategory(placed.shownAs) || placed.shownAs === now(agent).shownAs) return [];
       return [{ key: keyOf(agent), name: agent.name, category: placed.shownAs, terms: termsOf(placed.decision.evidence) }];
     });
+    const reclassified = snapshot.agents.flatMap((agent) => {
+      const row = asClassified(agent, 'list-row');
+      const from = classify(row);
+      const to = decide(row, rules).category;
+      return from === to ? [] : [{ key: keyOf(agent), name: agent.name, listed: Boolean(agent.listed), from, to }];
+    });
     const lost = changes.filter((c) => isCategory(c.from) && !isCategory(c.to));
+    const ifKept: Counts = { ...after, unclassified: after.unclassified + after[NOT_LISTED], [NOT_LISTED]: 0 };
     return {
       id: rules.id,
       label: rules.label,
       rule: rules.rule,
-      counts: { before, after },
+      counts: { before, after, ifKept },
       changes,
       summary: {
         changed: changes.length,
@@ -750,6 +830,7 @@ export function runDryRun(
         gainedCategory: changes.filter((c) => !isCategory(c.from) && isCategory(c.to)).length,
       },
       wouldJoin,
+      reclassified,
       review: options.review ? scoreReviewSet(options.review, rules) : null,
     };
   });
@@ -778,6 +859,7 @@ export function runDryRun(
         ...d,
         agents: snapshot.agents.filter((a) => normalise(`${a.name} ${a.description ?? ''} ${(a.tags ?? []).join(' ')}`).includes(d.normalised)).length,
       })),
+      unclassifiedDiscovered: candidates.filter((a) => now(a).shownAs === NOT_LISTED && now(a).decision.category === 'unclassified').length,
     },
     liveCounts: snapshot.liveCounts ?? null,
     variants: results,
@@ -789,7 +871,7 @@ export function runDryRun(
  * The recommendation
  * ------------------------------------------------------------------------- */
 
-export const RECOMMENDED = 'e-d-plus-single-check';
+export const RECOMMENDED = 'f-e-with-money-context';
 
 function recommend(results: VariantResult[], id: string): DryRunReport['recommendation'] {
   const chosen = results.find((r) => r.id === id);
@@ -801,7 +883,7 @@ function recommend(results: VariantResult[], id: string): DryRunReport['recommen
   reasons.push(...(RATIONALE[id] ?? []));
   costs.push(
     `${s.changed} listed agents change: ${s.lostCategory} lose their category, ${s.movedCategory} move to another, ${s.gainedCategory} gain one. Each is in the change list below and should be read before anything like this goes near production.`,
-    `Of the ${s.lostCategory} that lose their category, ${s.lostCategoryStillListed} stay in the catalogue as Unclassified because they have signed a price, and ${s.lostCategoryLeaves} leave the catalogue: they are no longer in Discover, the API's list or a category listing, though their own pages stay reachable by name or ID.`,
+    `Of the ${s.lostCategory} that lose their category, ${s.lostCategoryStillListed} stay in the catalogue as Unclassified because they have signed a price, and ${s.lostCategoryLeaves} leave the catalogue: they drop out of Discover's browsing and counts, the category listings, the API's list, the assistant tool's task results, the leaderboard and the sitemap, but their profile pages stay up, a search for their name or ID still finds them, and Pokter keeps measuring them ("Leaving the catalogue" below).`,
   );
   if (chosen.review?.unfixed.length) costs.push(`Still misfiled: ${chosen.review.unfixed.join('; ')}.`);
   if (chosen.review?.broken.length) costs.push(`Guards it breaks: ${chosen.review.broken.join('; ')}.`);
@@ -831,6 +913,13 @@ function reviewLine(r: VariantResult): string {
 
 /** Why the recommended variant, in product terms. Numbers come from the run itself. */
 const RATIONALE: Record<string, string[]> = {
+  'f-e-with-money-context': [
+    "It keeps E's three conditions and corrects the one that misread specialists. E asked a lone \"rebalancing\" or \"drift\" to be said of one of the liquidity objects D lists, and so dropped a desk selling rebalance plans for tokenised stocks, a keeper that rebalances savings vaults, and an agent offering automated rebalancing for DeFi protocols. F asks only that the prose be about money at all, which those three are and the Yin Yang agents are not: their one money word is the token they are paid in, and paying words do not count.",
+    "The other two conditions are E's: a name word that is not the category's own (\"ladder\", \"vault\", \"monitor\") does not classify alone, and one named safety check that a trading bot runs before its own trades (\"honeypot\") is a feature, not the category.",
+    'It leaves the scorer, its weights, its threshold and every term list as they are, so a single strong term that only has a category meaning ("health factor", "token safety", "yield optimisation") still classifies on its own, which is how most correctly filed agents in this catalogue are filed.',
+    "A publisher's declared tag still decides on its own wherever tags are read.",
+    'On this snapshot, every agent it takes out of the catalogue is a misfile that is listed today only because of the word it was misfiled on. Leaving is what the catalogue already does with every unpriced agent in no category, and each stays findable by name, by ID and at its own page.',
+  ],
   'e-d-plus-single-check': [
     "Each of its three conditions answers one way a single word misfiles an agent, and each is argued from what the word means rather than from a weight: a name word that is not the category's own (\"ladder\", \"vault\", \"monitor\"); a strong term with an everyday sense, said of nothing that can be rebalanced (\"polarity diagnosis and rebalancing\"); and one named safety check that a trading bot runs before it buys (\"honeypot\").",
     'It leaves the scorer, its weights, its threshold and every term list as they are, so a single strong term that only has a category meaning ("health factor", "token safety", "yield optimisation") still classifies on its own, which is how most correctly filed agents in this catalogue are filed.',
@@ -843,6 +932,13 @@ const RATIONALE: Record<string, string[]> = {
 };
 
 const COSTS: Record<string, string[]> = {
+  'f-e-with-money-context': [
+    "Its money words were widened from the three finance agents E dropped, so on this snapshot they fit by construction. Each names something money is held in or at, none is a word for being paid, and the three agents are now guards in the review set so a narrower list fails visibly; but only a fresh snapshot can show whether the list is wide enough.",
+    'The everyday-sense test now rests on money being absent from the prose. An agent outside finance that mentions a vault, capital, a stock or DeFi anywhere in its description would pass it; none in this snapshot does.',
+    'The single-check condition counts matched terms, not the checks an agent describes. moneyclaw names four ("honeypots, high transaction taxes, unlocked liquidity, and malicious functions") and leaves token safety only because three of them are worded outside the term list; adding a term for any of them would bring it back. A token-safety specialist whose description names only a honeypot test, with nothing in its name or tags, would be dropped; none in this snapshot is.',
+    "On this snapshot, the weak-name condition unclassifies recurringmonitoringserviceagent, whose name and description say nothing of loans or liquidation. Its registered skills are not in the snapshot; if they show loan monitoring, a declared tag would place it, because it has signed a price and is added on its full record.",
+    'It is three conditions where A and B are one each. If that is too much to take at once, C alone is the zero-regret first step (the weak-name fix), and the other two can follow on their own dry runs.',
+  ],
   'e-d-plus-single-check': [
     'The three conditions are drawn from five known misfiles. Each has a product argument, but the sample is small: the review set should grow with every misfile found, and a dry run on a fresh snapshot should come before any production change.',
     'It is three conditions where A and B are one each. If that is too much to take at once, C alone is the zero-regret first step (the weak-name fix), and D and E can follow on their own dry runs.',
@@ -856,7 +952,12 @@ const AGAINST: Record<string, string[]> = {
     "Most correctly filed agents carry exactly one strong term, so asking for two unclassifies far more good agents than bad. Its tag exemption barely reaches the listings: category listings classify the indexer's list rows, which carry no tags, so a tag only helps an agent that is also added on its record.",
   ],
   'c-lone-name-word-must-name-category': ['It leaves the strong-prose misfiles where they are.'],
-  'd-c-plus-anchored-everyday-terms': ['It leaves the lone-honeypot misfile where it is.'],
+  'd-c-plus-anchored-everyday-terms': [
+    'It leaves the lone-honeypot misfiles where they are, and its rebalancing condition drops rebalancers of stocks, vaults and DeFi protocols, as E does.',
+  ],
+  'e-d-plus-single-check': [
+    "Its rebalancing condition asks the prose to name what is rebalanced from a list drawn from liquidity rebalancers, so it also drops rebalancers of other holdings: on the snapshot of 1 November, more of the agents it declined on a lone \"rebalancing\" were finance agents than metaphysics ones. F keeps them and still declines the metaphysics agents.",
+  ],
 };
 
 /* ---------------------------------------------------------------------------
@@ -924,6 +1025,26 @@ export function renderMarkdown(report: DryRunReport): string {
   }
   lines.push('');
 
+  lines.push('## Leaving the catalogue', '');
+  lines.push(
+    'What "not listed" means for a buyer, as the catalogue is built today (read from `src/lib/marketplace.ts`, `src/features/discover/search.ts` and `src/lib/history/sweep.ts`; nothing here changes them):',
+    '',
+    "- Gone: every category listing, since each keeps only the rows its classifier places in that category (`readCategory`); and with them Discover's browsing, its category filters and counts, the home page, the leaderboard and rankings, `GET /api/v1/agents` and the assistant tool `search_agents`, which all read the same built catalogue (`listSearchableWithStatus`). Someone following the agent stops receiving updates, because follower alerts are drawn from that catalogue. The sitemap lists category listings only, so it already leaves out Unclassified agents with a signed price, and the scheduled category checks run only on category listings.",
+    "- Kept: the profile page at `/agents/{chain}/{id}`, read from the registry and shown as Unclassified (`getDossier`). A search for its name still finds it, labelled as found by name rather than as a category match: Discover and `search_agents` ask the registry whenever nothing in the catalogue has exactly the name typed, and the API does when no listed name contains every word. Typing its ID finds it (`searchById`). Pokter keeps measuring it, because the sweep's roster includes every agent it already holds history for (`buildRoster`).",
+    '',
+    "Keeping these agents listed as Unclassified is not something the catalogue can do today: the only agents it lists without a category are those with a signed price (an agent Pokter enrolled is added only under a category). Keeping exactly the agents a rule change unclassifies would need a stored list of agents that were once misfiled. Keeping every agent discovery returns as Unclassified would also list the " +
+      `${checks.unclassifiedDiscovered} agents this snapshot's discovery reads returned that production already leaves out as Unclassified (before clone collapse, the per-owner cap and the test-identity filter).`,
+    '',
+    'If every agent a rule takes out of the catalogue stayed in it as Unclassified instead:',
+    '',
+  );
+  lines.push(`| Category | Production (model) | ${report.variants.map((v) => v.id.split('-')[0].toUpperCase()).join(' | ')} |`);
+  lines.push(`|---|---:|${report.variants.map(() => '---:').join('|')}|`);
+  for (const id of ROWS) {
+    lines.push(`| ${id} | ${base[id]} | ${report.variants.map((v) => `${v.counts.ifKept[id]} (${signed(v.counts.ifKept[id] - base[id])})`).join(' | ')} |`);
+  }
+  lines.push('');
+
   lines.push('## Recommendation', '');
   lines.push(`**${report.variants.find((v) => v.id === report.recommendation.variant)?.label ?? report.recommendation.variant}**`, '');
   for (const reason of report.recommendation.reasons) lines.push(`- ${reason}`);
@@ -955,6 +1076,15 @@ export function renderMarkdown(report: DryRunReport): string {
             : `classified ${c.decided} at ${c.toConfidence?.toFixed(2) ?? ''}, but that listing's reads did not return it: ${termList(c.toTerms)}`;
         lines.push(`| ${cell(c.name)} | ${c.key} | ${shownWithVia(c.from, c.fromVia)} → ${shownWithVia(c.to, c.toVia)} | ${c.fromConfidence?.toFixed(2) ?? ''}: ${cell(termList(c.fromTerms))} | ${cell(proposed)} | ${c.signedPrice ? 'yes' : 'no'} |`);
       }
+      lines.push('');
+    }
+    if (variant.reclassified.length) {
+      const outside = variant.reclassified.filter((r) => !r.listed).length;
+      lines.push(
+        `Across all ${input.agents} agents read, in the catalogue or not, it reads ${variant.reclassified.length} list rows differently from production (${outside} of them not listed today):`,
+        '',
+      );
+      for (const r of variant.reclassified) lines.push(`- ${r.name} (${r.key}, ${r.listed ? 'listed' : 'not listed'}): ${r.from} → ${r.to}`);
       lines.push('');
     }
     if (variant.wouldJoin.length) {

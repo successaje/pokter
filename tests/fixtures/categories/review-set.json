@@ -100,6 +100,36 @@
     },
     {
       "chainId": 56,
+      "tokenId": "131181",
+      "name": "MEFAI Verifiable Autonomous Trader",
+      "description": "An autonomous BNB Chain trading agent that proves every prediction before it acts and cannot breach its own risk cap. It seals a commit reveal prediction (symbol, direction, entry, target, stop, expiry) to a verifiable registry before each entry and reveals it after, producing a track record that cannot be backfilled. A bonded RiskGovernor enforces a drawdown floor so a disqualifying loss is refused by the contract, not just by policy. Position sizing is drawdown budget fractional Kelly fitted to 181k labelled signal outcomes across 40+ assets, fused with a 12 tool market regime read and a pre trade transaction safety gate (honeypot, slippage, approval, MEV, preflight). Spot routing on PancakeSwap class venues via the Trust Wallet Agent Kit; verified signal feed exposed over x402 for agent to agent use.",
+      "tags": [
+        "trading",
+        "blockchain",
+        "ai",
+        "risk_management",
+        "verifiable",
+        "autonomous",
+        "bnbchain",
+        "x402",
+        "decentralized",
+        "financial_services"
+      ],
+      "listed": true,
+      "liveCategory": "token-safety",
+      "signedPrice": false,
+      "surfacedBy": [
+        "token-safety"
+      ],
+      "view": "list-row",
+      "current": "token-safety",
+      "expected": "unclassified",
+      "kind": "misfile",
+      "why": "A trading agent (\"An autonomous BNB Chain trading agent\"): \"honeypot\" is one item in the \"pre trade transaction safety gate\" it runs on its own trades, and its declared tags say trading and risk management, not token safety. Filed under token safety on that one word.",
+      "reviewed": false
+    },
+    {
+      "chainId": 56,
       "tokenId": "336625",
       "name": "HealthSentinel",
       "description": "Genesis marketplace specialist for health-factor protection plans. Plan only, no fund custody.",
@@ -194,6 +224,61 @@
       "expected": "rebalancing",
       "kind": "guard",
       "why": "Recentres liquidity positions that have \"drifted out of range\": \"drift\" alone, said of a position, must still count.",
+      "reviewed": false
+    },
+    {
+      "chainId": 56,
+      "tokenId": "11047",
+      "name": "OmegaPrime_157B2B",
+      "description": "Risk management AI for DeFi protocols and automated rebalancing.",
+      "tags": [],
+      "listed": true,
+      "liveCategory": "rebalancing",
+      "signedPrice": false,
+      "surfacedBy": [
+        "rebalancing"
+      ],
+      "view": "list-row",
+      "current": "rebalancing",
+      "expected": "rebalancing",
+      "kind": "guard",
+      "why": "Offers \"automated rebalancing\" beside \"risk management AI for DeFi protocols\": the word in its financial sense, with no object named. D and E drop it, and it leaves the catalogue, because D's list of things rebalanced has no word for a DeFi protocol.",
+      "reviewed": false
+    },
+    {
+      "chainId": 56,
+      "tokenId": "369195",
+      "name": "4lpha bStock Desk",
+      "description": "Research seller for tokenized US stocks (bStocks) on BNB Chain: stock reports, DCA plans and rebalance plans at 0.10 USD per ERC-8183 job. Every number is computed by code from the public 4lpha MCP; the desk buys its own market data through x402. Data, not investment advice.",
+      "tags": [],
+      "listed": true,
+      "liveCategory": "rebalancing",
+      "signedPrice": true,
+      "surfacedBy": [],
+      "view": "list-row",
+      "current": "rebalancing",
+      "expected": "rebalancing",
+      "kind": "guard",
+      "why": "Sells \"rebalance plans\" for \"tokenized US stocks (bStocks)\", beside stock reports and DCA plans: a rebalancing deliverable for a stock portfolio. D and E drop it because stocks are not on D's list.",
+      "reviewed": false
+    },
+    {
+      "chainId": 56,
+      "tokenId": "363619",
+      "name": "Plinth keeper",
+      "description": "Keeper of Plinth capital-protected bStock savings vaults on BSC: rebalances 24/7, cuts risk before earnings and macro releases, pulls the safe leg out of unhealthy lending markets. Holds the factory's keeper role; cannot withdraw savers' funds.",
+      "tags": [],
+      "listed": true,
+      "liveCategory": "rebalancing",
+      "signedPrice": true,
+      "surfacedBy": [
+        "yield"
+      ],
+      "view": "list-row",
+      "current": "rebalancing",
+      "expected": "rebalancing",
+      "kind": "guard",
+      "why": "Keeper of \"capital-protected bStock savings vaults\" that \"rebalances 24/7\" and \"pulls the safe leg out of unhealthy lending markets\": it rebalances the vaults' legs and says nothing of APY. D and E move it to yield on \"vault\" and \"lending\".",
       "reviewed": false
     },
     {

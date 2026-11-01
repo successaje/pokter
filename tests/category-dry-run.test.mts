@@ -84,6 +84,16 @@ test('the known misfiles are misfiled on one piece of evidence each', () => {
   assert.deepEqual([evidence('310229').category, evidence('310229').matched], ['grid-trading', ['ladder']]);
   assert.deepEqual([evidence('11224').category, evidence('11224').matched], ['token-safety', ['honeypot']]);
   assert.deepEqual([evidence('154180').category, evidence('154180').matched], ['yield', ['vault']]);
+  assert.deepEqual([evidence('131181').category, evidence('131181').matched], ['token-safety', ['honeypot']]);
+});
+
+test('the rebalancing guards added for E rest on one strong term in prose, as the misfiles do', () => {
+  /* So a rule aimed at the misfiles' pattern meets these too, and has to tell them apart by what the prose is about. */
+  for (const tokenId of ['11047', '369195', '363619']) {
+    const entry = entries.find((e) => e.tokenId === tokenId)!;
+    const [best] = scoreCategories(asClassified(entry, entry.view ?? 'record'));
+    assert.deepEqual([best.category, best.confidence, best.matched], ['rebalancing', 0.6, ['rebalanc']], entry.name);
+  }
 });
 
 test('the mirror scorer agrees with production on every review-set agent, with tags and without', () => {
@@ -168,11 +178,12 @@ test('each variant, scored on the review set', () => {
     }),
   );
   assert.deepEqual(scores, {
-    'a-no-lone-weak-name': { fixed: 2, unfixed: 3, kept: 9, broken: 3 },
-    'b-two-prose-terms': { fixed: 5, unfixed: 0, kept: 4, broken: 8 },
-    'c-lone-name-word-must-name-category': { fixed: 2, unfixed: 3, kept: 12, broken: 0 },
-    'd-c-plus-anchored-everyday-terms': { fixed: 4, unfixed: 1, kept: 12, broken: 0 },
-    'e-d-plus-single-check': { fixed: 5, unfixed: 0, kept: 12, broken: 0 },
+    'a-no-lone-weak-name': { fixed: 2, unfixed: 4, kept: 12, broken: 3 },
+    'b-two-prose-terms': { fixed: 6, unfixed: 0, kept: 4, broken: 11 },
+    'c-lone-name-word-must-name-category': { fixed: 2, unfixed: 4, kept: 15, broken: 0 },
+    'd-c-plus-anchored-everyday-terms': { fixed: 4, unfixed: 2, kept: 12, broken: 3 },
+    'e-d-plus-single-check': { fixed: 6, unfixed: 0, kept: 12, broken: 3 },
+    'f-e-with-money-context': { fixed: 6, unfixed: 0, kept: 15, broken: 0 },
   });
   /* What A and B cost: agents that name their category with its own word, and agents filed on one strong term. */
   assert.deepEqual(scoreReviewSet(entries, variant('a-no-lone-weak-name')).broken, [
@@ -181,6 +192,14 @@ test('each variant, scored on the review set', () => {
     'Fee Yield Scout (97:2048)',
   ]);
   assert.ok(scoreReviewSet(entries, variant('b-two-prose-terms')).broken.includes('ChainPilot (97:2677)'));
+  /* What D's anchor list costs, in D and E alike: rebalancers of holdings it has no word for. */
+  for (const id of ['d-c-plus-anchored-everyday-terms', 'e-d-plus-single-check']) {
+    assert.deepEqual(scoreReviewSet(entries, variant(id)).broken, [
+      'OmegaPrime_157B2B (56:11047)',
+      '4lpha bStock Desk (56:369195)',
+      'Plinth keeper (56:363619)',
+    ]);
+  }
 });
 
 const agent = (over: Partial<DryRunAgent> & { name: string; description: string }): DryRunAgent => ({
@@ -225,15 +244,36 @@ test('each condition of the recommended variant, on an agent built to meet it', 
   /* A name word that is not the category's own does not classify alone; the category's own word does. */
   assert.equal(only(decide('Beta Ladder', 'Production-cost analyst.')), 'unclassified');
   assert.equal(only(decide('Gridwright', 'Plans for BSC pairs.')), 'grid-trading');
-  /* "Rebalancing" alone counts when it is said of something that can be rebalanced. */
+  /* "Rebalancing" alone counts wherever the prose is about money, and not where it is not; being paid in a token is not about money. */
   assert.equal(only(decide('Seer', 'Practises polarity diagnosis and rebalancing.')), 'unclassified');
+  assert.equal(only(decide('Seer', 'Practises polarity diagnosis and rebalancing. Paid in the FENGSHUI token on BNB Chain.')), 'unclassified');
   assert.equal(only(decide('Keeper', 'Bounded rebalancing for liquidity positions.')), 'rebalancing');
+  assert.equal(only(decide('Desk', 'Stock reports and rebalance plans for tokenized US stocks.')), 'rebalancing');
+  assert.equal(only(decide('Risk AI', 'Risk management for DeFi protocols and automated rebalancing.')), 'rebalancing');
+  /* A keeper that rebalances vaults stays a rebalancer rather than moving to yield on "vault" and "lending". */
+  assert.equal(only(decide('Keeper', 'Keeps savings vaults: rebalances 24/7, pulls the safe leg out of unhealthy lending markets.')), 'rebalancing');
   /* One named check is a feature; the service's own name, or a second check, is the category. */
   assert.equal(only(decide('Sniper', 'Buys new launches after a honeypot check.')), 'unclassified');
   assert.equal(only(decide('Checker', 'Honeypot test and sell tax for any token.')), 'token-safety');
   assert.equal(only(decide('Desk', 'Token safety checks on request.')), 'token-safety');
   /* A term with only a category meaning still stands alone. */
   assert.equal(only(decide('Sentinel', 'Health factor protection plans.')), 'health-factor');
+});
+
+test("E's rebalancing condition drops rebalancers of holdings its list has no word for, and F keeps them", () => {
+  const decide = (id: string, description: string) =>
+    Object.entries(diffClassifications([agent({ name: 'Agent', description })], PRODUCTION, variant(id)).after).find(([, n]) => n > 0)?.[0];
+  for (const description of [
+    'Stock reports and rebalance plans for tokenized US stocks.',
+    'Risk management for DeFi protocols and automated rebalancing.',
+    'Rebalances capital-protected savings vaults around the clock.',
+  ]) {
+    assert.equal(decide('e-d-plus-single-check', description), 'unclassified', description);
+    assert.equal(decide('f-e-with-money-context', description), 'rebalancing', description);
+  }
+  /* Both decline the everyday sense. */
+  assert.equal(decide('e-d-plus-single-check', 'Yin Yang polarity diagnosis and rebalancing.'), 'unclassified');
+  assert.equal(decide('f-e-with-money-context', 'Yin Yang polarity diagnosis and rebalancing.'), 'unclassified');
 });
 
 test('the dry run over the review set reproduces today and reports every change', () => {
@@ -249,13 +289,18 @@ test('the dry run over the review set reproduces today and reports every change'
     recommended.changes.map((c) => c.key).sort(),
     entries.filter((e) => e.kind === 'misfile').map((e) => `${e.chainId}:${e.tokenId}`).sort(),
   );
-  assert.equal(recommended.summary.lostCategory, 5);
-  /* None of the five has signed a price, so all five leave the catalogue rather than staying as Unclassified. */
-  assert.equal(recommended.summary.lostCategoryLeaves, 5);
+  assert.equal(recommended.summary.lostCategory, 6);
+  /* None of the six has signed a price, so all six leave the catalogue rather than staying as Unclassified. */
+  assert.equal(recommended.summary.lostCategoryLeaves, 6);
+  /* The alternative to leaving: the same agents, kept as Unclassified. */
+  assert.equal(recommended.counts.ifKept[NOT_LISTED], 0);
+  assert.equal(recommended.counts.ifKept.unclassified, recommended.counts.after.unclassified + recommended.counts.after[NOT_LISTED]);
+  assert.equal(report.checks.unclassifiedDiscovered, 0, 'every review-set agent is listed, so none is a discovered agent left out');
 
   const markdown = renderMarkdown(report);
   for (const change of recommended.changes) assert.ok(markdown.includes(change.key), `${change.name} is missing from the report`);
-  assert.match(markdown, /\| rebalancing \| — \| 5 \| /);
+  assert.match(markdown, /\| rebalancing \| — \| 8 \| /);
+  assert.match(markdown, /^## Leaving the catalogue$/m);
 });
 
 test('production matches terms inside other words, and never matches a hyphenated term', () => {
