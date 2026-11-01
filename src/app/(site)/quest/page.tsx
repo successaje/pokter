@@ -2,13 +2,14 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { isAddress } from 'viem';
 
-import { CAMPAIGN_END_LABEL, CAMPAIGN_RULES_URL } from '@/lib/campaign/window';
+import { CAMPAIGN_CLOSED_LABEL, CAMPAIGN_DEADLINE, CAMPAIGN_END_LABEL, CAMPAIGN_RESULTS_AFTER, CAMPAIGN_RULES_URL, isCampaignLive } from '@/lib/campaign/window';
 import { chainLabel } from '@/lib/network/presentation';
 import { lookupQuest, type QuestLookup } from '@/lib/quest/lookup';
 import { POKTER_MARKETPLACE } from '@/lib/quest/progress';
 import type { CampaignCheck } from '@/lib/campaign/check-state';
 import { CheckMark, CheckWords } from '@/features/campaign/CheckMark';
 import { shortAddress } from '@/lib/ui/format';
+import { Notice } from '@/ui/Feedback';
 import { Icon } from '@/ui/icons';
 
 export const dynamic = 'force-dynamic';
@@ -117,22 +118,53 @@ function Result({ data }: { data: QuestLookup }) {
   );
 }
 
+function ClosedNotice() {
+  return (
+    <Notice title="Set and Earn has closed">
+      Entries closed on {CAMPAIGN_DEADLINE}. BNB Chain decides who qualified from its own data and announces winners after {CAMPAIGN_RESULTS_AFTER}. You can still check a wallet&rsquo;s hires below, but the escrow contract does not record when a job was made, so a hire made after the deadline also appears here and does not count.
+    </Notice>
+  );
+}
+
 export default async function QuestPage({ searchParams }: { searchParams: Promise<{ address?: string }> }) {
   const { address: raw } = await searchParams;
   const address = raw?.trim() ?? '';
   const valid = isAddress(address);
   const data = valid ? await lookupQuest(address).catch(() => null) : null;
+  const live = isCampaignLive();
 
   return (
     <div className="frame max-w-4xl pb-24 pt-10 sm:pt-16">
       <header className="flex flex-col gap-4">
         <span className="t-label flex items-center gap-2">
-          <span className="tile" aria-hidden /> BNB Chain · Set and Earn · {CAMPAIGN_END_LABEL}
+          <span className="tile" aria-hidden /> BNB Chain · Set and Earn ·{' '}
+          {live ? (
+            <>
+              <span data-campaign-live>{CAMPAIGN_END_LABEL}</span>
+              <span data-campaign-closed>{CAMPAIGN_CLOSED_LABEL}</span>
+            </>
+          ) : (
+            CAMPAIGN_CLOSED_LABEL
+          )}
         </span>
         <h1 className="t-h1">Your hires, across marketplaces</h1>
         <p className="t-lede">
           The hire track needs three different agents across at least two marketplaces. Pokter reads the hires made through BNB Chain&rsquo;s ERC-8183 escrow contracts, on mainnet and testnet, whichever marketplace made them. Marketplaces that settle through contracts of their own are not visible here, so a hire made that way will not appear.
         </p>
+        {/*
+         * The lookup stays up after the deadline: people check what they did.
+         * The escrow contract records a job's deadline, not when it was made,
+         * so a hire made after the cut-off cannot be told apart here, and the
+         * page must not let one read as counting. A page opened before the
+         * deadline carries the notice hidden, shown when it passes.
+         */}
+        {live ? (
+          <div data-campaign-closed>
+            <ClosedNotice />
+          </div>
+        ) : (
+          <ClosedNotice />
+        )}
         <form action="/quest" className="flex flex-col gap-2 pt-2 sm:flex-row" role="search">
           <label className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-[10px] border border-rule-strong bg-paper px-3 focus-within:border-ink">
             <span className="sr-only">Wallet address</span>

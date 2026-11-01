@@ -192,8 +192,18 @@
   --ease-out: var(--ease-out);
 }
 
-/* The campaign strip, once dismissed or past its deadline (set before first paint). */
-html[data-campaign-bar='hidden'] #campaign-bar {
+/*
+ * The campaign strip once dismissed, and the strip and every campaign-only
+ * block once the deadline has passed. Set before first paint by the boot
+ * script, and at the deadline itself by a page left open across it. A page
+ * rendered while the campaign was live carries its closed state too
+ * (`data-campaign-closed`), hidden until then. Both marks go on wrappers
+ * with no display class of their own, so hiding them overrides nothing.
+ */
+html[data-campaign-bar='hidden'] #campaign-bar,
+html[data-campaign='closed'] #campaign-bar,
+html[data-campaign='closed'] [data-campaign-live],
+html:not([data-campaign='closed']) [data-campaign-closed] {
   display: none;
 }
 

@@ -59,14 +59,30 @@ export function registeredInCampaign(createdAt: string | null | undefined): bool
  * single moment for everyone, and localising it would show each reader a
  * different hour for the same cut-off.
  */
-export const CAMPAIGN_END_LABEL = `Ends ${CAMPAIGN_ENDS_AT.toLocaleDateString(
-  'en-GB',
-  { day: 'numeric', month: 'short', timeZone: 'UTC' },
-)} · ${CAMPAIGN_ENDS_AT.toLocaleTimeString('en-GB', {
+const END_STAMP = `${CAMPAIGN_ENDS_AT.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })} · ${CAMPAIGN_ENDS_AT.toLocaleTimeString('en-GB', {
   hour: '2-digit',
   minute: '2-digit',
   timeZone: 'UTC',
 })} UTC`;
+
+export const CAMPAIGN_END_LABEL = `Ends ${END_STAMP}`;
+
+/** The deadline in a sentence: "5 November, 12:00 UTC". */
+export const CAMPAIGN_DEADLINE = `${CAMPAIGN_ENDS_AT.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', timeZone: 'UTC' })}, ${CAMPAIGN_ENDS_AT.toLocaleTimeString('en-GB', {
+  hour: '2-digit',
+  minute: '2-digit',
+  timeZone: 'UTC',
+})} UTC`;
+
+/** The same moment once it has passed, for the pages that stay up after it. */
+export const CAMPAIGN_CLOSED_LABEL = `Closed ${END_STAMP}`;
+
+/**
+ * When BNB Chain says it will name the winners: "after 13 November 2026".
+ * A day, not a moment, and only a lower bound, so it is never counted down
+ * to or shown as a date the results arrive.
+ */
+export const CAMPAIGN_RESULTS_AFTER = '13 November';
 
 /** Whether the campaign is still running. The boundary itself is still live. */
 export function isCampaignLive(now: Date = new Date()): boolean {
@@ -84,12 +100,18 @@ export function isCampaignLive(now: Date = new Date()): boolean {
 export const CAMPAIGN_RULES_URL =
   'https://www.bnbchain.org/en/hackathons/smart-money-era-set-and-earn';
 
-/** "12 days left", "1 day left", "5 hours left", or "Closed": the countdown beside the deadline. */
+/**
+ * "12 days left", "1 day left", "5 hours left", "1 hour left", "Under an hour
+ * left", or "Closed": the countdown beside the deadline. The last hour read
+ * "1 hours left", and kept saying so at the deadline itself.
+ */
 export function campaignTimeLeft(nowMs: number): string {
   const ms = CAMPAIGN_ENDS_AT.getTime() - nowMs;
   if (ms < 0) return 'Closed';
   const days = Math.floor(ms / 86_400_000);
   if (days >= 2) return `${days} days left`;
   if (days === 1) return '1 day left';
-  return `${Math.max(1, Math.floor(ms / 3_600_000))} hours left`;
+  const hours = Math.floor(ms / 3_600_000);
+  if (hours >= 2) return `${hours} hours left`;
+  return hours === 1 ? '1 hour left' : 'Under an hour left';
 }

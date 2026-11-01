@@ -4,8 +4,7 @@ import Link from 'next/link';
 
 import { guidePicks } from '@/lib/campaign/picks';
 import { relayRefusal } from '@/lib/erc8183/relay-refusal';
-import { CAMPAIGN_ENDS_AT, CAMPAIGN_RULES_URL, campaignTimeLeft, isCampaignLive } from '@/lib/campaign/window';
-import { cn } from '@/lib/ui/cn';
+import { CAMPAIGN_DEADLINE, CAMPAIGN_RESULTS_AFTER, CAMPAIGN_RULES_URL, campaignTimeLeft, isCampaignLive } from '@/lib/campaign/window';
 import { findRows } from '@/lib/find/rows';
 import { operatorResolver } from '@/lib/funding/operator';
 import { getFunderStore } from '@/lib/funding/store';
@@ -29,8 +28,6 @@ export const metadata: Metadata = {
     description: 'Register, hire three agents across two marketplaces, and build one of your own. The steps and the traps, in order.',
   }),
 };
-
-const deadline = `${CAMPAIGN_ENDS_AT.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', timeZone: 'UTC' })}, ${CAMPAIGN_ENDS_AT.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })} UTC`;
 
 /** One step of the guide, folded: the page leads with progress, and the detail is one click away. */
 function Step({ n, title, lead, children, open = false }: { n: number; title: string; lead: string; children: React.ReactNode; open?: boolean }) {
@@ -86,27 +83,57 @@ export default async function SetAndEarn() {
           <span className="t-label flex items-center gap-2">
             <span className="tile" aria-hidden /> BNB Chain · Set and Earn
           </span>
-          <span className={cn('inline-flex items-center gap-2 rounded-full px-3 py-1 text-[12.5px] font-medium', live ? 'bg-watch-wash text-watch' : 'bg-sunken text-ink-3')}>
-            <Icon.Clock size={13} aria-hidden /> {left}
-            {live && <span className="font-normal text-ink-3">· closes {deadline}</span>}
-          </span>
+          {live ? (
+            <>
+              <span data-campaign-live>
+                <span className="inline-flex items-center gap-2 rounded-full bg-watch-wash px-3 py-1 text-[12.5px] font-medium text-watch">
+                  <Icon.Clock size={13} aria-hidden /> {left}
+                  <span className="font-normal text-ink-3">· closes {CAMPAIGN_DEADLINE}</span>
+                </span>
+              </span>
+              <span data-campaign-closed>
+                <ClosedChip />
+              </span>
+            </>
+          ) : (
+            <ClosedChip />
+          )}
         </div>
         <div className="flex max-w-3xl flex-col gap-3">
           <h1 className="t-h1">Set and Earn, step by step</h1>
           <p className="t-lede">
             Two goals: <strong className="text-ink">hire three different agents on at least two marketplaces</strong>, and{' '}
-            <strong className="text-ink">build an agent of your own that others hire</strong>. Track both here, and get a reminder before time runs out.
+            <strong className="text-ink">build an agent of your own that others hire</strong>.{' '}
+            {live ? (
+              <>
+                <span data-campaign-live>Track both here, and get a reminder before time runs out.</span>
+                <span data-campaign-closed>The steps stay here for reference.</span>
+              </>
+            ) : (
+              'The steps stay here for reference.'
+            )}
           </p>
         </div>
       </header>
 
+      {/*
+       * A page opened before the deadline carries its closed state too,
+       * hidden until the page marks the campaign closed (`CampaignDeadline`),
+       * so a guide left open across the deadline stops offering a campaign
+       * that has ended. Rendered after the deadline, it has only the closed one.
+       */}
       {live ? (
-        <div className="mt-8">
-          <LazySetAndEarnPanel rulesUrl={CAMPAIGN_RULES_URL} />
-        </div>
+        <>
+          <div className="mt-8" data-campaign-live>
+            <LazySetAndEarnPanel rulesUrl={CAMPAIGN_RULES_URL} />
+          </div>
+          <div className="mt-8" data-campaign-closed>
+            <ClosedNotice />
+          </div>
+        </>
       ) : (
         <div className="mt-8">
-          <Notice title="Set and Earn has closed">Entries closed on {deadline}. BNB Chain announces who qualified.</Notice>
+          <ClosedNotice />
         </div>
       )}
 
@@ -246,6 +273,29 @@ export default async function SetAndEarn() {
         </section>
       </div>
     </div>
+  );
+}
+
+function ClosedChip() {
+  return (
+    <span className="inline-flex items-center gap-2 rounded-full bg-sunken px-3 py-1 text-[12.5px] font-medium text-ink-3">
+      <Icon.Clock size={13} aria-hidden /> Closed
+    </span>
+  );
+}
+
+function ClosedNotice() {
+  return (
+    <Notice
+      title="Set and Earn has closed"
+      action={
+        <Link href="/quest" className="inline-flex items-center gap-1 font-medium text-ink link">
+          Check a wallet&rsquo;s hires <Icon.Arrow size={14} />
+        </Link>
+      }
+    >
+      Entries closed on {CAMPAIGN_DEADLINE}. BNB Chain decides who qualified from its own data and announces winners after {CAMPAIGN_RESULTS_AFTER}.
+    </Notice>
   );
 }
 
