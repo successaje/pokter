@@ -23,7 +23,7 @@ import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { nonDefaultHireToken } from '@/lib/erc8183/hire-calls';
 import { displaySymbol, offeredTokens, type PaymentToken } from '@/lib/network/tokens';
 import { planCommission, type CommissionPlan } from '@/lib/hire/commission-plan';
-import { AttemptOwnershipLost, DeadlineNotRecorded, finishableJob, fundingCoordinator, promptMovesMoney, reconcileAttempt, type AttemptSession, type BeginInput, type FundingAttempt, type KeyValue, type LockManagerLike } from '@/lib/hire/funding-journal';
+import { AttemptOwnershipLost, DeadlineNotRecorded, finishableJob, fundingCoordinator, promptMovesMoney, reconcileAttempt, type AttemptSession, type BeginInput, type FundingAttempt, type KeyValue, type LockManagerLike, type UnreadableRecord } from '@/lib/hire/funding-journal';
 import { fundedJobRecord } from '@/lib/hire/funded-job';
 import { acknowledgeAttempt, acknowledgedAttempt, attemptUnchanged, fetchOpenAttempt, remoteAttempt, remoteDecision, type PublicAttempt } from '@/lib/hire/remote-attempt-client';
 import {
@@ -115,6 +115,10 @@ const journalKv: KeyValue = {
 const TAB_ID = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `tab-${Math.random().toString(36).slice(2)}`;
 const tabLocks: LockManagerLike | null = typeof navigator !== 'undefined' && 'locks' in navigator ? (navigator.locks as unknown as LockManagerLike) : null;
 const coordinator = fundingCoordinator(journalKv, tabLocks, TAB_ID);
+
+/** Why nothing is funded while a stored payment record cannot be read (`UnreadableRecord`). */
+const UNREADABLE_REFUSAL = 'This browser holds a record of an earlier payment from this wallet that Pokter cannot read, so it cannot tell whether that payment went through. Nothing was sent from this page, and nothing is until the chain shows how it ended.';
+const NO_ADDRESS = '0x0000000000000000000000000000000000000000';
 
 /** An attempt that ended without a definite answer; it is kept, pending, and the hire is not reported as failed. */
 class PendingFunding extends Error {
@@ -588,12 +592,47 @@ export function useHire({
    * picked up and checked against the chain before anything else is funded.
    */
   const journalWallet = active.address ?? wallet?.address ?? null;
+  /*
+   * Stored payment records for this wallet and network that cannot be read
+   * (`UnreadableRecord`). While any stands nothing is funded, and each is
+   * checked against the chain, on load and on request.
+   */
+  const [unreadable, setUnreadable] = useState<UnreadableRecord[]>([]);
+  const [unreadableNote, setUnreadableNote] = useState<string | null>(null);
+  const [checkingUnreadable, setCheckingUnreadable] = useState(false);
+  /* One check at a time in this tab, as for `recheckFunding`: two would find the lock held by each other and report another tab. */
+  const unreadableCheckInFlight = useRef(false);
+  async function checkUnreadable(owner: string | null = journalWallet) {
+    if (!owner) return;
+    const records = coordinator.unresolved(owner, escrowChainId);
+    setUnreadable(records);
+    if (records.length === 0 || unreadableCheckInFlight.current) return;
+    unreadableCheckInFlight.current = true;
+    setCheckingUnreadable(true);
+    try {
+      const notes: string[] = [];
+      for (const record of records) {
+        const reader = attemptReader(escrowChainId, owner as `0x${string}`, (record.salvage.provider ?? NO_ADDRESS) as `0x${string}`);
+        const outcome = await coordinator.resolveUnreadable(record, owner, escrowChainId, reader, await reader.chainNow());
+        if (outcome.outcome === 'resolved' || outcome.outcome === 'unresolved') notes.push(outcome.detail);
+        if (outcome.outcome === 'busy') notes.push('This wallet is funding in another tab or window; check again once it has finished.');
+      }
+      setUnreadable(coordinator.unresolved(owner, escrowChainId));
+      setUnreadableNote(notes.join(' '));
+    } catch {
+      setUnreadableNote('The chain could not be read just now. Nothing has changed; check again in a moment.');
+    } finally {
+      unreadableCheckInFlight.current = false;
+      setCheckingUnreadable(false);
+    }
+  }
   useEffect(() => {
     if (!journalWallet) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- adopting what storage holds, once per wallet and network
+    void checkUnreadable(journalWallet);
     /* Read only: this tab does not own it, and may not change it (another tab may be driving it now). */
     const open = coordinator.read(journalWallet, escrowChainId);
     if (!open) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- adopting what storage holds, once per wallet and network
     setPendingAttempt(open);
     void recheckFunding(open);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once per wallet and network
@@ -1227,6 +1266,10 @@ export function useHire({
           throw new PendingFunding(session.leavePending(), caught);
         }
       });
+      if (!result.ok && result.reason === 'unreadable-record') {
+        setUnreadable(result.records);
+        throw new HireFailure(UNREADABLE_REFUSAL, 'attempt', 'funding-unreadable');
+      }
       if (!result.ok && result.reason === 'already-funded') {
         throw new HireFailure(`This exact brief and signed quote already funded job ${result.jobId} from this wallet. Nothing was sent from this page; open that job, or ask for a fresh quote to hire again.`, 'attempt', 'already-funded');
       }
@@ -1250,6 +1293,11 @@ export function useHire({
        * against the chain instead of funding anything.
        */
       const walletAddress = active.address ?? wallet?.address ?? null;
+      const unreadableNow = walletAddress ? coordinator.unresolved(walletAddress, escrowChainId) : [];
+      if (unreadableNow.length > 0) {
+        setUnreadable(unreadableNow);
+        throw new HireFailure(UNREADABLE_REFUSAL, 'attempt', 'funding-unreadable');
+      }
       const open = walletAddress ? coordinator.read(walletAddress, escrowChainId) : null;
       if (open) {
         setPendingAttempt(open);
@@ -1970,6 +2018,11 @@ export function useHire({
     currencyMismatch: quotedCurrencyMismatch,
     currencyConfirmed,
     confirmQuotedCurrency: () => setCurrencyConfirmedFor(reviewQuote?.negotiationHash ?? null),
+    /** Stored payment records that cannot be read, which block funding until the chain resolves them, and what it said last. */
+    unreadable,
+    unreadableNote,
+    checkingUnreadable,
+    checkUnreadable: () => checkUnreadable(),
     /** An unresolved funding attempt from this wallet, and what the chain said about it last. */
     pendingAttempt,
     reconcileNote,

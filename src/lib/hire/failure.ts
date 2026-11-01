@@ -204,7 +204,7 @@ export class HireFailure extends Error {
  * brief used to match "reject" here and read as the buyer's own decision.
  */
 export function explainFailure(message: string, layer: FailureLayer | null = null, code: string | null = null): { title: string; body: string } {
-  if (layer === 'attempt') return { title: code === 'already-funded' ? 'This brief already funded a job' : 'Another hire from this wallet comes first', body: message };
+  if (layer === 'attempt') return { title: code === 'already-funded' ? 'This brief already funded a job' : code === 'funding-unreadable' ? 'An earlier payment record cannot be read' : 'Another hire from this wallet comes first', body: message };
   if (layer === 'wallet') return { title: 'You declined in the wallet', body: 'Nothing was sent and no funds moved. You can try again when ready.' };
   if (layer === 'input') return { title: 'The brief needs a change', body: message };
   if (layer === 'seller') return { title: 'The agent did not take this brief', body: message };
