@@ -6,6 +6,7 @@ import { cn } from '@/lib/ui/cn';
 import { avatarUrl } from '@/lib/ui/avatar-art';
 import { AvatarImage } from '@/ui/AvatarImage';
 import { Icon } from '@/ui/icons';
+import { NetworkTag } from '@/ui/Network';
 
 export interface RequestRowData extends Pick<BriefContent, 'title' | 'brief' | 'budgetU' | 'budgetRaw' | 'paymentToken' | 'chainId' | 'closesAt' | 'category'> {
   id: string;
@@ -35,7 +36,6 @@ const STATUS_TONE = {
 export function RequestRow({ request, now, preview = false }: { request: RequestRowData; now: number; preview?: boolean }) {
   const category = requestCategoryLabel(request.category);
   const status = requestStatus(request, now);
-  const testnet = request.chainId === 97;
   /* The state is the pill; the meta line keeps only the deadline, and only while it still matters. */
   const meta = [
     `${preview ? 'Posted just now' : `Posted ${ago(request.postedAt, now)}`}${request.posterIdentity ? ` by ${request.posterIdentity.name}` : ''}`,
@@ -80,12 +80,13 @@ export function RequestRow({ request, now, preview = false }: { request: Request
           ))}
         </span>
       </span>
-      <span className="mt-auto flex shrink-0 flex-row items-baseline justify-between gap-1 border-t border-rule pt-3 @lg:mt-0 @lg:flex-col @lg:items-end @lg:border-0 @lg:pt-0">
+      {/* The tag under the amount at every width, as on an agent card: in a row beside it, narrow cards put the same fact somewhere else. */}
+      <span className="mt-auto flex shrink-0 flex-col items-start gap-1 border-t border-rule pt-3 @lg:mt-0 @lg:items-end @lg:border-0 @lg:pt-0">
         <span className="hidden text-[11.5px] text-ink-3 @lg:block">Proposed budget</span>
         {/* No amount yet (the form's preview) is a dash in the chosen token, never a "$U" the request may not be in. */}
         <span className="t-readout text-[19px] text-ink">{request.budgetU > 0 ? requestAmountLabel(request, request.budgetU) : `— ${tokenSymbol(request)}`}</span>
-        {/* Test money never sits next to a real-looking number unmarked. */}
-        <span className={cn('text-[12px]', testnet ? 'font-medium text-watch' : 'text-ink-3')}>{testnet ? 'Testnet · test tokens' : 'BNB Chain'}</span>
+        {/* Test money never sits next to a real-looking number unmarked: the same Mainnet or Testnet tag as an agent card, under the amount. */}
+        <NetworkTag chainId={request.chainId} />
       </span>
     </>
   );
