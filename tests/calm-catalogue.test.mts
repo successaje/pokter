@@ -80,7 +80,8 @@ test('featured agents say testnet where a reader looks first, and not again unde
   const featured = card.slice(card.indexOf('export function FeaturedAgent'), card.indexOf('\n}\n', card.indexOf('export function FeaturedAgent')));
   assert.match(featured, /<NetworkTag chainId=\{row\.hireChainId\} \/>/);
   assert.match(featured, /<HiringLines row=\{row\} network=\{false\} \/>/);
-  assert.match(card, /'Testnet · test tokens'/);
+  // The network by name, Mainnet or Testnet; what the money is, in the tooltip (hire-networks.ts).
+  assert.match(card, /title=\{tag\.meaning\}/);
 });
 
 test('rankings and proof say what each of the three boards counts, and rankings names its networks', () => {

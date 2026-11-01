@@ -324,7 +324,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
                   <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                     {group.map((row) => (
                       <li key={row.key} className="flex min-w-0 flex-col">
-                        <AgentCard row={row} note={withNetworks(row)} deliveryMs={deliveryByKey.get(row.key) ?? null} compare={<CompareToggle agentKey={row.key} variant="checkbox" compact />} />
+                        <AgentCard row={row} note={withNetworks(row)} hireChainIds={row.hireChainIds} deliveryMs={deliveryByKey.get(row.key) ?? null} compare={<CompareToggle agentKey={row.key} variant="checkbox" compact />} />
                       </li>
                     ))}
                   </ul>
