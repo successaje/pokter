@@ -27,6 +27,12 @@ test('a card shows where its money settles as a coloured pill on its own line un
   assert.match(code('ui/Network.tsx'), /real \? 'bg-ok-wash text-ok' : 'bg-watch-wash text-watch'/);
   assert.match(card, /import \{ NetworkTag \} from '@\/ui\/Network';/);
   assert.match(code('features/briefs/RequestRow.tsx'), /<NetworkTag chainId=\{request\.chainId\} \/>/);
+  // A request's own page says it the same way: in its summary's Network row, and over the proposal form.
+  assert.match(code('app/(site)/requests/[id]/page.tsx'), /\['Network', <NetworkTag key="n" chainId=\{brief\.chainId\} \/>\]/);
+  assert.match(code('features/briefs/RequestDetail.tsx'), /<NetworkTag chainId=\{request\.chainId\} className="self-start" \/>/);
+  for (const file of ['features/briefs/RequestDetail.tsx', 'app/(site)/requests/[id]/page.tsx']) {
+    assert.doesNotMatch(code(file), /test tokens'|BNB Chain · real/, `${file} no longer spells the network out in money words`);
+  }
   // The price line holds the price and "per job" only; the tag follows it, one tag or two, never beside it.
   assert.match(card, /<PriceText row=\{row\} className="text-\[1\.45rem\][^"]*" \/>\n[^\n]*per job[^\n]*\n\s*<\/span>\n\s*<NetworkTag chainId=\{row\.hireChainId\} alsoHireOn=\{hireChainIds\} className="mt-2 self-start" \/>/);
 });
