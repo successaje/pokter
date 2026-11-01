@@ -21,10 +21,11 @@ test('home and Discover say when Pokter last checked an agent, beside the hireab
   assert.match(code('lib/history/last-check.ts'), /store\.recent\(1\)\[0\]\?\.probedAt/);
 });
 
-test('a card shows where its money settles as a coloured pill beside the price', () => {
+test('a card shows where its money settles as a coloured pill on its own line under the price', () => {
   const card = code('features/agents/AgentCard.tsx');
   assert.match(card, /real \? 'bg-ok-wash text-ok' : 'bg-watch-wash text-watch'/);
-  assert.match(card, /<PriceText row=\{row\} className="text-\[1\.45rem\][^"]*" \/>\n[^\n]*per job[^\n]*\n\s*<NetworkTag chainId=\{row\.hireChainId\} alsoHireOn=\{hireChainIds\} \/>/);
+  // The price line holds the price and "per job" only; the tag follows it, one tag or two, never beside it.
+  assert.match(card, /<PriceText row=\{row\} className="text-\[1\.45rem\][^"]*" \/>\n[^\n]*per job[^\n]*\n\s*<\/span>\n\s*<NetworkTag chainId=\{row\.hireChainId\} alsoHireOn=\{hireChainIds\} className="mt-2 self-start" \/>/);
 });
 
 test('Proof opens with what outside buyers got, its mainnet share, and the verifier beside it', () => {

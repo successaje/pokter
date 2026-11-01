@@ -75,13 +75,16 @@ test('a card names the registration network only when it differs from where the 
   assert.match(card, /row\.priceFresh \? 'Escrow quote' : 'Last signed escrow quote'/);
 });
 
-test('featured agents say testnet where a reader looks first, and not again under the price', () => {
+test('featured agents say where a hire settles under the price, as every card does, and not twice', () => {
   const card = code('features/agents/AgentCard.tsx');
   const featured = card.slice(card.indexOf('export function FeaturedAgent'), card.indexOf('\n}\n', card.indexOf('export function FeaturedAgent')));
-  assert.match(featured, /<NetworkTag chainId=\{row\.hireChainId\} \/>/);
+  assert.equal(featured.match(/<NetworkTag /g)?.length, 1, 'one tag per card');
+  assert.match(featured, /<PriceText row=\{row\} \/>\n[^\n]*\n\s*<NetworkTag chainId=\{row\.hireChainId\} alsoHireOn=\{hireChainIds\}/);
   assert.match(featured, /<HiringLines row=\{row\} network=\{false\} \/>/);
   // The network by name, Mainnet or Testnet; what the money is, in the tooltip (hire-networks.ts).
   assert.match(card, /title=\{tag\.meaning\}/);
+  // The home page passes each agent's networks across its registrations, as Discover does.
+  assert.match(code('app/(site)/page.tsx'), /<FeaturedAgent row=\{row\} hireChainIds=\{row\.hireChainIds\} \/>/);
 });
 
 test('rankings and proof say what each of the three boards counts, and rankings names its networks', () => {

@@ -179,7 +179,7 @@ export function HiringLines({ row, align, network = true }: { row: FindRow; alig
  * `alsoHireOn` is only ever networks where the agent has a verified price
  * of its own (Discover's `hireChainIds`), never a registration alone.
  */
-export function NetworkTag({ chainId, alsoHireOn = [] }: { chainId: number | null; alsoHireOn?: number[] }) {
+export function NetworkTag({ chainId, alsoHireOn = [], className }: { chainId: number | null; alsoHireOn?: number[]; className?: string }) {
   /* Nothing without a price on this card: a testnet tag beside no price would read as this card's price being in test tokens. */
   if (chainId === null) return null;
   const tags = hireNetworkTags([chainId, ...alsoHireOn]);
@@ -189,14 +189,14 @@ export function NetworkTag({ chainId, alsoHireOn = [] }: { chainId: number | nul
   if (tags.length === 1) {
     const [tag] = tags;
     return (
-      <span className={cn('inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11.5px] font-medium', tone(tag.real))} title={tag.meaning}>
+      <span className={cn('inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11.5px] font-medium', tone(tag.real), className)} title={tag.meaning}>
         {tag.label}
         <span className="sr-only">: {tag.meaning.toLowerCase()}</span>
       </span>
     );
   }
   return (
-    <span className="inline-flex shrink-0 items-stretch overflow-hidden rounded-full text-[11.5px] font-medium" title={tags.map((tag) => `${tag.label}: ${tag.meaning.toLowerCase()}`).join('. ')}>
+    <span className={cn('inline-flex shrink-0 items-stretch overflow-hidden rounded-full text-[11.5px] font-medium', className)} title={tags.map((tag) => `${tag.label}: ${tag.meaning.toLowerCase()}`).join('. ')}>
       {tags.map((tag, i) => (
         <span key={tag.chainId} className={cn('px-2 py-0.5', tone(tag.real), i > 0 && 'border-l border-paper/70')}>
           {tag.label}
@@ -445,16 +445,18 @@ export function AgentCard({
       <div aria-hidden className="min-h-4 flex-1" />
       <div className="relative z-10 flex items-end justify-between gap-3 border-t border-rule pt-4">
         {/*
-          Where the money settles, as a pill beside the price rather than a
-          third grey line under it: "Test tokens · BNB Testnet" was easy to
-          read past, and it is the fact a buyer most needs before the price.
+          Where the money settles, as a coloured pill rather than a grey
+          caption: "Test tokens · BNB Testnet" as a line of small text was
+          easy to read past, and it is the fact a buyer most needs with the
+          price. Always on its own line under the price: beside it, one tag
+          fitted and two wrapped, so the same fact sat in two places.
         */}
         <div className="flex min-w-0 flex-col">
           <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
             <PriceText row={row} className="text-[1.45rem] font-medium leading-none tracking-[-0.02em]" />
             {row.priceU !== null && <span className="-ml-1 text-[12.5px] text-ink-3">per job</span>}
-            <NetworkTag chainId={row.hireChainId} alsoHireOn={hireChainIds} />
           </span>
+          <NetworkTag chainId={row.hireChainId} alsoHireOn={hireChainIds} className="mt-2 self-start" />
           <span className="mt-1.5 flex flex-col gap-0.5">
             <HiringLines row={row} network={false} />
           </span>
@@ -547,16 +549,13 @@ export function AgentRow({ row, reason, trailing }: { row: FindRow; reason?: str
 }
 
 /** A larger, quieter card for curated placements on the home page. */
-export function FeaturedAgent({ row }: { row: FindRow }) {
+export function FeaturedAgent({ row, hireChainIds }: { row: FindRow; /** As on `AgentCard`: every network the agent can be hired on, when the caller grouped its registrations. */ hireChainIds?: number[] }) {
   const status = availabilityText(row);
   return (
     <article className="group relative flex h-full flex-col gap-4 rounded-[16px] border border-rule bg-raised p-6 transition-[border-color,box-shadow] duration-200 hover:border-rule-strong hover:shadow-lift">
       <div className="flex items-start justify-between gap-3">
         <AgentAvatar name={row.name} imageUrl={row.imageUrl} seed={row.key} size={48} status={answerState(row)} />
-        <span className="flex flex-col items-end gap-2 pt-1 text-right">
-          <span className="t-label">{row.categoryLabel}</span>
-          <NetworkTag chainId={row.hireChainId} />
-        </span>
+        <span className="pt-1 text-right t-label">{row.categoryLabel}</span>
       </div>
       <div className="flex flex-col gap-1.5">
         <h3 className="text-lg font-semibold tracking-[-0.015em]">
@@ -579,6 +578,8 @@ export function FeaturedAgent({ row }: { row: FindRow }) {
           <dt className="t-label">Price</dt>
           <dd className="flex flex-col gap-0.5">
             <PriceText row={row} />
+            {/* Under the price, as on every card. */}
+            <NetworkTag chainId={row.hireChainId} alsoHireOn={hireChainIds} className="my-1 self-start" />
             <HiringLines row={row} network={false} />
           </dd>
         </div>
