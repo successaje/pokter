@@ -192,8 +192,14 @@
   --ease-out: var(--ease-out);
 }
 
-/* The campaign strip, once dismissed or past its deadline (set before first paint). */
-html[data-campaign-bar='hidden'] #campaign-bar {
+/*
+ * The campaign strip once dismissed, and the strip and every campaign-only
+ * block once the deadline has passed. Set before first paint by the boot
+ * script, and at the deadline itself by a page left open across it.
+ */
+html[data-campaign-bar='hidden'] #campaign-bar,
+html[data-campaign='closed'] #campaign-bar,
+html[data-campaign='closed'] [data-campaign-live] {
   display: none;
 }
 

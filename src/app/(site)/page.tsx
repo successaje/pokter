@@ -654,7 +654,7 @@ export default async function HomePage() {
 
       {/* ───────────── Set and Earn, while it runs ───────────── */}
       {isCampaignLive() && (
-        <section className="frame pt-16 sm:pt-20" aria-labelledby="campaign-title">
+        <section className="frame pt-16 sm:pt-20" aria-labelledby="campaign-title" data-campaign-live>
           <div className="grid grid-cols-1 gap-8 rounded-[18px] border border-rule bg-signal-wash/60 p-6 sm:p-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:items-center">
             <div className="flex flex-col gap-3">
               <p className="t-label flex items-center gap-2">

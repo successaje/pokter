@@ -2,8 +2,12 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  CAMPAIGN_CLOSED_LABEL,
+  CAMPAIGN_DEADLINE,
   CAMPAIGN_END_LABEL,
   CAMPAIGN_ENDS_AT,
+  CAMPAIGN_RESULTS_AFTER,
+  campaignTimeLeft,
   isCampaignLive,
   registeredInCampaign,
 } from '../src/lib/campaign/window';
@@ -24,6 +28,32 @@ test('the campaign closes at its published moment, not before', () => {
 test('the label is derived from the timestamp and fixed to UTC', () => {
   // The exact wording the banners used to hardcode, so the swap is lossless.
   assert.equal(CAMPAIGN_END_LABEL, 'Ends 5 Nov · 12:00 UTC');
+  assert.equal(CAMPAIGN_CLOSED_LABEL, 'Closed 5 Nov · 12:00 UTC');
+  assert.equal(CAMPAIGN_DEADLINE, '5 November, 12:00 UTC');
+});
+
+/*
+ * The milliseconds either side of the deadline, where a countdown and a
+ * "live" check that disagree would show "Closed" on a page still taking
+ * part, or a countdown on a closed one.
+ */
+test('the countdown and the live check agree at every boundary', () => {
+  const end = CAMPAIGN_ENDS_AT.getTime();
+  const at = (ms: number) => ({ live: isCampaignLive(new Date(ms)), left: campaignTimeLeft(ms) });
+  assert.deepEqual(at(end - 2 * 86_400_000), { live: true, left: '2 days left' });
+  assert.deepEqual(at(end - 2 * 86_400_000 + 1), { live: true, left: '1 day left' });
+  assert.deepEqual(at(end - 86_400_000 + 1), { live: true, left: '23 hours left' });
+  assert.deepEqual(at(end - 2 * 3_600_000), { live: true, left: '2 hours left' });
+  assert.deepEqual(at(end - 2 * 3_600_000 + 1), { live: true, left: '1 hour left' });
+  assert.deepEqual(at(end - 3_600_000 + 1), { live: true, left: 'Under an hour left' });
+  assert.deepEqual(at(end - 1), { live: true, left: 'Under an hour left' });
+  assert.deepEqual(at(end), { live: true, left: 'Under an hour left' }, 'the deadline itself is still live');
+  assert.deepEqual(at(end + 1), { live: false, left: 'Closed' });
+});
+
+test('the results date is the rules\' lower bound, not a date the results arrive', () => {
+  // "Winners are announced after 13 November 2026."
+  assert.equal(CAMPAIGN_RESULTS_AFTER, '13 November');
 });
 
 /*

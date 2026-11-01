@@ -74,12 +74,14 @@ export const metadata: Metadata = {
 
 /*
  * Runs once, before first paint, on a full page load only. Two jobs:
- * hide the campaign strip if it was dismissed or the deadline has passed
- * (static pages can be older than the deadline), and mark which hash tab a
- * shared link points at so that tab paints first. The tab CSS is generated
+ * mark the campaign closed once its deadline has passed, which hides the
+ * strip and everything marked `data-campaign-live` (a page can be older
+ * than the deadline: cached, restored, or rendered before it), or hide just
+ * the strip if it was dismissed; and mark which hash tab a shared link
+ * points at so that tab paints first. The tab CSS is generated
  * per page for its own tab ids, so an unknown id here does nothing.
  */
-const BOOT = `(function(){var d=document.documentElement;try{if(Date.now()>${CAMPAIGN_ENDS_AT.getTime()}||localStorage.getItem(${JSON.stringify(CAMPAIGN_BAR_KEY)})==='hidden')d.dataset.campaignBar='hidden';}catch(e){}var h=location.hash.slice(1);if(/^[a-z][a-z0-9-]{0,31}$/.test(h))d.dataset.hashTab=h;})();`;
+const BOOT = `(function(){var d=document.documentElement;try{if(Date.now()>${CAMPAIGN_ENDS_AT.getTime()})d.dataset.campaign='closed';else if(localStorage.getItem(${JSON.stringify(CAMPAIGN_BAR_KEY)})==='hidden')d.dataset.campaignBar='hidden';}catch(e){}var h=location.hash.slice(1);if(/^[a-z][a-z0-9-]{0,31}$/.test(h))d.dataset.hashTab=h;})();`;
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   // Stamped from a cookie during SSR so the first byte has the right palette.
