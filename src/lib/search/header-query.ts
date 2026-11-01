@@ -1,4 +1,5 @@
 import { jobHref } from '@/lib/jobs/href';
+import { shortNetworkLabel } from '@/lib/network/presentation';
 import { NAME_MATCH, nameMatch } from './names';
 
 /**
@@ -58,8 +59,7 @@ export interface SuggestJob {
   agentName: string | null;
 }
 
-const NETWORK: Record<number, string> = { 56: 'BNB Chain', 97: 'BNB Testnet' };
-const network = (chainId: number) => NETWORK[chainId] ?? `chain ${chainId}`;
+const network = shortNetworkLabel;
 const agentHref = (a: { chainId: number; tokenId: string }) => `/agents/${a.chainId}/${a.tokenId}`;
 const discoverHref = (text: string) => `/discover?q=${encodeURIComponent(text)}`;
 const agentLabel = (a: SuggestAgent) => a.name.trim() || `Agent #${a.tokenId}`;

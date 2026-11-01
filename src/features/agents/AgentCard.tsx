@@ -2,7 +2,7 @@ import Link from 'next/link';
 
 import type { FindRow } from '@/lib/find/rows';
 import { hireNetworkTags } from '@/lib/network/hire-networks';
-import { chainLabel } from '@/lib/network/presentation';
+import { shortNetworkLabel } from '@/lib/network/presentation';
 import { cn } from '@/lib/ui/cn';
 import { formatDelivery } from '@/lib/ui/format';
 import { AgentAvatar, answerState } from '@/ui/Agent';
@@ -143,7 +143,7 @@ export function PriceText({ row, className }: { row: FindRow; className?: string
 export function RegisteredNetwork({ chainId, className }: { chainId: number; className?: string }) {
   return (
     <span className={cn('text-[11.5px] text-ink-3', className)}>
-      Registered on {chainLabel(chainId)}
+      Registered on {shortNetworkLabel(chainId).toLowerCase()}
     </span>
   );
 }

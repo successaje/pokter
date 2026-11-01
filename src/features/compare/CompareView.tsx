@@ -8,7 +8,7 @@ import { capabilityText } from '@/lib/capability/match';
 import { ago, checkReading, checkTone, custodyOf, declaredProtocols, distinctPercents, endpointReading } from '@/lib/compare/rows';
 import { formatQuotedPrice } from '@/lib/erc8183/pricing';
 import type { Comparison } from '@/lib/marketplace';
-import { chainLabel } from '@/lib/network/presentation';
+import { chainLabel, shortNetworkLabel } from '@/lib/network/presentation';
 import { AVAILABILITY_LABEL } from '@/lib/proof/engine';
 import { deliveryAdjustedVerdict } from '@/lib/search/match';
 import { cn } from '@/lib/ui/cn';
@@ -101,7 +101,7 @@ const ROWS: Row[] = [
   { label: 'Wallet activity', hint: 'Its agent wallet, read daily', value: (c) => activityRow(c.walletActivity, c.agent.agent_wallet, c.agent.chain_id), raw: (c) => activityRow(c.walletActivity, c.agent.agent_wallet, c.agent.chain_id) },
   { label: 'Protocols', hint: 'As declared, not verified', value: (c) => declaredProtocols(c.agent.services, c.agent.supported_protocols).join(' · ') || 'None declared', raw: (c) => declaredProtocols(c.agent.services, c.agent.supported_protocols).join(',') },
   { label: 'How you pay', value: () => 'Escrowed job, one payment, no wallet access', raw: () => 'escrow' },
-  { label: 'Identity', value: (c) => `ERC-8004 #${c.agent.token_id} · ${chainLabel(c.agent.chain_id)}`, raw: (c) => String(c.agent.chain_id) },
+  { label: 'Identity', value: (c) => `ERC-8004 #${c.agent.token_id} · ${shortNetworkLabel(c.agent.chain_id)}`, raw: (c) => String(c.agent.chain_id) },
 ];
 
 function capabilityRow(c: Comparison): string {

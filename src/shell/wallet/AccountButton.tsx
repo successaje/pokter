@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useCallback, useState } from 'react';
 
 import { campaignTimeLeft, isCampaignLive } from '@/lib/campaign/window';
-import { FAUCETS, IS_TESTNET, NATIVE_SYMBOL, NETWORK_LABEL, chainLabel } from '@/lib/network/presentation';
+import { FAUCETS, IS_TESTNET, NATIVE_SYMBOL, NETWORK_LABEL, chainLabel, shortNetworkLabel } from '@/lib/network/presentation';
 import { cn } from '@/lib/ui/cn';
 import { shortAddress } from '@/lib/ui/format';
 import { useDismissibleLayer } from '@/lib/ui/useDismissibleLayer';
@@ -225,7 +225,7 @@ export function AccountButton({ compact }: { compact?: boolean }) {
                             w.switching && 'opacity-60',
                           )}
                         >
-                          {chainLabel(id)}
+                          {shortNetworkLabel(id)}
                         </button>
                       );
                     })}

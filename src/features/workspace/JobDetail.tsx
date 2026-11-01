@@ -14,7 +14,7 @@ import { disputeSummary, reviewWindowSummary, settleOpensAt } from '@/lib/erc818
 import { readDisputeState, readReviewTiming } from '@/lib/wallet/external';
 import { releaseAvailable } from '@/lib/wallet/job-events';
 import { recordDerivedJobEvent } from '@/lib/wallet/notifications';
-import { chainLabel, explorerBaseFor } from '@/lib/network/presentation';
+import { explorerBaseFor, shortNetworkLabel } from '@/lib/network/presentation';
 import { supportMailto } from '@/lib/support/contact';
 import { cn } from '@/lib/ui/cn';
 import { formatElapsed } from '@/lib/ui/format';
@@ -257,7 +257,7 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
           <div className="flex flex-col gap-1.5">
             <h1 className="t-h2">{job.agentName}</h1>
             <p className="text-[13px] text-ink-3">
-              Job <span className="t-readout">#{job.jobId}</span> · {chainLabel(job.chainId)} · hired {utcWhen(job.hiredAt) ?? 'at an unrecorded time'}
+              Job <span className="t-readout">#{job.jobId}</span> · {shortNetworkLabel(job.chainId)} · hired {utcWhen(job.hiredAt) ?? 'at an unrecorded time'}
             </p>
             {/* The one date a delivered job turns on, beside its status rather than inside a paragraph further down. */}
             {dispute ? (

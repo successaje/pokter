@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { isAddress } from 'viem';
 
 import { CAMPAIGN_CLOSED_LABEL, CAMPAIGN_DEADLINE, CAMPAIGN_END_LABEL, CAMPAIGN_RESULTS_AFTER, CAMPAIGN_RULES_URL, isCampaignLive } from '@/lib/campaign/window';
-import { chainLabel } from '@/lib/network/presentation';
+import { shortNetworkLabel } from '@/lib/network/presentation';
 import { lookupQuest, type QuestLookup } from '@/lib/quest/lookup';
 import { POKTER_MARKETPLACE } from '@/lib/quest/progress';
 import type { CampaignCheck } from '@/lib/campaign/check-state';
@@ -93,7 +93,7 @@ function Result({ data }: { data: QuestLookup }) {
                     )}
                   </td>
                   <td className="px-4 py-3 text-ink-2">
-                    {chainLabel(h.chainId)} · <span className="t-readout">#{h.jobId}</span>
+                    {shortNetworkLabel(h.chainId)} · <span className="t-readout">#{h.jobId}</span>
                   </td>
                   <td className="px-4 py-3">{STATUS_LABEL[h.status] ?? h.status}</td>
                   <td className="px-4 py-3">{h.marketplace === POKTER_MARKETPLACE ? 'Pokter' : (h.marketplace ?? <span className="text-ink-3">Not recorded</span>)}</td>
@@ -109,7 +109,7 @@ function Result({ data }: { data: QuestLookup }) {
         Read from BNB Chain&rsquo;s ERC-8183 escrow contracts on mainnet and testnet. Hires settled through a marketplace&rsquo;s own contract are not included. A hire counts once its escrow is funded. The contract records a job&rsquo;s deadline, not when it was made, so jobs with a deadline after 1 October are shown. Indexed through job{' '}
         {data.coverage.map((c, i) => (
           <span key={c.chainId}>
-            {i > 0 ? ' and ' : ''}#{c.throughJob} on {chainLabel(c.chainId)}
+            {i > 0 ? ' and ' : ''}#{c.throughJob} on {shortNetworkLabel(c.chainId).toLowerCase()}
           </span>
         ))}
         ; newer hires appear within about two hours. Registration with BNB Chain is not visible here, and BNB Chain alone decides eligibility from its own data.

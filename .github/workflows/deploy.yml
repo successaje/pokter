@@ -215,7 +215,7 @@ jobs:
             [ "$code" = "404" ] || { echo "::error::Mainnet job lookup returned ${code}, expected 404 for a non-Pokter job"; exit 1; }
 
             # A mainnet-priced agent with a way to deliver on testnet offers both ways
-            # to hire: the network switch on its hire page holds a BNB Chain and a
+            # to hire: the network switch on its hire page holds a Mainnet and a
             # Testnet option. Brinkwatch, Pokter's own agent, delivers on testnet from
             # its own testnet registration (56/374107 -> 97/2618). An agent that only
             # answers a relayed brief with a price is correctly offered mainnet alone,
@@ -224,7 +224,7 @@ jobs:
             # Matched on the switch's markup, not on prose, so a copy change cannot fail a release.
             hire=$(get https://pokter.xyz/hire/56/374107 90)
             echo "$hire" | grep -q 'aria-label="Network"' \
-              && echo "$hire" | grep -qE 'role="radio"[^>]*>BNB Chain<' \
+              && echo "$hire" | grep -qE 'role="radio"[^>]*>Mainnet<' \
               && echo "$hire" | grep -qE 'role="radio"[^>]*>Testnet<' \
               || { echo '::error::A mainnet-priced agent no longer offers both mainnet and the free testnet hire'; exit 1; }
           fi

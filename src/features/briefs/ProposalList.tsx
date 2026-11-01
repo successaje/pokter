@@ -4,6 +4,7 @@ import { requestAmountLabel, requestTokenOf } from '@/lib/briefs/model';
 import { belowSignedPrice } from '@/lib/briefs/price-floor';
 import { aboveBudget } from '@/lib/briefs/proposal-price';
 import { formatQuotedPrice } from '@/lib/erc8183/pricing';
+import { shortNetworkLabel } from '@/lib/network/presentation';
 import { formatAmount } from '@/lib/network/tokens';
 import { VERDICT_LABEL } from '@/lib/proof/engine';
 import { jobHref } from '@/lib/jobs/href';
@@ -90,7 +91,7 @@ export function ProposalList({
                   </Link>
                   <span className="text-[12px] text-ink-3">
                     {row && row.category !== 'unclassified' ? `${row.categoryLabel} · ` : ''}
-                    {bid.agentChainId === 56 ? 'BNB Chain' : 'Testnet'} #{bid.agentTokenId}
+                    {shortNetworkLabel(bid.agentChainId)} #{bid.agentTokenId}
                   </span>
                 </div>
                 {chosen && (

@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { loadEvaluationChallenge } from '@/lib/evaluators/challenge-server';
-import { chainLabel } from '@/lib/network/presentation';
+import { shortNetworkLabel } from '@/lib/network/presentation';
 import { challengeScheduleText } from '@/lib/evaluators/challenge';
 import { AgentAvatar } from '@/ui/Agent';
 import { CopyButton } from '@/ui/Data';
@@ -59,7 +59,7 @@ export default async function EvaluationChallengePage() {
                   <AgentAvatar name={entry.name} imageUrl={entry.imageUrl} seed={entry.key} size={44} />
                   <div className="min-w-0">
                     <Link href={`/agents/${entry.chainId}/${entry.tokenId}`} className="font-medium text-ink hover:underline">{entry.name}</Link>
-                    <p className="mt-0.5 text-[12px] text-ink-3">{chainLabel(entry.chainId)} · #{entry.tokenId} · {entry.category}</p>
+                    <p className="mt-0.5 text-[12px] text-ink-3">{shortNetworkLabel(entry.chainId)} · #{entry.tokenId} · {entry.category}</p>
                   </div>
                 </div>
                 <div className="rounded-full border border-watch/30 bg-watch-wash px-3 py-1 text-[12px] font-medium text-ink">

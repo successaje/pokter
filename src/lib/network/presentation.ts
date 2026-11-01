@@ -154,6 +154,19 @@ export function chainLabel(chainId: number): string {
 }
 
 /**
+ * A network as a short label: beside an agent's, a job's or a request's
+ * number, and on every network switch, as the cards' Mainnet and Testnet
+ * tags say it. Every network here is BNB Chain's, so a label naming the
+ * chain told nobody which one. Sentences, payment steps and wallet prompts
+ * keep the chain's own name (`chainLabel`): it is what a wallet shows.
+ */
+export function shortNetworkLabel(chainId: number): string {
+  if (chainId === 56) return 'Mainnet';
+  if (chainId === 97) return 'Testnet';
+  return `chain ${chainId}`;
+}
+
+/**
  * What the payment token is worth.
  *
  * `NATIVE_SYMBOL` already tells the truth by becoming tBNB on testnet, but

@@ -8,7 +8,7 @@ import { notFound, redirect } from 'next/navigation';
 import { Suspense, type ReactNode } from 'react';
 import { getServiceStore } from '@/lib/services/store';
 
-import { CHAIN_ID, chainLabel, explorerBaseFor } from '@/lib/network/presentation';
+import { CHAIN_ID, chainLabel, explorerBaseFor, shortNetworkLabel } from '@/lib/network/presentation';
 import { cn } from '@/lib/ui/cn';
 import { formatDelivery, formatMs, shortAddress } from '@/lib/ui/format';
 import type { ChainId } from '@/lib/scan/types';
@@ -607,7 +607,7 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                   </span>
                   <span aria-hidden>·</span>
                   <span>
-                    ERC-8004 <span className="t-readout">#{p.tokenId}</span> on {chainLabel(p.chainId)}
+                    ERC-8004 <span className="t-readout">#{p.tokenId}</span> on {shortNetworkLabel(p.chainId).toLowerCase()}
                   </span>
                 </p>
                 <div className="mt-1 flex flex-wrap items-center gap-2">
@@ -1076,7 +1076,7 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                             {job.byOperator && <span className="text-[11.5px] text-watch">Pokter&rsquo;s wallet delivered this</span>}
                           </span>
                           <span className="text-[11.5px] text-ink-3">
-                            {new Date(job.hiredAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })} · {chainLabel(job.chainId)}
+                            {new Date(job.hiredAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })} · {shortNetworkLabel(job.chainId)}
                           </span>
                         </span>
                         <span className="flex shrink-0 flex-col items-end gap-1">

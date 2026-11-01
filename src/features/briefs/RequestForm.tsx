@@ -8,7 +8,7 @@ import { useAccount } from 'wagmi';
 import { amountWithinLimits, budgetLimitsFor } from '@/lib/hire/budget-limits';
 import { amountToRaw, briefMessage, listProblem, REQUEST_CATEGORIES, type BriefContent } from '@/lib/briefs/model';
 import { CLOSING_OPTIONS, DELIVERY_OPTIONS, type RequestDraft as Draft } from '@/lib/briefs/request-draft';
-import { escrowMoney } from '@/lib/network/presentation';
+import { escrowMoney, shortNetworkLabel } from '@/lib/network/presentation';
 import { defaultHireToken, displaySymbol, hireTokenAt, offeredTokens, tokenIdentity, tokenName, type PaymentToken } from '@/lib/network/tokens';
 import { cn } from '@/lib/ui/cn';
 import { useActiveSigner } from '@/lib/wallet/use-active-signer';
@@ -489,7 +489,7 @@ function NetworkChoice({ networks, value, onChange }: { networks: number[]; valu
   if (ordered.length === 1) {
     return (
       <span className="inline-flex h-11 items-center gap-2 rounded-[9px] border border-rule bg-sunken px-3 text-[13.5px] font-medium text-ink-2">
-        <BnbMark size={16} /> {ordered[0] === 56 ? 'BNB Chain' : 'Testnet'}
+        <BnbMark size={16} /> {shortNetworkLabel(ordered[0])}
       </span>
     );
   }
@@ -510,7 +510,7 @@ function NetworkChoice({ networks, value, onChange }: { networks: number[]; valu
             )}
           >
             {chainId === 56 && <BnbMark size={15} />}
-            {chainId === 56 ? 'BNB Chain' : 'Testnet'}
+            {shortNetworkLabel(chainId)}
           </button>
         );
       })}

@@ -4,7 +4,7 @@ import { cn } from '@/lib/ui/cn';
 import { discoverHref, type DiscoverParams } from './params';
 import { FiltersButton, PillRow } from './DiscoverControls';
 import type { FilterCounts } from './search';
-import { chainLabel } from '@/lib/network/presentation';
+import { shortNetworkLabel } from '@/lib/network/presentation';
 import { Icon } from '@/ui/icons';
 import { CHECK_FRESH_DAYS } from '@/lib/assay/standing';
 import type { Category } from '@/lib/agents/categories';
@@ -158,7 +158,7 @@ export function activeFilterChips(p: DiscoverParams): Array<{ label: string; hre
   return [
     p.evidence === 'measured' && { label: 'Measured by Pokter', href: discoverHref({ evidence: 'any' }, p) },
     p.evidence === 'corroborated' && { label: 'Has published attestations', href: discoverHref({ evidence: 'any' }, p) },
-    p.chain !== 'any' && { label: `Registered on ${chainLabel(Number(p.chain))}`, href: discoverHref({ chain: 'any' }, p) },
+    p.chain !== 'any' && { label: `Registered on ${shortNetworkLabel(Number(p.chain)).toLowerCase()}`, href: discoverHref({ chain: 'any' }, p) },
   ].filter((chip): chip is { label: string; href: string } => Boolean(chip));
 }
 
