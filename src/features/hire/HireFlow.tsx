@@ -375,7 +375,7 @@ export function HireFlow(props: HireFlowProps) {
       })
     : null;
   /* What the fund button needs; "continue" past another hire's warning funds only when the button itself could. */
-  const canFund = confirmed && hire.riskAccepted && !budgetError && !hire.fundBlock && Boolean(pay) && !hire.pendingAttempt;
+  const canFund = confirmed && hire.riskAccepted && !budgetError && !hire.fundBlock && Boolean(pay) && !hire.pendingAttempt && hire.unreadable.length === 0;
   const [continuing, setContinuing] = useState(false);
   const continuePastRemote = async () => {
     setContinuing(true);
@@ -567,6 +567,8 @@ export function HireFlow(props: HireFlowProps) {
     <Shell agent={props.agent} step={step} testnet={testnet} embedded={props.embedded}>
       <ConversionBeacon event="hire_opened" chainId={props.agent.chainId} tokenId={props.agent.tokenId} escrowChainId={escrowChainId} />
       {/* On every step: an unresolved attempt blocks funding wherever the buyer is. */}
+      {hire.unreadable.length > 0 && <UnreadableRecordNotice hire={hire} />}
+      {hire.unreadable.length === 0 && hire.unreadableNote && <Notice tone="ok" className="mb-6" title="The earlier payment record is resolved">{hire.unreadableNote} The record is kept in this browser.</Notice>}
           {hire.pendingAttempt && (
         <Notice
           tone="watch"
@@ -1569,6 +1571,44 @@ function Shell({ agent, step, testnet, embedded = false, children }: { agent: Hi
         </main>
       </div>
     </div>
+  );
+}
+
+/**
+ * A stored payment record this browser cannot read (`UnreadableRecord`).
+ *
+ * It may stand for a payment that went through, so it blocks funding from
+ * this wallet here until the chain shows none can still happen. The buyer
+ * is told what it is, what Pokter checked, and can copy it exactly as
+ * stored, for support or their own records. There is no way to discard it
+ * from here: a record that cannot be read cannot be shown to be harmless.
+ */
+function UnreadableRecordNotice({ hire }: { hire: ReturnType<typeof useHire> }) {
+  const [copied, setCopied] = useState(false);
+  const record = hire.unreadable[0];
+  return (
+    <Notice
+      tone="watch"
+      className="mb-6"
+      title="An earlier payment record on this browser cannot be read"
+      action={
+        <div className="flex flex-wrap gap-2">
+          <Button size="s" busy={hire.checkingUnreadable} onClick={() => void hire.checkUnreadable()}>Check the chain again</Button>
+          <Button
+            size="s"
+            intent="secondary"
+            onClick={() => {
+              void navigator.clipboard?.writeText(hire.unreadable.map((r) => r.raw).join('\n')).then(() => setCopied(true), () => setCopied(false));
+            }}
+          >
+            {copied ? 'Copied' : 'Copy the record'}
+          </Button>
+        </div>
+      }
+    >
+      This browser keeps a record of each payment from a wallet until the chain shows how it ended. {record.problem} Pokter cannot tell whether that payment went through, so nothing is funded from this wallet here until the chain shows that no payment from it can still happen. Nothing has been sent.
+      {hire.unreadableNote && <span className="mt-1.5 block text-ink">{hire.unreadableNote}</span>}
+    </Notice>
   );
 }
 

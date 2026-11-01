@@ -112,7 +112,7 @@ test('the hire page renders the payment and success screens from the plan and th
   assert.match(flow, /\{pay\?\.buttonLabel/);
   assert.match(flow, /\{jobAmountLabel\(job\)\} is in escrow/);
   assert.ok(!flow.includes('formatUnits(BigInt(job.budgetRaw), 18)} $U'), 'the success screen reads the job’s own token');
-  assert.match(flow, /const canFund = [^\n]*&& !hire\.pendingAttempt;/, 'funding is blocked while an attempt is pending');
+  assert.match(flow, /const canFund = [^\n]*&& !hire\.pendingAttempt && hire\.unreadable\.length === 0;/, 'funding is blocked while an attempt is pending, or a stored record cannot be read');
   assert.match(flow, /disabled=\{!canFund\}/);
 });
 

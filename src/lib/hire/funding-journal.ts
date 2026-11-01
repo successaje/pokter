@@ -125,7 +125,47 @@ export type RunResult<T> =
   | { ok: true; value: T }
   | { ok: false; reason: 'in-progress-elsewhere' }
   | { ok: false; reason: 'open-attempt'; blocking: FundingAttempt }
-  | { ok: false; reason: 'already-funded'; jobId: string };
+  | { ok: false; reason: 'already-funded'; jobId: string }
+  | { ok: false; reason: 'unreadable-record'; records: UnreadableRecord[] };
+
+/**
+ * A stored funding record this browser cannot read as one: not JSON, or a
+ * field the journal relies on missing or of the wrong type.
+ *
+ * It used to read as "nothing recorded". An attempt record that failed to
+ * parse let the next hire begin and write over it, and a funded list that
+ * failed to parse let the same signed quote be paid again. A record that
+ * cannot be read is evidence of a payment that may have happened, so it is
+ * kept exactly as stored, nothing new is funded from the wallet on that
+ * chain while it stands, and it is set aside only when the chain proves no
+ * payment from it can still happen (`resolveUnreadable`).
+ */
+export interface UnreadableRecord {
+  kind: 'attempt' | 'funded-list';
+  key: string;
+  raw: string;
+  /** What is wrong with it, in words a buyer can be shown. */
+  problem: string;
+  /**
+   * The parts that still stand on their own, used only to find a job on
+   * chain that proves itself: never to pay, resume, or date anything. A
+   * deadline written in the record is not salvaged: only the chain's own
+   * deadline for a job bound to the record counts.
+   */
+  salvage: { jobId: string | null; predictedJobId: string | null; txHashes: string[]; provider: string | null; description: string | null; listEntries: Array<{ hash: string | null; jobId: string | null }> };
+}
+
+/** What checking an unreadable record against the chain found. A resolved record is moved aside, never deleted. */
+export type UnreadableResolution =
+  | { outcome: 'resolved'; rule: 'job-funded' | 'job-expired' | 'list-rebuilt'; jobId: string | null; detail: string }
+  | { outcome: 'unresolved'; detail: string }
+  | { outcome: 'busy' }
+  | { outcome: 'stale' };
+
+/** A resolution with what the journal writes for it: the paid quote's guard, rebuilt from the chain. */
+type Judged =
+  | (Extract<UnreadableResolution, { outcome: 'resolved' }> & { paid?: { description: string; jobId: string; until: number | null }; rebuilt?: FundedEntry[] })
+  | Extract<UnreadableResolution, { outcome: 'unresolved' }>;
 
 /**
  * A batch's id from what `wallet_sendCalls` returned.
@@ -144,22 +184,103 @@ export function batchId(value: unknown): string | null {
   return null;
 }
 
+const PROMPTS: ReadonlySet<string> = new Set<PromptStep>(['swapping', 'creating', 'registering', 'budgeting', 'approving', 'funding', 'batch']);
+const isStr = (v: unknown): v is string => typeof v === 'string';
+const digits = (v: unknown): v is string => isStr(v) && /^\d+$/.test(v);
+const isSeconds = (v: unknown): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v > 0;
+const isTxHash = (v: unknown): v is string => isStr(v) && /^0x[0-9a-fA-F]{64}$/.test(v);
+const isAddress = (v: unknown): v is string => isStr(v) && /^0x[0-9a-fA-F]{40}$/.test(v);
+
+/**
+ * A stored attempt as the journal relies on it, or what is wrong with it.
+ *
+ * Two repairs are kept from before, both for a known bug: a batch id stored
+ * as the wallet's whole answer (`batchId`). Everything else must be what the
+ * journal wrote. A record that names another wallet or chain than its key,
+ * a prompt the journal does not know, or a deadline that is not a number of
+ * seconds is unreadable, not repaired: each of those decides whether a
+ * payment can still follow, and a guess there is a guess about money.
+ */
+export function readAttemptRecord(stored: unknown, wallet: string, chainId: number): FundingAttempt | string {
+  if (!stored || typeof stored !== 'object' || Array.isArray(stored)) return 'The record is not an attempt.';
+  const r = stored as Record<string, unknown>;
+  if (!isStr(r.attemptId) || !r.attemptId) return 'The record has no attempt id.';
+  if (!isStr(r.wallet) || r.wallet.toLowerCase() !== wallet.toLowerCase()) return 'The record names a different wallet, or none.';
+  if (r.chainId !== chainId) return 'The record names a different network, or none.';
+  if (!isAddress(r.provider)) return 'The record has no readable payee.';
+  if (!isStr(r.description) || !isStr(r.task) || !isStr(r.token)) return 'The record has no readable brief or quote.';
+  if (!digits(r.amountRaw)) return 'The record has no readable amount.';
+  const agent = r.agent as Record<string, unknown> | null | undefined;
+  if (!agent || typeof agent !== 'object' || typeof agent.chainId !== 'number' || !isStr(agent.tokenId) || !isStr(agent.name)) return 'The record has no readable agent.';
+  if (!(r.fundableUntil === null || isSeconds(r.fundableUntil))) return 'The record’s deadline is not readable.';
+  if (!(r.prompt === null || (isStr(r.prompt) && PROMPTS.has(r.prompt)))) return 'The record does not say which wallet request was last made.';
+  if (r.state !== 'sending' && r.state !== 'pending') return 'The record’s state is not readable.';
+  if (!isStr(r.startedAt) || !isStr(r.updatedAt) || !isStr(r.ownerTab)) return 'The record’s times are not readable.';
+  if (!(r.predictedJobId === null || digits(r.predictedJobId)) || !(r.jobId === null || digits(r.jobId))) return 'The record’s job number is not readable.';
+  if (!Array.isArray(r.txHashes) || !r.txHashes.every(isStr)) return 'The record’s transactions are not readable.';
+  if (!(r.remotePublicId === undefined || r.remotePublicId === null || isStr(r.remotePublicId))) return 'The record’s cross-device id is not readable.';
+  return { ...(r as unknown as FundingAttempt), callsId: batchId(r.callsId) };
+}
+
+type FundedEntry = { hash: string; jobId: string; until: number | null };
+/** How many lists may stand beside an unreadable one before the journal refuses to record a payment anywhere. */
+const MAX_BESIDE = 8;
+const isFundedEntry = (e: unknown): e is FundedEntry =>
+  Boolean(e) && typeof e === 'object' && isStr((e as FundedEntry).hash) && isStr((e as FundedEntry).jobId) && ((e as FundedEntry).until === null || isSeconds((e as FundedEntry).until));
+
+/** The parts of an unreadable record that stand on their own, each checked by type. */
+function salvageOf(raw: string): UnreadableRecord['salvage'] {
+  const empty: UnreadableRecord['salvage'] = { jobId: null, predictedJobId: null, txHashes: [], provider: null, description: null, listEntries: [] };
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return empty;
+  }
+  if (Array.isArray(parsed)) {
+    return {
+      ...empty,
+      listEntries: parsed.map((e) => {
+        const entry = (e && typeof e === 'object' ? e : {}) as Partial<Record<keyof FundedEntry, unknown>>;
+        return { hash: isStr(entry.hash) && entry.hash ? entry.hash : null, jobId: digits(entry.jobId) ? entry.jobId : null };
+      }),
+    };
+  }
+  if (!parsed || typeof parsed !== 'object') return empty;
+  const r = parsed as Record<string, unknown>;
+  return {
+    ...empty,
+    jobId: digits(r.jobId) ? r.jobId : null,
+    predictedJobId: digits(r.predictedJobId) ? r.predictedJobId : null,
+    txHashes: Array.isArray(r.txHashes) ? r.txHashes.filter(isTxHash) : [],
+    provider: isAddress(r.provider) ? r.provider : null,
+    description: isStr(r.description) && r.description ? r.description : null,
+  };
+}
+
 export function fundingCoordinator(kv: KeyValue, locks: LockManagerLike | null, tabId: string, now: () => Date = () => new Date()) {
   /*
-   * Read through `batchId`, so a record stored with the whole answer as its
-   * batch id is repaired on read: the page renders, and the attempt can be
-   * settled against the wallet and the chain like any other.
+   * Read through `readAttemptRecord`, so a record stored with the whole
+   * answer as its batch id is repaired on read: the page renders, and the
+   * attempt can be settled against the wallet and the chain like any other.
+   * A record that cannot be read is not an attempt here, and not "nothing"
+   * either: `unresolved` reports it, and `run` refuses while it stands.
    */
-  const read = (wallet: string, chainId: number): FundingAttempt | null => {
+  const inspectAttempt = (wallet: string, chainId: number): { attempt: FundingAttempt | null; unreadable: UnreadableRecord | null } => {
+    const key = storageKey(wallet, chainId);
+    const raw = kv.getItem(key);
+    if (raw === null) return { attempt: null, unreadable: null };
+    let parsed: unknown;
     try {
-      const raw = kv.getItem(storageKey(wallet, chainId));
-      if (!raw) return null;
-      const stored = JSON.parse(raw) as FundingAttempt;
-      return { ...stored, callsId: batchId(stored.callsId), txHashes: Array.isArray(stored.txHashes) ? stored.txHashes.filter((h) => typeof h === 'string') : [] };
+      parsed = JSON.parse(raw);
     } catch {
-      return null;
+      return { attempt: null, unreadable: { kind: 'attempt', key, raw, problem: 'The record is not readable data.', salvage: salvageOf(raw) } };
     }
+    const attempt = readAttemptRecord(parsed, wallet, chainId);
+    if (typeof attempt === 'string') return { attempt: null, unreadable: { kind: 'attempt', key, raw, problem: attempt, salvage: salvageOf(raw) } };
+    return { attempt, unreadable: null };
   };
+  const read = (wallet: string, chainId: number): FundingAttempt | null => inspectAttempt(wallet, chainId).attempt;
   const write = (attempt: FundingAttempt) => kv.setItem(storageKey(attempt.wallet, attempt.chainId), JSON.stringify(attempt));
   /*
    * Every job this wallet funded through an attempt, by the attempt's exact
@@ -168,22 +289,66 @@ export function fundingCoordinator(kv: KeyValue, locks: LockManagerLike | null, 
    * after its record closed (a wrong-amount job included).
    */
   const fundedKey = (wallet: string, chainId: number) => `pokter:funded-attempts:${chainId}:${wallet.toLowerCase()}`;
-  const fundedList = (wallet: string, chainId: number): Array<{ hash: string; jobId: string; until: number | null }> => {
+  /*
+   * Where paid quotes go while the list before them cannot be read: the
+   * next list along, so an unreadable list is never written over. Each is
+   * read and checked the same way, and every one of them is checked before
+   * any payment; one that cannot be read blocks like the first.
+   */
+  const besideKey = (wallet: string, chainId: number, n: number) => `${fundedKey(wallet, chainId)}:beside-unreadable${n === 1 ? '' : `:${n}`}`;
+  const parseFunded = (raw: string | null): FundedEntry[] | null => {
+    if (raw === null) return [];
     try {
-      const raw = kv.getItem(fundedKey(wallet, chainId));
-      return raw ? (JSON.parse(raw) as Array<{ hash: string; jobId: string; until: number | null }>) : [];
+      const parsed: unknown = JSON.parse(raw);
+      return Array.isArray(parsed) && parsed.every(isFundedEntry) ? parsed : null;
     } catch {
-      return [];
+      return null;
     }
+  };
+  /** The main list and every list beside it, in order, up to the first that does not exist. */
+  const paymentLists = (wallet: string, chainId: number) => {
+    const lists = [{ key: fundedKey(wallet, chainId), raw: kv.getItem(fundedKey(wallet, chainId)) }];
+    for (let n = 1; n <= MAX_BESIDE; n++) {
+      const raw = kv.getItem(besideKey(wallet, chainId, n));
+      if (raw === null) break;
+      lists.push({ key: besideKey(wallet, chainId, n), raw });
+    }
+    return lists.map((list) => ({ ...list, entries: parseFunded(list.raw) }));
+  };
+  const inspectFunded = (wallet: string, chainId: number): { entries: FundedEntry[]; unreadable: UnreadableRecord[] } => {
+    const lists = paymentLists(wallet, chainId);
+    return {
+      entries: lists.flatMap((list) => list.entries ?? []),
+      unreadable: lists
+        .filter((list) => list.entries === null)
+        .map((list) => ({ kind: 'funded-list' as const, key: list.key, raw: list.raw!, problem: 'A list of quotes this wallet has paid is not readable.', salvage: salvageOf(list.raw!) })),
+    };
   };
   const rememberFunded = (attempt: Pick<FundingAttempt, 'wallet' | 'chainId' | 'description' | 'fundableUntil'>, jobId: string) => {
     const nowSeconds = Math.floor(now().getTime() / 1000);
-    /* Kept while the quote's job could still be created or funded; never more than 50 entries. */
-    const kept = fundedList(attempt.wallet, attempt.chainId).filter((e) => e.until === null || e.until > nowSeconds).slice(-49);
-    kv.setItem(fundedKey(attempt.wallet, attempt.chainId), JSON.stringify([...kept, { hash: descriptionHash(attempt.description), jobId, until: attempt.fundableUntil }]));
+    const entry = { hash: descriptionHash(attempt.description), jobId, until: attempt.fundableUntil };
+    const own = parseFunded(kv.getItem(fundedKey(attempt.wallet, attempt.chainId)));
+    if (own !== null) {
+      /* Kept while the quote's job could still be created or funded; never more than 50 entries. */
+      const kept = own.filter((e) => e.until === null || e.until > nowSeconds).slice(-49);
+      kv.setItem(fundedKey(attempt.wallet, attempt.chainId), JSON.stringify([...kept, entry]));
+      return;
+    }
+    for (let n = 1; n <= MAX_BESIDE; n++) {
+      const key = besideKey(attempt.wallet, attempt.chainId, n);
+      const beside = parseFunded(kv.getItem(key));
+      if (beside === null) continue;
+      kv.setItem(key, JSON.stringify([...beside, entry]));
+      return;
+    }
+    /* Nowhere readable to write it: the attempt that paid stays recorded, and keeps blocking, rather than lose its guard. */
+    throw new Error('PAYMENT_LISTS_UNREADABLE');
   };
   const alreadyFunded = (wallet: string, chainId: number, description: string) =>
-    fundedList(wallet, chainId).find((e) => e.hash === descriptionHash(description)) ?? null;
+    inspectFunded(wallet, chainId).entries.find((e) => e.hash === descriptionHash(description)) ?? null;
+  /** Every record for this wallet and chain that cannot be read. While any stands, nothing is funded. */
+  const unresolved = (wallet: string, chainId: number): UnreadableRecord[] =>
+    [inspectAttempt(wallet, chainId).unreadable, ...inspectFunded(wallet, chainId).unreadable].filter((r): r is UnreadableRecord => r !== null);
   const remove = (wallet: string, chainId: number) => kv.removeItem(storageKey(wallet, chainId));
   /*
    * Without Web Locks there is no trustworthy cross-tab liveness signal, so
@@ -242,6 +407,52 @@ export function fundingCoordinator(kv: KeyValue, locks: LockManagerLike | null, 
 
   return {
     read,
+    unresolved,
+
+    /**
+     * Check an unreadable record against the chain, and set it aside only
+     * when the chain proves no payment from it can still happen. A job
+     * proves something only when it is bound to the record: this wallet's
+     * job, with the record's own brief and signed quote as its description
+     * (and its payee, when the record still names one).
+     *
+     * - A bound job past OPEN: the record's payment went into it, and nothing
+     *   more can be paid in. Its quote is recorded as paid first, from the
+     *   description on chain, so the same quote is never paid again.
+     * - Bound jobs all still OPEN and past the deadline the escrow holds for
+     *   them: the escrow will not fund them, nor create a job with that
+     *   deadline. The deadline is the chain's, never one the record wrote.
+     * - A list of paid quotes is rebuilt only when every entry names its
+     *   quote and its job, and that job is this wallet's, past OPEN, with
+     *   that quote as its description. Each entry keeps its own hash and
+     *   takes the deadline the chain holds. A job that paid another quote
+     *   leaves the list as it is.
+     *
+     * Anything else stays: nothing bound to check, a bound job still open
+     * before its deadline, a transaction not mined, a record that changed
+     * since it was read. There is no way to set one aside by hand. Under the
+     * cross-tab lock, as `settle` is: a tab that wrote it may still have a
+     * wallet request open. A resolved record is moved to a key of its own
+     * with what proved it, never deleted.
+     */
+    async resolveUnreadable(record: UnreadableRecord, wallet: string, chainId: number, chain: AttemptChainReader, chainNowSeconds: number): Promise<UnreadableResolution> {
+      const held = await exclusive(wallet, chainId, async (): Promise<UnreadableResolution> => {
+        if (kv.getItem(record.key) !== record.raw) return { outcome: 'stale' };
+        const verdict = await judgeUnreadable(record, wallet, chain, chainNowSeconds);
+        if (verdict.outcome !== 'resolved') return verdict;
+        const { paid, rebuilt, ...resolution } = verdict;
+        kv.setItem(`${record.key}:set-aside:${now().toISOString()}`, JSON.stringify({ raw: record.raw, problem: record.problem, rule: resolution.rule, jobId: resolution.jobId, chainNowSeconds }));
+        if (record.kind === 'funded-list') {
+          kv.setItem(record.key, JSON.stringify(rebuilt ?? []));
+          return resolution;
+        }
+        /* The guard first, then the block lifts: there is no moment when the paid quote could be paid again. */
+        if (paid && !alreadyFunded(wallet, chainId, paid.description)) rememberFunded({ wallet, chainId, description: paid.description, fundableUntil: paid.until }, paid.jobId);
+        kv.removeItem(record.key);
+        return resolution;
+      });
+      return held.held ? held.value : { outcome: 'busy' };
+    },
 
     /**
      * Run one funding attempt while owning it. `drive` is called with a
@@ -250,6 +461,8 @@ export function fundingCoordinator(kv: KeyValue, locks: LockManagerLike | null, 
      */
     async run<T>(input: BeginInput, drive: (session: AttemptSession) => Promise<T>): Promise<RunResult<T>> {
       const go = async (): Promise<RunResult<T>> => {
+        const records = unresolved(input.wallet, input.chainId);
+        if (records.length > 0) return { ok: false, reason: 'unreadable-record', records };
         const open = read(input.wallet, input.chainId);
         if (open) return { ok: false, reason: 'open-attempt', blocking: open };
         const funded = alreadyFunded(input.wallet, input.chainId, input.description);
@@ -274,6 +487,8 @@ export function fundingCoordinator(kv: KeyValue, locks: LockManagerLike | null, 
      */
     async resume<T>(snapshot: FundingAttempt, drive: (session: AttemptSession) => Promise<T>): Promise<RunResult<T> | { ok: false; reason: 'stale' }> {
       const go = async (): Promise<RunResult<T> | { ok: false; reason: 'stale' }> => {
+        const records = unresolved(snapshot.wallet, snapshot.chainId);
+        if (records.length > 0) return { ok: false, reason: 'unreadable-record', records };
         const current = read(snapshot.wallet, snapshot.chainId);
         if (!current || current.attemptId !== snapshot.attemptId || current.updatedAt !== snapshot.updatedAt) return { ok: false, reason: 'stale' };
         const attemptId = `${tabId}:${now().toISOString()}:resume`;
@@ -503,5 +718,104 @@ export async function reconcileAttempt(attempt: FundingAttempt, read: AttemptCha
     jobId,
     expiredAt: openExpiredAt,
     detail: jobId ? `Job ${jobId} exists and is not funded.` : 'No funded job from this attempt exists.',
+  };
+}
+
+const when = (seconds: number) => `${new Date(seconds * 1000).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })} UTC`;
+
+/**
+ * The chain's answer for an unreadable record (the rules are on
+ * `resolveUnreadable`). Only the parts of the record that stand on their
+ * own are used, and only to find jobs that prove themselves on chain.
+ */
+async function judgeUnreadable(record: UnreadableRecord, wallet: string, chain: AttemptChainReader, chainNowSeconds: number): Promise<Judged> {
+  const { salvage } = record;
+  const read = async (id: string): Promise<FundedJobFields | null | 'error'> => {
+    try {
+      return await chain.job(BigInt(id));
+    } catch {
+      return 'error';
+    }
+  };
+
+  if (record.kind === 'funded-list') {
+    /*
+     * Each entry is the guard on one paid quote. It is rebuilt only when the
+     * chain confirms that guard exactly: this wallet's job, past funding,
+     * whose description is the quote the entry names. The entry's own hash
+     * is kept as stored. A job of this wallet that paid some other quote
+     * is a mismatch, and the list stays: rebuilding it from that job would
+     * move the guard off the quote it was written for.
+     */
+    if (salvage.listEntries.length === 0) return { outcome: 'unresolved', detail: 'Nothing in it can be checked against the chain.' };
+    const rebuilt: FundedEntry[] = [];
+    for (const entry of salvage.listEntries) {
+      if (!entry.hash || !entry.jobId) return { outcome: 'unresolved', detail: 'An entry in it does not name both the quote it paid and its job, so it cannot be confirmed.' };
+      const onchain = await read(entry.jobId);
+      if (onchain === 'error') return { outcome: 'unresolved', detail: 'The escrow could not be read just now.' };
+      if (!onchain?.client || !same(onchain.client, wallet) || OPEN.has(onchain.statusName)) {
+        return { outcome: 'unresolved', detail: `Job ${entry.jobId} in it is not a funded job from this wallet on chain, so the quote it paid cannot be confirmed.` };
+      }
+      if (descriptionHash(onchain.description) !== entry.hash) {
+        return { outcome: 'unresolved', detail: `Job ${entry.jobId} from this wallet paid a different quote than the one its entry records, so the list cannot be rebuilt from it.` };
+      }
+      rebuilt.push({ hash: entry.hash, jobId: entry.jobId, until: onchain.expiredAt !== undefined ? Number(onchain.expiredAt) : null });
+    }
+    return {
+      outcome: 'resolved',
+      rule: 'list-rebuilt',
+      jobId: null,
+      rebuilt,
+      detail: `Every quote in it was found paid on chain, in ${rebuilt.length === 1 ? `job ${rebuilt[0].jobId}` : `jobs ${rebuilt.map((e) => e.jobId).join(', ')}`} from this wallet. The list is rebuilt with its own entries, so none of them can be paid again.`,
+    };
+  }
+
+  if (!salvage.description) return { outcome: 'unresolved', detail: 'Its brief and quote cannot be read, so no job on chain can be shown to be its payment.' };
+  const bound = (job: FundedJobFields | null) =>
+    Boolean(job?.client) && same(job!.client, wallet) && job!.description === salvage.description && (!salvage.provider || same(job!.provider, salvage.provider));
+
+  const candidates = new Set<string>();
+  if (salvage.jobId) candidates.add(salvage.jobId);
+  let inFlight = 0;
+  for (const hash of salvage.txHashes) {
+    const receipt = await chain.receipt(hash).catch(() => null);
+    if (!receipt) {
+      const state = chain.txState ? await chain.txState(hash).catch(() => 'unknown' as const) : 'unknown';
+      if (state !== 'replaced') inFlight += 1;
+      continue;
+    }
+    const id = chain.jobIdFrom(receipt.logs);
+    if (id !== null) candidates.add(id.toString());
+  }
+  if (salvage.predictedJobId) for (let i = 0; i < RECONCILE_WINDOW; i++) candidates.add((BigInt(salvage.predictedJobId) + BigInt(i)).toString());
+
+  const open: Array<{ jobId: string; expiredAt: number | null }> = [];
+  for (const jobId of candidates) {
+    const onchain = await read(jobId);
+    if (onchain === 'error') return { outcome: 'unresolved', detail: 'The escrow could not be read just now.' };
+    if (!onchain || !bound(onchain)) continue;
+    if (!OPEN.has(onchain.statusName)) {
+      return {
+        outcome: 'resolved',
+        rule: 'job-funded',
+        jobId,
+        paid: { description: onchain.description, jobId, until: onchain.expiredAt !== undefined ? Number(onchain.expiredAt) : null },
+        detail: `Job ${jobId} from this wallet carries its brief and quote and is past funding on chain (${onchain.statusName.toLowerCase()}): its payment went into that job, nothing more can be paid in, and the quote is recorded as paid.`,
+      };
+    }
+    open.push({ jobId, expiredAt: onchain.expiredAt !== undefined ? Number(onchain.expiredAt) : null });
+  }
+  if (inFlight > 0) return { outcome: 'unresolved', detail: 'A transaction from it is not mined yet.' };
+  if (open.length === 0) return { outcome: 'unresolved', detail: 'No job on chain carries its brief and quote, so whether it paid cannot be shown. A request for it may still be open in your wallet.' };
+  const live = open.find((job) => job.expiredAt === null || chainNowSeconds <= job.expiredAt);
+  if (live) {
+    return { outcome: 'unresolved', detail: `Job ${live.jobId} from this wallet carries its brief and quote and is open on chain${live.expiredAt !== null ? ` until ${when(live.expiredAt)}` : ''}. A payment request for it may still be open in your wallet.` };
+  }
+  const last = open.reduce((a, b) => (b.expiredAt! > a.expiredAt! ? b : a));
+  return {
+    outcome: 'resolved',
+    rule: 'job-expired',
+    jobId: last.jobId,
+    detail: `Job ${last.jobId} from this wallet carries its brief and quote, was never funded, and its deadline on chain, ${when(last.expiredAt!)}, has passed: the escrow will not take a payment for it.`,
   };
 }
