@@ -1,6 +1,6 @@
 {
   "about": "Agents whose category the dry run is judged against. `current` is what production files each one under today (pinned by tests/category-dry-run.test.mts). `expected` is what we believe is right, and nobody has confirmed it: every entry is `reviewed: false` until the owner has read it. Misfiles are agents found misfiled on the live site; guards are agents whose current category looks clearly right, so a rule change that moves one shows up. `view` says which record the catalogue classifies: the indexer list row (no tags) or the full record. `listed`, `liveCategory`, `signedPrice` and `surfacedBy` are as the snapshot found them, so each entry can be placed the way the catalogue places it.",
-  "source": "Registry text as served by https://pokter.xyz/api/v1/agents and tags from https://api.8004scan.io/api/v1, snapshot taken 2026-11-01T07:57:26.573Z.",
+  "source": "Registry text as served by https://pokter.xyz/api/v1/agents and tags from https://api.8004scan.io/api/v1, snapshot taken 2026-11-01T07:57:26.573Z, except entries marked \"edited\", whose description is changed as that field says.",
   "agents": [
     {
       "chainId": 56,
@@ -133,6 +133,7 @@
       "tokenId": "336625",
       "name": "HealthSentinel",
       "description": "Specialist in health-factor protection plans. Plan only, no fund custody.",
+      "edited": "Test fixture, not the registry text: the served description opened by naming the marketplace the agent was first listed on. That opening is replaced by \"Specialist in\"; it carried no category term.",
       "tags": [],
       "listed": true,
       "liveCategory": "health-factor",
@@ -286,6 +287,7 @@
       "tokenId": "1841",
       "name": "Gridwright",
       "description": "Specialist in automated grid plans on BSC pairs. Plan-only, no custody.",
+      "edited": "Test fixture, not the registry text: the served description opened by naming the marketplace the agent was first listed on. That opening is replaced by \"Specialist in\"; it carried no category term.",
       "tags": [],
       "listed": true,
       "liveCategory": "grid-trading",
