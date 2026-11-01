@@ -1,7 +1,8 @@
 import Link from 'next/link';
 
 import type { FindRow } from '@/lib/find/rows';
-import { chainLabel, escrowMoney } from '@/lib/network/presentation';
+import { hireNetworkTags } from '@/lib/network/hire-networks';
+import { chainLabel } from '@/lib/network/presentation';
 import { cn } from '@/lib/ui/cn';
 import { formatDelivery } from '@/lib/ui/format';
 import { AgentAvatar, answerState } from '@/ui/Agent';
@@ -80,12 +81,12 @@ function replyState(row: FindRow): string {
  * really two different facts wearing one word.
  */
 export function HireNetwork({ chainId, className }: { chainId: number | null; className?: string }) {
-  if (chainId === null) return null;
-  const money = escrowMoney(chainId);
-  if (money.real === null) return null;
+  const [tag] = hireNetworkTags([chainId]);
+  if (!tag) return null;
   return (
-    <span className={cn('text-[11.5px] font-medium', money.real ? 'text-ink-3' : 'text-watch', className)}>
-      {money.real ? 'Real funds · BNB Chain' : 'Test tokens · BNB Testnet'}
+    <span className={cn('text-[11.5px] font-medium', tag.real ? 'text-ink-3' : 'text-watch', className)} title={tag.meaning}>
+      {tag.label}
+      <span className="sr-only">: {tag.meaning.toLowerCase()}</span>
     </span>
   );
 }
@@ -167,15 +168,41 @@ export function HiringLines({ row, align, network = true }: { row: FindRow; alig
  * Where a hire settles, as a tag a reader sees before the price: on the
  * homepage three of four featured agents were testnet, and the only sign
  * was the last line of a caption under the price, wrapped to two lines.
+ *
+ * "Mainnet" or "Testnet": every agent here is on BNB Chain, so the chain's
+ * name told nobody anything. What the money is stays in the tooltip and
+ * the screen-reader text (`hireNetworkTags`).
+ *
+ * An agent that can be hired on both is one tag in two halves, Mainnet
+ * first, rather than two tags or a sentence: the price beside it is the
+ * mainnet one, and the tooltip says the testnet hire is in test tokens.
+ * `alsoHireOn` is only ever networks where the agent has a verified price
+ * of its own (Discover's `hireChainIds`), never a registration alone.
  */
-export function NetworkTag({ chainId }: { chainId: number | null }) {
+export function NetworkTag({ chainId, alsoHireOn = [] }: { chainId: number | null; alsoHireOn?: number[] }) {
+  /* Nothing without a price on this card: a testnet tag beside no price would read as this card's price being in test tokens. */
   if (chainId === null) return null;
-  const money = escrowMoney(chainId);
-  if (money.real === null) return null;
+  const tags = hireNetworkTags([chainId, ...alsoHireOn]);
+  if (tags.length === 0) return null;
+  /* Coloured both ways, so the two read apart at a glance across a grid: green for money that is real, amber for money that is not. The words carry it too, for anyone who cannot tell the colours apart. */
+  const tone = (real: boolean) => (real ? 'bg-ok-wash text-ok' : 'bg-watch-wash text-watch');
+  if (tags.length === 1) {
+    const [tag] = tags;
+    return (
+      <span className={cn('inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11.5px] font-medium', tone(tag.real))} title={tag.meaning}>
+        {tag.label}
+        <span className="sr-only">: {tag.meaning.toLowerCase()}</span>
+      </span>
+    );
+  }
   return (
-    /* Coloured both ways, so the two read apart at a glance across a grid: green for money that is real, amber for money that is not. The words carry it too, for anyone who cannot tell the colours apart. */
-    <span className={cn('inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11.5px] font-medium', money.real ? 'bg-ok-wash text-ok' : 'bg-watch-wash text-watch')}>
-      {money.real ? 'BNB Chain · real funds' : 'Testnet · test tokens'}
+    <span className="inline-flex shrink-0 items-stretch overflow-hidden rounded-full text-[11.5px] font-medium" title={tags.map((tag) => `${tag.label}: ${tag.meaning.toLowerCase()}`).join('. ')}>
+      {tags.map((tag, i) => (
+        <span key={tag.chainId} className={cn('px-2 py-0.5', tone(tag.real), i > 0 && 'border-l border-paper/70')}>
+          {tag.label}
+          <span className="sr-only">: {tag.meaning.toLowerCase()}{i < tags.length - 1 ? ';' : ''}</span>
+        </span>
+      ))}
     </span>
   );
 }
@@ -242,11 +269,18 @@ export function AgentCard({
   note,
   compare,
   deliveryMs,
+  hireChainIds,
 }: {
   row: FindRow;
   className?: string;
   note?: string | null;
   compare?: React.ReactNode;
+  /**
+   * Every network this agent can be hired on with a verified price, when
+   * the caller grouped its registrations (Discover). Without it the card
+   * names only the network of the registration it shows.
+   */
+  hireChainIds?: number[];
   /**
    * Median time from funding to submission, when the caller has read it.
    * Optional because reading it costs a chain call per job: a surface that
@@ -419,7 +453,7 @@ export function AgentCard({
           <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
             <PriceText row={row} className="text-[1.45rem] font-medium leading-none tracking-[-0.02em]" />
             {row.priceU !== null && <span className="-ml-1 text-[12.5px] text-ink-3">per job</span>}
-            <NetworkTag chainId={row.hireChainId} />
+            <NetworkTag chainId={row.hireChainId} alsoHireOn={hireChainIds} />
           </span>
           <span className="mt-1.5 flex flex-col gap-0.5">
             <HiringLines row={row} network={false} />
@@ -433,7 +467,7 @@ export function AgentCard({
 
 /** Which network the main action hires on, said on the button. */
 function hireLabel(row: FindRow): string {
-  if (row.hireChainId === 56) return 'Hire on BNB Chain';
+  if (row.hireChainId === 56) return 'Hire on mainnet';
   if (row.hireChainId === 97) return 'Hire on testnet';
   return 'Try free on testnet';
 }

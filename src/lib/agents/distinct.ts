@@ -41,7 +41,7 @@ export function firstPerAgent<T>(items: T[], agentOf: (item: T) => AgentIdentity
  * best registration earned; the row shown is its mainnet one, and the
  * other networks it is on are returned so the row can say so.
  */
-export function mainnetFirstPerAgent<T>(items: T[], agentOf: (item: T) => AgentIdentity): { items: T[]; alsoOn: Map<T, number[]> } {
+export function mainnetFirstPerAgent<T>(items: T[], agentOf: (item: T) => AgentIdentity): { items: T[]; alsoOn: Map<T, number[]>; others: Map<T, T[]> } {
   const groups = new Map<string, T[]>();
   const order: string[] = [];
   for (const item of items) {
@@ -53,12 +53,16 @@ export function mainnetFirstPerAgent<T>(items: T[], agentOf: (item: T) => AgentI
     groups.get(key)!.push(item);
   }
   const alsoOn = new Map<T, number[]>();
+  /* The other registrations themselves, for a row that needs more than their chains (Discover's hire networks). */
+  const others = new Map<T, T[]>();
   const picked = order.map((key) => {
     const group = groups.get(key)!;
     const chosen = group.find((item) => agentOf(item).chain_id === 56) ?? group[0];
-    const others = [...new Set(group.filter((item) => item !== chosen).map((item) => agentOf(item).chain_id))];
-    if (others.length) alsoOn.set(chosen, others);
+    const rest = group.filter((item) => item !== chosen);
+    const chains = [...new Set(rest.map((item) => agentOf(item).chain_id))];
+    if (chains.length) alsoOn.set(chosen, chains);
+    if (rest.length) others.set(chosen, rest);
     return chosen;
   });
-  return { items: picked, alsoOn };
+  return { items: picked, alsoOn, others };
 }

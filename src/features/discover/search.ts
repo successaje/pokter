@@ -5,7 +5,8 @@ import { isPromotableAgent } from '@/lib/agents/eligibility';
 import { catalogueCounts } from '@/lib/agents/catalogue-counts';
 import { distinctAgentCount, mainnetFirstPerAgent } from '@/lib/agents/distinct';
 import { interpretBrief, type BriefReading } from '@/lib/brief/interpret';
-import { findRows, type FindRow } from '@/lib/find/rows';
+import { findRows, toFindRow, type FindRow } from '@/lib/find/rows';
+import { hireChainIdsOf } from '@/lib/network/hire-networks';
 import { listSearchableWithStatus, searchById, searchByName } from '@/lib/marketplace';
 import { offersDirectHire, matchesQuery, type SearchableAgent } from '@/lib/search/match';
 import { orderMarketplace } from '@/lib/search/order';
@@ -22,7 +23,11 @@ const STOP = new Set([
 
 export interface DiscoverResult {
   /** `nameOnly`: found by name in the registry, not as a match for the task described. Shown after the matches, under its own heading. */
-  rows: Array<FindRow & { reason: string | null; alsoOn: number[]; nameOnly: boolean }>;
+  /**
+   * `hireChainIds`: every network the agent can be hired on with a verified
+   * price, across the registrations this row stands for, mainnet first.
+   */
+  rows: Array<FindRow & { reason: string | null; alsoOn: number[]; nameOnly: boolean; hireChainIds: number[] }>;
   total: number;
   /** Agents under every filter but the task: the "All tasks" count. */
   allTasksCount: number;
@@ -218,11 +223,11 @@ export async function discover(params: DiscoverParams): Promise<DiscoverResult> 
   // One row per agent across networks, shown in its mainnet registration;
   // a single network shows that network's.
   const perAgent = (items: SearchableAgent[]) =>
-    params.chain === 'any' ? mainnetFirstPerAgent(items, (e) => e.listing.agent) : { items, alsoOn: new Map<SearchableAgent, number[]>() };
+    params.chain === 'any' ? mainnetFirstPerAgent(items, (e) => e.listing.agent) : { items, alsoOn: new Map<SearchableAgent, number[]>(), others: new Map<SearchableAgent, SearchableAgent[]>() };
 
   let filtered = applying(pool);
   if (!q || usesGrammar) filtered = orderMarketplace(filtered, params.sort);
-  const { items: shown, alsoOn } = perAgent(filtered);
+  const { items: shown, alsoOn, others } = perAgent(filtered);
 
   const forTasks = perAgent(applying(pool, 'category')).items;
   /*
@@ -284,7 +289,13 @@ export async function discover(params: DiscoverParams): Promise<DiscoverResult> 
   );
 
   return {
-    rows: rows.map((row, i) => ({ ...row, reason: reasons.get(shown[i]) ?? null, alsoOn: alsoOn.get(shown[i]) ?? [], nameOnly: nameOnly.has(shown[i]) })),
+    rows: rows.map((row, i) => ({
+      ...row,
+      reason: reasons.get(shown[i]) ?? null,
+      alsoOn: alsoOn.get(shown[i]) ?? [],
+      nameOnly: nameOnly.has(shown[i]),
+      hireChainIds: hireChainIdsOf(row.hireChainId, (others.get(shown[i]) ?? []).map((entry) => toFindRow(entry).hireChainId)),
+    })),
     recent,
     total: rows.length,
     allTasksCount: forTasks.length,
