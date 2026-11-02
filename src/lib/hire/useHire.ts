@@ -11,7 +11,7 @@ import { ensureGas, SponsorshipRefused } from '@/lib/wallet/sponsor-client';
 
 import { FAUCETS, NATIVE_SYMBOL } from '@/lib/network/presentation';
 import { browserRpcUrls } from '@/lib/wallet/browser-rpc';
-import { forgetBrief, recallBrief, rememberBrief } from './brief-memory';
+import { clearBriefForFullPage, forgetBrief, readBriefForFullPage, recallBrief, rememberBrief } from './brief-memory';
 import { checkExampleWallets, replaceWallet } from './example-wallet';
 import { buildSwapCalls, quoteBnbForPaymentToken, type SwapQuote } from '@/lib/pancakeswap/swap';
 
@@ -50,6 +50,7 @@ import { taskFields } from '@/lib/hire/task-fields';
 import { checkFromFailure, checkFromPreflight, covers, fundingBlock, type BriefCheck, type HireBinding } from '@/lib/hire/brief-check';
 import { currencyMismatch } from './currency-choice';
 import { withWalletPlaceholder } from './example-chips';
+import type { AcceptanceSpec } from '@/lib/shared/contracts';
 
 /**
  * A provider the escrow can actually reach.
@@ -208,16 +209,17 @@ async function negotiateForHire(
   chainId: number,
   tokenId: string,
   task: string,
+  category: string,
   /* The buyer's preferred currency on the escrow chain, sent beside the brief; null to let the agent choose. */
   preference: { escrowChainId: number; token: string | null } | null = null,
-): Promise<PokterJobQuote & { priceU: number; signer: string | null; intent: Omit<PurchaseIntent, 'provider'>; request: SkillRequestPreview; preference: QuotePreference | null }> {
+): Promise<PokterJobQuote & { priceU: number; signer: string | null; intent: Omit<PurchaseIntent, 'provider'>; request: SkillRequestPreview; preference: QuotePreference | null; criteriaBinding: AcceptanceSpec['binding'] | null }> {
   const response = await fetch('/api/hire/quote', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ chainId, tokenId, task, ...(preference?.token ? { escrowChainId: preference.escrowChainId, preferredToken: preference.token } : {}) }),
+    body: JSON.stringify({ chainId, tokenId, task, category, ...(preference?.token ? { escrowChainId: preference.escrowChainId, preferredToken: preference.token } : {}) }),
   });
   const payload = (await response.json().catch(() => null)) as
-    | { quote?: Record<string, unknown>; error?: string; escrowChainId?: number; task?: string; layer?: FailureLayer; code?: string; retryable?: boolean; request?: SkillRequestPreview; preference?: QuotePreference | null }
+    | { quote?: Record<string, unknown>; error?: string; escrowChainId?: number; task?: string; layer?: FailureLayer; code?: string; retryable?: boolean; request?: SkillRequestPreview; preference?: QuotePreference | null; binding?: AcceptanceSpec['binding'] | null }
     | null;
   if (!response.ok || !payload?.quote) {
     // The route says which layer refused: the brief, the seller, the protocol or the network.
@@ -253,6 +255,7 @@ async function negotiateForHire(
   /* The envelope records the expiry in epoch seconds, as the seller sent it. */
   return {
     request,
+    criteriaBinding: payload.binding?.kind === 'signed-terms' || payload.binding?.kind === 'pokter-asserted' ? payload.binding : null,
     /* Whether the agent signed in the currency asked for; the price is the agent's either way. */
     preference: payload.preference ?? null,
     negotiationHash: q.negotiationHash,
@@ -444,7 +447,7 @@ export function useHire({
       '',
   );
   // A brief typed before switching network comes back; a linked one wins.
-  const [recalled] = useState(() => (initialTask || typeof window === 'undefined' ? null : recallBrief(agent)));
+  const [recalled] = useState(() => (initialTask || typeof window === 'undefined' ? null : recallBrief(agent) ?? readBriefForFullPage(agent)));
   /*
    * The brief starts empty. It opened on the first example, wallet and all,
    * so a buyer met someone else's address in their own brief before they
@@ -481,6 +484,10 @@ export function useHire({
    * task never changes it; choosing another template does.
    */
   const [schemaSource, setSchemaSource] = useState(recalled?.schema ?? '');
+  useEffect(() => {
+    clearBriefForFullPage();
+    if (recalled) rememberBrief(agent, recalled);
+  }, [agent, recalled]);
   const taskSchema = useMemo(() => taskFields(schemaSource), [schemaSource]);
   const [budget, setBudget] = useState(budgetDefault({ signedU: signedQuoteU, lastSignedU, suggestedU, proposalU }));
   const [riskAccepted, setRiskAccepted] = useState(riskWarnings.length === 0);
@@ -1083,7 +1090,7 @@ export function useHire({
       const sending = text;
       const binding = bindingFor(sending);
       if (needsQuote) {
-        const quote = await negotiateForHire(agent.chainId, agent.tokenId, sending, { escrowChainId, token: preferredToken });
+        const quote = await negotiateForHire(agent.chainId, agent.tokenId, sending, agent.category, { escrowChainId, token: preferredToken });
         setPreQuote({ quote, binding });
         /*
          * A hire from a proposal funds the proposal's price, which its
@@ -1335,7 +1342,7 @@ export function useHire({
       let signedQuote: Awaited<ReturnType<typeof negotiateForHire>> | null = null;
       if (provider?.relationship === 'registry-agent') {
         // The quote shown on Review, if it still covers this hire; otherwise a fresh one.
-        signedQuote = reviewQuote && quoteLive(reviewQuote) ? reviewQuote : await negotiateForHire(agent.chainId, agent.tokenId, sending, { escrowChainId, token: preferredToken });
+        signedQuote = reviewQuote && quoteLive(reviewQuote) ? reviewQuote : await negotiateForHire(agent.chainId, agent.tokenId, sending, agent.category, { escrowChainId, token: preferredToken });
         /*
          * Price was the only thing compared, and it is not the only thing
          * signed: a replacement can hold the number and change what the

@@ -3,7 +3,10 @@
 import { useRouter } from 'next/navigation';
 import { useCallback, useState, type ReactNode } from 'react';
 
+import { buttonClass } from '@/ui/Button';
 import { Sheet } from '@/ui/Sheet';
+import { Icon } from '@/ui/icons';
+import { stageBriefForFullPage } from '@/lib/hire/brief-memory';
 
 /**
  * The hire flow over the page it was opened from.
@@ -21,7 +24,7 @@ import { Sheet } from '@/ui/Sheet';
  * asked to sign, that lives in the wallet; closing the sheet only stops
  * watching, exactly as navigating away from the page would.
  */
-export function HireSheet({ agent, children }: { agent: { name: string }; children: ReactNode }) {
+export function HireSheet({ agent, children }: { agent: { name: string; chainId: number; tokenId: string }; children: ReactNode }) {
   const router = useRouter();
   /*
    * Dismiss first, navigate after.
@@ -46,11 +49,16 @@ export function HireSheet({ agent, children }: { agent: { name: string }; childr
       open={open}
       onClose={close}
       floating
-      /* The title and a way out, nothing else. The avatar, the price line
-         and "Open as a page" sat here as well; the price went stale the
-         moment the form switched network, and the rest repeated what the
-         page behind the sheet already says. */
+      /* A hard reload of the current URL resolves the standalone /hire route.
+         It keeps the selected escrow in the URL, even after switching
+         networks inside the sheet. A client-side Link would be intercepted
+         again and leave the buyer in the popup. */
       title={`Hire ${agent.name}`}
+      headerAction={
+        <button type="button" onClick={() => { stageBriefForFullPage(agent); window.location.reload(); }} className={buttonClass('ghost', 's')}>
+          Full page <Icon.ArrowUpRight size={14} />
+        </button>
+      }
       className="sm:max-w-[min(680px,94vw)]"
     >
       {children}

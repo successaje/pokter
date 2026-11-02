@@ -31,6 +31,10 @@ import { Icon } from '@/ui/icons';
 import { JobUpdates } from '@/features/workspace/JobUpdates';
 import { TaskEditor } from './TaskEditor';
 import { RequestReview } from './RequestReview';
+import { CheckCoverage } from './CheckCoverage';
+import { ProofRunCheckPanel } from '@/features/proofrun/CheckPanel';
+import { hireAcceptanceSpec } from '@/lib/proofrun/hire-criteria';
+import { hireReviewBinding } from '@/lib/proofrun/hire-review';
 import { BriefSourceNotice } from './BriefSource';
 import { GuidedBrief } from './GuidedBrief';
 import { recipeById } from '@/lib/hire/brief-recipes';
@@ -271,6 +275,8 @@ export function HireFlow(props: HireFlowProps) {
   /* The chosen proposal's own delivery time reaches the job's deadline, not just the notice above it. */
   const deliverySeconds = deliverySecondsFor(proposalHere ? props.proposal!.deliverDays : null);
   const hire = useHire({ agent: props.agent, providers: props.providers, signedQuoteU: props.signedQuoteU, suggestedU: props.suggestedU, lastSignedU: props.lastSignedU ?? null, riskWarnings: props.warnings, declaredSkills: props.declaredSkills, escrowChainId: props.escrow.chainId, initialTask: props.initialTask ?? null, initialCurrency: props.initialCurrency ?? null, proposalU: proposalHere ? props.proposal!.priceU : null, proposal: proposalHere && proposalToken ? { paymentToken: proposalToken.address, priceRaw: props.proposal!.priceRaw } : null, deliverySeconds });
+  const proofSpec = hireAcceptanceSpec({ category: props.agent.category, brief: hire.outboundTask });
+  const reviewProofSpec = proofSpec ? { ...proofSpec, binding: hireReviewBinding(proofSpec, hire.reviewQuote) } : null;
   // A task declared as JSON must have its required inputs before it can be funded.
   // Read against the layout of the template the buyer started from, so a
   // value of the wrong type is not re-read as a different kind of field.
@@ -921,7 +927,7 @@ export function HireFlow(props: HireFlowProps) {
         <div className="anim-fade flex flex-col gap-6">
           <div>
             <h1 className="t-h2">Review the terms</h1>
-            <p className="mt-1 text-sm text-ink-2">Nothing has been signed or sent. Check the budget and what you are agreeing to.</p>
+            <p className="mt-1 text-sm text-ink-2">You have not signed or paid. Check the budget and what you are agreeing to.</p>
           </div>
 
           {/*
@@ -1004,6 +1010,8 @@ export function HireFlow(props: HireFlowProps) {
               </div>
             </Details>
           )}
+
+          {reviewProofSpec ? <ProofRunCheckPanel spec={reviewProofSpec} /> : <CheckCoverage category={props.agent.category} />}
 
           {/*
             Edited after confirming, and the quote no longer covers it. The

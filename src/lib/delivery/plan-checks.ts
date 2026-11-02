@@ -30,18 +30,33 @@ interface PlanEntry {
   matches: (o: Obj) => boolean;
   run: (o: Obj, brief: string | null) => PlanCheck[];
   notCovered: string[];
+  preview: readonly string[];
 }
 
 /* Order matters where shapes overlap: a health report can list markets, a grid can mention a pool. */
 const ENTRIES: PlanEntry[] = [
-  { kind: 'health', method: HEALTH_METHOD, label: 'Health report', matches: isHealthReport, run: healthChecks, notCovered: HEALTH_NOT_COVERED },
-  { kind: 'range', method: RANGE_METHOD, label: 'Position range review', matches: isRangePlan, run: (o) => rangeChecks(o), notCovered: RANGE_NOT_COVERED },
-  { kind: 'grid', method: GRID_METHOD, label: 'Grid plan', matches: isGridPlan, run: gridChecks, notCovered: GRID_NOT_COVERED },
-  { kind: 'yield', method: YIELD_METHOD, label: 'Yield comparison', matches: isYieldPlan, run: yieldChecks, notCovered: YIELD_NOT_COVERED },
-  { kind: 'token', method: TOKEN_METHOD, label: 'Token safety report', matches: isTokenReport, run: tokenChecks, notCovered: TOKEN_NOT_COVERED },
+  { kind: 'health', method: HEALTH_METHOD, label: 'Health report', matches: isHealthReport, run: healthChecks, notCovered: HEALTH_NOT_COVERED, preview: ['The health factor follows from the report’s own collateral and debt figures', 'The liquidation flag and repair amounts agree with that health factor'] },
+  { kind: 'range', method: RANGE_METHOD, label: 'Position range review', matches: isRangePlan, run: (o) => rangeChecks(o), notCovered: RANGE_NOT_COVERED, preview: ['In or out of range follows from the prices the answer states', 'A proposed new range uses valid PancakeSwap v3 ticks and prices'] },
+  { kind: 'grid', method: GRID_METHOD, label: 'Grid plan', matches: isGridPlan, run: gridChecks, notCovered: GRID_NOT_COVERED, preview: ['Levels, order sizes and fees agree with the plan’s own figures', 'The plan keeps any terms Pokter can read from your brief as data'] },
+  { kind: 'yield', method: YIELD_METHOD, label: 'Yield comparison', matches: isYieldPlan, run: yieldChecks, notCovered: YIELD_NOT_COVERED, preview: ['Net rates follow from the rates and costs the answer states', 'The recommendation follows its stated threshold and comparison'] },
+  { kind: 'token', method: TOKEN_METHOD, label: 'Token safety report', matches: isTokenReport, run: tokenChecks, notCovered: TOKEN_NOT_COVERED, preview: ['The report names the token in your brief', 'Its verdict is no milder than its own worst finding'] },
 ];
 
 export const PLAN_KINDS: ReadonlyArray<{ kind: PlanKind; method: string; label: string }> = ENTRIES.map(({ kind, method, label }) => ({ kind, method, label }));
+
+/** A preview of existing delivery checks, not criteria the agent has signed. */
+export function planCheckPreviewForCategory(category: string): Pick<PlanEntry, 'kind' | 'method' | 'label' | 'notCovered' | 'preview'> | null {
+  const name = category.toLowerCase().replace(/[\s_-]+/g, ' ').trim();
+  const kind: PlanKind | null = name.includes('health factor') ? 'health'
+    : name.includes('rebalanc') ? 'range'
+    : name.includes('grid') ? 'grid'
+    : name.includes('yield') ? 'yield'
+    : name.includes('token safety') ? 'token'
+    : null;
+  const entry = ENTRIES.find((candidate) => candidate.kind === kind);
+  if (!entry) return null;
+  return { kind: entry.kind, method: entry.method, label: entry.label, notCovered: entry.notCovered, preview: entry.preview };
+}
 
 export const BASICS_METHOD = 'answer-basics@1';
 
