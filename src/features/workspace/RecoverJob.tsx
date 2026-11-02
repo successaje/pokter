@@ -10,7 +10,6 @@ import { Button } from '@/ui/Button';
 import { Notice } from '@/ui/Feedback';
 import { Input } from '@/ui/Field';
 import { jobHref } from '@/lib/jobs/href';
-import { enabledEscrowChains } from '@/lib/network/escrow';
 
 /**
  * Local memory is a convenience, not the record. A job funded from another
@@ -34,7 +33,7 @@ export function RecoverJob({ compact }: { compact?: boolean }) {
        * the first Pokter job found.
        */
       const results = await Promise.all(
-        enabledEscrowChains().map(async (chainId) => {
+        ([56, 97] as const).map(async (chainId) => {
           const response = await fetch(`/api/jobs/${encodeURIComponent(id.trim())}?chain=${chainId}`, { cache: 'no-store' });
           const body = (await response.json().catch(() => ({}))) as { job?: HiredJob; client?: string; error?: string };
           return { status: response.status, ok: response.ok, body };

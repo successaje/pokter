@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
 import { getErc8183DeliverableUrl, getErc8183Job } from '@altananetwork/sdk';
-import { getAddress } from 'viem';
 
 import { ALTANA_NETWORK, altanaNetworkFor } from '@/lib/altana/client';
 import { jobChainParam, missingJobMessage, otherJobChain } from '@/lib/jobs/href';
 import { decodePokterJobEnvelope, decodeReferenceJobDescription } from '@/lib/erc8183/job-envelope';
+import { jobIdentity } from '@/lib/erc8183/job-identity';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 import type { HiredJob } from '@/lib/erc8183/types';
 import { getJobStore } from '@/lib/erc8183/store';
@@ -127,6 +127,10 @@ export async function GET(
           .find((j) => j.jobId === jobId && j.chainId === chainId) ?? null;
 
     if (!envelope && indexed) {
+      // This older row may predate the client column. Attach the funder only
+      // when the task is already on chain: /api/jobs?client is public.
+      const reference = decodeReferenceJobDescription(onchain.description);
+      if (reference) getJobStore().setChainClient(chainId, jobId, onchain.client, reference.task);
       const deliverable =
         indexed.deliverableUrl ?? (['SUBMITTED', 'COMPLETED'].includes(onchain.statusName) ? await deliverableWithin(network, jobId) : null);
       const job: HiredJob = {
@@ -136,7 +140,7 @@ export async function GET(
         // This endpoint is public and these older jobs did not put the brief
         // on chain, so it is not returned. The funding device still has it.
         // A job written as the seller's signed quote alone carries its brief there.
-        task: decodeReferenceJobDescription(onchain.description)?.task ?? 'The brief for this job was not stored on chain, so it is only shown on the device that hired.',
+        task: reference?.task ?? 'The brief for this job was not stored on chain, so it is only shown on the device that hired.',
         id: `${chainId}:${jobId}`,
         provider: onchain.provider,
         budgetRaw: onchain.budget.toString(),
@@ -150,7 +154,8 @@ export async function GET(
       return NextResponse.json(jobResponse(job, onchain.client));
     }
 
-    if (!envelope) {
+    const identity = await jobIdentity(onchain.description, onchain.provider, chainId);
+    if (!identity) {
       return NextResponse.json(
         {
           error:
@@ -166,9 +171,9 @@ export async function GET(
       : null;
 
     /*
-     * Built the same shape the backfill endpoint builds, from the same two
-     * sources — the chain for state and the immutable envelope for
-     * identity. Nothing the caller sent is trusted beyond the id.
+     * Built from chain state and a Pokter identity: an on-chain envelope or
+     * a reference-format quote whose negotiation Pokter recorded. Nothing
+     * the caller sent is trusted beyond the id.
      *
      * `hiredAt` is unknown from chain: the contract records when a job
      * expires, not when it was funded. The index's record is used where
@@ -187,12 +192,12 @@ export async function GET(
       jobId,
       chainId,
       isTestnet: chainId === 97,
-      agentChainId: envelope.identity.chainId,
-      agentTokenId: envelope.identity.tokenId,
-      agentName: envelope.identity.name ?? `Agent #${envelope.identity.tokenId}`,
-      providerLabel: envelope.providerLabel,
+      agentChainId: identity.agentChainId,
+      agentTokenId: identity.agentTokenId,
+      agentName: identity.agentName,
+      providerLabel: identity.providerLabel,
       provider: onchain.provider,
-      task: envelope.task,
+      task: identity.task,
       budgetRaw: onchain.budget.toString(),
       paymentToken,
       expiredAt: new Date(Number(onchain.expiredAt) * 1000).toISOString(),
@@ -208,16 +213,13 @@ export async function GET(
      * A Pokter job the index is missing, typically hired through another
      * deployment, joins it here, so the agent's track record and the
      * buyer's other devices see it. Nothing comes from the caller: the
-     * envelope proves it is Pokter's, the contract supplies its state and
+     * identity proves it is Pokter's, the contract supplies its state and
      * its funder, and an unfunded job is left out, as /api/jobs/index
      * leaves it out.
      */
     const store = getJobStore();
-    if (
-      onchain.statusName !== 'OPEN' &&
-      getAddress(envelope.provider) === getAddress(onchain.provider) &&
-      !store.byId(job.id)
-    ) {
+    if (known) store.setChainClient(chainId, jobId, onchain.client, identity.task);
+    else if (onchain.statusName !== 'OPEN') {
       store.record({ ...job, client: onchain.client });
     }
 

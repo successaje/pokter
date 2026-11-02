@@ -22,6 +22,11 @@ test('a dispute that missed its quorum by the deadline offers the reclaim', () =
   assert.equal(PHASE[phase].needsYou, true);
 });
 
+test('an unsettled delivery past expiry also offers the reclaim', () => {
+  assert.equal(jobPhase(job({ expiredAt: past }), now), 'reclaim');
+  assert.equal(jobPhase(job({ status: 'EXPIRED', expiredAt: past }), now), 'expired');
+});
+
 test('a job rejected by the vote reads as rejected with a refund, not as a dispute still open', () => {
   assert.equal(jobPhase(job({ status: 'REJECTED', disputeTxHash: '0xd15' }), now), 'rejected');
   assert.match(PHASE.rejected.next, /not paid/);

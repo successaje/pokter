@@ -13,6 +13,7 @@ import { parseUnits, formatUnits, erc20Abi, createPublicClient, getAddress, http
 import type { Address } from 'viem';
 
 import { correctedErc8183Addresses } from './addresses';
+import { assertRefundEligible } from './reclaim-check';
 
 import { DELIVERY_WINDOW_SECONDS, jobLifetimeSeconds } from './deadline';
 import { requireDecimals } from '@/lib/network/tokens';
@@ -478,18 +479,7 @@ export async function reclaimJob(jobId: string): Promise<{ jobId: string; transa
   const wallet = await client.createWallet({ signer });
 
   const onchain = await getErc8183Job(ALTANA_NETWORK, BigInt(jobId));
-  if (getAddress(onchain.client) !== getAddress(wallet.address)) {
-    throw new Error(`Job ${jobId} was funded by ${onchain.client}, not by this wallet (${wallet.address}).`);
-  }
-  if (onchain.statusName !== 'FUNDED' && onchain.statusName !== 'EXPIRED') {
-    throw new Error(`Job ${jobId} is ${onchain.statusName.toLowerCase()}; there is no escrow left to reclaim.`);
-  }
-  const expiresAt = Number(onchain.expiredAt) * 1000;
-  if (expiresAt > Date.now()) {
-    throw new Error(
-      `Job ${jobId} expires ${new Date(expiresAt).toISOString()}; the agent still has time to deliver, and the escrow will not release before then.`,
-    );
-  }
+  assertRefundEligible(onchain, wallet.address);
 
   const call = buildClaimRefundCall(ALTANA_NETWORK.chainId, BigInt(jobId));
   let result;

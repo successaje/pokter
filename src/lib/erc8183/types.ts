@@ -56,11 +56,7 @@ export interface HiredJob {
    * turned EXPIRED only once reclaimed.
    *
    * The hash is still worth recording. It is proof of which transaction
-   * returned the money, it survives a reclaim made from another device
-   * where this index would otherwise never learn of it, and the status
-   * reading is an observation of one deployment rather than a guarantee
-   * from the contract. See `isReclaimable` for why the gate stays
-   * deliberately generous despite all this.
+   * returned the money, including a reclaim made from another device.
    */
   reclaimTxHash?: Hex | null;
 }

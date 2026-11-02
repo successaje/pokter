@@ -133,16 +133,24 @@ Legend: `[x]` complete, `[~]` implemented but still needs the named follow-up,
 
 ## I. Mainnet escrow readiness
 
-- [!] Replace the hardcoded testnet `ESCROW_CHAIN` with the shared network
-  source of truth.
-- [ ] Enforce server/browser/network agreement in tests and CI.
-- [ ] Add a mainnet-mode CI build.
-- [!] Implement and verify expired-escrow reclaim for EOA wallets.
-- [!] Implement and verify expired-escrow reclaim for passkey wallets.
+- [x] Derive `ESCROW_CHAIN` from the configured wallet network.
+- [!] Enforce default server/browser/network agreement in tests and CI. The
+  operator signer rejects a mismatch, tested here; CI builds both testnet and
+  mainnet settings. Wallet chain choices still need a runtime integration test.
+- [x] Add a mainnet-mode CI build.
+- [!] Implement expired-escrow reclaim for EOA wallets and check eligibility
+  against live chain state before signing. A funded mainnet canary remains.
+- [!] Implement expired-escrow reclaim for passkey wallets and check eligibility
+  against live chain state before execution. A funded mainnet canary remains.
 - [ ] Complete valid delivery, settlement, invalid delivery and dispute tests.
 - [ ] Prove a disputed provider cannot receive payment.
-- [ ] Reconstruct buyer jobs automatically from chain events.
-- [ ] Prove recovery after browser storage is cleared.
+- [~] Reconstruct buyer jobs automatically from chain events. The scheduled
+  chain-state reconciler recovers recent Pokter jobs, and by-number recovery
+  now searches both escrows and repairs older funder rows. Historical wallet
+  discovery from events still needs a reliable archive-log source.
+- [x] Recover indexed jobs on both escrow chains after browser storage is
+  cleared and the funding wallet reconnects. A browser test also proves an
+  index row stale at `FUNDED` refreshes to the chain's `EXPIRED` on open.
 - [ ] Remove remaining hardcoded testnet language.
 - [ ] Review and document proxy, owner, administrator and pause controls.
 - [ ] Add database backups and perform a restoration rehearsal.
