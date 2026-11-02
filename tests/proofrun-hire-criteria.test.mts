@@ -6,6 +6,8 @@ import { hireAcceptanceSpec, hireCriteria } from '../src/lib/proofrun/hire-crite
 import { isSpecLine, venusAcceptanceSpec } from '../src/lib/proofrun/acceptance';
 import { VENUS_CHAIN_ID, venusHealthJob } from '../src/lib/delivery/venus-report-check';
 import { VENUS_COMPTROLLER } from '../src/lib/assay/venus';
+import { hireReviewBinding } from '../src/lib/proofrun/hire-review';
+import { SPEC_TERM_PREFIX } from '../src/lib/proofrun/versions';
 
 /*
  * Which hires carry acceptance criteria, and which do not.
@@ -34,6 +36,17 @@ test('a Venus health-factor brief carries the criteria ProofRun will check', () 
   const spec = hireAcceptanceSpec({ category: null, brief: `Venus health factor for ${ACCOUNT}` });
   const expected = venusAcceptanceSpec({ deployment: VENUS_COMPTROLLER, chainId: VENUS_CHAIN_ID });
   assert.equal(spec!.specHash, expected.specHash, 'the hire spec is not the one the check uses');
+});
+
+test('review claims the agent agreed only when the signed quote names this exact spec', () => {
+  const spec = venusAcceptanceSpec({ deployment: VENUS_COMPTROLLER, chainId: VENUS_CHAIN_ID });
+  const signed = { kind: 'signed-terms' as const, negotiationHash: `0x${'a'.repeat(64)}` };
+  const quote = (criteria: unknown) => ({ criteriaBinding: signed, anchor: { terms: { success_criteria: criteria } } });
+  assert.deepEqual(hireReviewBinding(spec, quote([`${SPEC_TERM_PREFIX}${spec.specHash}`])), signed);
+  assert.equal(hireReviewBinding(spec, quote([`${SPEC_TERM_PREFIX}0x${'0'.repeat(64)}`])).kind, 'pokter-asserted');
+  assert.equal(hireReviewBinding(spec, quote([])).kind, 'pokter-asserted');
+  assert.equal(hireReviewBinding(spec, { criteriaBinding: signed }).kind, 'pokter-asserted');
+  assert.equal(hireReviewBinding(spec, { criteriaBinding: { kind: 'pokter-asserted' }, anchor: quote([`${SPEC_TERM_PREFIX}${spec.specHash}`]).anchor }).kind, 'pokter-asserted');
 });
 
 /*

@@ -22,7 +22,7 @@ export default async function HireInSheet({
   const [{ chainId, tokenId }, { escrow, task, proposal, pay }] = await Promise.all([params, searchParams]);
   const agent = await hireSheetAgent(Number(chainId), tokenId, escrow);
   return (
-    <HireSheet agent={agent}>
+    <HireSheet agent={{ ...agent, chainId: Number(chainId), tokenId }}>
       <WalletRoot>
         <HireContents chainId={Number(chainId)} tokenId={tokenId} escrow={escrow} initialTask={briefFromLink(task)} initialCurrency={currencyFromLink(pay)} proposalId={proposal} embedded />
       </WalletRoot>

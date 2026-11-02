@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-import { checkDeliveredPlan, PLAN_KINDS, type PlanCheckOutcome, type PlanCheckReport } from '../src/lib/delivery/plan-checks';
+import { checkDeliveredPlan, planCheckPreviewForCategory, PLAN_KINDS, type PlanCheckOutcome, type PlanCheckReport } from '../src/lib/delivery/plan-checks';
 
 /*
  * Checks on a delivered answer: real deliveries from Pokter's agents and one
@@ -53,6 +53,25 @@ test('each kind of answer is recognised by its shape, with a versioned method', 
   assert.deepEqual(Object.keys(outcomes(research)), ['answer.dated', 'answer.sources']);
   assert.match(research!.notCovered[0], /no check for this kind of answer/);
   assert.equal(checkDeliveredPlan('not json'), null);
+});
+
+test('the pre-hire coverage preview names the checker that runs on each core category’s delivered answer', () => {
+  const categories = [
+    ['Health Factor', 'brinkwatch-56-57031'],
+    ['Rebalancing', 'centreline-97-1496'],
+    ['Grid Trading', 'gridloom-97-1490'],
+    ['Yield Optimisation', 'cresthold-97-1493'],
+    ['Token Safety', 'touchstone-56-57052'],
+  ];
+  for (const [category, delivered] of categories) {
+    const preview = planCheckPreviewForCategory(category);
+    const result = run(delivered);
+    assert.equal(preview?.kind, result?.kind, category);
+    assert.equal(preview?.method, result?.method, category);
+    assert.deepEqual(preview?.notCovered, result?.notCovered, category);
+    assert.ok(preview?.preview.length, category);
+  }
+  assert.equal(planCheckPreviewForCategory('Unclassified'), null);
 });
 
 test('real deliveries from Pokter’s agents pass what they get right and name what they leave out', () => {
