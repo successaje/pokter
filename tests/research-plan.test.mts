@@ -39,3 +39,12 @@ test('listed findings do not hide separate measured fields from the evidence che
   assert.equal(report?.checks.find((item) => item.id === 'research.sources')?.outcome, 'failed');
   assert.match(report?.checks.find((item) => item.id === 'research.sources')?.detail ?? '', /metric/);
 });
+
+test('the builder playground uses the recorded paid answer without changing its claims', () => {
+  const shown = JSON.parse(readFileSync(new URL('../src/features/delivery/examples/recorded-research-1585.json', import.meta.url), 'utf8'));
+  assert.deepEqual(shown, JSON.parse(original.response.content).answer);
+  const report = checkDeliveredPlan(JSON.stringify(shown));
+  assert.equal(report?.kind, 'research');
+  assert.equal(report?.checks.find((item) => item.id === 'research.counts')?.outcome, 'passed');
+  assert.equal(report?.checks.find((item) => item.id === 'answer.dated')?.outcome, 'failed');
+});

@@ -876,6 +876,7 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                     <ul className="mt-3 list-disc space-y-1 pl-5 text-[13px] text-ink-2">{preview.preview.map((item) => <li key={item}>{item}</li>)}</ul>
                     <p className="mt-3 text-[12px] text-ink-3">Method <span className="t-readout">{spec.method}</span> · Plan hash <span className="t-readout break-all">{spec.specHash}</span></p>
                     <p className="mt-2 text-[12px] text-ink-3">These checks do not establish {preview.notCovered[0].charAt(0).toLowerCase() + preview.notCovered[0].slice(1)}</p>
+                    <Link href="/developers/delivery-checks" className="mt-2 inline-flex text-[12.5px] font-medium text-ink underline decoration-rule-strong underline-offset-2 hover:decoration-ink">Try this checker with an example</Link>
                   </div>
                 );
               })()}
