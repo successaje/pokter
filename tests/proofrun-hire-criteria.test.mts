@@ -75,7 +75,6 @@ test('the category alone is enough, as it is at check time', () => {
  */
 test('hires this check does not cover carry nothing', () => {
   for (const [label, input] of [
-    ['a yield brief', { category: 'yield', brief: `Best stablecoin yield for ${ACCOUNT}` }],
     ['a token-safety brief', { category: 'token-safety', brief: `Is ${ACCOUNT} safe to buy?` }],
     ['Venus without a health factor', { category: null, brief: `What is Venus's TVL? ${ACCOUNT}` }],
     ['a health factor without Venus', { category: null, brief: `Health factor for ${ACCOUNT} on Lista` }],

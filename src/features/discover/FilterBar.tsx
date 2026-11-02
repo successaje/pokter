@@ -2,11 +2,12 @@ import Link from 'next/link';
 
 import { cn } from '@/lib/ui/cn';
 import { discoverHref, type DiscoverParams } from './params';
-import { FiltersButton, PillRow, SortSelect } from './DiscoverControls';
+import { FiltersButton, PillRow } from './DiscoverControls';
 import type { FilterCounts } from './search';
 import { chainLabel } from '@/lib/network/presentation';
 import { Icon } from '@/ui/icons';
 import { CHECK_FRESH_DAYS } from '@/lib/assay/standing';
+import type { Category } from '@/lib/agents/categories';
 
 /*
  * The catalogue's filters, shared by Discover and the full listing.
@@ -22,6 +23,19 @@ import { CHECK_FRESH_DAYS } from '@/lib/assay/standing';
  */
 
 const DEAD = 'None under the filters that are on';
+
+/** Broad work first, then related DeFi specialties, with the catch-all last. */
+const CATEGORY_ORDER: Record<Category | 'unclassified', number> = {
+  research: 0,
+  content: 1,
+  trading: 2,
+  'grid-trading': 3,
+  yield: 4,
+  rebalancing: 5,
+  'health-factor': 6,
+  'token-safety': 7,
+  unclassified: 8,
+};
 
 /** Off, and nothing would show if it were on. */
 const dead = (on: boolean, count?: number) => !on && count === 0;
@@ -149,58 +163,62 @@ export function activeFilterChips(p: DiscoverParams): Array<{ label: string; hre
 }
 
 /**
- * The catalogue's filters: the tasks, then the buyer signals, both in view.
+ * The catalogue's filters: tasks and buyer signals share the available width.
  *
  * Behind one Filters button the signals were a click away and the button sat
- * alone on its row, shaped like one more task. Now the row under the tasks
- * is the five signals, a quiet All filters for the rest (the evidence choice
- * and what each filter means), and the sort. Tasks choose one; signals
+ * alone on its row, shaped like one more task. The five signals follow the
+ * tasks, with a quiet All filters for the rest (the evidence choice
+ * and what each filter means). Tasks choose one; signals
  * narrow, any number at once, and show a check while on.
  *
  * Every number beside a filter is what clicking it would show, under
  * everything else that is on (`filterCounts`), so a pill under a chosen task
  * never promises the whole catalogue.
  *
- * On a phone each row is one line that scrolls sideways, rather than seven
- * rows of pills above the first result.
+ * On a phone the tasks wrap so every category is visible. Buyer signals
+ * remain a single sideways-scrolling row. On larger screens both groups
+ * flow through the same wrapping row, so a last task is never stranded.
  */
-export function FilterBar({ p, counts, allTasks, filterCounts }: { p: DiscoverParams; counts: Array<{ id: string; label: string; count: number }>; allTasks: number; filterCounts: FilterCounts }) {
+export function FilterBar({ p, counts, allTasks, filterCounts }: { p: DiscoverParams; counts: Array<{ id: Category | 'unclassified'; label: string; count: number }>; allTasks: number; filterCounts: FilterCounts }) {
   const chips = activeFilterChips(p);
   return (
-    <div className="flex flex-col gap-3" role="group" aria-label="Filters">
-      <PillRow label="Task">
+    <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2" role="group" aria-label="Filters">
+      <PillRow label="Task" wrapOnMobile inlineOnDesktop>
         <Pill href={discoverHref({}, p, ['category'])} on={!p.category}>
           All tasks <Tally n={allTasks} on={!p.category} />
         </Pill>
-        {counts.map((c) => (
-          <Pill key={c.id} href={discoverHref({ category: c.id as DiscoverParams['category'] }, p)} on={p.category === c.id} count={c.count}>
+        {[...counts].sort((a, b) => CATEGORY_ORDER[a.id] - CATEGORY_ORDER[b.id]).map((c) => (
+          <Pill key={c.id} href={discoverHref({ category: c.id }, p)} on={p.category === c.id} count={c.count}>
             {c.label} <Tally n={c.count} on={p.category === c.id} />
           </Pill>
         ))}
       </PillRow>
-      <div className="flex flex-wrap items-center gap-2">
-        <PillRow label="Buyer signals" className="max-sm:w-[calc(100%+2rem)]">
-          {SIGNALS.map((signal) => (
-            <SignalPill key={signal.key} href={discoverHref({ [signal.key]: !p[signal.key] }, p)} on={p[signal.key]} label={signal.label} hint={signal.hint} count={filterCounts[signal.key]} />
-          ))}
-        </PillRow>
-        <FiltersButton>
-          <Filters p={p} counts={filterCounts} />
-        </FiltersButton>
-        {chips.map((chip) => (
-          <Link
-            key={chip.label}
-            href={chip.href}
-            scroll={false}
-            aria-label={`Remove filter: ${chip.label}`}
-            className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-ink px-3 text-[13px] font-medium text-paper hover:bg-ink/85"
-          >
-            {chip.label}
-            <Icon.Cross size={12} aria-hidden />
-          </Link>
-        ))}
-        <SortSelect params={p} variant="inline" className="ml-auto" />
-      </div>
+      <PillRow label="Buyer signals" inlineOnDesktop className="max-sm:w-[calc(100%+2rem)]">
+        {SIGNALS.map((signal, index) => {
+          const pill = <SignalPill href={discoverHref({ [signal.key]: !p[signal.key] }, p)} on={p[signal.key]} label={signal.label} hint={signal.hint} count={filterCounts[signal.key]} />;
+          return index === 0 ? (
+            <span key={signal.key} className="inline-flex shrink-0 items-center gap-2">
+              <span aria-hidden className="mx-1 hidden h-6 w-px bg-rule-strong sm:block" />
+              {pill}
+            </span>
+          ) : <span key={signal.key} className="shrink-0">{pill}</span>;
+        })}
+      </PillRow>
+      <FiltersButton>
+        <Filters p={p} counts={filterCounts} />
+      </FiltersButton>
+      {chips.map((chip) => (
+        <Link
+          key={chip.label}
+          href={chip.href}
+          scroll={false}
+          aria-label={`Remove filter: ${chip.label}`}
+          className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-ink px-3 text-[13px] font-medium text-paper hover:bg-ink/85"
+        >
+          {chip.label}
+          <Icon.Cross size={12} aria-hidden />
+        </Link>
+      ))}
     </div>
   );
 }

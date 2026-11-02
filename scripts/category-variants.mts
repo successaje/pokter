@@ -99,6 +99,18 @@ export const SIGNALS: Record<Category, { strong: string[]; weak: string[] }> = {
     ],
     weak: ['liquidation', 'collateral', 'ltv', 'borrow', 'loan', 'margin call', 'monitor'],
   },
+  research: {
+    strong: ['market research', 'onchain research', 'on-chain research', 'research report', 'due diligence', 'cited research'],
+    weak: ['research', 'investigation', 'fact checking', 'source analysis'],
+  },
+  trading: {
+    strong: ['trading agent', 'trading bot', 'execute trades', 'trade execution', 'spot trading', 'trading strategy', 'token snip'],
+    weak: ['trading', 'swap execution', 'order execution', 'trade signal'],
+  },
+  content: {
+    strong: ['content creation', 'content writer', 'copywriting', 'social media content', 'blog writing'],
+    weak: ['article writing', 'newsletter', 'marketing copy', 'content'],
+  },
 };
 
 /** Production's threshold, unchanged by every variant here. */
@@ -285,6 +297,9 @@ export const CATEGORY_WORDS: Record<Category, string[]> = {
   yield: ['yield'],
   'health-factor': [],
   'token-safety': [],
+  research: ['research'],
+  trading: ['trading'],
+  content: ['content'],
 };
 
 /**
@@ -596,7 +611,7 @@ export interface Change {
 export type Counts = Record<Shown, number>;
 
 export function emptyCounts(): Counts {
-  return { 'health-factor': 0, rebalancing: 0, 'grid-trading': 0, yield: 0, 'token-safety': 0, unclassified: 0, [NOT_LISTED]: 0 };
+  return Object.fromEntries([...CATEGORIES.map((c) => [c.id, 0]), ['unclassified', 0], [NOT_LISTED, 0]]) as Counts;
 }
 
 function termsOf(evidence: CategoryEvidence | null): TermReport[] {
@@ -964,7 +979,7 @@ const AGAINST: Record<string, string[]> = {
  * Markdown
  * ------------------------------------------------------------------------- */
 
-const ROWS: Shown[] = ['health-factor', 'rebalancing', 'grid-trading', 'yield', 'token-safety', 'unclassified', NOT_LISTED];
+const ROWS: Shown[] = [...CATEGORIES.map((c) => c.id), 'unclassified', NOT_LISTED];
 
 function termList(terms: TermReport[]): string {
   if (terms.length === 0) return '—';

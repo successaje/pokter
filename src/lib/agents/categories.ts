@@ -9,7 +9,7 @@ export type ClassifiableAgent = ScanAgent | ScanAgentDetail;
 /**
  * The agent categories the marketplace must treat equally.
  * `unclassified` is deliberately not one of them — it is the holding pen for
- * registry noise that does not belong in the marketplace at all.
+ * work that does not fit a current marketplace shelf.
  *
  * Token safety joined the four because an agent that screens a contract
  * before anyone buys it had nowhere to go: it classified as noise, failed the
@@ -23,15 +23,21 @@ export type Category =
   | 'grid-trading'
   | 'yield'
   | 'health-factor'
-  | 'token-safety';
+  | 'token-safety'
+  | 'research'
+  | 'trading'
+  | 'content';
 
 export type Classification = Category | 'unclassified';
 
+/** Display name for work that has no specific category; the stored id stays stable. */
+export const GENERAL_CATEGORY_LABEL = 'General';
+
 /**
- * A publisher saying none of the five fits, as opposed to not having
+ * A publisher saying none of the listed categories fits, as opposed to not having
  * chosen yet.
  *
- * Studio required one of the five to register, so an agent that fits
+ * Studio once required one of the original five to register, so an agent that fits
  * none had to claim one — and a declared tag is close to decisive in the
  * classifier, so the claim became the description buyers read. Pokter's
  * own evidence agent went out tagged `token-safety`, and its page told
@@ -39,9 +45,8 @@ export type Classification = Category | 'unclassified';
  * is the marketplace publishing a false claim about an agent to satisfy
  * its own form.
  *
- * The cost of choosing this is real and is stated where it is chosen: an
- * unclassified agent is not in the category listings Discover is built
- * from. A quiet listing beats a wrong one.
+ * These agents can appear under General when they have a hireable listing,
+ * without claiming a task-specific correctness check.
  */
 export const NO_CATEGORY = 'none';
 
@@ -102,13 +107,34 @@ export const CATEGORIES: CategoryMeta[] = [
     question: 'Can I sell this again, and who can change that after I buy?',
     accent: 'rose',
   },
+  {
+    id: 'research',
+    label: 'Research',
+    blurb: 'Investigates a question and delivers a report with named sources.',
+    question: 'Can I trace the report’s claims back to its sources?',
+    accent: 'sky',
+  },
+  {
+    id: 'trading',
+    label: 'Trading',
+    blurb: 'Reviews a trade or proposes a strategy with its assumptions and risks.',
+    question: 'What supports this trade, and what would invalidate it?',
+    accent: 'violet',
+  },
+  {
+    id: 'content',
+    label: 'Content',
+    blurb: 'Creates written content from a brief, with sources where factual claims need them.',
+    question: 'Does the work follow my brief, and can I check its factual claims?',
+    accent: 'amber',
+  },
 ];
 
 /**
  * Keyed by `Classification`, not `Category`, so a lookup for an agent
  * that belongs to no category is a miss rather than a type error. An
  * agent reached by name has no category, and every reader of this map
- * already handles `undefined` by saying "Unclassified".
+ * already handles `undefined` by showing the General label.
  */
 export const CATEGORY_BY_ID = new Map<Classification, CategoryMeta>(
   CATEGORIES.map((c) => [c.id, c]),
@@ -171,6 +197,18 @@ const SIGNALS: Record<Category, { strong: string[]; weak: string[] }> = {
       'collateral ratio',
     ],
     weak: ['liquidation', 'collateral', 'ltv', 'borrow', 'loan', 'margin call', 'monitor'],
+  },
+  research: {
+    strong: ['market research', 'onchain research', 'on-chain research', 'research report', 'due diligence', 'cited research'],
+    weak: ['research', 'investigation', 'fact checking', 'source analysis'],
+  },
+  trading: {
+    strong: ['trading agent', 'trading bot', 'execute trades', 'trade execution', 'spot trading', 'trading strategy', 'token snip'],
+    weak: ['trading', 'swap execution', 'order execution', 'trade signal'],
+  },
+  content: {
+    strong: ['content creation', 'content writer', 'copywriting', 'social media content', 'blog writing'],
+    weak: ['article writing', 'newsletter', 'marketing copy', 'content'],
   },
 };
 

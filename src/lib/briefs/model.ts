@@ -35,10 +35,10 @@ import {
 
 /**
  * What kind of work a request is: the same vocabulary agents are listed
- * and graded under, so a request lands where the builders who could
+ * under, so a request lands where the builders who could
  * answer it already look, and a filter on the board means the same thing
  * as one on Discover. A request that fits none of them says so, with the
- * same id an agent uses for "none of the five" (`NO_CATEGORY`).
+ * same id an agent uses for "none of these" (`NO_CATEGORY`).
  */
 export const REQUEST_CATEGORIES: ReadonlyArray<{ id: RequestCategory; label: string }> = [
   ...CATEGORIES.map((c) => ({ id: c.id, label: c.label })),
@@ -55,12 +55,10 @@ export type RequestCategory = Category | typeof NO_CATEGORY;
 const LEGACY_REQUEST_CATEGORIES: Readonly<Record<string, RequestCategory>> = {
   'lending-risk': 'health-factor',
   portfolio: 'rebalancing',
-  research: NO_CATEGORY,
   monitoring: NO_CATEGORY,
   defi: 'yield',
   data: NO_CATEGORY,
   automation: NO_CATEGORY,
-  content: NO_CATEGORY,
 };
 
 /** Today's category for a stored id, current or legacy; null for none or unknown. */

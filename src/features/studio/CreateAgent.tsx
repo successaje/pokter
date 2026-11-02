@@ -239,10 +239,9 @@ function StepDefine({ d }: { d: AgentDraft }) {
             <span className="flex flex-col">
               <span className="text-sm font-medium">None of these fits</span>
               <span className="text-[12.5px] leading-snug text-ink-3">
-                Nothing is declared, and buyers browsing the five categories will not
-                see it — Discover is built from them. Better than a category that
-                describes something your agent does not do: Pokter shows a
-                category&rsquo;s own words on the agent&rsquo;s page.
+                It can appear under General when hireable, without a task-specific
+                correctness check. Choose this when the named categories would
+                misdescribe what your agent does.
               </span>
             </span>
           </label>

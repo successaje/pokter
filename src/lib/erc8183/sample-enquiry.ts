@@ -28,6 +28,9 @@ const SAMPLES: Record<Exclude<Classification, 'unclassified'>, string> = {
   rebalancing: `Range check for the PancakeSwap v3 positions held by ${V3_HOLDER}: which are in range, and what should be re-centred?`,
   'health-factor': `What is the Venus health factor of ${VENUS_BORROWER}, and is it at risk of liquidation?`,
   'token-safety': `Check the BNB Chain token ${CAKE} before a buy: is it safe to trade, and why?`,
+  research: 'Research how ERC-8004 identity and ERC-8183 escrow work together on BNB Chain. Deliver a short report with source links and dates.',
+  trading: `Review a proposed CAKE/USDT spot trade on BNB Chain with 500 USDT. Give entry, exit, invalidation and fee assumptions; do not execute it.`,
+  content: 'Draft a 300-word explainer of ERC-8004 agent identity for new BNB Chain builders, with a clear title and links for factual claims.',
 };
 
 /** The sample-job brief for a category, or null when the agent has none. */

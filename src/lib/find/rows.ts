@@ -1,4 +1,4 @@
-import { CATEGORY_BY_ID, type Category } from '@/lib/agents/categories';
+import { CATEGORY_BY_ID, GENERAL_CATEGORY_LABEL, type Category } from '@/lib/agents/categories';
 import { ALTANA_NETWORK } from '@/lib/altana/client';
 import { quotePriceLabel } from '@/lib/find/price';
 import { STALE_AFTER_DAYS, daysSinceLastAnswer, stripCells, type StripCell } from '@/lib/history/strip';
@@ -120,7 +120,7 @@ export function toFindRow(
     name: agent.name,
     imageUrl: agent.image_url ?? null,
     category: listing.category,
-    categoryLabel: meta?.label ?? 'Unclassified',
+    categoryLabel: meta?.label ?? GENERAL_CATEGORY_LABEL,
     onChain: entry.onChain ?? null,
     description: (agent.description ?? '').replace(/https?:\/\/\S+/g, '').replace(/\s{2,}/g, ' ').trim(),
     verdict: verdictFor(entry),

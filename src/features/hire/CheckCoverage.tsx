@@ -1,12 +1,26 @@
 import { planCheckPreviewForCategory } from '@/lib/delivery/plan-checks';
+import { PLAN_PROOF_PREFIX } from '@/lib/delivery/plan-proof';
+import { hirePlanProofSpec } from '@/lib/proofrun/hire-criteria';
+import { hireReviewBinding } from '@/lib/proofrun/hire-review';
+import type { Hire } from '@/lib/hire/useHire';
 
 /** The same checker named on a delivered job, before the buyer funds it. */
-export function CheckCoverage({ category }: { category: string }) {
+export function CheckCoverage({ category, quote }: { category: string; quote: Hire['reviewQuote'] }) {
   const coverage = planCheckPreviewForCategory(category);
+  const spec = hirePlanProofSpec({ category });
+  const binding = spec ? hireReviewBinding(spec, quote, PLAN_PROOF_PREFIX) : null;
   return (
     <section aria-label="What Pokter can check after delivery" className="rounded-[14px] border border-rule bg-raised p-5">
-      <p className="t-label">After delivery</p>
+      <p className="t-label">{spec ? 'Before you fund' : 'After delivery'}</p>
       <h2 className="mt-1 text-base font-semibold text-ink">What Pokter can check</h2>
+      {spec && (
+        <p className="mt-2 text-[13.5px] leading-relaxed text-ink-2">
+          {binding?.kind === 'signed-terms'
+            ? 'The agent signed this check plan with its quote. Pokter will compare the delivered answer with this versioned checker.'
+            : 'Pokter recorded this check plan, but the agent did not sign it with its quote.'}
+          {' '}Plan hash: <span className="t-readout break-all">{spec.specHash}</span>.
+        </p>
+      )}
       {coverage ? (
         <>
           <p className="mt-2 text-[13.5px] leading-relaxed text-ink-2">
@@ -31,7 +45,10 @@ export function CheckCoverage({ category }: { category: string }) {
         </p>
       )}
       <p className="mt-2 text-[12.5px] leading-relaxed text-ink-3">
-        These are Pokter’s delivery checks. They are not, by themselves, terms the agent signed. You decide whether to release or dispute the escrow after reading the delivery.
+        {binding?.kind === 'signed-terms'
+          ? 'The signature binds the listed check plan, not a promise to pass it. '
+          : 'These are Pokter’s delivery checks, not terms the agent agreed to. '}
+        You decide whether to release or dispute the escrow after reading the delivery.
       </p>
     </section>
   );

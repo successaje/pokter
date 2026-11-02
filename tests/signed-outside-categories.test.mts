@@ -4,6 +4,7 @@ import test from 'node:test';
 
 import { a2aVersionUnsupported, jsonRpcEndpoint, jsonRpcInterface } from '../src/lib/a2a/card';
 import { negotiationSkillOf } from '../src/lib/erc8183/courier-parse';
+import { discoverHref, parseDiscoverParams } from '../src/features/discover/params';
 
 const code = (path: string) => readFileSync(new URL(`../src/${path}`, import.meta.url), 'utf8');
 
@@ -15,11 +16,19 @@ test('a signed agent outside the five categories is listed and counted, as uncla
   assert.match(market, /const SIGNED_ROW_LIMIT = 60;/, 'bounded');
   const counts = code('lib/agents/catalogue-counts.ts');
   assert.match(counts, /pricedInCategories: distinctAgentCount\(priced\.filter\(\(entry\) => entry\.listing\.category !== 'unclassified'\)/);
-  assert.match(code('app/(site)/page.tsx'), /label: 'Of those, in a category Pokter evaluates', value: home\.catalogue\.pricedInCategories/);
+  assert.match(code('app/(site)/page.tsx'), /label: 'Of those, in a marketplace category', value: home\.catalogue\.pricedInCategories/);
   /* Findable under a name that claims no evaluation, and never featured as if evaluated. */
-  assert.match(code('features/discover/params.ts'), /category: cat === 'unclassified' \? 'unclassified'/);
-  assert.match(code('features/discover/search.ts'), /\{ id: 'unclassified' as const, label: 'Unclassified', count: unclassified \}/);
+  assert.match(code('features/discover/params.ts'), /category: cat === 'unclassified' \|\| cat === 'general' \? 'unclassified'/);
+  assert.match(code('features/discover/search.ts'), /\{ id: 'unclassified' as const, label: GENERAL_CATEGORY_LABEL, count: unclassified \}/);
   assert.match(code('features/home/data.ts'), /entry\.listing\.category !== 'unclassified'\)/);
+});
+
+test('General uses a readable URL while old unclassified links still resolve', () => {
+  const old = parseDiscoverParams({ category: 'unclassified' });
+  const current = parseDiscoverParams({ category: 'general' });
+  assert.equal(old.category, 'unclassified');
+  assert.equal(current.category, 'unclassified');
+  assert.equal(discoverHref({}, current), '/discover?category=general');
 });
 
 test('an identity that says it is not a marketplace agent is not promoted', async () => {

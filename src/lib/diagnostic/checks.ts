@@ -403,7 +403,7 @@ export async function diagnose(
       ? unknown(
           'category',
           'Marketplace category',
-          'Pokter’s classifier could not place this agent in one of its five categories with enough confidence.',
+          'Pokter’s classifier could not place this agent in a marketplace category with enough confidence.',
           /*
            * This said categories are "assigned by Pokter, not declared",
            * and pointed builders at their description. That is the

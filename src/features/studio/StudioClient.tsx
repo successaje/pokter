@@ -26,6 +26,7 @@ import { Segmented } from '@/ui/Controls';
 import { EmptyState, Notice, Skeleton } from '@/ui/Feedback';
 import { Field, Input } from '@/ui/Field';
 import { Icon } from '@/ui/icons';
+import { GENERAL_CATEGORY_LABEL } from '@/lib/agents/categories';
 import { diagnosticPacket } from '@/lib/diagnostic/packet';
 import { CopyButton } from '@/ui/Data';
 
@@ -176,7 +177,7 @@ export function OwnedAgents({ boxed = false }: { boxed?: boolean }) {
             <span className="flex min-w-0 flex-1 flex-col">
               <span className="truncate text-sm font-medium">{a.name}</span>
               <span className="text-[12px] text-ink-3">
-                #{a.tokenId} · {a.chainId === 56 ? 'BNB Chain' : 'testnet'} · {a.category ?? 'Unclassified'}
+                #{a.tokenId} · {a.chainId === 56 ? 'BNB Chain' : 'testnet'} · {a.category ?? GENERAL_CATEGORY_LABEL}
               </span>
             </span>
             {!a.declaresProtocol && <span className="text-[11.5px] text-watch">No endpoint</span>}

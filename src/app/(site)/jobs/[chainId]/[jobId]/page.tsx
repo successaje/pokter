@@ -221,6 +221,29 @@ export default async function JobEvidencePage({ params }: { params: Promise<Para
         )}
       </DocSection>
 
+      {e.planProof && (
+        <DocSection id="check-plan" title="The check plan agreed before funding">
+          <p>
+            {e.planProof.binding.kind === 'signed-terms'
+              ? 'The agent’s signed quote included this exact versioned check plan.'
+              : 'Pokter recorded this check plan, but the agent’s agreement to it could not be established for this job.'}
+            {' '}It tests the answer’s own figures and stated sources; it does not establish market truth or future returns.
+          </p>
+          <p className="break-all text-[13px] text-ink-3">
+            Checker <span className="t-readout">{e.planProof.spec.method}</span> · Plan hash <span className="t-readout">{e.planProof.spec.specHash}</span>
+          </p>
+          {e.checks ? (
+            <p>
+              {e.planProof.checkerMatched
+                ? 'The published answer was examined with the checker and required checks named in that plan. Read each result below; a check can still fail or be not verified.'
+                : `The published answer did not produce the complete checker named in that plan${e.planProof.missingChecks.length ? `; missing checks: ${e.planProof.missingChecks.join(', ')}` : ''}. The plan has not been verified on this answer.`}
+            </p>
+          ) : (
+            <p>The answer is not available here for this check, so Pokter cannot show a plan result on this page.</p>
+          )}
+        </DocSection>
+      )}
+
       {e.checks && (
         <DocSection id="checks" title="What Pokter checked in the answer">
           <p>

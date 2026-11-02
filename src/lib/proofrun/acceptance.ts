@@ -149,6 +149,7 @@ export function criteriaForTerms(spec: AcceptanceSpec): string[] {
  */
 export function bindingFor(input: {
   specHash: string;
+  specTermPrefix?: string;
   termsBound: boolean;
   signedCriteria: readonly string[] | null | undefined;
   /**
@@ -179,7 +180,7 @@ export function bindingFor(input: {
    * both sides removes the coincidence.
    */
   const signed = new Set(input.signedCriteria.map((line) => sanitizeForClaim(String(line))));
-  const wanted = sanitizeForClaim(`${SPEC_TERM_PREFIX}${input.specHash}`);
+  const wanted = sanitizeForClaim(`${input.specTermPrefix ?? SPEC_TERM_PREFIX}${input.specHash}`);
 
   /*
    * The hash line is what makes the agreement checkable, so when one was
@@ -213,7 +214,7 @@ export function bindingFor(input: {
  * back `pokter-asserted` — refused for the right reason rather than
  * accepted for the wrong one.
  */
-export const SPEC_LINE = /^pokter-proofrun\/\d+ spec=0x[0-9a-fA-F]{64}$/;
+export const SPEC_LINE = /^pokter-(?:proofrun|plan-check)\/\d+ spec=0x[0-9a-fA-F]{64}$/;
 
 export function isSpecLine(value: string): boolean {
   return SPEC_LINE.test(value);

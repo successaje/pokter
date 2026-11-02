@@ -179,7 +179,7 @@ test('a list the server would trim is caught before it is signed', () => {
 test('request categories are the agent categories, plus one for none of them', () => {
   assert.deepEqual(
     REQUEST_CATEGORIES.map((c) => c.id),
-    ['rebalancing', 'grid-trading', 'yield', 'health-factor', 'token-safety', 'none'],
+    ['rebalancing', 'grid-trading', 'yield', 'health-factor', 'token-safety', 'research', 'trading', 'content', 'none'],
   );
   assert.equal(requestCategoryLabel('grid-trading'), 'Grid Trading');
   assert.equal(requestCategoryLabel('none'), null, 'no tag for "something else"');
@@ -195,7 +195,9 @@ test('a request signed with an earlier category id keeps it, and reads as todayâ
   );
   assert.equal(requestCategoryOf('lending-risk'), 'health-factor');
   assert.equal(requestCategoryOf('portfolio'), 'rebalancing');
-  assert.equal(requestCategoryOf('research'), 'none');
+  assert.equal(requestCategoryOf('research'), 'research');
+  assert.equal(requestCategoryOf('content'), 'content');
+  assert.equal(requestCategoryOf('automation'), 'none');
   assert.equal(requestCategoryLabel('lending-risk'), 'Health Factor');
   assert.equal(requestCategoryOf('gambling'), null);
 });

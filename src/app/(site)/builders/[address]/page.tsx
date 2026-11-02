@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { getAddress, isAddress, type Address } from 'viem';
 
-import { CATEGORY_BY_ID, classify } from '@/lib/agents/categories';
+import { CATEGORY_BY_ID, GENERAL_CATEGORY_LABEL, classify } from '@/lib/agents/categories';
 import { getBriefStore } from '@/lib/briefs/store';
 import { chainLabel, explorerBaseFor } from '@/lib/network/presentation';
 import { agentJobs, agentRecord, eligibleReviews, hirerRecord, JOB_STATE_LABEL, operatorRecord, type NetworkRecord } from '@/lib/profiles/evidence';
@@ -311,7 +311,7 @@ function RegistryView({ agents, unavailable }: { agents: Array<{ key: string; ch
                 <span className="flex min-w-0 flex-col">
                   <span className="truncate font-medium">{a.name}</span>
                   <span className="text-[12.5px] text-ink-3">
-                    #{a.tokenId} · {chainLabel(a.chainId)} · {a.category ?? 'Unclassified'}
+                    #{a.tokenId} · {chainLabel(a.chainId)} · {a.category ?? GENERAL_CATEGORY_LABEL}
                   </span>
                 </span>
                 <Icon.ChevronRight size={16} className="text-ink-3" />
