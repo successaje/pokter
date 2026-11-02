@@ -24,3 +24,18 @@ test('an arbitrary research answer without a structured evidence trail stays at 
   const report = checkDeliveredPlan(JSON.stringify({ answer: 'This looks promising', sources: ['example.com'] }));
   assert.equal(report?.kind, null);
 });
+
+test('listed findings do not hide separate measured fields from the evidence check', () => {
+  const report = checkDeliveredPlan(JSON.stringify({
+    type: 'research',
+    findings: [
+      { claim: 'First', source: 'Source A', provenance: 'onchain' },
+      { claim: 'Second', source: 'Source B', provenance: 'onchain' },
+    ],
+    metric: { value: 42, provenance: 'measured' },
+    as_of: { time: '2026-11-02T10:00:00Z' },
+  }));
+  assert.equal(report?.kind, 'research');
+  assert.equal(report?.checks.find((item) => item.id === 'research.sources')?.outcome, 'failed');
+  assert.match(report?.checks.find((item) => item.id === 'research.sources')?.detail ?? '', /metric/);
+});

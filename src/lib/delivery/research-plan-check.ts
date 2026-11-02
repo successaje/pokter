@@ -7,18 +7,19 @@ type Finding = { name: string; value: unknown; source: unknown; provenance: unkn
 
 function findings(o: Obj): Finding[] {
   const listed = o.findings ?? o.claims;
-  if (Array.isArray(listed)) {
-    return listed.filter(isObj).map((item, index) => ({
+  const listedFindings: Finding[] = Array.isArray(listed)
+    ? listed.filter(isObj).map((item, index) => ({
       name: String(item.claim ?? item.finding ?? item.name ?? `Finding ${index + 1}`),
       value: item.value ?? item.claim ?? item.finding,
       source: item.source ?? item.sources,
       provenance: item.provenance,
-    }));
-  }
-  return Object.entries(o).flatMap(([name, value]) =>
+    }))
+    : [];
+  const measuredFields: Finding[] = Object.entries(o).flatMap(([name, value]) =>
     isObj(value) && ('value' in value || 'source' in value || 'provenance' in value)
       ? [{ name, value: value.value, source: value.source ?? value.sources, provenance: value.provenance }]
       : []);
+  return [...listedFindings, ...measuredFields];
 }
 
 const named = (value: unknown): boolean => typeof value === 'string' ? Boolean(value.trim()) : Array.isArray(value) && value.length > 0 && value.every(named);
