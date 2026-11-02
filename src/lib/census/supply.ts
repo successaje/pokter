@@ -98,10 +98,10 @@ export async function supplyCensus(): Promise<SupplyCensus> {
       comparable: true,
     },
     {
-      label: 'Classified into a financial category',
+      label: 'Classified into a marketplace category',
       value: all.length,
       provenance: 'calculated',
-      note: `The agents Pokter can place in one of the ${CATEGORIES.length} categories it judges, and so can rank. Classification is a change of scope rather than a survival rate: a listing here need not have answered a probe, and an agent outside those categories is not worse, only outside what this marketplace measures.`,
+      note: `The agents Pokter can place in one of its ${CATEGORIES.length} marketplace categories. Classification is a change of scope rather than a survival rate: a listing here need not have answered a probe or passed a category-specific check.`,
       comparable: false,
     },
     {

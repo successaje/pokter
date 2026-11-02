@@ -5,7 +5,7 @@ export const PAGE_SIZE = 24;
 
 export interface DiscoverParams {
   q: string;
-  /** One of the five, or `unclassified`: agents that signed a price in work Pokter does not evaluate. */
+  /** A marketplace shelf, or `unclassified` for work outside the current taxonomy. */
   category: Category | 'unclassified' | null;
   hireable: boolean;
   answering: boolean;
@@ -31,7 +31,7 @@ export function parseDiscoverParams(sp: Record<string, string | string[] | undef
   return {
     // `brief` is the previous product's natural-language parameter.
     q: (one('q') || one('brief')).slice(0, 400),
-    category: cat === 'unclassified' ? 'unclassified' : CATEGORY_BY_ID.has(cat as Category) ? (cat as Category) : null,
+    category: cat === 'unclassified' || cat === 'general' ? 'unclassified' : CATEGORY_BY_ID.has(cat as Category) ? (cat as Category) : null,
     hireable: one('hireable') === '1',
     answering: one('answering') === '1',
     priced: one('priced') === '1',
@@ -53,7 +53,7 @@ export function discoverHref(params: Partial<DiscoverParams>, base: DiscoverPara
   }
   const sp = new URLSearchParams();
   if (next.q) sp.set('q', next.q);
-  if (next.category) sp.set('category', next.category);
+  if (next.category) sp.set('category', next.category === 'unclassified' ? 'general' : next.category);
   if (next.hireable) sp.set('hireable', '1');
   if (next.answering) sp.set('answering', '1');
   if (next.priced) sp.set('priced', '1');

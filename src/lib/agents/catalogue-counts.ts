@@ -18,7 +18,7 @@ export function catalogueCounts(entries: SearchableAgent[]): { hireable: number;
     hireable: distinctAgentCount(promotable.filter((entry) => offersDirectHire(entry)).map((entry) => entry.listing.agent)),
     /* Every agent that has signed a price, in any work. */
     priced: distinctAgentCount(priced.map((entry) => entry.listing.agent)),
-    /* Of those, the ones in the five categories Pokter evaluates; the rest are listed as unclassified. */
+    /* Of those, the ones placed in a marketplace category; this does not imply a passed check. */
     pricedInCategories: distinctAgentCount(priced.filter((entry) => entry.listing.category !== 'unclassified').map((entry) => entry.listing.agent)),
   };
 }

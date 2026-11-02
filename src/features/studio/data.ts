@@ -14,13 +14,12 @@ import { resolveAgentImage } from '@/lib/registry/image';
 import { listAgents } from '@/lib/scan/client';
 import type { ScanAgent } from '@/lib/scan/types';
 import { deriveMaturity, type AgentMaturity } from '@/lib/agents/maturity';
-import { classify } from '@/lib/agents/categories';
+import { CATEGORY_BY_ID, classify, GENERAL_CATEGORY_LABEL } from '@/lib/agents/categories';
 import { agentHistory } from '@/lib/agent/credited-history';
 import { escrowChainForCurrency } from '@/lib/network/escrow';
 import { getAssayStore } from '@/lib/assay/store';
 import { assayForCategory } from '@/lib/assay/catalog';
 import { passedCheck } from '@/lib/assay/standing';
-import { CATEGORY_BY_ID } from '@/lib/agents/categories';
 import { buildGrowthSnapshot, type BuilderGrowthSnapshot } from '@/lib/builders/growth';
 import { escrowOptionsForHire } from '@/lib/network/escrow';
 import { chainLabel } from '@/lib/network/presentation';
@@ -125,7 +124,7 @@ export async function loadFleet(owner: string): Promise<{ agents: FleetAgent[]; 
       const assay = assayDefinition ? getAssayStore().latest({ chainId: agent.chain_id, tokenId: agent.token_id }, assayDefinition.id) : null;
       const growth = buildGrowthSnapshot({
         category,
-        categoryLabel: category === 'unclassified' ? 'Unclassified' : (CATEGORY_BY_ID.get(category)?.label ?? category),
+        categoryLabel: category === 'unclassified' ? GENERAL_CATEGORY_LABEL : (CATEGORY_BY_ID.get(category)?.label ?? category),
         definition: assayDefinition,
         run: assay,
         outcomes: history.outsideTeam,

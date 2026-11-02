@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { classify, CATEGORIES, CATEGORY_BY_ID } from '../src/lib/agents/categories';
+import { interpretBrief } from '../src/lib/brief/interpret';
+import { sampleBrief } from '../src/lib/erc8183/sample-enquiry';
 
 const agent = (name: string, description: string) =>
   ({ name, description, tags: [] }) as never;
@@ -24,7 +26,7 @@ test('the category is published with a label and a buyer question', () => {
   assert.ok(meta);
   assert.equal(meta.label, 'Token Safety');
   assert.ok(meta.question.length > 10);
-  assert.equal(CATEGORIES.length, 5);
+  assert.equal(CATEGORIES.length, 8);
 });
 
 /*
@@ -66,4 +68,18 @@ test('anything keyed by category must cover every category', () => {
     assert.ok(counts[category.id], `no entry for ${category.id}`);
   }
   assert.equal(Object.keys(counts).length, CATEGORIES.length);
+});
+
+test('research, trading and content have discoverable agents and usable buyer briefs', () => {
+  const cases = [
+    ['research', 'Chain Research', 'Produces cited research reports and due diligence for BNB Chain projects.', 'Research BNB Chain agent commerce with cited sources.'],
+    ['trading', 'MEFAI Verifiable Autonomous Trader', 'A BNB Chain trading agent with a pre-trade honeypot gate.', 'Review a spot trade with entry and exit conditions.'],
+    ['content', 'Copy Studio', 'Writes blog posts, newsletters and social media content for crypto teams.', 'Write a blog post for new BNB Chain builders.'],
+  ] as const;
+  for (const [category, name, description, brief] of cases) {
+    assert.equal(classify(agent(name, description)), category);
+    assert.equal(interpretBrief(brief).category, category);
+    assert.ok(sampleBrief(category)?.length, category);
+    assert.ok(CATEGORY_BY_ID.get(category)?.question, category);
+  }
 });

@@ -14,6 +14,12 @@ test('every marketplace category has a disclosed correctness suite', () => {
   assert.equal(assayForCategory('unclassified'), null);
 });
 
+test('new discovery categories do not imply a category-specific correctness suite', () => {
+  for (const category of ['research', 'trading', 'content'] as const) {
+    assert.equal(assayForCategory(category), null);
+  }
+});
+
 test('static suites use at least three deterministic scenarios and stable ids', () => {
   for (const [category, id] of Object.entries(CATEGORY_SUITE_IDS)) {
     assert.equal(STATIC_SUITES[category as keyof typeof CATEGORY_SUITE_IDS].id, id);

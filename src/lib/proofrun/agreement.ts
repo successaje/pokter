@@ -113,6 +113,7 @@ export function agreementVerdict(input: {
   };
   /** The spec the receipt is about to check against. */
   spec: Pick<AcceptanceSpec, 'specHash'>;
+  specTermPrefix?: string;
 }): AgreementVerdict {
   const { agreement, job, spec } = input;
   if (!agreement || !job.negotiationHash) return { binding: POKTER_ASSERTED, refusal: 'no-agreement' };
@@ -158,6 +159,7 @@ export function agreementVerdict(input: {
    */
   const binding = bindingFor({
     specHash: agreement.specHash,
+    specTermPrefix: input.specTermPrefix,
     termsBound: agreement.termsBound,
     signedCriteria: agreement.signedCriteria ?? undefined,
     sentCriteria: agreement.sentCriteria,

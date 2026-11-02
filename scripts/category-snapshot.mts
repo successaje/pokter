@@ -44,6 +44,9 @@ export const DISCOVERY_QUERIES: Record<Category, string[]> = {
   yield: ['yield optimiser moving capital to the best APY'],
   'health-factor': ['health factor monitor preventing loan liquidation'],
   'token-safety': ['token safety screen honeypot sellability contract risk'],
+  research: ['research agent cited report due diligence'],
+  trading: ['trading agent trade plan spot execution'],
+  content: ['content writer blog social media copy'],
 };
 
 export const KEYWORD_TERMS: Record<Category, string[]> = {
@@ -52,6 +55,9 @@ export const KEYWORD_TERMS: Record<Category, string[]> = {
   yield: ['yield', 'vault'],
   'health-factor': ['health factor', 'liquidation'],
   'token-safety': ['honeypot', 'token safety'],
+  research: ['research', 'due diligence'],
+  trading: ['trading', 'trade execution'],
+  content: ['content creation', 'copywriting'],
 };
 
 const LISTED_CHAINS = [56, 97] as const;

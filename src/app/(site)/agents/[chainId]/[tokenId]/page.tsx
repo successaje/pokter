@@ -3,6 +3,7 @@ import { X402Island } from '@/features/x402/X402Island';
 import { PayPerCallDeclared } from '@/features/x402/PayPerCallDeclared';
 import { x402Enabled } from '@/lib/x402/flags';
 import Link from 'next/link';
+import { GENERAL_CATEGORY_LABEL } from '@/lib/agents/categories';
 import { notFound, redirect } from 'next/navigation';
 import { Suspense, type ReactNode } from 'react';
 
@@ -418,7 +419,7 @@ function ClaimVsObserved({ p }: { p: AgentProfile }) {
         </span>
         <p className="text-[13.5px] leading-relaxed text-ink-2">Declared by the operator. Not checked by anyone.</p>
         <ul className="flex flex-col gap-1.5 text-[13px]">
-          <li>{p.category ? `${p.category.label} agent` : 'No category Pokter recognises'}</li>
+          <li>{p.category ? `${p.category.label} agent` : `${GENERAL_CATEGORY_LABEL} agent`}</li>
           {/* "on its card" is false for an agent that publishes only MCP. */}
           <li>
             {p.skillSource === 'mcp'

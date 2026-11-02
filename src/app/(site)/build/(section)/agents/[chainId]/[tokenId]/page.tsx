@@ -261,7 +261,11 @@ export default async function ManageAgent({ params }: { params: Promise<{ chainI
                 <p className="mt-1 text-[11.5px] leading-relaxed text-ink-3">{agent.growth.check.limitation}</p>
               </div>
             ) : (
-              <p className="rounded-[10px] border border-rule bg-paper p-3 text-[12.5px] text-ink-3">Choose a truthful marketplace category before Pokter can run a category-specific check.</p>
+              <p className="rounded-[10px] border border-rule bg-paper p-3 text-[12.5px] text-ink-3">
+                {agent.growth.category === 'unclassified'
+                  ? 'Choose a truthful marketplace category to appear on a task shelf.'
+                  : `Pokter does not yet run a category-specific correctness check for ${agent.growth.categoryLabel.toLowerCase()} agents.`}
+              </p>
             )}
 
             <div className="flex flex-col gap-3">

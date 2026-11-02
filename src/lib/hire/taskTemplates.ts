@@ -42,6 +42,21 @@ const CATEGORY_CONTEXT: Record<
     evidence: 'net yield, fees, liquidity, lockups and protocol risk',
     risk: 'why the recommended route is preferable to the alternatives',
   },
+  research: {
+    subject: 'the research question in my brief',
+    evidence: 'the findings, source links, publication dates and open questions',
+    risk: 'which conclusions depend on uncertain or conflicting sources',
+  },
+  trading: {
+    subject: 'the proposed trade in my brief',
+    evidence: 'entry, exit, size, fee and slippage assumptions',
+    risk: 'the conditions that invalidate the plan and its downside',
+  },
+  content: {
+    subject: 'the content brief for my audience',
+    evidence: 'the requested format, key points and sources for factual claims',
+    risk: 'which claims need review before publication',
+  },
 };
 
 export function commissionTaskTemplates(
@@ -83,7 +98,7 @@ export function commissionTaskTemplates(
  * Task suggestions taken from the agent's own card.
  *
  * The three templates above are chosen by category, which assumes every
- * agent is one of five kinds of DeFi assistant. An agent in no category
+ * agent fits one of the marketplace categories. An agent in no category
  * falls through to generic wording — and Pokter's own evidence agent was
  * hired on mainnet with "Analyse the requested onchain objective",
  * a brief it had to refuse, while its card published the exact two

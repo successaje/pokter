@@ -7,7 +7,7 @@ import { RememberDiscoverResults } from '@/features/discover/ReturnToResults';
 
 import { AgentCard, AgentRow, MiniAgentCard } from '@/features/agents/AgentCard';
 import { CompareToggle, CompareTray } from '@/features/compare/CompareControls';
-import { DiscoverSearch } from '@/features/discover/DiscoverControls';
+import { DiscoverSearch, SortSelect } from '@/features/discover/DiscoverControls';
 import { ManyQuotes } from '@/features/discover/ManyQuotes';
 import { comparisonCandidates } from '@/lib/hire/compare-quotes';
 import { discoverHref, PAGE_SIZE, parseDiscoverParams } from '@/features/discover/params';
@@ -22,7 +22,7 @@ import { outsideActivity } from '@/lib/erc8183/outside-activity';
 import { EmptyState, Notice } from '@/ui/Feedback';
 import { Icon } from '@/ui/icons';
 import { LinkButton } from '@/ui/Button';
-import { CATEGORIES } from '@/lib/agents/categories';
+import { CATEGORIES, GENERAL_CATEGORY_LABEL } from '@/lib/agents/categories';
 import type { FindRow } from '@/lib/find/rows';
 import { requestHrefFor } from '@/features/discover/params';
 import { lastCheckAt } from '@/lib/history/last-check';
@@ -283,9 +283,9 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
             the block above, so nothing else needs a place here.
           */}
           <div className="mb-4 flex flex-col gap-2 border-b border-rule pb-4 max-lg:border-b-0 max-lg:pb-0">
-            <div className="flex items-baseline justify-between gap-3">
+            <div className="flex flex-wrap items-baseline justify-between gap-3">
               <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                <h2 className="text-[19px] font-medium tracking-[-0.02em]">{p.q ? 'Best matches' : 'Recommended agents'}</h2>
+                <h2 className="text-[19px] font-medium tracking-[-0.02em]">{p.q ? 'Best matches' : p.category ? `${CATEGORIES.find((c) => c.id === p.category)?.label ?? GENERAL_CATEGORY_LABEL} agents` : 'Recommended agents'}</h2>
                 <p className="text-sm text-ink-2" aria-live="polite">
                   <span className="t-readout text-ink">{result.total}</span> {result.total === 1 ? 'agent' : 'agents'}
                 </p>
@@ -300,9 +300,12 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
                   and "Outcome rankings" were here and are errands rather
                   than a next step — both are still in the footer and on
                   their own pages. */}
-              <Link href="/agents" className="t-readout inline-flex shrink-0 items-center gap-1 text-[13px] text-ink-2 hover:text-ink hover:underline">
-                View all <Icon.Arrow size={13} />
-              </Link>
+              <div className="flex w-full items-center justify-between gap-3 sm:w-auto sm:justify-end">
+                <SortSelect params={base} variant="inline" />
+                <Link href="/agents" className="t-readout inline-flex shrink-0 items-center gap-1 text-[13px] text-ink-2 hover:text-ink hover:underline">
+                  View all <Icon.Arrow size={13} />
+                </Link>
+              </div>
             </div>
           </div>
 

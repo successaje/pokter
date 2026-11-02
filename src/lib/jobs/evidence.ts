@@ -6,8 +6,10 @@ import type { Hex } from 'viem';
 import { altanaNetworkFor } from '@/lib/altana/client';
 import { readDeliveredAnswer, type DeliveredAnswer } from '@/lib/delivery/answer';
 import { checkDeliveredPlan, type PlanCheckReport } from '@/lib/delivery/plan-checks';
+import { PLAN_PROOF_PREFIX, planProofCoverage, planProofSpec, type PlanProofSpec } from '@/lib/delivery/plan-proof';
 import { readDeliveryText } from '@/lib/delivery/read-delivery';
 import { correctedErc8183Addresses, escrowCommerceAddress } from '@/lib/erc8183/addresses';
+import { jobTaskFromDescription } from '@/lib/erc8183/job-envelope';
 import { disputeWindowSeconds } from '@/lib/erc8183/dispute-window';
 import { jobAmountLabel } from '@/lib/erc8183/job-amount';
 import { jobPaymentTokenOnChain } from '@/lib/erc8183/job-onchain';
@@ -16,6 +18,8 @@ import { reviewWindowSummary } from '@/lib/erc8183/settle-window';
 import { getJobStore } from '@/lib/erc8183/store';
 import type { HiredJob } from '@/lib/erc8183/types';
 import { jobReceipt } from '@/lib/jobs/receipt-link';
+import { agreementVerdict, negotiationHashOnChain } from '@/lib/proofrun/agreement';
+import type { AcceptanceSpec } from '@/lib/shared/contracts';
 import { registeredWalletRead } from '@/lib/registry/live-agent';
 import { teamWalletSet } from '@/lib/team/server';
 import { answerIsPublic } from './answer-publication';
@@ -75,6 +79,8 @@ export interface JobEvidence {
   answer: DeliveredAnswer | null;
   /** Pokter's checks on that answer, against itself and the brief when the brief may be shown (`checkDeliveredPlan`). */
   checks: PlanCheckReport | null;
+  /** Whether the checker on this job is the exact plan the seller signed before funding. */
+  planProof: { spec: PlanProofSpec; binding: AcceptanceSpec['binding']; checkerMatched: boolean; missingChecks: string[] } | null;
   /** Delivered and matching its hash, but the buyer has not chosen to publish the answer. */
   answerWithheld: boolean;
   receipt: { href: string; hash: string | null };
@@ -141,6 +147,29 @@ export async function loadJobEvidence(chainId: 56 | 97, jobId: string, now = Dat
     }
   }
 
+  const negotiationHash = onchain ? negotiationHashOnChain(onchain.description) : null;
+  const agreement = negotiationHash ? getJobStore().criteriaAgreement(negotiationHash) : null;
+  const planSpec = agreement
+    ? (['grid', 'yield'] as const).map(planProofSpec).find((spec) => spec.specHash.toLowerCase() === agreement.specHash.toLowerCase()) ?? null
+    : null;
+  const planProof = planSpec && onchain && chain
+    ? (() => {
+        const verdict = agreementVerdict({
+          agreement,
+          job: {
+            negotiationHash,
+            provider: chain.provider,
+            escrowChainId: chainId,
+            task: jobTaskFromDescription(onchain.description) ?? '',
+          },
+          spec: planSpec,
+          specTermPrefix: PLAN_PROOF_PREFIX,
+        });
+        const coverage = planProofCoverage(planSpec, checks);
+        return { spec: planSpec, binding: verdict.binding, checkerMatched: coverage.matched, missingChecks: coverage.missing };
+      })()
+    : null;
+
   return {
     chainId,
     jobId,
@@ -164,6 +193,7 @@ export async function loadJobEvidence(chainId: 56 | 97, jobId: string, now = Dat
     brief: briefIsPublic(funder) ? indexed.task : null,
     answer,
     checks,
+    planProof,
     answerWithheld,
     receipt: jobReceipt({ ...indexed, status: status as HiredJob['status'] }, escrowCommerceAddress),
     fundingTx: indexed.hireTxHash,

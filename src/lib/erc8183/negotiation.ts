@@ -252,7 +252,7 @@ export function negotiationTermsBound(envelope: Record<string, unknown>, sentTas
  * `negotiationTermsBound`, so membership here is membership in what the
  * agent signed. Compared after the same sanitising the hash applies.
  */
-const SPEC_LINE = /^pokter-proofrun\/\d+ spec=0x[0-9a-fA-F]{64}$/;
+const SPEC_LINE = /^pokter-(?:proofrun|plan-check)\/\d+ spec=0x[0-9a-fA-F]{64}$/;
 
 export function criteriaInSignedTerms(sent: readonly string[] | undefined, content: Record<string, unknown> | null): boolean | null {
   if (!sent || sent.length === 0) return null;

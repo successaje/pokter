@@ -1011,7 +1011,7 @@ export function HireFlow(props: HireFlowProps) {
             </Details>
           )}
 
-          {reviewProofSpec ? <ProofRunCheckPanel spec={reviewProofSpec} /> : <CheckCoverage category={props.agent.category} />}
+          {reviewProofSpec ? <ProofRunCheckPanel spec={reviewProofSpec} /> : <CheckCoverage category={props.agent.category} quote={hire.reviewQuote} />}
 
           {/*
             Edited after confirming, and the quote no longer covers it. The

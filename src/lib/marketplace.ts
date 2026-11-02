@@ -103,6 +103,9 @@ const KEYWORD_TERMS: Record<Category, string[]> = {
   yield: ['yield', 'vault'],
   'health-factor': ['health factor', 'liquidation'],
   'token-safety': ['honeypot', 'token safety'],
+  research: ['research', 'due diligence'],
+  trading: ['trading', 'trade execution'],
+  content: ['content creation', 'copywriting'],
 };
 
 const DISCOVERY_QUERIES: Record<Category, string[]> = {
@@ -111,6 +114,9 @@ const DISCOVERY_QUERIES: Record<Category, string[]> = {
   yield: ['yield optimiser moving capital to the best APY'],
   'health-factor': ['health factor monitor preventing loan liquidation'],
   'token-safety': ['token safety screen honeypot sellability contract risk'],
+  research: ['research agent cited report due diligence'],
+  trading: ['trading agent trade plan spot execution'],
+  content: ['content writer blog social media copy'],
 };
 
 /** A marketplace listing: a registry agent plus what we can prove about it. */
@@ -119,7 +125,7 @@ export interface Listing {
   /**
    * `unclassified` only for an agent reached by name rather than through a
    * category listing — see `searchByName`. Everything built by
-   * `listCategory` carries one of the five.
+   * `listCategory` carries a marketplace category.
    */
   category: Category | 'unclassified';
   confidence: number;
@@ -926,7 +932,7 @@ async function buildSearchableWithStatus(
 
   /*
    * Agents that have signed a price for Pokter but that no category listing
-   * returned: their work fits none of the five categories Pokter evaluates,
+   * returned: their work fits none of the marketplace categories,
    * or the category search ranked them out. Stockroom, Bound, Lattice and
    * Tidemark held signed quotes and appeared nowhere in hiring discovery or
    * in the "signed a price" count. They are included as what they are: a

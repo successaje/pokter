@@ -1,0 +1,17 @@
+{
+  "kind": "http",
+  "method": "GET",
+  "url": "https://api.8004scan.io/api/v1/agents?chain_id=97&limit=20&offset=0&search=content+creation&sort_by=total_score&sort_order=desc",
+  "requestBodySha256": null,
+  "response": {
+    "status": 200,
+    "statusText": "OK",
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "text": "{\"items\":[{\"token_agent_provider\":null,\"id\":\"8efdb22c-4561-432f-aa00-9f32638c4231\",\"agent_id\":\"97:0x8004a818bfb912233c491871b3d84c89a494bd9e:494\",\"token_id\":\"494\",\"chain_id\":97,\"chain_type\":\"evm\",\"contract_address\":\"0x8004a818bfb912233c491871b3d84c89a494bd9e\",\"is_testnet\":true,\"owner_id\":\"be3af9a3-658c-44aa-845e-481cd64936d7\",\"owner_address\":\"0x21f990e0175cc8a3a4fd5a1fb884366cc9ce7b12\",\"owner_ens\":null,\"owner_username\":null,\"owner_avatar_url\":null,\"owner_publisher_tier\":null,\"owner_certified_name\":null,\"name\":\"aigc\",\"description\":\"AIGC (AI-Generated Content) refers to content—text, images, audio, video, or code—produced by artificial intelligence models, particularly Generative AI, with minimal human intervention. It focuses on enhancing creation efficiency and accessibility through generative models like GANs and diffusion models. \",\"image_url\":null,\"is_verified\":false,\"star_count\":0,\"supported_protocols\":[\"A2A\",\"Web\"],\"x402_supported\":true,\"total_score\":5.0,\"rank\":null,\"network_rank\":null,\"health_score\":15.0,\"total_feedbacks\":0,\"average_score\":0.0,\"cross_chain_versions\":null,\"created_at\":\"2026-04-08T04:40:29Z\",\"updated_at\":\"2026-11-01T13:16:39.553565Z\"}],\"total\":1,\"limit\":20,\"offset\":0,\"next_cursor\":null,\"has_more\":false}"
+    }
+  },
+  "recordedAt": "2026-11-02T16:39:50.559Z"
+}

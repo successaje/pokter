@@ -1,6 +1,6 @@
 import Link from 'next/link';
 
-import { CATEGORY_BY_ID, type Category } from '@/lib/agents/categories';
+import { CATEGORY_BY_ID, GENERAL_CATEGORY_LABEL, type Category } from '@/lib/agents/categories';
 import { leaders } from '@/lib/compare/best';
 import { activityRow } from '@/lib/activity/reading';
 import { coordinationText } from '@/lib/proof/coordination';
@@ -65,7 +65,7 @@ function CheckResult({ check }: { check: Comparison['check'] }) {
 }
 
 const ROWS: Row[] = [
-  { label: 'Does', value: (c) => (c.category === 'unclassified' ? 'Unclassified' : (CATEGORY_BY_ID.get(c.category as Category)?.label ?? c.category)), raw: (c) => String(c.category) },
+  { label: 'Does', value: (c) => (c.category === 'unclassified' ? GENERAL_CATEGORY_LABEL : (CATEGORY_BY_ID.get(c.category as Category)?.label ?? c.category)), raw: (c) => String(c.category) },
   /*
    * Two questions, two rows, each marked as plainly as the other. Whether
    * it replies is not whether it is right: a green "Reliable" beside

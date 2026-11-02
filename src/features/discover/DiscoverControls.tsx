@@ -155,10 +155,11 @@ export function FiltersButton({ children }: { children: ReactNode }) {
  * scrolls sideways, edge to edge, and opens at the pill that is on, so a
  * chosen task is never the one past the edge.
  */
-export function PillRow({ label, className, children }: { label: string; className?: string; children: ReactNode }) {
+export function PillRow({ label, className, wrapOnMobile = false, inlineOnDesktop = false, children }: { label: string; className?: string; wrapOnMobile?: boolean; inlineOnDesktop?: boolean; children: ReactNode }) {
   const row = useRef<HTMLDivElement>(null);
   const shown = useRef<Element | null>(null);
   useEffect(() => {
+    if (wrapOnMobile || (inlineOnDesktop && window.matchMedia('(min-width: 640px)').matches)) return;
     const el = row.current;
     const on = el?.querySelector<HTMLElement>('[aria-current="true"], [aria-checked="true"]');
     if (!el || !on || on === shown.current) return;
@@ -175,7 +176,10 @@ export function PillRow({ label, className, children }: { label: string; classNa
       className={cn(
         'relative flex gap-2 sm:flex-wrap',
         // Room above and below for the focus ring, which the scroller would otherwise clip.
-        'max-sm:-mx-4 max-sm:-my-1 max-sm:overflow-x-auto max-sm:px-4 max-sm:py-1 max-sm:[scrollbar-width:none] max-sm:[&::-webkit-scrollbar]:hidden',
+        wrapOnMobile
+          ? 'max-sm:flex-wrap'
+          : 'max-sm:-mx-4 max-sm:-my-1 max-sm:overflow-x-auto max-sm:px-4 max-sm:py-1 max-sm:[scrollbar-width:none] max-sm:[&::-webkit-scrollbar]:hidden',
+        inlineOnDesktop && 'sm:contents',
         className,
       )}
     >

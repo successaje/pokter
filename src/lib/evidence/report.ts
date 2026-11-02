@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { CATEGORY_BY_ID, categorySignalSource, type Category } from '@/lib/agents/categories';
+import { CATEGORY_BY_ID, GENERAL_CATEGORY_LABEL, categorySignalSource, type Category } from '@/lib/agents/categories';
 import { quotePayableOn } from '@/lib/erc8183/payable';
 import { formatQuotedRaw } from '@/lib/erc8183/pricing';
 import { getComparison, type Comparison } from '@/lib/marketplace';
@@ -83,7 +83,7 @@ function categoryClaim(
   const meta = CATEGORY_BY_ID.get(category as Category);
   if (!meta) {
     return claim(
-      'Unclassified',
+      GENERAL_CATEGORY_LABEL,
       'calculated',
       "Pokter's classifier could not place this agent in one of its categories with enough confidence. Not a finding about the agent.",
     );

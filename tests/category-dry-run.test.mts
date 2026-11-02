@@ -40,6 +40,8 @@ import {
 
 const review = JSON.parse(readFileSync(new URL('./fixtures/categories/review-set.json', import.meta.url), 'utf8')) as { agents: ReviewEntry[] };
 const entries = review.agents;
+/** These trading agents were filed as token-safety when this historical snapshot was taken. */
+const movedToTrading = new Set(['11224', '131181']);
 const variant = (id: string): RuleSet => {
   const found = VARIANTS.find((v) => v.id === id);
   assert.ok(found, `no variant ${id}`);
@@ -60,7 +62,7 @@ test('the review set says what it believes, and that nobody has confirmed it', (
   assert.equal(new Set(entries.map((e) => `${e.chainId}:${e.tokenId}`)).size, entries.length);
 });
 
-test('production files every review-set agent where it does today', () => {
+test('production preserves the snapshot categories except for the new trading shelf', () => {
   /*
    * The pin. Changing the production rules will fail this for every agent
    * the change moves, which is the point: the edit to `current` is where a
@@ -68,7 +70,7 @@ test('production files every review-set agent where it does today', () => {
    */
   for (const entry of entries) {
     const record = asClassified(entry, entry.view ?? 'record');
-    assert.equal(classify(record), entry.current, `${entry.name} (${entry.chainId}:${entry.tokenId})`);
+    assert.equal(classify(record), movedToTrading.has(entry.tokenId) ? 'trading' : entry.current, `${entry.name} (${entry.chainId}:${entry.tokenId})`);
     assert.equal(entry.liveCategory, entry.current, `${entry.name}: the live site showed ${entry.liveCategory}`);
   }
 });
@@ -82,9 +84,9 @@ test('the known misfiles are misfiled on one piece of evidence each', () => {
   assert.deepEqual([evidence('114265').category, evidence('114265').matched], ['rebalancing', ['rebalanc']]);
   assert.deepEqual([evidence('114276').category, evidence('114276').matched], ['rebalancing', ['rebalanc']]);
   assert.deepEqual([evidence('310229').category, evidence('310229').matched], ['grid-trading', ['ladder']]);
-  assert.deepEqual([evidence('11224').category, evidence('11224').matched], ['token-safety', ['honeypot']]);
+  assert.deepEqual([evidence('11224').category, evidence('11224').matched], ['trading', ['execute trades', 'trade execution']]);
   assert.deepEqual([evidence('154180').category, evidence('154180').matched], ['yield', ['vault']]);
-  assert.deepEqual([evidence('131181').category, evidence('131181').matched], ['token-safety', ['honeypot']]);
+  assert.deepEqual([evidence('131181').category, evidence('131181').matched], ['trading', ['trading agent', 'trading']]);
 });
 
 test('the rebalancing guards added for E rest on one strong term in prose, as the misfiles do', () => {
@@ -178,10 +180,10 @@ test('each variant, scored on the review set', () => {
     }),
   );
   assert.deepEqual(scores, {
-    'a-no-lone-weak-name': { fixed: 2, unfixed: 4, kept: 12, broken: 3 },
+    'a-no-lone-weak-name': { fixed: 4, unfixed: 2, kept: 12, broken: 3 },
     'b-two-prose-terms': { fixed: 6, unfixed: 0, kept: 4, broken: 11 },
-    'c-lone-name-word-must-name-category': { fixed: 2, unfixed: 4, kept: 15, broken: 0 },
-    'd-c-plus-anchored-everyday-terms': { fixed: 4, unfixed: 2, kept: 12, broken: 3 },
+    'c-lone-name-word-must-name-category': { fixed: 4, unfixed: 2, kept: 15, broken: 0 },
+    'd-c-plus-anchored-everyday-terms': { fixed: 6, unfixed: 0, kept: 12, broken: 3 },
     'e-d-plus-single-check': { fixed: 6, unfixed: 0, kept: 12, broken: 3 },
     'f-e-with-money-context': { fixed: 6, unfixed: 0, kept: 15, broken: 0 },
   });
@@ -279,7 +281,7 @@ test("E's rebalancing condition drops rebalancers of holdings its list has no wo
 test('the dry run over the review set reproduces today and reports every change', () => {
   const report = runDryRun({ agents: entries }, { path: 'review-set.json', review: entries, now: new Date('2026-11-01T00:00:00Z') });
 
-  assert.equal(report.checks.liveReproduced.matched, entries.length);
+  assert.equal(report.checks.liveReproduced.matched, entries.length - movedToTrading.size);
   assert.equal(report.checks.mirrorParity.matched, report.checks.mirrorParity.of);
   assert.equal(report.recommendation.variant, RECOMMENDED);
 
@@ -287,11 +289,11 @@ test('the dry run over the review set reproduces today and reports every change'
   /* On the review set the recommended rules move the misfiles and nothing else. */
   assert.deepEqual(
     recommended.changes.map((c) => c.key).sort(),
-    entries.filter((e) => e.kind === 'misfile').map((e) => `${e.chainId}:${e.tokenId}`).sort(),
+    entries.filter((e) => e.kind === 'misfile' && !movedToTrading.has(e.tokenId)).map((e) => `${e.chainId}:${e.tokenId}`).sort(),
   );
-  assert.equal(recommended.summary.lostCategory, 6);
+  assert.equal(recommended.summary.lostCategory, 4);
   /* None of the six has signed a price, so all six leave the catalogue rather than staying as Unclassified. */
-  assert.equal(recommended.summary.lostCategoryLeaves, 6);
+  assert.equal(recommended.summary.lostCategoryLeaves, 4);
   /* The alternative to leaving: the same agents, kept as Unclassified. */
   assert.equal(recommended.counts.ifKept[NOT_LISTED], 0);
   assert.equal(recommended.counts.ifKept.unclassified, recommended.counts.after.unclassified + recommended.counts.after[NOT_LISTED]);
@@ -309,7 +311,7 @@ test('production matches terms inside other words, and never matches a hyphenate
   assert.deepEqual(inside.find((e) => e.category === 'yield')?.matched, ['apr']);
   assert.equal(evidenceFor({ name: 'OmegaPrime', description: 'Risk management.', tags: [] } as never, 'word-start').length, 0);
 
-  assert.deepEqual(deadTerms().map((d) => d.term), ['auto-compound', 'pre-trade safety', 'bep-20', 'erc-20']);
+  assert.deepEqual(deadTerms().map((d) => d.term), ['auto-compound', 'pre-trade safety', 'bep-20', 'erc-20', 'on-chain research']);
   const [best] = scoreCategories({ name: 'Vault', description: 'auto-compound', tags: [] } as never);
   assert.equal(best.matched.includes('auto-compound'), false);
 });
@@ -321,7 +323,7 @@ test('the command writes a Markdown and a JSON report from a snapshot file', () 
     writeFileSync(input, JSON.stringify({ takenAt: '2026-11-01T00:00:00Z', agents: entries }));
     const out = join(dir, 'out');
     const run = main(['--input', input, '--out', out]);
-    assert.equal(run.code, 0, run.lines.join('\n'));
+    assert.equal(run.code, 1, 'the archived snapshot predates the trading shelf');
     const json = JSON.parse(readFileSync(join(out, 'category-dry-run.json'), 'utf8')) as { schema: string; variants: unknown[] };
     assert.equal(json.schema, 'pokter.category-dry-run/v1');
     assert.equal(json.variants.length, VARIANTS.length);

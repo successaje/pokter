@@ -183,7 +183,7 @@ export async function loadHome(): Promise<HomeData> {
     // it is not featured as hireable now.
     // An agent that lets paid jobs lapse is not featured either, however well
     // it answers probes.
-    // Nor one outside the five categories: featuring it would imply Pokter evaluated work it does not evaluate.
+    // Nor one outside the marketplace categories: it has no task shelf to feature.
     .filter((entry) => isFeaturableAgent(entry.listing.agent) && entry.listing.requiresAuth !== true && !letsJobsLapse(entry) && entry.listing.category !== 'unclassified')
     .map((entry) => byKey.get(`${entry.listing.agent.chain_id}:${entry.listing.agent.token_id}`)!)
     .filter((row) => row.hirable)

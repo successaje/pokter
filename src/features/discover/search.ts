@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { CATEGORIES, CATEGORY_BY_ID, type Category } from '@/lib/agents/categories';
+import { CATEGORIES, CATEGORY_BY_ID, GENERAL_CATEGORY_LABEL, type Category } from '@/lib/agents/categories';
 import { isPromotableAgent } from '@/lib/agents/eligibility';
 import { catalogueCounts } from '@/lib/agents/catalogue-counts';
 import { distinctAgentCount, mainnetFirstPerAgent } from '@/lib/agents/distinct';
@@ -238,7 +238,7 @@ export async function discover(params: DiscoverParams): Promise<DiscoverResult> 
   const unclassified = forTasks.filter((e) => e.listing.category === 'unclassified').length;
   const categoryCounts: DiscoverResult['categoryCounts'] = [
     ...CATEGORIES.map((c) => ({ id: c.id, label: c.label, count: forTasks.filter((e) => e.listing.category === c.id).length })),
-    ...(unclassified > 0 ? [{ id: 'unclassified' as const, label: 'Unclassified', count: unclassified }] : []),
+    ...(unclassified > 0 ? [{ id: 'unclassified' as const, label: GENERAL_CATEGORY_LABEL, count: unclassified }] : []),
   ];
 
   /*

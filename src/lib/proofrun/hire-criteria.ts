@@ -1,5 +1,7 @@
 import { VENUS_COMPTROLLER } from '@/lib/assay/venus';
 import { VENUS_CHAIN_ID, venusHealthJob, venusSubjectFromBrief } from '@/lib/delivery/venus-report-check';
+import { planCheckPreviewForCategory } from '@/lib/delivery/plan-checks';
+import { planProofSpec, planProofTerms } from '@/lib/delivery/plan-proof';
 
 import type { AcceptanceSpec } from '@/lib/shared/contracts';
 
@@ -31,9 +33,8 @@ import { criteriaForTerms, venusAcceptanceSpec } from './acceptance';
  * criterion that can never be evaluated is not a stricter standard, it is
  * a meaningless one.
  *
- * Returns undefined for everything else, which is not a refusal: a quote
- * without criteria is ordinary and verifies exactly as before. It costs
- * the binding and nothing else.
+ * Grid and yield categories carry the existing plan checker as a separate,
+ * explicitly self-consistency-only spec. Other hires have no criteria.
  */
 export function hireAcceptanceSpec(input: { category?: string | null; brief: string }): AcceptanceSpec | null {
   if (!venusHealthJob({ category: input.category, brief: input.brief })) return null;
@@ -48,7 +49,14 @@ export function hireAcceptanceSpec(input: { category?: string | null; brief: str
 }
 
 /** The criteria to put in the negotiated terms, or undefined for a hire this does not cover. */
+export function hirePlanProofSpec(input: { category?: string | null }) {
+  const kind = planCheckPreviewForCategory(input.category ?? '')?.kind;
+  return kind === 'grid' || kind === 'yield' ? planProofSpec(kind) : null;
+}
+
 export function hireCriteria(input: { category?: string | null; brief: string }): string[] | undefined {
   const spec = hireAcceptanceSpec(input);
-  return spec ? criteriaForTerms(spec) : undefined;
+  if (spec) return criteriaForTerms(spec);
+  const plan = hirePlanProofSpec(input);
+  return plan ? planProofTerms(plan.kind) : undefined;
 }

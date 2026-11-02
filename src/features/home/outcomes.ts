@@ -32,4 +32,19 @@ export const OUTCOMES: Record<Category, { verb: string; detail: string; query: s
     detail: 'What a token contract can do to a holder: taxes, blacklists, mint rights.',
     query: 'Check if a token is safe to buy',
   },
+  research: {
+    verb: 'Research a question',
+    detail: 'A sourced report that lets you inspect the claims and dates.',
+    query: 'Research a BNB Chain topic with cited sources',
+  },
+  trading: {
+    verb: 'Review a trade plan',
+    detail: 'An entry, exit, fees and the conditions that invalidate a trade.',
+    query: 'Review a spot trading plan and its risks',
+  },
+  content: {
+    verb: 'Create content from a brief',
+    detail: 'Written content that follows your audience, format and source requirements.',
+    query: 'Write a sourced BNB Chain explainer',
+  },
 };

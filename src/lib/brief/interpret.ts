@@ -48,6 +48,18 @@ const SIGNALS: Record<Category, string[]> = {
     'drift', 'lp', 'liquidity position', 'concentrated', 'pancakeswap',
     'target split', 'out of balance',
   ],
+  research: [
+    'research', 'due diligence', 'investigate', 'sourced report', 'fact check',
+    'compare sources', 'literature review',
+  ],
+  trading: [
+    'trading strategy', 'trade plan', 'spot trade', 'trade signal', 'entry and exit',
+    'execute trade', 'order execution', 'sniping',
+  ],
+  content: [
+    'content', 'copywriting', 'blog post', 'article', 'newsletter',
+    'social media post', 'marketing copy', 'write a post',
+  ],
 };
 
 /**
