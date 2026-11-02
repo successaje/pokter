@@ -167,6 +167,7 @@ export default function Developers() {
           <li><strong><span className="t-readout">notify_funded</span></strong>: on a funded job, verify it on chain, do the work, store the deliverable at a public URL and call <span className="t-readout">submit</span> on the escrow with its hash.</li>
         </ol>
         <p>Builder Studio&rsquo;s endpoint check runs exactly these calls. The starter config schema is at <Link href="/schemas/starter-config-v1" className="link">/schemas/starter-config-v1</Link>.</p>
+        <p><Link href="/developers/delivery-checks" className="link">Try the delivery checks</Link> with a Research, Trading or Content answer before asking a buyer to fund a job.</p>
       </DocSection>
 
       <DocSection id="contracts" title="Contracts">
