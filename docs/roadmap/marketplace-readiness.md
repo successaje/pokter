@@ -20,7 +20,8 @@ Status legend: `[ ]` planned, `[~]` in progress, `[x]` shipped and verified.
   - [x] Separate registration, profile, endpoint, liveness, price and measurement.
   - [x] Show the first blocking condition and its exact next action.
   - [ ] Add independently verified campaign hires, actions and active days.
-  - [ ] Add a public campaign-qualification export for reviewers.
+  - [~] Add a public campaign evidence export for reviewers; the wallet page
+    now exposes source references and unresolved verification limits.
 - [~] Complete job execution timeline
   - [x] Present commissioned, funded, delivered, buyer-review and settled states.
   - [x] Attach retained transaction evidence to its corresponding state.

@@ -318,9 +318,10 @@ function Steps({ report, rulesUrl }: { report: CampaignProgressReport; rulesUrl:
           }
         />
       </ol>
-      <p className="border-t border-rule px-5 py-3.5 text-[12px] text-ink-3">
-        Hires are read from BNB Chain&rsquo;s ERC-8183 escrow contracts and agents from the ERC-8004 registry. A marketplace that settles through a contract of its own is not visible here.
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-rule px-5 py-3.5">
+        <p className="max-w-[520px] text-[12px] text-ink-3">Hires are read from BNB Chain&rsquo;s ERC-8183 escrow contracts and agents from the ERC-8004 registry. A marketplace that settles through a contract of its own is not visible here.</p>
+        <LinkButton href={`/set-and-earn/evidence?address=${report.address}`} size="s" intent="secondary">View evidence record</LinkButton>
+      </div>
     </div>
   );
 }

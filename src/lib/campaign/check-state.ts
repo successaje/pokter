@@ -32,7 +32,11 @@ export interface CampaignStep {
 const part = (value: number, target: number) => Math.min(Math.max(value, 0), target) / target;
 
 /** The four Set and Earn steps, each as one of the three answers. */
-export function campaignSteps(report: Pick<CampaignProgressReport, 'hires' | 'build' | 'adoption'>, registered: boolean): CampaignStep[] {
+export function campaignSteps(report: {
+  hires: Pick<CampaignProgressReport['hires'], 'distinctAgents' | 'marketplacesStatus'>;
+  build: Array<Pick<NonNullable<CampaignProgressReport['build']>[number], 'inWindow'>> | null;
+  adoption: Pick<NonNullable<CampaignProgressReport['adoption']>, 'independentWallets' | 'actions' | 'activeDays'> | null;
+}, registered: boolean): CampaignStep[] {
   const h = report.hires;
   const hire: CampaignStep = h.distinctAgents >= 3 && h.marketplacesStatus === 'met'
     ? { id: 'hire', state: 'verified', progress: 1 }

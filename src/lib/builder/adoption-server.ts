@@ -8,6 +8,12 @@ import { isDemoSeller } from '@/lib/erc8183/demo-seller';
 import { summariseAdoption, type AdoptionProgress } from './adoption';
 
 export interface AgentAdoption extends AdoptionProgress {
+  /** Chain job references behind the counts, including jobs funded by the owner. */
+  completedHires: Array<{ chainId: number; jobId: string; client: string; hireTxHash: string | null; settleTxHash: string | null }>;
+  /** Submission times read from the escrow job, only where Pokter's seller did not act for the agent. */
+  ownActions: Array<{ chainId: number; jobId: string; submittedAt: string }>;
+  /** A failed chain read is unknown, never silently evidence that no action happened. */
+  unreadJobs: number;
   /**
    * Why the action count is what it is.
    *
@@ -35,6 +41,7 @@ export async function readAgentAdoption(
   agentChainId: number,
   agentTokenId: string,
   ownerAddresses: string[],
+  { includeEvidence = false }: { includeEvidence?: boolean } = {},
 ): Promise<AgentAdoption> {
   const indexed = getJobStore()
     .byAgent(agentChainId, agentTokenId)
@@ -42,7 +49,10 @@ export async function readAgentAdoption(
 
   const hires: { jobId: string; client: string; completedAtMs: number }[] = [];
   const actions: { atMs: number }[] = [];
+  const completedHires: AgentAdoption['completedHires'] = [];
+  const ownActions: AgentAdoption['ownActions'] = [];
   let pokterDelivered = 0;
+  let unreadJobs = 0;
 
   for (const job of indexed) {
     try {
@@ -60,6 +70,7 @@ export async function readAgentAdoption(
         client: onchain.client,
         completedAtMs: Date.parse(job.statusCheckedAt) || Date.now(),
       });
+      if (includeEvidence) completedHires.push({ chainId: job.chainId, jobId: job.jobId, client: onchain.client, hireTxHash: job.hireTxHash, settleTxHash: job.settleTxHash });
 
       /*
        * An action counts only when the agent's own wallet performed it.
@@ -72,10 +83,13 @@ export async function readAgentAdoption(
         continue;
       }
       if (Number(onchain.submittedAt) > 0) {
-        actions.push({ atMs: Number(onchain.submittedAt) * 1000 });
+        const atMs = Number(onchain.submittedAt) * 1000;
+        actions.push({ atMs });
+        if (includeEvidence) ownActions.push({ chainId: job.chainId, jobId: job.jobId, submittedAt: new Date(atMs).toISOString() });
       }
     } catch {
       /* Left uncounted; the next load tries again. */
+      unreadJobs += 1;
     }
   }
 
@@ -83,6 +97,9 @@ export async function readAgentAdoption(
 
   return {
     ...progress,
+    completedHires,
+    ownActions,
+    unreadJobs,
     actionsBlockedReason:
       actions.length === 0 && pokterDelivered > 0
         ? `Pokter's own seller delivered ${pokterDelivered === 1 ? 'the hire' : `all ${pokterDelivered} hires`}, because this agent is registered on a different chain from the escrow. Those deliveries are Pokter's transactions, not your agent's.`
