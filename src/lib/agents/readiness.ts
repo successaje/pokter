@@ -138,11 +138,11 @@ export function readinessRows(input: ReadinessInput): ReadinessRow[] {
   rows.push({
     id: 'correctness',
     label: 'Answer check',
-    value: !categoryCheck ? 'No check for its kind' : !check ? 'Not checked yet' : check.total > 0 ? `${check.passed} of ${check.total} passed` : ungraded ? 'Not graded' : 'Could not be checked',
+    value: !categoryCheck ? 'No pre-hire check' : !check ? 'Not checked yet' : check.total > 0 ? `${check.passed} of ${check.total} passed` : ungraded ? 'Not graded' : 'Could not be checked',
     /* A full pass past `CHECK_FRESH_DAYS` is real but no longer counts: amber, as a partial step is. */
     tone: !check || check.total === 0 ? 'unknown' : check.passed !== check.total ? 'bad' : checkStanding(check, now) === 'stale' ? 'watch' : 'ok',
     detail: !categoryCheck
-      ? 'Pokter has no answer check for this kind of agent, so answers are not graded.'
+      ? 'Pokter has no pre-hire answer check for this category, so it has not graded the agent before a buyer hires it.'
       : !check
         ? `${categoryCheck.name} has not run against it yet.`
         : ungraded && check.detail

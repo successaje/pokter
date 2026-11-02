@@ -2,8 +2,11 @@ import { readDeliveredAnswer } from './answer';
 import { GRID_METHOD, GRID_NOT_COVERED, gridChecks, isGridPlan } from './grid-plan-check';
 import { HEALTH_METHOD, HEALTH_NOT_COVERED, healthChecks, isHealthReport } from './health-plan-check';
 import { check, deliveredObject, utcTime, type Obj, type PlanCheck, type PlanCheckReport, type PlanKind } from './plan-check-kit';
+import { CONTENT_METHOD, CONTENT_NOT_COVERED, contentChecks, isContentDraft } from './content-plan-check';
 import { RANGE_METHOD, RANGE_NOT_COVERED, isRangePlan, rangeChecks } from './range-plan-check';
+import { RESEARCH_METHOD, RESEARCH_NOT_COVERED, isResearchReport, researchChecks } from './research-plan-check';
 import { TOKEN_METHOD, TOKEN_NOT_COVERED, isTokenReport, tokenChecks } from './token-plan-check';
+import { TRADING_METHOD, TRADING_NOT_COVERED, isTradingPlan, tradingChecks } from './trading-plan-check';
 import { YIELD_METHOD, YIELD_NOT_COVERED, isYieldPlan, yieldChecks } from './yield-plan-check';
 
 export type { PlanCheck, PlanCheckOutcome, PlanCheckReport, PlanKind } from './plan-check-kit';
@@ -40,6 +43,9 @@ const ENTRIES: PlanEntry[] = [
   { kind: 'grid', method: GRID_METHOD, label: 'Grid plan', matches: isGridPlan, run: gridChecks, notCovered: GRID_NOT_COVERED, preview: ['Levels, order sizes and fees agree with the plan’s own figures', 'The plan keeps any terms Pokter can read from your brief as data'] },
   { kind: 'yield', method: YIELD_METHOD, label: 'Yield comparison', matches: isYieldPlan, run: yieldChecks, notCovered: YIELD_NOT_COVERED, preview: ['Net rates follow from the rates and costs the answer states', 'The recommendation follows its stated threshold and comparison'] },
   { kind: 'token', method: TOKEN_METHOD, label: 'Token safety report', matches: isTokenReport, run: tokenChecks, notCovered: TOKEN_NOT_COVERED, preview: ['The report names the token in your brief', 'Its verdict is no milder than its own worst finding'] },
+  { kind: 'trading', method: TRADING_METHOD, label: 'Trading plan', matches: isTradingPlan, run: tradingChecks, notCovered: TRADING_NOT_COVERED, preview: ['Stop and target sit on the correct sides of the entry price', 'Size, price distances and risk/reward figures agree with each other', 'Fee and slippage assumptions are stated'] },
+  { kind: 'content', method: CONTENT_METHOD, label: 'Content draft', matches: isContentDraft, run: contentChecks, notCovered: CONTENT_NOT_COVERED, preview: ['The stated word count matches the draft and any structured brief limits', 'Format and literal phrases match when the brief supplies them as data', 'Each listed factual claim names a source'] },
+  { kind: 'research', method: RESEARCH_METHOD, label: 'Research report', matches: isResearchReport, run: researchChecks, notCovered: RESEARCH_NOT_COVERED, preview: ['Every structured finding or figure names its source and provenance', 'A reported answer rate follows its call and answer counts'] },
 ];
 
 export const PLAN_KINDS: ReadonlyArray<{ kind: PlanKind; method: string; label: string }> = ENTRIES.map(({ kind, method, label }) => ({ kind, method, label }));
@@ -52,6 +58,9 @@ export function planCheckPreviewForCategory(category: string): Pick<PlanEntry, '
     : name.includes('grid') ? 'grid'
     : name.includes('yield') ? 'yield'
     : name.includes('token safety') ? 'token'
+    : name.includes('research') ? 'research'
+    : name === 'trading' ? 'trading'
+    : name.includes('content') ? 'content'
     : null;
   const entry = ENTRIES.find((candidate) => candidate.kind === kind);
   if (!entry) return null;

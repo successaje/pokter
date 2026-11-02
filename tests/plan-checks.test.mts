@@ -47,11 +47,14 @@ test('each kind of answer is recognised by its shape, with a versioned method', 
   assert.equal(run('touchstone-56-57052')?.kind, 'token');
   assert.equal(checkDeliveredPlan(fixture('brainonbnb-56-57016.json'))?.kind, 'grid', 'an outside agent’s grid, in its own shape');
   for (const { method } of PLAN_KINDS) assert.match(method, /^[a-z-]+@\d+$/);
-  // An answer of a kind with no entry gets the basics only, and says its substance was not checked.
+  // A paid research delivery gets evidence-trail checks, while its external facts remain unverified.
   const research = checkDeliveredPlan(fixture('deliverable-1585.json'));
-  assert.equal(research?.kind, null);
-  assert.deepEqual(Object.keys(outcomes(research)), ['answer.dated', 'answer.sources']);
-  assert.match(research!.notCovered[0], /no check for this kind of answer/);
+  assert.equal(research?.kind, 'research');
+  assert.deepEqual(outcomes(research), {
+    'research.sources': 'passed', 'research.provenance': 'passed', 'research.counts': 'passed',
+    'answer.dated': 'failed', 'answer.sources': 'passed',
+  });
+  assert.match(research!.notCovered[0], /Whether a named source exists/);
   assert.equal(checkDeliveredPlan('not json'), null);
 });
 
@@ -62,10 +65,11 @@ test('the pre-hire coverage preview names the checker that runs on each core cat
     ['Grid Trading', 'gridloom-97-1490'],
     ['Yield Optimisation', 'cresthold-97-1493'],
     ['Token Safety', 'touchstone-56-57052'],
+    ['Research', 'deliverable-1585'],
   ];
   for (const [category, delivered] of categories) {
     const preview = planCheckPreviewForCategory(category);
-    const result = run(delivered);
+    const result = delivered === 'deliverable-1585' ? checkDeliveredPlan(fixture('deliverable-1585.json')) : run(delivered);
     assert.equal(preview?.kind, result?.kind, category);
     assert.equal(preview?.method, result?.method, category);
     assert.deepEqual(preview?.notCovered, result?.notCovered, category);

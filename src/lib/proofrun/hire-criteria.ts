@@ -33,7 +33,7 @@ import { criteriaForTerms, venusAcceptanceSpec } from './acceptance';
  * criterion that can never be evaluated is not a stricter standard, it is
  * a meaningless one.
  *
- * Grid and yield categories carry the existing plan checker as a separate,
+ * Grid, yield, research, trading and content categories carry a plan checker as a separate,
  * explicitly self-consistency-only spec. Other hires have no criteria.
  */
 export function hireAcceptanceSpec(input: { category?: string | null; brief: string }): AcceptanceSpec | null {
@@ -51,7 +51,7 @@ export function hireAcceptanceSpec(input: { category?: string | null; brief: str
 /** The criteria to put in the negotiated terms, or undefined for a hire this does not cover. */
 export function hirePlanProofSpec(input: { category?: string | null }) {
   const kind = planCheckPreviewForCategory(input.category ?? '')?.kind;
-  return kind === 'grid' || kind === 'yield' ? planProofSpec(kind) : null;
+  return kind === 'grid' || kind === 'yield' || kind === 'research' || kind === 'trading' || kind === 'content' ? planProofSpec(kind) : null;
 }
 
 export function hireCriteria(input: { category?: string | null; brief: string }): string[] | undefined {
