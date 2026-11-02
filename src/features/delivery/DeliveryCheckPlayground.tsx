@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 
+import recordedResearch from '@/features/delivery/examples/recorded-research-1585.json';
 import { PlanChecks } from '@/features/delivery/PlanChecks';
 import { checkDeliveredPlan, type PlanCheckReport } from '@/lib/delivery/plan-checks';
 import type { PlanProofSpec } from '@/lib/delivery/plan-proof';
@@ -54,6 +55,7 @@ export function DeliveryCheckPlayground({ specs }: { specs: Record<Kind, PlanPro
   const [report, setReport] = useState<PlanCheckReport | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [ran, setRan] = useState(false);
+  const [recorded, setRecorded] = useState(false);
   const spec = specs[kind];
 
   function choose(next: Kind) {
@@ -63,6 +65,17 @@ export function DeliveryCheckPlayground({ specs }: { specs: Record<Kind, PlanPro
     setReport(null);
     setError(null);
     setRan(false);
+    setRecorded(false);
+  }
+
+  function loadRecordedResearch() {
+    setKind('research');
+    setAnswer(JSON.stringify(recordedResearch, null, 2));
+    setBrief('');
+    setReport(null);
+    setError(null);
+    setRan(false);
+    setRecorded(true);
   }
 
   function run() {
@@ -95,6 +108,11 @@ export function DeliveryCheckPlayground({ specs }: { specs: Record<Kind, PlanPro
           </button>
         ))}
       </div>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-ink-3">
+        <button type="button" onClick={loadRecordedResearch} className="font-medium text-ink underline decoration-rule-strong underline-offset-2 hover:decoration-ink">Load recorded Research delivery</button>
+        <span>Archived testnet job 97/1585 · captured 22 Oct 2026</span>
+      </div>
+      {recorded && <p className="rounded-[9px] border border-rule bg-paper px-3 py-2 text-[12.5px] text-ink-2">This is the answer captured in a paid job. The recorded answer has sources and consistent counts, but it does not say when its figures were read. Run the checks to see that distinction.</p>}
       <div className="flex flex-col gap-1 border-b border-rule pb-4 text-[12.5px] text-ink-3">
         <p>Checker <span className="t-readout text-ink-2">{spec.method}</span></p>
         <p className="break-all">Plan hash <span className="t-readout text-ink-2">{spec.specHash}</span></p>
@@ -121,7 +139,7 @@ export function DeliveryCheckPlayground({ specs }: { specs: Record<Kind, PlanPro
         <div aria-live="polite" className="border-t border-rule pt-5">
           {error ? <p role="alert" className="text-[13px] text-bad">{error}</p> : report && (
             <div className="flex flex-col gap-5">
-              <div className={`rounded-[10px] border p-3 text-[13px] ${matched ? 'border-ok bg-ok-wash text-ink' : 'border-watch bg-watch-wash text-ink'}`}>
+              <div className={`rounded-[10px] border p-3 text-[13px] ${matched ? 'border-rule-strong bg-paper text-ink' : 'border-watch bg-watch-wash text-ink'}`}>
                 {matched
                   ? `The ${spec.method} checker ran with every check named in this plan. Read each outcome below; matching the plan does not mean the answer passed.`
                   : `This answer did not run the complete ${spec.method} checker. ${missing.length} plan checks are missing. The answer may use a different shape.`}

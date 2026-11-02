@@ -17,4 +17,10 @@ test('builders can run and switch delivery check examples in the browser', async
   await page.getByRole('button', { name: 'Run checks' }).click();
   await expect(page.getByText('The content-plan@1 checker ran with every check named in this plan.', { exact: false })).toBeVisible();
   await expect(page.getByText('Counted 8 words; the answer states 8.')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Load recorded Research delivery' }).click();
+  await page.getByRole('button', { name: 'Run checks' }).click();
+  await expect(page.getByText('The research-plan@1 checker ran with every check named in this plan.', { exact: false })).toBeVisible();
+  await expect(page.getByText('It does not name the block or time its data was read at, so its figures cannot be compared with the chain later.')).toBeVisible();
+  await expect(page.getByText('156 answered of 160 taken; the stated rate is 0.975.')).toBeVisible();
 });
