@@ -19,7 +19,10 @@ Legend: `[x]` complete, `[~]` implemented but still needs the named follow-up,
   while the second marketplace remains explicitly external to Pokter.
 - [ ] Show qualifying-agent completed hires by distinct independent wallets.
 - [ ] Show five category-consistent onchain actions across three separate days.
-- [ ] Add a campaign evidence export for participant verification.
+- [~] A wallet-specific public evidence page and JSON export now include indexed
+  escrow jobs, registry identities, adoption references and index coverage.
+  Independent funding, category-consistent actions, BNB registration and
+  other marketplaces' private contracts remain outside Pokter's verification.
 
 ## A. Security maintenance
 
