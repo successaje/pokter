@@ -10,7 +10,7 @@ import {
 } from '@altananetwork/sdk';
 
 import { NATIVE_SYMBOL } from '@/lib/network/presentation';
-import { isReclaimable } from '@/lib/erc8183/reclaim-gate';
+import { assertRefundEligible } from '@/lib/erc8183/reclaim-check';
 import type { HiredJob } from '@/lib/erc8183/types';
 import { usePasskeySigner, usePasskeyWallet } from '@/lib/wallet/PasskeyProvider';
 import { WALLET_NETWORK, walletClient, walletNetworkFor } from '@/lib/wallet/passkey';
@@ -114,7 +114,6 @@ export function useJobActions(initial: HiredJob) {
   const fundedAt = Date.parse(job.hiredAt);
   const expiresAt = Date.parse(job.expiredAt);
   const windowClosed = expiresAt <= openedAt;
-  const reclaimable = isReclaimable(job, openedAt);
   const agreedWindow = expiresAt - fundedAt;
   // Funded with nothing submitted for over a third of the agreed window. A
   // fact about the job, not a diagnosis of the seller.
@@ -159,6 +158,15 @@ export function useJobActions(initial: HiredJob) {
   useEffect(() => {
     syncRef.current = syncFromChain;
   }, [syncFromChain]);
+  const openedJob = useRef<string | null>(null);
+  useEffect(() => {
+    const key = `${job.chainId}:${job.jobId}`;
+    if (openedJob.current === key) return;
+    openedJob.current = key;
+    // The index can lag a refund made from another device. Read the escrow
+    // when the page opens, before the next 30-second poll.
+    void syncRef.current().catch(() => {});
+  }, [job.chainId, job.jobId]);
   useEffect(() => {
     if (!watching || busy !== null) return;
     let stopped = false;
@@ -260,8 +268,10 @@ export function useJobActions(initial: HiredJob) {
         if (activeWallet.mode === 'external') {
           reclaimTxHash = await reclaimFromExternalWallet({ account: activeWallet.address, jobId: BigInt(job.jobId), chainId: job.chainId });
         } else {
-          await requireGas('reclaim this escrow');
           if (!wallet || !signer) throw new Error('The passkey signer is unavailable.');
+          const before = await getErc8183Job(network, BigInt(job.jobId));
+          assertRefundEligible(before, wallet.address);
+          await requireGas('reclaim this escrow');
           const outcome = await walletClient().execute({
             wallet: { address: wallet.address },
             signer,
@@ -322,7 +332,6 @@ export function useJobActions(initial: HiredJob) {
     receiptVerified,
     disputeConfirmed,
     setDisputeConfirmed,
-    reclaimable,
     quiet,
     windowClosed,
     deliverableUrl: safeDeliverableUrl(job.deliverableUrl),

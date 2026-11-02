@@ -110,6 +110,8 @@ export interface JobStore {
   byAgent(chainId: number, tokenId: string): HiredJob[];
   /** Jobs funded by one wallet, newest first. */
   byClient(client: string): HiredJob[];
+  /** Attach the chain funder only with the public on-chain task, because wallet lookups are public. */
+  setChainClient(chainId: number, jobId: string, client: string, publicTask: string): number;
   /**
    * A named place to remember how far a watcher has already looked.
    *
@@ -771,6 +773,12 @@ class SqliteJobStore implements JobStore {
       .all(client.toLowerCase()) as unknown as JobRow[];
     const phantoms = this.phantomIds();
     return rows.map(toJob).filter((job) => !phantoms.has(job.id));
+  }
+
+  setChainClient(chainId: number, jobId: string, client: string, publicTask: string): number {
+    return Number(this.db
+      .prepare('UPDATE jobs SET client = ?, task = ? WHERE chain_id = ? AND job_id = ?')
+      .run(client.toLowerCase(), publicTask, chainId, jobId).changes);
   }
 
   byAgent(chainId: number, tokenId: string): HiredJob[] {

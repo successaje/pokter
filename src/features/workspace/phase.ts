@@ -17,23 +17,18 @@ export type JobPhase = 'unfunded' | 'working' | 'review' | 'reclaim' | 'settled'
 export function jobPhase(job: HiredJob, now = Date.now()): JobPhase {
   if (job.status === 'OPEN') return 'unfunded';
   /*
-   * A disputed delivery waits on the policy's voters, not on the buyer —
-   * until its deadline passes without a quorum, when the escrow can be
-   * claimed back even though the status still reads SUBMITTED.
+   * A disputed delivery waits on the policy's voters, not on the buyer.
+   * Any delivery left unsettled at its expiry can be reclaimed while the
+   * on-chain status still reads SUBMITTED.
    */
   if (job.status === 'SUBMITTED') {
-    if (!job.disputeTxHash) return 'review';
-    return isReclaimable(job, now) ? 'reclaim' : 'disputed';
+    if (isReclaimable(job, now)) return 'reclaim';
+    return job.disputeTxHash ? 'disputed' : 'review';
   }
   if (job.status === 'COMPLETED') return 'settled';
   if (job.status === 'REJECTED') return job.reclaimTxHash ? 'refunded' : 'rejected';
   if (job.reclaimTxHash) return 'refunded';
-  /*
-   * The escrow has been observed to mark a job EXPIRED once its refund is
-   * claimed (see reclaim-gate). So EXPIRED is shown as "likely refunded", not
-   * as money waiting; reclaim stays available on the job page in case it is
-   * not, because hiding it would be the costlier mistake.
-   */
+  /* The escrow marks EXPIRED only after refund; it is terminal. */
   if (job.status === 'EXPIRED') return 'expired';
   if (isReclaimable(job, now)) return 'reclaim';
   return 'working';

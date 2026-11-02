@@ -11,6 +11,7 @@ import {
 } from '@altananetwork/sdk';
 
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
+import { assertRefundEligible } from '@/lib/erc8183/reclaim-check';
 import { jobLifetimeSeconds } from '@/lib/erc8183/deadline';
 import { canSettleAs, settleCallerAllowed, type SettleCaller } from '@/lib/erc8183/settle-window';
 import {
@@ -575,19 +576,7 @@ export async function reclaimFromExternalWallet(input: {
   await assertAccount(input.account);
 
   const before = await getErc8183Job(walletNetworkFor(chainId), input.jobId);
-  if (getAddress(before.client) !== getAddress(input.account)) {
-    throw new Error('The connected wallet did not fund this job.');
-  }
-  if (before.statusName !== 'FUNDED' && before.statusName !== 'EXPIRED') {
-    throw new Error(
-      `This job is ${before.statusName.toLowerCase()}; there is no escrow left to reclaim.`,
-    );
-  }
-  if (Number(before.expiredAt) * 1000 > Date.now()) {
-    throw new Error(
-      'This job has not expired yet. The agent still has time to deliver.',
-    );
-  }
+  assertRefundEligible(before, input.account);
 
   const call = buildClaimRefundCall(chainId, input.jobId);
   const { wallet, read } = clients(chainId);

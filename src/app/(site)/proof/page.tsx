@@ -23,6 +23,7 @@ import { jobReceipt } from '@/lib/jobs/receipt-link';
 import { teamWalletList, teamWalletSet } from '@/lib/team/server';
 import { fundedByTeam } from '@/lib/team/wallets';
 import { cn } from '@/lib/ui/cn';
+import { shortAddress } from '@/lib/ui/format';
 import { AgentAvatar } from '@/ui/Agent';
 import { Icon } from '@/ui/icons';
 import { WhyNumbersDiffer } from '@/features/proof/WhyNumbersDiffer';
@@ -563,7 +564,23 @@ export default async function ProductionProofPage({ searchParams }: { searchPara
                         )}
                       </td>
                       <td className="px-4 py-3.5 align-top"><span className="text-ink">{jobAmountLabel(job)}</span><span className="mt-0.5 block text-[11.5px] text-ink-3">{money.money} · {chainLabel(job.chainId)}</span></td>
-                      <td className="px-4 py-3.5 align-top text-ink-2">{isTeam(job) ? 'Pokter team' : 'Outside-team'}</td>
+                      <td className="px-4 py-3.5 align-top text-ink-2">
+                        <span className="block">{isTeam(job) ? 'Pokter team' : 'Outside-team'}</span>
+                        {job.client ? (
+                          <a
+                            href={`${explorerBaseFor(job.chainId)}/address/${job.client}`}
+                            target="_blank"
+                            rel="noreferrer noopener"
+                            title={job.client}
+                            aria-label={`View funder ${job.client} on BscScan`}
+                            className="t-readout mt-0.5 block text-[11.5px] text-ink-3 hover:text-ink hover:underline"
+                          >
+                            {shortAddress(job.client)}
+                          </a>
+                        ) : (
+                          <span className="mt-0.5 block text-[11.5px] text-ink-3">Address not recorded</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3.5 align-top font-medium text-ink">
                         {STATUS_COPY[job.status]}
                         {isLifecycleDemo(job) && <span className="mt-0.5 block text-[11.5px] font-normal text-ink-3">Lifecycle demo: no answer from the agent</span>}

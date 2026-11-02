@@ -19,11 +19,8 @@
  * past expiry, were reclaimed, and turned `EXPIRED` within the hour. Three
  * independent observations, no counter-example.
  *
- * It is still observation of one deployment rather than a reading of the
- * kernel, so `EXPIRED` keeps offering the action. Wrongly offering it costs
- * a reverted transaction and the gas on it; wrongly hiding it strands
- * somebody's money. Those are not the same mistake, and no number of
- * confirmations of the cheap direction justifies taking the expensive one.
+ * ERC-8183 makes EXPIRED terminal: that status means the refund has already
+ * been claimed. An unsettled SUBMITTED job is refundable after expiry too.
  *
  * `now` is passed in rather than read here, because the caller is a React
  * render and reading the clock during one is impure.
@@ -33,12 +30,5 @@ export function isReclaimable(
   now: number,
 ): boolean {
   if (job.reclaimTxHash) return false;
-  /*
-   * A disputed delivery whose vote missed its quorum by the deadline stays
-   * SUBMITTED on chain, and the buyer reclaims it then. An undisputed
-   * SUBMITTED job is the agent's once its review window passes, so it is
-   * never offered.
-   */
-  const disputedPastDeadline = job.status === 'SUBMITTED' && Boolean(job.disputeTxHash);
-  return (job.status === 'FUNDED' || job.status === 'EXPIRED' || disputedPastDeadline) && Date.parse(job.expiredAt) <= now;
+  return (job.status === 'FUNDED' || job.status === 'SUBMITTED') && Date.parse(job.expiredAt) <= now;
 }
