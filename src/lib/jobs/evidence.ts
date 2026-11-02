@@ -150,7 +150,7 @@ export async function loadJobEvidence(chainId: 56 | 97, jobId: string, now = Dat
   const negotiationHash = onchain ? negotiationHashOnChain(onchain.description) : null;
   const agreement = negotiationHash ? getJobStore().criteriaAgreement(negotiationHash) : null;
   const planSpec = agreement
-    ? (['grid', 'yield'] as const).map(planProofSpec).find((spec) => spec.specHash.toLowerCase() === agreement.specHash.toLowerCase()) ?? null
+    ? (['grid', 'yield', 'research', 'trading', 'content'] as const).map(planProofSpec).find((spec) => spec.specHash.toLowerCase() === agreement.specHash.toLowerCase()) ?? null
     : null;
   const planProof = planSpec && onchain && chain
     ? (() => {

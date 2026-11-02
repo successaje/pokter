@@ -11,16 +11,19 @@ import { agreementVerdict } from '../src/lib/proofrun/agreement';
 
 const delivery = (name: string) => readFileSync(new URL(`./fixtures/deliveries/${name}.json`, import.meta.url), 'utf8');
 
-test('grid and yield quotes name the checker that runs on real delivered shapes', () => {
+test('grid, yield and research quotes name the checker that runs on real delivered shapes', () => {
   for (const [category, kind, fixture] of [
     ['Grid Trading', 'grid', 'gridloom-97-1490'],
     ['Yield Optimisation', 'yield', 'cresthold-97-1493'],
+    ['Research', 'research', 'deliverable-1585'],
   ] as const) {
     const spec = hirePlanProofSpec({ category });
     assert.equal(spec?.kind, kind);
     assert.deepEqual(hireCriteria({ category, brief: 'Compare this plan' }), planProofTerms(kind));
     assert.equal(specHashFromCriteria(planProofTerms(kind)), spec?.specHash);
-    const report = checkDeliveredPlan(delivery(fixture));
+    const report = checkDeliveredPlan(fixture === 'deliverable-1585'
+      ? readFileSync(new URL('./fixtures/deliverable-1585.json', import.meta.url), 'utf8')
+      : delivery(fixture));
     assert.equal(report?.method, spec?.method);
     assert.deepEqual(planProofCoverage(spec!, report), { matched: true, missing: [] });
   }

@@ -31,7 +31,7 @@ export interface PlanCheck {
   detail: string;
 }
 
-export type PlanKind = 'grid' | 'yield' | 'range' | 'health' | 'token';
+export type PlanKind = 'grid' | 'yield' | 'range' | 'health' | 'token' | 'research' | 'trading' | 'content';
 
 export interface PlanCheckReport {
   kind: PlanKind | null;

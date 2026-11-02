@@ -16,7 +16,7 @@ export const AGENT_TABS = [
 export type AgentTabId = (typeof AGENT_TABS)[number]['id'];
 
 /** #try and #sample (a real delivery) live in Overview; #answer-check is the check's full comparison, in Evidence. */
-const ANCHORS = { try: 'overview', sample: 'overview', reviews: 'work', 'answer-check': 'evidence' };
+const ANCHORS = { try: 'overview', sample: 'overview', reviews: 'work', 'answer-check': 'evidence', 'delivery-check-plan': 'evidence' };
 
 export function AgentTabBar() {
   return (

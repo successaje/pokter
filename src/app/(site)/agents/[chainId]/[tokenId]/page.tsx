@@ -15,6 +15,8 @@ import { commissionTaskTemplates, templatesFromSkills } from '@/lib/hire/taskTem
 import { jobEvidencePath, utcWhen } from '@/lib/jobs/evidence-view';
 import { AnswerValue, DeliveredAnswerView } from '@/features/delivery/AnswerView';
 import { PlanChecks, planCheckTally } from '@/features/delivery/PlanChecks';
+import { planCheckPreviewForCategory } from '@/lib/delivery/plan-checks';
+import { planProofSpec } from '@/lib/delivery/plan-proof';
 import { clipAtWord } from '@/lib/ui/clip';
 import { FollowButton, SaveButton, ShareButton } from '@/features/agent/AgentActions';
 import { HirePanel, MobileHireBar } from '@/features/agent/HirePanel';
@@ -277,7 +279,7 @@ function EvidenceSummary({ p, comparison }: { p: AgentProfile; comparison: Compa
   const result = comparison
     ? comparison.summary.text
     : !check
-      ? 'Pokter has no check yet for what this agent does.'
+      ? 'Pokter has no pre-hire answer check for this category yet.'
       : !run
         ? 'Not checked yet.'
         : run.status !== 'checked'
@@ -862,6 +864,21 @@ export default async function AgentPage({ params, searchParams }: { params: Para
             */}
             <div className="flex flex-col gap-8">
               <EvidenceSummary p={p} comparison={checkComparison} />
+              {(['research', 'trading', 'content'] as const).includes(p.category?.id as 'research' | 'trading' | 'content') && (() => {
+                const kind = p.category!.id as 'research' | 'trading' | 'content';
+                const preview = planCheckPreviewForCategory(kind);
+                const spec = planProofSpec(kind);
+                return preview && (
+                  <div id="delivery-check-plan" className="rounded-[14px] border border-rule bg-raised p-5">
+                    <span className="t-label">{p.category!.label} delivery plan</span>
+                    <h3 className="mt-1 text-[16px] font-semibold text-ink">What Pokter can check after delivery</h3>
+                    <p className="mt-2 text-[13px] leading-relaxed text-ink-2">For a structured {preview.label.toLowerCase()}, Pokter can repeat these checks from the published answer. If the agent becomes hireable, its quote can sign this versioned plan.</p>
+                    <ul className="mt-3 list-disc space-y-1 pl-5 text-[13px] text-ink-2">{preview.preview.map((item) => <li key={item}>{item}</li>)}</ul>
+                    <p className="mt-3 text-[12px] text-ink-3">Method <span className="t-readout">{spec.method}</span> · Plan hash <span className="t-readout break-all">{spec.specHash}</span></p>
+                    <p className="mt-2 text-[12px] text-ink-3">These checks do not establish {preview.notCovered[0].charAt(0).toLowerCase() + preview.notCovered[0].slice(1)}</p>
+                  </div>
+                );
+              })()}
               <Reliability p={p} />
 
               <div className="flex flex-col gap-8">

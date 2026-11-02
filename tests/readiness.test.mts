@@ -29,7 +29,7 @@ test('an expired price is not presented as current, and its payability says so',
   assert.equal(rows.price.value, 'Expired');
   assert.match(rows.price.detail, /expired 4 h ago/);
   assert.match(rows.payment.detail, /last quote, which has expired/);
-  assert.equal(rows.correctness.value, 'No check for its kind');
+  assert.equal(rows.correctness.value, 'No pre-hire check');
   assert.equal(rows.delivery.value, 'Never hired');
 });
 
