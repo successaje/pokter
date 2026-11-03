@@ -20,7 +20,7 @@ test('the signature covers every field, including what is published, and says wh
   assert.match(message, /not that it is true/);
   const signature = await account.signMessage({ message });
   assert.equal(await verifyMessage({ address: account.address, message, signature }), true);
-  for (const changed of [{ ...CONTENT, bio: 'Audited by everyone.' }, { ...CONTENT, published: false }, { ...CONTENT, showHiring: true }, { ...CONTENT, agents: ['97:2618', '56:1'] }, { ...CONTENT, usage: 'hire' as const }, { ...CONTENT, showWallet: true }]) {
+  for (const changed of [{ ...CONTENT, bio: 'Audited by everyone.' }, { ...CONTENT, tagline: 'Trusted by everyone.' }, { ...CONTENT, theme: 'forest' as const }, { ...CONTENT, published: false }, { ...CONTENT, showHiring: true }, { ...CONTENT, agents: ['97:2618', '56:1'] }, { ...CONTENT, usage: 'hire' as const }, { ...CONTENT, showWallet: true }]) {
     assert.equal(await verifyMessage({ address: account.address, message: profileMessage({ ...changed, wallet: account.address, signedAt: AT }), signature }), false);
   }
 });
@@ -55,6 +55,13 @@ test('pictures are uploaded ids and links are https', () => {
   assert.equal(readProfileContent({ ...CONTENT, links: ['ftp://x'] }), null);
   assert.equal(linkLabel('https://www.github.com/ada?tab=repos'), 'github.com');
   assert.equal(profilePath('0xAbC', 'ada'), '/builders/ada');
+});
+
+test('a profile headline and style are bounded signed presentation, never evidence', () => {
+  assert.equal(normalizeProfile({ ...CONTENT, tagline: '  Risk checks   for BNB  ' }).tagline, 'Risk checks for BNB');
+  assert.match(profileProblem({ ...CONTENT, tagline: 'a'.repeat(101) }) ?? '', /headline/);
+  assert.match(profileProblem({ ...CONTENT, theme: 'official' as never }) ?? '', /style/);
+  assert.equal(readProfileContent({ ...CONTENT, theme: 'forest', tagline: 'Risk checks' })?.theme, 'forest');
 });
 
 test('job states are counted for what they prove, and payment is never called acceptance', () => {

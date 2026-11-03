@@ -11,7 +11,13 @@ import { CATEGORIES, type Category } from '@/lib/agents/categories';
  * cannot be edited.
  */
 
-export const PROFILE_LIMITS = { handle: 20, name: 40, bio: 280, links: 3, url: 200, tags: 5, agents: 24, pinned: 3 } as const;
+export const PROFILE_LIMITS = { handle: 20, name: 40, tagline: 100, bio: 280, links: 3, url: 200, tags: 5, agents: 24, pinned: 3 } as const;
+export const PROFILE_THEMES = [
+  { id: 'ink', label: 'Ink' },
+  { id: 'forest', label: 'Forest' },
+  { id: 'sand', label: 'Sand' },
+] as const;
+export type ProfileTheme = (typeof PROFILE_THEMES)[number]['id'];
 /** A signed edit is accepted for this long after it was made, so a captured one cannot be replayed later. */
 export const PROFILE_EDIT_WINDOW_MS = 10 * 60_000;
 /** An uploaded picture, by the SHA-256 of its bytes. */
@@ -31,7 +37,9 @@ export interface ProfileContent {
   /** Unique, lowercase; the profile's address is /builders/<handle>. Empty until chosen. */
   handle: string;
   displayName: string;
+  tagline: string;
   bio: string;
+  theme: ProfileTheme;
   /** An uploaded picture's id, or empty for the generated one. */
   avatar: string;
   /** Agent categories this builder works in, by id. */
@@ -81,7 +89,9 @@ export function profileMessage(input: ProfileContent & { wallet: string; signedA
     `At: ${input.signedAt}`,
     `Handle: ${input.handle}`,
     `Name: ${input.displayName}`,
+    `Tagline: ${input.tagline}`,
     `Bio: ${input.bio}`,
+    `Theme: ${input.theme}`,
     `Avatar: ${input.avatar || 'generated'}`,
     `Tags: ${input.tags.join(', ')}`,
     `Links: ${input.links.join(' | ')}`,
@@ -117,6 +127,8 @@ export function profileProblem(raw: ProfileContent): string | null {
   const handle = handleProblem(raw.handle);
   if (handle) return handle;
   if (raw.displayName.length > PROFILE_LIMITS.name) return `Keep the name under ${PROFILE_LIMITS.name} characters.`;
+  if (raw.tagline.length > PROFILE_LIMITS.tagline) return `Keep the headline under ${PROFILE_LIMITS.tagline} characters.`;
+  if (!PROFILE_THEMES.some((theme) => theme.id === raw.theme)) return 'Choose a profile style.';
   if (SPEAKS_FOR_POKTER.test(raw.displayName)) return 'A name cannot include “Pokter”, so it is never read as Pokter speaking.';
   if (raw.bio.length > PROFILE_LIMITS.bio) return `Keep the bio under ${PROFILE_LIMITS.bio} characters.`;
   if (raw.avatar && !AVATAR_ID.test(raw.avatar)) return 'That picture could not be found. Upload it again.';
@@ -141,7 +153,9 @@ export function normalizeProfile(c: ProfileContent): ProfileContent {
   return {
     handle: c.handle.trim().toLowerCase(),
     displayName: c.displayName.trim().replace(/\s+/g, ' '),
+    tagline: c.tagline.trim().replace(/\s+/g, ' '),
     bio: c.bio.trim(),
+    theme: c.theme,
     avatar: c.avatar.trim(),
     tags: CATEGORIES.map((cat) => cat.id).filter((id) => c.tags.includes(id)),
     links: c.links.map((l) => l.trim()).filter(Boolean),
@@ -160,13 +174,15 @@ export function normalizeProfile(c: ProfileContent): ProfileContent {
 export function readProfileContent(raw: unknown): ProfileContent | null {
   if (!raw || typeof raw !== 'object') return null;
   const b = raw as Record<string, unknown>;
-  const strings = ['handle', 'displayName', 'bio', 'avatar', 'usage'] as const;
+  const strings = ['handle', 'displayName', 'tagline', 'bio', 'avatar', 'usage', 'theme'] as const;
   const arrays = ['links', 'tags', 'agents', 'pinned'] as const;
   if (strings.some((k) => typeof b[k] !== 'string') || arrays.some((k) => !Array.isArray(b[k]))) return null;
   const content = normalizeProfile({
     handle: b.handle as string,
     displayName: b.displayName as string,
+    tagline: b.tagline as string,
     bio: b.bio as string,
+    theme: b.theme as ProfileTheme,
     avatar: b.avatar as string,
     tags: (b.tags as unknown[]).map(String) as Category[],
     links: (b.links as unknown[]).map(String),
@@ -183,13 +199,15 @@ export function readProfileContent(raw: unknown): ProfileContent | null {
 }
 
 export function isEmptyProfile(c: ProfileContent): boolean {
-  return !c.handle && !c.displayName && !c.bio && !c.avatar && c.tags.length === 0 && c.links.length === 0 && !c.usage && !c.published && c.agents.length === 0;
+  return !c.handle && !c.displayName && !c.tagline && !c.bio && !c.avatar && c.tags.length === 0 && c.links.length === 0 && !c.usage && !c.published && c.agents.length === 0;
 }
 
 export const EMPTY_PROFILE: ProfileContent = {
   handle: '',
   displayName: '',
+  tagline: '',
   bio: '',
+  theme: 'ink',
   avatar: '',
   tags: [],
   links: [],
@@ -208,7 +226,9 @@ export function profileContentOf(p: Profile): ProfileContent {
   return {
     handle: p.handle,
     displayName: p.displayName,
+    tagline: p.tagline,
     bio: p.bio,
+    theme: p.theme,
     avatar: p.avatar,
     tags: p.tags,
     links: p.links,

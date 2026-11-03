@@ -12,6 +12,7 @@ import {
   handleProblem,
   normalizeProfile,
   PROFILE_LIMITS,
+  PROFILE_THEMES,
   profileMessage,
   profilePath,
   profileProblem,
@@ -146,6 +147,8 @@ export function ProfileEditor({
     const exposed = [
       clean.handle && `Handle @${clean.handle}, and the link pokter.xyz/builders/${clean.handle}`,
       clean.displayName && `Name “${clean.displayName}”`,
+      clean.tagline && `Headline “${clean.tagline}”`,
+      `Profile style: ${PROFILE_THEMES.find((theme) => theme.id === clean.theme)?.label}`,
       clean.avatar ? 'Your uploaded picture' : 'A generated picture',
       clean.bio && 'Your bio',
       clean.tags.length > 0 && `What you build: ${clean.tags.map((t) => CATEGORIES.find((c) => c.id === t)?.label).join(', ')}`,
@@ -247,6 +250,16 @@ export function ProfileEditor({
         <Field label="Bio" optional hint={`${draft.bio.length}/${PROFILE_LIMITS.bio}`}>
           {(p) => <Textarea {...p} value={draft.bio} maxLength={PROFILE_LIMITS.bio} onChange={(e) => set({ bio: e.target.value })} className="min-h-20" placeholder="What you do, in a sentence or two." />}
         </Field>
+        <Field label="Profile headline" optional hint={`${draft.tagline.length}/${PROFILE_LIMITS.tagline}`}>
+          {(p) => <Input {...p} value={draft.tagline} maxLength={PROFILE_LIMITS.tagline} onChange={(e) => set({ tagline: e.target.value })} placeholder="The outcomes your agents help buyers achieve" />}
+        </Field>
+        <div className="flex flex-col gap-2">
+          <span className="text-sm font-medium">Header style</span>
+          <div className="flex flex-wrap gap-2">
+            {PROFILE_THEMES.map((theme) => <button key={theme.id} type="button" aria-pressed={draft.theme === theme.id} onClick={() => set({ theme: theme.id })} className={cn('rounded-[9px] border px-4 py-2 text-[13px] font-medium', draft.theme === theme.id ? 'border-ink bg-ink text-paper' : 'border-rule-strong text-ink-2 hover:border-ink-3')}>{theme.label}</button>)}
+          </div>
+          <p className="text-[12px] text-ink-3">A visual choice for your public header. It does not affect your evidence.</p>
+        </div>
         <div className="flex flex-col gap-2">
           <span className="text-sm font-medium">Links</span>
           <span className="-mt-1 text-[12px] text-ink-3">Website, GitHub, X. Shown as self-provided: adding an account here does not prove you own it.</span>

@@ -201,17 +201,15 @@ export function TrialNote({ className }: { className?: string }) {
  */
 export function MiniAgentCard({ row }: { row: FindRow }) {
   return (
-    <Link
-      href={agentHref(row)}
-      className="group flex h-full items-start gap-3 rounded-[12px] border border-rule bg-raised p-3.5 transition-colors hover:border-rule-strong"
-    >
+    <article className="group relative flex h-full items-start gap-3 rounded-[12px] border border-rule bg-raised p-3.5 transition-colors hover:border-rule-strong">
       <AgentAvatar name={row.name} imageUrl={row.imageUrl} seed={row.key} size={36} status={answerState(row)} />
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="truncate text-[13.5px] font-medium">{row.name}</span>
+        <Link href={agentHref(row)} className="truncate text-[13.5px] font-medium after:absolute after:inset-0 focus-visible:outline-none">{row.name}</Link>
+        <Link href={`/builders/${row.owner}`} className="relative z-10 w-fit text-[11.5px] text-ink-3 hover:text-ink hover:underline">by {row.owner.slice(0, 6)}…{row.owner.slice(-4)}</Link>
         <span className="line-clamp-1 text-[12.5px] text-ink-3">{row.description || 'No description published.'}</span>
       </span>
       <PriceText row={row} className="shrink-0 text-[13px]" />
-    </Link>
+    </article>
   );
 }
 
@@ -288,6 +286,7 @@ export function AgentCard({
             <OnChainTag row={row} />
             {isHouseAgent({ owner_address: row.owner }) ? <span className="shrink-0">Run by Pokter</span> : null}
           </span>
+          <Link href={`/builders/${row.owner}`} className="relative z-10 w-fit text-[11.5px] text-ink-3 hover:text-ink hover:underline">by {row.owner.slice(0, 6)}…{row.owner.slice(-4)}</Link>
         </div>
         {/* The footer that used to hold this went with "View evidence";
             the card itself has always linked to the agent page. */}
@@ -472,6 +471,7 @@ export function AgentRow({ row, reason, trailing }: { row: FindRow; reason?: str
           {row.hirable && <span className="shrink-0 rounded-[5px] bg-signal-wash px-1.5 py-px text-[11px] font-medium text-ink">Hireable via escrow</span>}
         </h3>
         <p className="truncate text-[13px] text-ink-2">{row.description || 'No description published.'}</p>
+        <Link href={`/builders/${row.owner}`} className="relative z-10 w-fit text-[11.5px] text-ink-3 hover:text-ink hover:underline">by {row.owner.slice(0, 6)}…{row.owner.slice(-4)}</Link>
         <span className="mt-1 flex flex-wrap items-center gap-2"><MaturityLabel maturity={row.maturity} concise /><OnChainTag row={row} /></span>
         {reason && (
           <p className="text-[12px] text-ink-3">
@@ -521,6 +521,7 @@ export function FeaturedAgent({ row, hireChainIds }: { row: FindRow; /** As on `
           </Link>
         </h3>
         <p className="line-clamp-3 text-sm leading-relaxed text-ink-2">{row.description}</p>
+        <Link href={`/builders/${row.owner}`} className="relative z-10 w-fit text-[11.5px] text-ink-3 hover:text-ink hover:underline">by {row.owner.slice(0, 6)}…{row.owner.slice(-4)}</Link>
         <span className="pt-1"><MaturityLabel maturity={row.maturity} concise /></span>
       </div>
       <dl className="mt-auto grid grid-cols-2 gap-3 border-t border-rule pt-4 text-[12.5px]">
