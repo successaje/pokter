@@ -214,9 +214,6 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
                 <span className="text-ink-3 max-sm:font-[family-name:var(--font-readout)] max-sm:text-[12.5px]">{stat.label}</span>
               </li>
             ))}
-            <li className="col-span-2 sm:col-span-1">
-              <Link href="/proof" className="inline-flex items-center gap-1 font-medium text-ink hover:underline">View proof by network <Icon.Arrow size={12} /></Link>
-            </li>
           </ul>
         )}
       </header>
