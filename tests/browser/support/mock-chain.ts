@@ -14,6 +14,13 @@ const ESCROW_ABI = parseAbi([
   'function jobCounter() view returns (uint256)',
   'function disputeWindow() view returns (uint64)',
 ]);
+const POLICY_ABI = parseAbi([
+  'function disputed(uint256 jobId) view returns (bool)',
+  'function rejectVotes(uint256 jobId) view returns (uint256)',
+  'function disputeQuorumSnapshot(uint256 jobId) view returns (uint256)',
+  'function voteQuorum() view returns (uint16)',
+  'function dispute(uint256 jobId)',
+]);
 const TOKEN_ABI = parseAbi([
   'function balanceOf(address account) view returns (uint256)',
   'function allowance(address owner, address spender) view returns (uint256)',
@@ -38,6 +45,11 @@ export interface MockJob {
   provider?: `0x${string}`;
   description?: string;
   budget?: bigint;
+  submittedAt?: number;
+  disputed?: boolean;
+  rejectVotes?: bigint;
+  disputeQuorumSnapshot?: bigint;
+  deliverable?: Hex;
 }
 
 /** An ERC-20 the page may read, by address. Every account holds `balance` of it. */
@@ -60,6 +72,7 @@ export interface MockChainState {
   jobCounter?: bigint;
   /** The policy's `disputeWindow()`, in seconds. Unset: refused. */
   disputeWindow?: number;
+  disputeQuorum?: number;
 }
 
 class NotModelled extends Error {}
@@ -88,7 +101,7 @@ export async function mockChain(page: Page, chain: MockChainState) {
     }
     let decoded;
     try {
-      decoded = decodeFunctionData({ abi: [...ESCROW_ABI, ...MULTICALL_ABI], data });
+      decoded = decodeFunctionData({ abi: [...ESCROW_ABI, ...POLICY_ABI, ...MULTICALL_ABI], data });
     } catch {
       throw new NotModelled();
     }
@@ -101,7 +114,7 @@ export async function mockChain(page: Page, chain: MockChainState) {
           functionName: 'getJob',
           result: {
             id: BigInt(id), client: job?.client ?? ZERO, provider: job?.provider ?? ZERO, evaluator: ZERO, description: job?.description ?? '', budget: job?.budget ?? 0n,
-            expiredAt: BigInt(job?.expiredAt ?? 0), status: job ? STATUS.indexOf(job.status) : 0, hook: ZERO, submittedAt: 0n, deliverable: `0x${'0'.repeat(64)}`,
+            expiredAt: BigInt(job?.expiredAt ?? 0), status: job ? STATUS.indexOf(job.status) : 0, hook: ZERO, submittedAt: BigInt(job?.submittedAt ?? 0), deliverable: job?.deliverable ?? `0x${'0'.repeat(64)}`,
           },
         });
       }
@@ -111,6 +124,19 @@ export async function mockChain(page: Page, chain: MockChainState) {
       case 'disputeWindow':
         if (chain.disputeWindow === undefined) break;
         return encodeFunctionResult({ abi: ESCROW_ABI, functionName: 'disputeWindow', result: BigInt(chain.disputeWindow) });
+      case 'disputed':
+        return encodeFunctionResult({ abi: POLICY_ABI, functionName: 'disputed', result: chain.jobs?.[(decoded.args[0] as bigint).toString()]?.disputed ?? false });
+      case 'rejectVotes':
+        return encodeFunctionResult({ abi: POLICY_ABI, functionName: 'rejectVotes', result: chain.jobs?.[(decoded.args[0] as bigint).toString()]?.rejectVotes ?? 0n });
+      case 'disputeQuorumSnapshot':
+        return encodeFunctionResult({ abi: POLICY_ABI, functionName: 'disputeQuorumSnapshot', result: chain.jobs?.[(decoded.args[0] as bigint).toString()]?.disputeQuorumSnapshot ?? 0n });
+      case 'voteQuorum':
+        return encodeFunctionResult({ abi: POLICY_ABI, functionName: 'voteQuorum', result: chain.disputeQuorum ?? 1 });
+      case 'dispute': {
+        const job = chain.jobs?.[(decoded.args[0] as bigint).toString()];
+        if (job?.status !== 'SUBMITTED' || job.disputed || !job.submittedAt || chain.now >= job.submittedAt + (chain.disputeWindow ?? 0)) break;
+        return '0x';
+      }
       case 'getCurrentBlockTimestamp':
         return encodeFunctionResult({ abi: MULTICALL_ABI, functionName: 'getCurrentBlockTimestamp', result: BigInt(chain.now) });
       case 'aggregate3': {

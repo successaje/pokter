@@ -285,7 +285,7 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
       {(job.status === 'SUBMITTED' || job.status === 'COMPLETED' || job.status === 'REJECTED') && (
         <section aria-labelledby="answer-title" className="flex flex-col gap-4 rounded-[16px] border border-rule-strong bg-raised p-5 sm:p-6">
           <h2 id="answer-title" className="t-h3">The answer</h2>
-          <JobAnswer job={job} owned={owned} deliverableUrl={a.deliverableUrl ?? null} verify={{ run: () => void a.verifyReceipt(), busy: a.busy === 'verify', verified: a.receiptVerified }} />
+          <JobAnswer job={job} owned={owned} reviewOpen={review?.open ?? null} deliverableUrl={a.deliverableUrl ?? null} verify={{ run: () => void a.verifyReceipt(), busy: a.busy === 'verify', verified: a.receiptVerified }} />
         </section>
       )}
 
@@ -385,10 +385,16 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
                   </span>
                 </span>
                 <div className="flex flex-col gap-2 sm:items-end">
-                  <Checkbox checked={a.disputeConfirmed} onChange={(e) => a.setDisputeConfirmed(e.target.checked)} label="It did not deliver what I asked" />
-                  <Button intent="danger" size="s" onClick={() => void a.act('dispute')} busy={a.busy === 'dispute'} disabled={!a.disputeConfirmed}>
-                    Open a dispute
-                  </Button>
+                  {review?.open === true ? (
+                    <>
+                      <Checkbox checked={a.disputeConfirmed} onChange={(e) => a.setDisputeConfirmed(e.target.checked)} label="It did not deliver what I asked" />
+                      <Button intent="danger" size="s" onClick={() => void a.act('dispute')} busy={a.busy === 'dispute'} disabled={!a.disputeConfirmed}>
+                        Open a dispute
+                      </Button>
+                    </>
+                  ) : (
+                    <span className="text-[12.5px] text-ink-3">{review?.open === false ? 'Dispute window closed' : 'Checking dispute window…'}</span>
+                  )}
                 </div>
               </div>
             )}

@@ -142,12 +142,13 @@ Legend: `[x]` complete, `[~]` implemented but still needs the named follow-up,
   against live chain state before signing. A funded mainnet canary remains.
 - [!] Implement expired-escrow reclaim for passkey wallets and check eligibility
   against live chain state before execution. A funded mainnet canary remains.
-- [~] Complete valid delivery, settlement, invalid delivery and dispute tests.
-  Local forks of the deployed testnet and mainnet contracts now pass submission,
+- [x] Complete valid delivery, settlement, invalid delivery and dispute tests.
+  Local forks of the deployed testnet and mainnet contracts pass submission,
   settlement, buyer-contested delivery, rejection, failed-dispute and expiry
-  scenarios (32 checks on each chain). The escrow sees a delivery hash, not its
-  contents; a test joining an invalid Pokter delivery check to the buyer's
-  dispute action remains open.
+  scenarios (32 checks on each chain). A browser test joins a failed Pokter
+  delivery check to the buyer's dispute controls, including wallet rejection
+  and the closed review window. The escrow sees a delivery hash, not its
+  contents, so Pokter's check never decides the dispute by itself.
 - [x] Prove a provider cannot receive payment after a rejection quorum. Both
   forks show the budget stays locked during dispute, returns to the buyer on
   rejection and cannot be settled to the provider afterward. A dispute without
