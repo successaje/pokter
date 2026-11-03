@@ -15,11 +15,13 @@ import { publicationMessage } from '@/lib/jobs/answer-publication';
 import type { JobFunder } from '@/lib/jobs/evidence-view';
 import { useActiveSigner } from '@/lib/wallet/use-active-signer';
 import { Notice } from '@/ui/Feedback';
+import { PlanChecks } from '@/features/delivery/PlanChecks';
+import type { PlanCheckReport } from '@/lib/delivery/plan-checks';
 
 type AnswerResponse =
   | { delivered: false }
   | { delivered: true; readable: false; reason: string }
-  | { delivered: true; readable: true; matchesChain: boolean; matchedBy?: ManifestMatch | null; manifestHash: string; answer: DeliveredAnswer; funder?: JobFunder; published?: boolean };
+  | { delivered: true; readable: true; matchesChain: boolean; matchedBy?: ManifestMatch | null; manifestHash: string; answer: DeliveredAnswer; checks?: PlanCheckReport | null; funder?: JobFunder; published?: boolean };
 
 /**
  * The answer, first. The buyer hired an agent to answer a question, so
@@ -35,12 +37,15 @@ function answerMoment(value: string): string {
 export function JobAnswer({
   job,
   owned,
+  reviewOpen,
   deliverableUrl,
   verify,
 }: {
   job: HiredJob;
   /** The connected wallet funded this job: it sees its own brief and answer, and decides whether the answer is published. */
   owned: boolean;
+  /** The chain's review window, or null while its timing has not been read. */
+  reviewOpen: boolean | null;
   deliverableUrl: string | null;
   verify: { run: () => void; busy: boolean; verified: boolean };
 }) {
@@ -101,6 +106,8 @@ export function JobAnswer({
   const withheld = !owned && data.readable && data.published === false;
   const answer = data.readable && !withheld ? data.answer : null;
   const asked = owned || (data.readable && data.funder === 'team') ? (answer?.asked ?? briefText(job.task)) : null;
+  const checks = data.readable && data.matchesChain && !withheld ? data.checks : null;
+  const failedChecks = checks?.checks.filter((check) => check.outcome === 'failed').length ?? 0;
   return (
     <div className="flex flex-col gap-5">
       {asked && (
@@ -119,6 +126,23 @@ export function JobAnswer({
           <DeliveredAnswerView answer={answer!} chainId={job.chainId} when={answerMoment} />
           {owned && data.matchesChain && (data.funder === 'outside' || data.funder === 'unknown') && <AnswerPublication job={job} published={data.published === true} />}
         </>
+      )}
+
+      {checks && (
+        <section aria-labelledby="buyer-delivery-checks" className="flex flex-col gap-3 border-t border-rule pt-5">
+          <h3 id="buyer-delivery-checks" className="t-h4">Pokter’s checks on this answer</h3>
+          {failedChecks > 0 && owned && job.status === 'SUBMITTED' && (
+            <p className="text-[13px] text-ink-2">
+              {failedChecks} failed {failedChecks === 1 ? 'check is' : 'checks are'} a reason to review the delivery. Pokter’s check does not decide the escrow.{' '}
+              {reviewOpen === true
+                ? <a href="#now-title" className="link font-medium">Review your dispute option</a>
+                : reviewOpen === false
+                  ? 'The review window has closed, so a new dispute cannot be opened.'
+                  : 'Pokter is reading the review window before showing dispute options.'}
+            </p>
+          )}
+          <PlanChecks report={checks} />
+        </section>
       )}
 
       <details className="group rounded-[12px] border border-rule bg-paper">

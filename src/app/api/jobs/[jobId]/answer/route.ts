@@ -12,6 +12,7 @@ import { manifestMatch } from '@/lib/erc8183/manifest-match';
 import { getJobStore } from '@/lib/erc8183/store';
 import { answerIsPublic } from '@/lib/jobs/answer-publication';
 import { jobFunder } from '@/lib/jobs/evidence-view';
+import { buyerDeliveryChecks } from '@/lib/jobs/answer-checks';
 import { teamWalletSet } from '@/lib/team/server';
 
 export const dynamic = 'force-dynamic';
@@ -53,7 +54,11 @@ export async function GET(request: Request, context: { params: Promise<{ jobId: 
      * offers that wallet the choice when it is theirs to make.
      */
     const funder = jobFunder({ client: job.client, provider: job.provider }, teamWalletSet());
-    const decision = getJobStore().answerPublication(chainId, jobId);
+    const store = getJobStore();
+    const decision = store.answerPublication(chainId, jobId);
+    // The same public-brief boundary as the evidence page. The helper also
+    // refuses to use an outside buyer's task if this route is changed later.
+    const indexedTask = store.all().find((row) => row.chainId === chainId && row.jobId === jobId)?.task ?? null;
     return NextResponse.json({
       delivered: true,
       readable: true,
@@ -61,6 +66,7 @@ export async function GET(request: Request, context: { params: Promise<{ jobId: 
       matchedBy,
       manifestHash: keccak256(stringToBytes(manifestText)),
       answer: readDeliveredAnswer(manifestText),
+      checks: buyerDeliveryChecks(manifestText, matchedBy, funder, indexedTask),
       funder,
       published: answerIsPublic(funder, decision),
       decidedAt: decision?.decidedAt ?? null,

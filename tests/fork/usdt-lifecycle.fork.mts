@@ -271,19 +271,28 @@ async function main() {
       await client.increaseTime({ seconds: windowSeconds + 5 });
       await client.mine({ blocks: 1 });
       const providerBefore = await balance(PROVIDER);
+      const buyerBeforeRelease = await balance(BUYER);
+      const escrowBeforeRelease = await balance(A.commerce);
       await send(BUYER, A.router, encodeFunctionData({ abi: ROUTER, functionName: 'settle', args: [jobId, '0x'] }));
       const paid = (await balance(PROVIDER)) - providerBefore;
       const fee = (BUDGET * BigInt(feeBp)) / 10_000n;
       note(`release pays the provider in ${SYM}`, STATUS[(await job(jobId)).status] === 'COMPLETED' && paid === BUDGET - fee, `paid ${paid}, fee ${fee}`);
+      note('valid settlement empties this job’s escrow without refunding the buyer', escrowBeforeRelease - (await balance(A.commerce)) === BUDGET && (await balance(BUYER)) === buyerBeforeRelease);
+      const secondSettlement = await reverts(BUYER, A.router, encodeFunctionData({ abi: ROUTER, functionName: 'settle', args: [jobId, '0x'] }));
+      note('a completed job cannot pay the provider twice', secondSettlement !== null, secondSettlement ?? 'it did not revert');
     }
 
-    // 3. Dispute, rejected by the voters, refunded in USDT.
+    // 3. The contract stores a delivery hash, not its contents. A buyer contests
+    // a bad delivery and the policy voters reject it; only their verdict refunds.
     {
       const { jobId, calls } = await createUsdtJob(3600);
       await fund(calls);
       await send(PROVIDER, A.commerce, encodeFunctionData({ abi: COMMERCE, functionName: 'submit', args: [jobId, keccak256(toHex('bad')), '0x'] }));
+      const providerBeforeDispute = await balance(PROVIDER);
+      const buyerBeforeDispute = await balance(BUYER);
+      const escrowBeforeDispute = await balance(A.commerce);
       await send(BUYER, A.policy, encodeFunctionData({ abi: POLICY, functionName: 'dispute', args: [jobId] }));
-      note('the buyer disputes inside the window', true);
+      note('the buyer disputes inside the window while the budget remains locked', STATUS[(await job(jobId)).status] === 'SUBMITTED' && (await balance(PROVIDER)) === providerBeforeDispute && (await balance(BUYER)) === buyerBeforeDispute && (await balance(A.commerce)) === escrowBeforeDispute);
       const admin = await client.readContract({ address: A.policy, abi: POLICY, functionName: 'admin' });
       const quorum = Number(await client.readContract({ address: A.policy, abi: POLICY, functionName: 'voteQuorum' }));
       const voters = Array.from({ length: Math.max(quorum, 1) }, (_, i) => getAddress(pad(toHex(0xa11 + i), { size: 20 })));
@@ -298,7 +307,7 @@ async function main() {
       for (const v of voters) await send(v, A.policy, encodeFunctionData({ abi: POLICY, functionName: 'voteReject', args: [jobId] }));
       let status = STATUS[(await job(jobId)).status];
       let refunded = (await balance(BUYER)) - before;
-      note('the votes alone leave the job SUBMITTED; the router applies the verdict', status === 'SUBMITTED', status);
+      note('the votes alone leave the job SUBMITTED and pay nobody; the router applies the verdict', status === 'SUBMITTED' && refunded === 0n && (await balance(PROVIDER)) === providerBeforeDispute && (await balance(A.commerce)) === escrowBeforeDispute, status);
       /* The verdict is applied through the router, the same call that releases an undisputed job. */
       await send(BUYER, A.router, encodeFunctionData({ abi: ROUTER, functionName: 'settle', args: [jobId, '0x'] }));
       status = STATUS[(await job(jobId)).status];
@@ -309,9 +318,60 @@ async function main() {
         refunded = (await balance(BUYER)) - before;
       }
       note(`a quorum of rejections refunds the buyer in ${SYM}`, status === 'REJECTED' && refunded === BUDGET, `${status}, refunded ${refunded} (quorum ${quorum})`);
+      note('a rejected delivery pays the provider nothing and releases this job’s escrow', (await balance(PROVIDER)) === providerBeforeDispute && escrowBeforeDispute - (await balance(A.commerce)) === BUDGET);
+      const rejectedAgain = await reverts(BUYER, A.router, encodeFunctionData({ abi: ROUTER, functionName: 'settle', args: [jobId, '0x'] }));
+      note('a rejected job cannot be settled into a later provider payout', rejectedAgain !== null, rejectedAgain ?? 'it did not revert');
     }
 
-    // 4. Never delivered, expired, reclaimed in USDT.
+    // 3b. Filing a dispute is not a refund: without a rejection quorum, the provider can be paid.
+    {
+      const { jobId, calls } = await createUsdtJob(3600);
+      await fund(calls);
+      await send(PROVIDER, A.commerce, encodeFunctionData({ abi: COMMERCE, functionName: 'submit', args: [jobId, keccak256(toHex('contested-without-quorum')), '0x'] }));
+      await send(BUYER, A.policy, encodeFunctionData({ abi: POLICY, functionName: 'dispute', args: [jobId] }));
+      const buyerBefore = await balance(BUYER);
+      const providerBefore = await balance(PROVIDER);
+      const escrowBefore = await balance(A.commerce);
+      await client.increaseTime({ seconds: windowSeconds + 5 });
+      await client.mine({ blocks: 1 });
+      await send(BUYER, A.router, encodeFunctionData({ abi: ROUTER, functionName: 'settle', args: [jobId, '0x'] }));
+      const fee = (BUDGET * BigInt(feeBp)) / 10_000n;
+      note('a dispute without rejection quorum pays the provider after the window', STATUS[(await job(jobId)).status] === 'COMPLETED' && (await balance(PROVIDER)) - providerBefore === BUDGET - fee && (await balance(BUYER)) === buyerBefore && escrowBefore - (await balance(A.commerce)) === BUDGET);
+    }
+
+    // 4a. A delivery that was submitted but never settled can still expire and refund the buyer.
+    {
+      const { jobId, calls, expiredAt } = await createUsdtJob(600);
+      await fund(calls);
+      await send(PROVIDER, A.commerce, encodeFunctionData({ abi: COMMERCE, functionName: 'submit', args: [jobId, keccak256(toHex('unsettled')), '0x'] }));
+      const now = BigInt((await client.getBlock()).timestamp);
+      await client.increaseTime({ seconds: Number(expiredAt - now) + 5 });
+      await client.mine({ blocks: 1 });
+      const reclaim = encodeFunctionData({ abi: COMMERCE, functionName: 'claimRefund', args: [jobId] });
+      const buyerBefore = await balance(BUYER);
+      const providerBefore = await balance(PROVIDER);
+      const escrowBefore = await balance(A.commerce);
+      await send(BUYER, A.commerce, reclaim);
+      note('an expired submitted job refunds only the funding wallet', STATUS[(await job(jobId)).status] === 'EXPIRED' && (await balance(BUYER)) - buyerBefore === BUDGET && (await balance(PROVIDER)) === providerBefore && escrowBefore - (await balance(A.commerce)) === BUDGET);
+      const lateSettlement = await reverts(BUYER, A.router, encodeFunctionData({ abi: ROUTER, functionName: 'settle', args: [jobId, '0x'] }));
+      note('an expired submitted job cannot pay the provider afterward', lateSettlement !== null, lateSettlement ?? 'it did not revert');
+    }
+
+    // 4b. Anyone may send claimRefund, but the contract returns funds to the original buyer.
+    {
+      const { jobId, calls, expiredAt } = await createUsdtJob(600);
+      await fund(calls);
+      await send(PROVIDER, A.commerce, encodeFunctionData({ abi: COMMERCE, functionName: 'submit', args: [jobId, keccak256(toHex('unsettled-third-party')), '0x'] }));
+      const now = BigInt((await client.getBlock()).timestamp);
+      await client.increaseTime({ seconds: Number(expiredAt - now) + 5 });
+      await client.mine({ blocks: 1 });
+      const buyerBefore = await balance(BUYER);
+      const providerBefore = await balance(PROVIDER);
+      await send(PROVIDER, A.commerce, encodeFunctionData({ abi: COMMERCE, functionName: 'claimRefund', args: [jobId] }));
+      note('a third-party refund call still pays the original buyer, never the caller', STATUS[(await job(jobId)).status] === 'EXPIRED' && (await balance(BUYER)) - buyerBefore === BUDGET && (await balance(PROVIDER)) === providerBefore);
+    }
+
+    // 4c. Never delivered, expired, reclaimed in USDT.
     {
       const { jobId, calls, expiredAt } = await createUsdtJob(600);
       await fund(calls);

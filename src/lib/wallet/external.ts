@@ -537,7 +537,8 @@ export async function settleFromExternalWallet(input: {
   /*
    * A dispute does not reject the job. It opens a vote: whitelisted voters
    * call voteReject, and only a quorum of them makes the job REJECTED; if
-   * none is reached by the deadline it expires and the buyer reclaims. So
+   * none is reached by the review-window close, the dispute fails and a
+   * settlement can pay the provider. So
    * the job stays SUBMITTED, and the page told the first mainnet buyer to
    * dispute that their confirmed dispute had come out "submitted instead
    * of rejected". What a dispute changes is the policy's own record.

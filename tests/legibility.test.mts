@@ -37,10 +37,13 @@ test('a card shows where its money settles as a coloured pill on its own line un
   assert.match(card, /<PriceText row=\{row\} className="text-\[1\.45rem\][^"]*" \/>\n[^\n]*per job[^\n]*\n\s*<\/span>\n\s*<NetworkTag chainId=\{row\.hireChainId\} alsoHireOn=\{hireChainIds\} className="mt-2 self-start" \/>/);
 });
 
-test('Proof opens with what outside buyers got, its mainnet share, and the verifier beside it', () => {
+test('Proof leads with testnet and shows outside-buyer results on both networks', () => {
   const proof = code('app/(site)/proof/page.tsx');
   assert.match(proof, /settled with the agent&rsquo;s answer for buyers outside Pokter&rsquo;s team/);
-  assert.match(proof, /outside\.answeredMainnet === 0\n\s*\? ', none on BNB Chain yet\.'/);
+  assert.match(proof, /agentKey && counts\.testnet === 0 && counts\.mainnet > 0 \? 'mainnet' : 'testnet'/);
+  assert.match(proof, /\(\['testnet', 'mainnet'\] as const\)/);
+  assert.match(proof, /outside\.answered - outside\.answeredMainnet\} were on BNB Testnet and \{outside\.answeredMainnet\} on BNB Chain mainnet/);
+  assert.match(proof, /counts eligible hires on both networks\. Testnet payments use test tokens with no monetary value/);
   assert.ok(proof.indexOf('Check every receipt against the chain') < proof.indexOf('aria-label="Filters"'), 'the verifier is above the filters');
   assert.match(proof, /\{CORRECTIONS\.length\} corrections, dated/);
   const activity = code('lib/erc8183/outside-activity.ts');

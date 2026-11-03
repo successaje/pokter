@@ -34,7 +34,7 @@ import { CodeBlock } from '@/ui/Data';
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
-  title: 'Production proof',
+  title: 'On-chain proof',
   description: 'Agents hired through Pokter, the answers they delivered and an on-chain receipt for every job, split by network and funding.',
   alternates: { canonical: '/proof' },
 };
@@ -177,8 +177,8 @@ export default async function ProductionProofPage({ searchParams }: { searchPara
       .filter((job) => !agentKey || agentOf(job) === agentKey)
       .sort((a, b) => b.hiredAt.localeCompare(a.hiredAt));
   const counts: Record<Network, number> = { mainnet: inView('mainnet', parsed.funder).length, testnet: inView('testnet', parsed.funder).length };
-  /* BNB Chain unless chosen; a link that names no network and has nothing there (one agent's testnet receipts) opens on testnet. */
-  const network: Network = parsed.network ?? (counts.mainnet === 0 && counts.testnet > 0 ? 'testnet' : 'mainnet');
+  /* Lead with testnet proof; an agent-only link with no testnet receipts opens on its mainnet receipts. */
+  const network: Network = parsed.network ?? (agentKey && counts.testnet === 0 && counts.mainnet > 0 ? 'mainnet' : 'testnet');
   const filters: Filters = { ...parsed, network };
   const jobs = inView(network, filters.funder);
   /*
@@ -255,31 +255,19 @@ export default async function ProductionProofPage({ searchParams }: { searchPara
 
   return (
     <div className="frame pb-24 pt-10 sm:pt-14">
-      {/*
-        The finding first, then where to check it.
-
-        This opened on a display headline and a description of the page, and
-        the figures a visitor came for were below the fold. It now leads with
-        one sentence of them, outside buyers only and with how much is on BNB
-        Chain, because most outside work so far is testnet and a total that
-        hid that would flatter it. The verifier, which was at the foot of the
-        page, sits beside it: the claim and the way to test it in one screen.
-      */}
+      {/* Lead with outside-buyer results on both networks and the way to verify them. */}
       <header className="grid grid-cols-1 gap-8 pb-10 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:items-end lg:gap-12">
         <div className="flex flex-col gap-4">
-          <span className="t-label flex items-center gap-2"><span className="tile" aria-hidden /> Production proof</span>
+          <span className="t-label flex items-center gap-2"><span className="tile" aria-hidden /> On-chain proof</span>
           <h1 className="t-h1">Real jobs. Delivered answers.</h1>
           <p className="t-lede max-w-2xl">
             <span className="text-ink">
               {outside.answered.toLocaleString('en-US')} paid {outside.answered === 1 ? 'job has' : 'jobs have'} settled with the agent&rsquo;s answer for buyers outside Pokter&rsquo;s team
             </span>
-            {outside.answered > 0 &&
-              (outside.answeredMainnet === 0
-                ? ', none on BNB Chain yet.'
-                : outside.answeredMainnet === outside.answered
-                  ? ', all on BNB Chain.'
-                  : `, ${outside.answeredMainnet} of them on BNB Chain.`)}
-            {outside.answered === 0 && '.'} {outside.buyers.wallets.toLocaleString('en-US')} outside {outside.buyers.wallets === 1 ? 'wallet has' : 'wallets have'} funded a job. Every job is below, the misses included.
+            . Of these, {outside.answered - outside.answeredMainnet} were on BNB Testnet and {outside.answeredMainnet} on BNB Chain mainnet. {outside.buyers.wallets.toLocaleString('en-US')} outside {outside.buyers.wallets === 1 ? 'wallet has' : 'wallets have'} funded a job. Every job is below, the misses included.
+          </p>
+          <p className="max-w-2xl text-[13px] leading-relaxed text-ink-2">
+            <a href="https://www.bnbchain.org/en/hackathons/smart-money-era-set-and-earn" target="_blank" rel="noopener noreferrer" className="font-medium text-ink underline underline-offset-2 hover:text-ink-2">BNB Chain&rsquo;s Set and Earn</a> counts eligible hires on both networks. Testnet payments use test tokens with no monetary value.
           </p>
           <nav aria-label="About these figures" className="flex flex-wrap gap-x-5 gap-y-2 text-sm">
             <Link href="/leaderboard" className="inline-flex items-center gap-1.5 font-medium hover:underline">
@@ -307,7 +295,7 @@ export default async function ProductionProofPage({ searchParams }: { searchPara
 
       <section aria-label="Filters" className="flex flex-col gap-5 border-y border-rule py-5 lg:flex-row lg:items-end lg:justify-between">
         <nav aria-label="Network" className="flex gap-6">
-          {(['mainnet', 'testnet'] as const).map((option) => (
+          {(['testnet', 'mainnet'] as const).map((option) => (
             <Link
               key={option}
               href={proofHref(filters, { network: option }, agentKey)}
