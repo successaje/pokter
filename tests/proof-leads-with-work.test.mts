@@ -12,10 +12,10 @@ import test from 'node:test';
 const code = (path: string) => readFileSync(new URL(`../src/${path}`, import.meta.url), 'utf8');
 const page = code('app/(site)/proof/page.tsx');
 
-test('the page reads one network at a time, BNB Chain unless chosen, with every funder by default', () => {
+test('the page reads one network at a time, testnet first unless chosen, with every funder by default', () => {
   assert.match(page, /type Network = 'mainnet' \| 'testnet';/);
   assert.match(page, /funder: funder === 'team' \|\| funder === 'outside-team' \? funder : 'all',/);
-  assert.match(page, /parsed\.network \?\? \(counts\.mainnet === 0 && counts\.testnet > 0 \? 'testnet' : 'mainnet'\)/);
+  assert.match(page, /parsed\.network \?\? \(agentKey && counts\.testnet === 0 && counts\.mainnet > 0 \? 'mainnet' : 'testnet'\)/);
   assert.match(page, /\{ value: 'all', label: 'All activity' \}, \{ value: 'outside-team', label: 'Outside-team' \}, \{ value: 'team', label: 'Pokter team' \}/);
 });
 
