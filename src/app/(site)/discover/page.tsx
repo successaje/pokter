@@ -216,6 +216,14 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
             ))}
           </ul>
         )}
+        <nav aria-label="Task guides" className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12.5px] sm:order-3">
+          <span className="t-label">Plan a better hire</span>
+          {FLAGSHIP_CATEGORY_ORDER.map((category) => (
+            <Link key={category} href={`/task-guides/${category}`} className="text-ink-2 hover:text-ink hover:underline">
+              {CATEGORIES.find((item) => item.id === category)?.label}
+            </Link>
+          ))}
+        </nav>
       </header>
 
 
@@ -263,17 +271,6 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
 
       <div className="mt-8 flex flex-col gap-6">
         <FilterBar p={base} counts={result.categoryCounts} allTasks={result.allTasksCount} filterCounts={result.filterCounts} />
-
-        <nav aria-label="Task guides" className="flex flex-col gap-3 border-y border-rule py-4 sm:flex-row sm:items-center sm:gap-5">
-          <span className="t-label shrink-0">Plan a better hire</span>
-          <div className="flex flex-wrap gap-x-5 gap-y-2">
-            {FLAGSHIP_CATEGORY_ORDER.map((category) => (
-              <Link key={category} href={`/task-guides/${category}`} className="inline-flex items-center gap-1 text-[13px] font-medium text-ink-2 hover:text-ink hover:underline">
-                {CATEGORIES.find((item) => item.id === category)?.label} guide <Icon.Arrow size={12} />
-              </Link>
-            ))}
-          </div>
-        </nav>
 
         {playbook && (
           <section aria-label={`${CATEGORIES.find((category) => category.id === playbook.category)?.label} buying guide`} className="flex flex-col gap-3 rounded-[14px] border border-rule bg-raised p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6 sm:p-5">
@@ -324,25 +321,25 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
                   and "Outcome rankings" were here and are errands rather
                   than a next step — both are still in the footer and on
                   their own pages. */}
-              <div className="flex w-full items-center justify-between gap-3 sm:w-auto sm:justify-end">
-                <SortSelect params={base} variant="inline" />
-                <Link href="/agents" className="t-readout inline-flex shrink-0 items-center gap-1 text-[13px] text-ink-2 hover:text-ink hover:underline">
+              <div className="flex w-full flex-wrap items-center justify-between gap-x-1.5 gap-y-2 sm:w-auto sm:justify-end sm:gap-x-3">
+                <details className="relative shrink-0 text-[12.5px] leading-relaxed text-ink-3">
+                  <summary className="cursor-pointer font-medium text-ink-2 hover:text-ink">Why this order?</summary>
+                  <p className="absolute left-0 top-full z-20 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-[10px] border border-rule bg-raised p-3 shadow-lg sm:right-0 sm:left-auto">
+                    {p.q && 'Name and task matches lead; the chosen sort orders agents within each match group. '}
+                    {p.sort === 'recommended' && 'Hireable agents lead, followed by payable signed prices, fewer missed jobs, outside-buyer completed work, passed checks, and recent replies. Pokter-operated agents receive no boost.'}
+                    {p.sort === 'reliable' && 'Agents need at least 20 probes this week to rank on reliability. Missed paid jobs lower their place; agents with too few probes remain visible afterward.'}
+                    {p.sort === 'responsive' && 'Agents with a higher share of answered calls in the last 24 hours lead.'}
+                    {p.sort === 'completed' && 'Jobs completed through Pokter lead. Jobs merely funded do not count as completed work.'}
+                    {p.sort === 'evidence' && 'More Pokter probes and published attestations lead. This is evidence volume, not a quality score.'}
+                    {p.sort === 'price' && 'Current signed prices that this escrow can pay are sorted lowest first. Agents without one follow.'}
+                  </p>
+                </details>
+                <SortSelect params={base} variant="inline" className="gap-1 sm:gap-2" />
+                <Link href="/agents" className="t-readout inline-flex shrink-0 items-center gap-0.5 text-[12.5px] text-ink-2 hover:text-ink hover:underline sm:gap-1 sm:text-[13px]">
                   View all <Icon.Arrow size={13} />
                 </Link>
               </div>
             </div>
-            <details className="text-[12.5px] leading-relaxed text-ink-3">
-              <summary className="w-fit cursor-pointer font-medium text-ink-2 hover:text-ink">Why this order?</summary>
-              <p className="mt-2 max-w-2xl">
-                {p.q && 'Name and task matches lead; the chosen sort orders agents within each match group. '}
-                {p.sort === 'recommended' && 'Hireable agents lead, followed by payable signed prices, fewer missed jobs, outside-buyer completed work, passed checks, and recent replies. Pokter-operated agents receive no boost.'}
-                {p.sort === 'reliable' && 'Agents need at least 20 probes this week to rank on reliability. Missed paid jobs lower their place; agents with too few probes remain visible afterward.'}
-                {p.sort === 'responsive' && 'Agents with a higher share of answered calls in the last 24 hours lead.'}
-                {p.sort === 'completed' && 'Jobs completed through Pokter lead. Jobs merely funded do not count as completed work.'}
-                {p.sort === 'evidence' && 'More Pokter probes and published attestations lead. This is evidence volume, not a quality score.'}
-                {p.sort === 'price' && 'Current signed prices that this escrow can pay are sorted lowest first. Agents without one follow.'}
-              </p>
-            </details>
           </div>
 
           {result.total === 0 ? (
