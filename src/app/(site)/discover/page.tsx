@@ -1,9 +1,10 @@
 import type { Metadata } from 'next';
 import { shareMetadata } from '@/lib/og/share';
 import Link from 'next/link';
-import { Suspense } from 'react';
+import { Fragment, Suspense } from 'react';
 
 import { RememberDiscoverResults } from '@/features/discover/ReturnToResults';
+import { HirePulse, type HireMark } from '@/features/discover/HirePulse';
 
 import { AgentCard, AgentRow, MiniAgentCard } from '@/features/agents/AgentCard';
 import { CompareToggle, CompareTray } from '@/features/compare/CompareControls';
@@ -19,6 +20,11 @@ import { FilterBar } from '@/features/discover/FilterBar';
 import { deliveryTimes, DELIVERY_LOOKUP_CONCURRENCY } from '@/lib/agent/delivery-times';
 import { mapWithConcurrency } from '@/lib/concurrency';
 import { outsideActivity } from '@/lib/erc8183/outside-activity';
+import { fundingEvidence } from '@/lib/erc8183/funding-evidence';
+import { isSelfHire } from '@/lib/erc8183/production-proof';
+import { getJobStore } from '@/lib/erc8183/store';
+import { teamWalletSet } from '@/lib/team/server';
+import { fundedByTeam } from '@/lib/team/wallets';
 import { EmptyState, Notice } from '@/ui/Feedback';
 import { Icon } from '@/ui/icons';
 import { LinkButton } from '@/ui/Button';
@@ -110,6 +116,17 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
   const checkedAt = lastCheckAt();
   /* The newest few requests still taking proposals. */
   const now = renderedAt();
+  const team = teamWalletSet();
+  const hireMarks: HireMark[] = getJobStore().all()
+    .filter((job) => (job.chainId === 56 || job.chainId === 97) && fundingEvidence(job) === 'funded')
+    .map((job) => ({
+      chainId: job.chainId,
+      jobId: job.jobId,
+      agentName: job.agentName,
+      hiredAt: job.hiredAt,
+      status: job.status,
+      funder: isSelfHire(job) ? 'self' : fundedByTeam(job, team) ? 'team' : 'outside',
+    }));
   const open = requestRows(now)
     .filter((r) => r.taking)
     .sort((x, y) => Date.parse(y.postedAt) - Date.parse(x.postedAt));
@@ -358,10 +375,15 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
                       with the toggle gone, honouring a saved ?view=list would
                       put somebody in a layout with no way back out of it. */}
                   <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-                    {group.map((row) => (
-                      <li key={row.key} className="flex min-w-0 flex-col">
-                        <AgentCard row={row} note={withNetworks(row)} hireChainIds={row.hireChainIds} deliveryMs={deliveryByKey.get(row.key) ?? null} compare={<CompareToggle agentKey={row.key} variant="checkbox" compact />} />
-                      </li>
+                    {group.map((row, index) => (
+                      <Fragment key={row.key}>
+                        <li className="flex min-w-0 flex-col">
+                          <AgentCard row={row} note={withNetworks(row)} hireChainIds={row.hireChainIds} deliveryMs={deliveryByKey.get(row.key) ?? null} compare={<CompareToggle agentKey={row.key} variant="checkbox" compact />} />
+                        </li>
+                        {g === 0 && index === Math.min(group.length, 6) - 1 && (
+                          <li className="col-span-full"><HirePulse initial={hireMarks} initialAsOf={now} /></li>
+                        )}
+                      </Fragment>
                     ))}
                   </ul>
                 </div>
@@ -379,6 +401,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
             </div>
           )}
         </section>
+        {shown.every((row) => row.nameOnly) && <HirePulse initial={hireMarks} initialAsOf={now} />}
 
         {/* The newest listings, under the results rather than inside them:
             these are not matches for anything that was asked, so they sit
