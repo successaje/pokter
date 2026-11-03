@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { parseUnits } from 'viem';
+import { getAddress, isAddress, parseUnits } from 'viem';
 import {
   buildClaimRefundCall,
   getErc8183DeliverableUrl,
@@ -37,7 +37,7 @@ export function safeDeliverableUrl(value: string | null): string | null {
 }
 
 /**
- * The deliverable URL Pokter's index kept for a job, or null.
+ * The deliverable URL and currency Pokter knows for a job, or null.
  *
  * A job page reads the job this browser remembered at hire time, which
  * has no URL until the seller delivers, and then looked the URL up from
@@ -47,12 +47,17 @@ export function safeDeliverableUrl(value: string | null): string | null {
  * seller had stated. The index is asked first; the chain stays the
  * fallback.
  */
-async function indexedDeliverableUrl(job: Pick<HiredJob, 'jobId' | 'chainId'>): Promise<string | null> {
+async function indexedJobDetails(job: Pick<HiredJob, 'jobId' | 'chainId'>): Promise<Pick<HiredJob, 'deliverableUrl' | 'paymentToken'> | null> {
   try {
     const r = await fetch(`/api/jobs/${encodeURIComponent(job.jobId)}?chain=${job.chainId}`, { cache: 'no-store' });
     if (!r.ok) return null;
-    const body = (await r.json()) as { job?: { deliverableUrl?: unknown } };
-    return typeof body.job?.deliverableUrl === 'string' ? body.job.deliverableUrl : null;
+    const body = (await r.json()) as { job?: { deliverableUrl?: unknown; paymentToken?: unknown } };
+    return {
+      deliverableUrl: typeof body.job?.deliverableUrl === 'string' ? body.job.deliverableUrl : null,
+      paymentToken: typeof body.job?.paymentToken === 'string' && isAddress(body.job.paymentToken)
+        ? getAddress(body.job.paymentToken)
+        : null,
+    };
   } catch {
     return null;
   }
@@ -126,14 +131,16 @@ export function useJobActions(initial: HiredJob) {
       const owner = activeWallet.address;
       const current = await getErc8183Job(network, BigInt(job.jobId));
       const delivered = current.statusName === 'SUBMITTED' || current.statusName === 'COMPLETED';
+      const indexed = !job.paymentToken || (delivered && !job.deliverableUrl) ? await indexedJobDetails(job) : null;
       const deliverableUrl =
         job.deliverableUrl ??
-        (delivered ? await indexedDeliverableUrl(job) : null) ??
+        (delivered ? indexed?.deliverableUrl : null) ??
         (delivered ? await getErc8183DeliverableUrl(network, BigInt(job.jobId)).catch(() => undefined) : undefined) ??
         null;
       if (!fromAction && generation.current !== startedAt) return;
       const updated: HiredJob = {
         ...job,
+        paymentToken: job.paymentToken ?? indexed?.paymentToken ?? null,
         status: current.statusName,
         statusCheckedAt: new Date().toISOString(),
         deliverableUrl,
@@ -186,14 +193,20 @@ export function useJobActions(initial: HiredJob) {
     };
   }, [watching, busy]);
 
-  // A delivered job remembered without its URL: read it once from the index, without waiting for a refresh.
+  // An older remembered job may lack its currency or delivery URL. Read both
+  // from the chain-backed job lookup without waiting for the status refresh.
   const needsUrl = (job.status === 'SUBMITTED' || job.status === 'COMPLETED') && !job.deliverableUrl;
+  const needsCurrency = !job.paymentToken;
   useEffect(() => {
-    if (!needsUrl) return;
+    if (!needsUrl && !needsCurrency) return;
     let cancelled = false;
-    void indexedDeliverableUrl(job).then((url) => {
-      if (cancelled || !url) return;
-      const updated: HiredJob = { ...job, deliverableUrl: url };
+    void indexedJobDetails(job).then((details) => {
+      if (cancelled || !details || (!details.deliverableUrl && !details.paymentToken)) return;
+      const updated: HiredJob = {
+        ...job,
+        deliverableUrl: job.deliverableUrl ?? details.deliverableUrl,
+        paymentToken: job.paymentToken ?? details.paymentToken,
+      };
       setJob(updated);
       if (activeWallet.address) updateRememberedJob(activeWallet.address, updated);
     });
@@ -202,7 +215,7 @@ export function useJobActions(initial: HiredJob) {
     };
     // Once per job id: the job object changes as it syncs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [needsUrl, job.jobId, job.chainId]);
+  }, [needsUrl, needsCurrency, job.jobId, job.chainId]);
 
   async function requireGas(purpose: string) {
     if (!wallet) throw new Error('The passkey signer is unavailable.');

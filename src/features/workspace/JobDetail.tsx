@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import type { HiredJob } from '@/lib/erc8183/types';
 
 import { jobAmountLabel } from '@/lib/erc8183/job-amount';
+import { formatAmount } from '@/lib/network/tokens';
 import { jobTimeline } from '@/lib/jobs/timeline';
 import { useJobActions } from '@/lib/jobs/useJobActions';
 import { disputeSummary, reviewWindowSummary, settleOpensAt } from '@/lib/erc8183/settle-window';
@@ -28,7 +29,7 @@ import { Checkbox } from '@/ui/Field';
 import { Icon } from '@/ui/icons';
 import { jobPhase, PHASE, STATUS_NAME, useMyJobs } from './hooks';
 import { useClockThrough } from '@/lib/ui/use-moment';
-import { budgetOf, PhaseLabel } from './parts';
+import { PhaseLabel } from './parts';
 import { JobAnswer } from './JobAnswer';
 import { ReportCheck } from './ReportCheck';
 import { ReviewForm } from './ReviewForm';
@@ -136,7 +137,7 @@ function SellerAnswerNotice({ job, answer }: { job: HiredJob; answer: SellerAnsw
     return (
       <Notice tone="bad" title={`${who} refused this job, so nothing will be delivered`}>
         {answer.reason ? <>It said: “{answer.reason}”. </> : 'It gave no reason. '}
-        Your {budgetOf(job)} stays in escrow. You can reclaim all of it here once the deadline passes, in <Countdown to={job.expiredAt} />. Pokter’s team has been told.
+        Your {escrowedAmount(job) ?? 'payment'} stays in escrow. You can reclaim all of it here once the deadline passes, in <Countdown to={job.expiredAt} />. Pokter’s team has been told.
       </Notice>
     );
   }
@@ -158,9 +159,10 @@ function SellerAnswerNotice({ job, answer }: { job: HiredJob; answer: SellerAnsw
 
 /**
  * The escrowed amount, as the buyer agreed it, in the job's own token. A job
- * whose token has not been read says so rather than being called $U.
+ * whose token has not been verified has no amount label to show yet.
  */
-export function escrowedAmount(job: HiredJob): string {
+export function escrowedAmount(job: HiredJob): string | null {
+  if (!job.paymentToken || !formatAmount(job.chainId, job.paymentToken, job.budgetRaw)) return null;
   return jobAmountLabel(job);
 }
 
@@ -243,6 +245,7 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
       ? { ...PHASE[phase], needsYou: dispute.outcome === 'rejected', next: dispute.text }
       : PHASE[phase];
   const timeline = jobTimeline(job);
+  const amount = escrowedAmount(job);
 
   return (
     <div className="flex flex-col gap-8">
@@ -307,7 +310,7 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
           </div>
           <div className="shrink-0 sm:text-right">
             <span className="t-label">Escrow</span>
-            <p className="t-readout text-xl">{budgetOf(job)}</p>
+            <p className="t-readout text-xl">{amount ?? 'Checking currency…'}</p>
           </div>
         </div>
 
@@ -373,11 +376,13 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
                   financial control.
                 */}
                 <span className="flex flex-col gap-1.5">
-                  <Button intent="primary" onClick={() => void a.act('approve', { reviewClosed: review?.open === false })} busy={a.busy === 'approve'} disabled={!releaseAllowed({ reviewOpen: review ? review.open : null, receiptVerified: a.receiptVerified, disputed: false }).allowed}>
-                    {review?.open ? `Release opens ${review.closes}` : `Release ${escrowedAmount(job)} to ${job.agentName}`}
+                  <Button intent="primary" onClick={() => void a.act('approve', { reviewClosed: review?.open === false })} busy={a.busy === 'approve'} disabled={!amount || !releaseAllowed({ reviewOpen: review ? review.open : null, receiptVerified: a.receiptVerified, disputed: false }).allowed}>
+                    {review?.open ? `Release opens ${review.closes}` : amount ? `Release ${amount} to ${job.agentName}` : 'Checking escrow currency…'}
                   </Button>
                   <span className="max-w-xs text-[12px] leading-snug text-ink-3">
-                    {review?.open
+                    {!amount
+                      ? 'The escrow currency could not be verified yet. Refresh from chain to check it before releasing payment.'
+                      : review?.open
                       ? `The escrow will not release before then. Local time: ${localMoment(review.closesAt)}.`
                       : !a.receiptVerified && review?.open === false
                         ? 'The receipt could not be checked just now, but the review window has closed with no dispute, so the escrow already accepts this delivery. This pays the agent now and cannot be undone.'
@@ -409,8 +414,8 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
         {phase === 'reclaim' && owned && (
           <div className="flex flex-col gap-3">
             <p className="text-sm text-ink-2">The only possible destination is the wallet that funded it: yours.</p>
-            <Button intent="primary" onClick={() => void a.act('reclaim')} busy={a.busy === 'reclaim'} className="self-start">
-              Reclaim {budgetOf(job)}
+            <Button intent="primary" onClick={() => void a.act('reclaim')} busy={a.busy === 'reclaim'} disabled={!amount} className="self-start">
+              {amount ? `Reclaim ${amount}` : 'Checking escrow currency…'}
             </Button>
           </div>
         )}

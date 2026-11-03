@@ -41,7 +41,7 @@ test('budgetOf and escrowedAmount label a job in its own token, and an unknown t
   const detail = readFileSync(new URL('../src/features/workspace/JobDetail.tsx', import.meta.url), 'utf8');
   const inbox = readFileSync(new URL('../src/features/studio/DeliveryInbox.tsx', import.meta.url), 'utf8');
   assert.match(parts, /export function budgetOf[\s\S]{0,200}jobAmountLabel\(job\)/);
-  assert.match(detail, /function escrowedAmount[\s\S]{0,100}jobAmountLabel\(job\)/);
+  assert.match(detail, /function escrowedAmount[\s\S]{0,250}formatAmount\([\s\S]{0,100}jobAmountLabel\(job\)/);
   for (const source of [parts, detail, inbox]) assert.doesNotMatch(source, /formatUnits\([^)]*,\s*18\)/);
   assert.doesNotMatch(inbox, /\} \$U/);
 });
