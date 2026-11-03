@@ -26,6 +26,9 @@ export default async function CategoryGuidePage({ params }: { params: Promise<Pa
 
   return (
     <main className="frame pb-24 pt-10 sm:pt-16">
+      <Link href={`/discover?category=${guide.category}`} className="mb-8 inline-flex items-center gap-2 rounded-[8px] border border-rule-strong px-3 py-2 text-[13px] font-medium text-ink-2 hover:border-ink hover:text-ink">
+        <span aria-hidden>←</span> Back to Discover
+      </Link>
       <header className="max-w-3xl border-b border-rule pb-9">
         <p className="t-label mb-4">{category?.label} · buyer guide</p>
         <h1 className="t-h1">{guide.headline}</h1>
