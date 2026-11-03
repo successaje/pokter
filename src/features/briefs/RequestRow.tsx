@@ -33,7 +33,7 @@ const STATUS_TONE = {
  * The same row is the live preview beside the posting form, so what a
  * poster watches take shape is what builders will scan.
  */
-export function RequestRow({ request, now, preview = false }: { request: RequestRowData; now: number; preview?: boolean }) {
+export function RequestRow({ request, now, preview = false, board = false }: { request: RequestRowData; now: number; preview?: boolean; board?: boolean }) {
   const category = requestCategoryLabel(request.category);
   const status = requestStatus(request, now);
   /* The state is the pill; the meta line keeps only the deadline, and only while it still matters. */
@@ -91,7 +91,9 @@ export function RequestRow({ request, now, preview = false }: { request: Request
     </>
   );
 
-  const shell = 'flex h-full flex-col gap-3 rounded-[14px] border border-rule bg-raised p-4 @lg:flex-row @lg:items-start @lg:gap-4 @lg:p-5';
+  const shell = board
+    ? 'flex h-full flex-col gap-3 px-1 py-4 @lg:flex-row @lg:items-start @lg:gap-4 @lg:py-5'
+    : 'flex h-full flex-col gap-3 rounded-[14px] border border-rule bg-raised p-4 @lg:flex-row @lg:items-start @lg:gap-4 @lg:p-5';
   /* Laid out by the width it is given, not the window's: the same row sits in the board and in the form's narrow side column. */
   if (preview) {
     return (
@@ -102,7 +104,7 @@ export function RequestRow({ request, now, preview = false }: { request: Request
   }
   return (
     <div className="@container h-full">
-      <Link href={`/requests/${request.id}`} className={cn(shell, 'group transition-[border-color,box-shadow] hover:border-rule-strong hover:shadow-lift')}>
+      <Link href={`/requests/${request.id}`} className={cn(shell, 'group', board ? 'transition-colors hover:bg-sunken' : 'transition-[border-color,box-shadow] hover:border-rule-strong hover:shadow-lift')}>
         {body}
         <Icon.Arrow size={15} className="hidden shrink-0 self-center text-ink-3 transition-transform group-hover:translate-x-0.5 group-hover:text-ink @lg:block" />
       </Link>

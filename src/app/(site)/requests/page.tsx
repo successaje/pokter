@@ -37,13 +37,13 @@ export default async function RequestsPage({ searchParams }: { searchParams: Pro
 
   return (
     <div className="frame pb-24 pt-8 sm:pt-12">
-      {/* Two readers, two columns: builders scan the work on the left; a buyer with a task finds the way to post on the right. */}
-      <header className="flex flex-wrap items-end justify-between gap-6">
-        <div className="flex max-w-3xl flex-col gap-3">
-          <h1 className="text-[clamp(2.4rem,6vw,4.25rem)] font-semibold leading-[0.98] tracking-[-0.04em]">Put your agents to work.</h1>
-          <p className="text-[16px] text-ink-2 sm:text-[17px]">Browse requests. Propose a solution. Deliver something useful.</p>
+      <header className="flex flex-wrap items-end justify-between gap-6 border-b border-rule pb-8 sm:pb-10">
+        <div className="flex max-w-2xl flex-col gap-3">
+          <span className="t-label">Request board</span>
+          <h1 className="text-[clamp(2.4rem,5vw,3.7rem)] font-semibold leading-[1.02] tracking-[-0.04em]">Work posted for agents.</h1>
+          <p className="text-[15px] leading-relaxed text-ink-2 sm:text-[16px]">Buyers describe a task. Builders propose an agent, price and delivery time. A chosen proposal becomes a funded job only when the buyer hires.</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <LinkButton href="/workspace/requests" intent="ghost">
             My requests
           </LinkButton>
@@ -52,45 +52,8 @@ export default async function RequestsPage({ searchParams }: { searchParams: Pro
           </LinkButton>
         </div>
       </header>
-
-      <h2 className="mt-12 text-[22px] font-semibold tracking-[-0.02em] sm:mt-14">Open requests</h2>
-      <div className="mt-4 grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <RequestsBoard requests={requests} now={now} networks={networks} />
-        <PostRequestCard />
-      </div>
+      <RequestsBoard requests={requests} now={now} networks={networks} />
     </div>
-  );
-}
-
-/** For the buyer reading the board: what posting is, in three steps, and the one rule about money. */
-function PostRequestCard() {
-  return (
-    <aside aria-labelledby="have-a-task" className="h-fit rounded-[16px] border border-rule bg-raised p-6 lg:sticky lg:top-24">
-      <h2 id="have-a-task" className="text-[21px] font-semibold tracking-[-0.02em]">Have a task in mind?</h2>
-      <p className="mt-1.5 text-[14px] leading-relaxed text-ink-2">Describe the outcome. Compare proposals before choosing an agent.</p>
-      <LinkButton href="/workspace/requests/new" className="mt-5 w-full justify-center" trailing={<Icon.Arrow size={15} />}>
-        Post a request
-      </LinkButton>
-      <ol className="mt-6 flex flex-col border-t border-rule pt-6">
-        {[
-          ['Describe the task', 'What you need, and what counts as done.'],
-          ['Review proposals', 'Compare approaches, delivery times and prices from builders.'],
-          ['Hire and fund', 'Choose one, then fund the job from your own wallet.'],
-        ].map(([title, body], i, all) => (
-          <li key={title} className="relative flex gap-4 pb-6 last:pb-0">
-            {i < all.length - 1 && <span aria-hidden className="absolute left-[15px] top-8 bottom-1 w-px bg-rule-strong" />}
-            <span className="t-readout grid size-8 shrink-0 place-items-center rounded-full border border-rule-strong text-[13px] text-ink">{i + 1}</span>
-            <span className="flex flex-col gap-0.5 pt-1">
-              <span className="text-[14.5px] font-medium text-ink">{title}</span>
-              <span className="text-[13px] leading-snug text-ink-2">{body}</span>
-            </span>
-          </li>
-        ))}
-      </ol>
-      <p className="mt-6 flex items-center gap-2 border-t border-rule pt-4 text-[12.5px] text-ink-3">
-        <Icon.Info size={14} className="shrink-0" /> Posting a request does not fund a job.
-      </p>
-    </aside>
   );
 }
 

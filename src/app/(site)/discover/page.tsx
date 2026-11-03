@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { shareMetadata } from '@/lib/og/share';
 import Link from 'next/link';
-import { Fragment, Suspense } from 'react';
+import { Suspense } from 'react';
 
 import { RememberDiscoverResults } from '@/features/discover/ReturnToResults';
 import { HirePulse, type HireMark } from '@/features/discover/HirePulse';
@@ -375,15 +375,10 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
                       with the toggle gone, honouring a saved ?view=list would
                       put somebody in a layout with no way back out of it. */}
                   <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-                    {group.map((row, index) => (
-                      <Fragment key={row.key}>
-                        <li className="flex min-w-0 flex-col">
-                          <AgentCard row={row} note={withNetworks(row)} hireChainIds={row.hireChainIds} deliveryMs={deliveryByKey.get(row.key) ?? null} compare={<CompareToggle agentKey={row.key} variant="checkbox" compact />} />
-                        </li>
-                        {g === 0 && index === Math.min(group.length, 6) - 1 && (
-                          <li className="col-span-full"><HirePulse initial={hireMarks} initialAsOf={now} /></li>
-                        )}
-                      </Fragment>
+                    {group.map((row) => (
+                      <li key={row.key} className="flex min-w-0 flex-col">
+                        <AgentCard row={row} note={withNetworks(row)} hireChainIds={row.hireChainIds} deliveryMs={deliveryByKey.get(row.key) ?? null} compare={<CompareToggle agentKey={row.key} variant="checkbox" compact />} />
+                      </li>
                     ))}
                   </ul>
                 </div>
@@ -401,13 +396,13 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
             </div>
           )}
         </section>
-        {shown.every((row) => row.nameOnly) && <HirePulse initial={hireMarks} initialAsOf={now} />}
+        <HirePulse initial={hireMarks} initialAsOf={now} />
 
         {/* The newest listings, under the results rather than inside them:
             these are not matches for anything that was asked, so they sit
             below the count that closes the search. */}
         {result.recent.length > 0 && (
-          <section aria-labelledby="recent-title" className="mt-6 border-t border-rule pt-8">
+          <section aria-labelledby="recent-title" className="pt-2">
             <h2 id="recent-title" className="t-label mb-4">Recently listed</h2>
             <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {result.recent.map((row) => (

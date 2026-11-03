@@ -108,7 +108,7 @@ export function HirePulse({ initial, initialAsOf }: { initial: HireMark[]; initi
   }, [latest]);
 
   return (
-    <section aria-labelledby="hire-pulse-title" className="mt-10 border-y border-rule py-9">
+    <section aria-labelledby="hire-pulse-title" className="border-y border-rule py-9">
       <div className="grid gap-7 lg:grid-cols-[minmax(0,0.7fr)_minmax(0,1.3fr)] lg:items-center lg:gap-10">
         <div>
           <span className="t-label inline-flex items-center gap-2"><span className="size-1.5 rounded-full bg-ok pulse motion-reduce:animate-none" aria-hidden /> Live receipt index</span>
