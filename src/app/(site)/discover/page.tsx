@@ -197,13 +197,13 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
           <DiscoverSearch params={base} />
         </div>
         {activity.funded > 0 && (
-          <ul aria-label="Across all of Pokter, not just these results" className="grid grid-cols-2 gap-x-6 gap-y-3 text-[13px] sm:order-1 sm:flex sm:flex-wrap sm:items-baseline sm:gap-x-7 sm:gap-y-2">
+          <ul aria-label="Across Pokter on testnet and mainnet, not just these results" className="grid grid-cols-2 gap-x-6 gap-y-3 text-[13px] sm:order-1 sm:flex sm:flex-wrap sm:items-baseline sm:gap-x-7 sm:gap-y-2">
             {/*
               Marketplace-wide, and said so: under a category filter, "8
               outside deliveries" sat above one Health Factor result and read
               as that category's record.
             */}
-            <li className="t-label col-span-2 self-center sm:col-span-1">Across Pokter</li>
+            <li className="t-label col-span-2 self-center sm:col-span-1">Across Pokter <span className="ml-1 text-ink-3">Testnet + mainnet</span></li>
             {[
               { value: activity.funded, label: 'outside jobs funded', note: 'Funded through Pokter\u2019s escrow by a buyer that is not Pokter, on either chain, with lifecycle demonstrations and self-hires taken out.' },
               { value: activity.open, label: 'open now', note: 'Funded or delivered and not yet settled: the escrow is still holding the money.' },
@@ -214,6 +214,9 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
                 <span className="text-ink-3 max-sm:font-[family-name:var(--font-readout)] max-sm:text-[12.5px]">{stat.label}</span>
               </li>
             ))}
+            <li className="col-span-2 sm:col-span-1">
+              <Link href="/proof" className="inline-flex items-center gap-1 font-medium text-ink hover:underline">View proof by network <Icon.Arrow size={12} /></Link>
+            </li>
           </ul>
         )}
       </header>
