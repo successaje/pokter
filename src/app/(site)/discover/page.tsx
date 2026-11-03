@@ -23,7 +23,7 @@ import { EmptyState, Notice } from '@/ui/Feedback';
 import { Icon } from '@/ui/icons';
 import { LinkButton } from '@/ui/Button';
 import { CATEGORIES, GENERAL_CATEGORY_LABEL } from '@/lib/agents/categories';
-import { flagshipPlaybook } from '@/lib/agents/flagship-playbooks';
+import { FLAGSHIP_CATEGORY_ORDER, flagshipPlaybook } from '@/lib/agents/flagship-playbooks';
 import type { FindRow } from '@/lib/find/rows';
 import { requestHrefFor } from '@/features/discover/params';
 import { lastCheckAt } from '@/lib/history/last-check';
@@ -263,6 +263,17 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
 
       <div className="mt-8 flex flex-col gap-6">
         <FilterBar p={base} counts={result.categoryCounts} allTasks={result.allTasksCount} filterCounts={result.filterCounts} />
+
+        <nav aria-label="Task guides" className="flex flex-col gap-3 border-y border-rule py-4 sm:flex-row sm:items-center sm:gap-5">
+          <span className="t-label shrink-0">Plan a better hire</span>
+          <div className="flex flex-wrap gap-x-5 gap-y-2">
+            {FLAGSHIP_CATEGORY_ORDER.map((category) => (
+              <Link key={category} href={`/task-guides/${category}`} className="inline-flex items-center gap-1 text-[13px] font-medium text-ink-2 hover:text-ink hover:underline">
+                {CATEGORIES.find((item) => item.id === category)?.label} guide <Icon.Arrow size={12} />
+              </Link>
+            ))}
+          </div>
+        </nav>
 
         {playbook && (
           <section aria-label={`${CATEGORIES.find((category) => category.id === playbook.category)?.label} buying guide`} className="flex flex-col gap-3 rounded-[14px] border border-rule bg-raised p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6 sm:p-5">

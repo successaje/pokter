@@ -2,6 +2,8 @@ import type { Category } from './categories';
 
 export type FlagshipCategory = Extract<Category, 'grid-trading' | 'yield' | 'rebalancing' | 'health-factor'>;
 
+export const FLAGSHIP_CATEGORY_ORDER: readonly FlagshipCategory[] = ['grid-trading', 'yield', 'rebalancing', 'health-factor'];
+
 export interface FlagshipPlaybook {
   category: FlagshipCategory;
   headline: string;

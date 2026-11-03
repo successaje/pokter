@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { CATEGORIES } from '@/lib/agents/categories';
+import { FLAGSHIP_CATEGORY_ORDER } from '@/lib/agents/flagship-playbooks';
 import { CAMPAIGN_END_LABEL, isCampaignLive } from '@/lib/campaign/window';
 import { ESCROW_NETWORKS_LABEL, escrowAvailabilityLine, IS_TESTNET, MAINNET_ESCROW } from '@/lib/network/presentation';
 import { moneyWords } from '@/lib/integration/currencies';
@@ -301,6 +302,13 @@ export default async function HomePage() {
             <p className="t-body max-w-sm text-ink-2">
               Pick an outcome. Pokter turns it into a short list of agents that have been measured doing it, with the reasons each one made the list.
             </p>
+            <nav aria-label="Guides for the four BNB Chain tasks" className="mt-3 flex max-w-md flex-wrap gap-2">
+              {FLAGSHIP_CATEGORY_ORDER.map((category) => (
+                <Link key={category} href={`/task-guides/${category}`} className="rounded-full border border-rule-strong px-3 py-1.5 text-[12px] font-medium text-ink-2 transition-colors hover:border-ink hover:text-ink">
+                  {CATEGORIES.find((item) => item.id === category)?.label} guide
+                </Link>
+              ))}
+            </nav>
           </div>
           <ol className="ruled border-y border-rule">
             {CATEGORIES.map((category, index) => {
