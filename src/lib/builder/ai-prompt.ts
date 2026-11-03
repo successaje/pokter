@@ -1,4 +1,5 @@
 import { CATEGORIES, NO_CATEGORY } from '@/lib/agents/categories';
+import { flagshipPlaybook } from '@/lib/agents/flagship-playbooks';
 import { FAUCETS, MAINNET_ESCROW, NATIVE_SYMBOL } from '@/lib/network/presentation';
 import { PREFERRED_CURRENCY_RULE, tokenListText } from '@/lib/integration/currencies';
 import { BUILT_WITH_KEY, BUILT_WITH_POKTER } from '@/lib/brand/built-with';
@@ -348,6 +349,8 @@ Ask me only when the answer is genuinely mine:
 Never ask me for a private key or a recovery phrase, and never accept one if I offer it — there is no step here that needs it, and an assistant that takes one has already made the worst mistake available.`;
 
 export function createAgentBuildPrompt(input: AgentBuildPromptInput, { mainnetEscrow = MAINNET_ESCROW }: { mainnetEscrow?: boolean } = {}) {
+  const chosenCategory = CATEGORIES.find((category) => category.label === input.category || category.id === input.category)?.id ?? null;
+  const playbook = flagshipPlaybook(chosenCategory);
 
   return `You are my product strategist and senior protocol engineer. Help me design and build a distinctive, production-quality financial AI agent for Pokter, an evidence-first agent marketplace on BNB Chain.
 
@@ -371,6 +374,13 @@ AGENT BRIEF
 - Operating policy: ${input.policy || 'Use conservative, explicit limits'}
 - Primary deliverable: ${input.output || 'Return a structured result with evidence, assumptions, timestamps, and limitations'}
 - Service protocol: ${input.protocol.toUpperCase()}
+${playbook ? `
+CATEGORY ACCEPTANCE EXERCISE
+Use this buyer brief as a local fixture, not as a claim that the agent has passed Pokter's checks:
+${playbook.sampleBrief}
+The result should contain: ${playbook.delivery}
+Write a test that checks the response has the requested fields, sources and read time. Run the response through Pokter's category delivery checker when the integration kit makes that available. State this limit plainly: ${playbook.outcome}
+` : ''}
 
 FETCH THE CONTRACT BEFORE YOU SCAFFOLD
 The wire format is published by Pokter and generated from the values Pokter runs on. It is the only authority here, including over anything in this prompt:

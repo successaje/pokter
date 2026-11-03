@@ -27,6 +27,9 @@ test('creates a category-aware A2A build prompt with safety constraints', () => 
   assert.match(prompt, /GET \/\.well-known\/agent-card\.json/);
   assert.match(prompt, /Never request, print, store, or hard-code a seed phrase or private key/);
   assert.match(prompt, /public HTTPS URL/);
+  assert.match(prompt, /CATEGORY ACCEPTANCE EXERCISE/);
+  assert.match(prompt, /1,000 USDT for 30 days/);
+  assert.match(prompt, /actual return after 30 days is not established/);
   /*
    * This input carries a direction, so the prompt must not propose
    * concepts at all. It used to ask for three unconditionally, which meant

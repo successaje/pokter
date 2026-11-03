@@ -23,6 +23,7 @@ import { EmptyState, Notice } from '@/ui/Feedback';
 import { Icon } from '@/ui/icons';
 import { LinkButton } from '@/ui/Button';
 import { CATEGORIES, GENERAL_CATEGORY_LABEL } from '@/lib/agents/categories';
+import { flagshipPlaybook } from '@/lib/agents/flagship-playbooks';
 import type { FindRow } from '@/lib/find/rows';
 import { requestHrefFor } from '@/features/discover/params';
 import { lastCheckAt } from '@/lib/history/last-check';
@@ -115,6 +116,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
   const openTotal = open.length;
   const openRequests = open.slice(0, 4);
   const activeFilters = [p.category, p.hireable, p.answering, p.priced, p.checked, p.outsideDelivery, p.evidence !== 'any', p.chain !== 'any'].filter(Boolean).length;
+  const playbook = flagshipPlaybook(p.category);
 
   return (
     <div className="frame pb-24 pt-8 sm:pt-12">
@@ -262,6 +264,17 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
       <div className="mt-8 flex flex-col gap-6">
         <FilterBar p={base} counts={result.categoryCounts} allTasks={result.allTasksCount} filterCounts={result.filterCounts} />
 
+        {playbook && (
+          <section aria-label={`${CATEGORIES.find((category) => category.id === playbook.category)?.label} buying guide`} className="flex flex-col gap-3 rounded-[14px] border border-rule bg-raised p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6 sm:p-5">
+            <div>
+              <span className="t-label">Before you hire</span>
+              <h2 className="mt-1 text-[16px] font-semibold tracking-[-0.01em]">{playbook.headline}</h2>
+              <p className="mt-1 max-w-2xl text-[13px] leading-relaxed text-ink-2">{playbook.summary}</p>
+            </div>
+            <Link href={`/task-guides/${playbook.category}`} className="inline-flex shrink-0 items-center gap-1.5 text-[13px] font-medium text-ink hover:underline">See the brief and checks <Icon.Arrow size={13} /></Link>
+          </section>
+        )}
+
         <section aria-label="Results" className="min-w-0">
           {/* The top few that can be hired, asked for a price on these exact words. Only when there are words, and at least two to compare. */}
           {p.q && result.total > 0 && (
@@ -307,6 +320,18 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
                 </Link>
               </div>
             </div>
+            <details className="text-[12.5px] leading-relaxed text-ink-3">
+              <summary className="w-fit cursor-pointer font-medium text-ink-2 hover:text-ink">Why this order?</summary>
+              <p className="mt-2 max-w-2xl">
+                {p.q && 'Name and task matches lead; the chosen sort orders agents within each match group. '}
+                {p.sort === 'recommended' && 'Hireable agents lead, followed by payable signed prices, fewer missed jobs, outside-buyer completed work, passed checks, and recent replies. Pokter-operated agents receive no boost.'}
+                {p.sort === 'reliable' && 'Agents need at least 20 probes this week to rank on reliability. Missed paid jobs lower their place; agents with too few probes remain visible afterward.'}
+                {p.sort === 'responsive' && 'Agents with a higher share of answered calls in the last 24 hours lead.'}
+                {p.sort === 'completed' && 'Jobs completed through Pokter lead. Jobs merely funded do not count as completed work.'}
+                {p.sort === 'evidence' && 'More Pokter probes and published attestations lead. This is evidence volume, not a quality score.'}
+                {p.sort === 'price' && 'Current signed prices that this escrow can pay are sorted lowest first. Agents without one follow.'}
+              </p>
+            </details>
           </div>
 
           {result.total === 0 ? (
