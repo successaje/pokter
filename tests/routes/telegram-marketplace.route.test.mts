@@ -21,6 +21,13 @@ const request = (body: string, secret?: string) => new Request(url, {
   body,
 });
 
+test('an active follow-up keeps the previous agent category', async () => {
+  const { scoutActiveCategory, scoutCategoryFor } = await import('../../src/lib/telegram/scout');
+  assert.equal(scoutCategoryFor('I need to research tokens before investing'), 'research');
+  assert.equal(scoutActiveCategory('Get me active ones, these are dry', 'research'), 'research');
+  assert.equal(scoutActiveCategory('Show me something else', 'research'), undefined);
+});
+
 test('webhook rejects requests without the separate public-bot secret', async () => {
   assert.equal((await POST(request(message('/start')))).status, 401);
   assert.equal((await POST(request(message('/start'), 'wrong'))).status, 401);
@@ -72,10 +79,25 @@ test('private Scout chat requires opt-in, remembers a follow-up, and forgets it'
     assert.deepEqual(await (await POST(request(callback(99), secret))).json(), { ok: true });
     const enabled = await POST(request(callback(), secret));
     assert.match((await enabled.json() as { text: string }).text, /AI chat is on/);
-    const first = await POST(request(message('What is Pokter?'), secret));
+    const { saveChat } = await import('../../src/lib/telegram/chat-store');
+    saveChat(42, { turns: [], evidence: 'Agent A answered 8 of 10 Pokter checks; Agent B answered 2 of 10.', buttons: [], aiEnabled: true });
+    const first = await POST(request(message('Which one?'), secret));
     assert.match((await first.json() as { text: string }).text, /compare agents/);
-    const second = await POST(request(message('And can I pay here?'), secret));
+    const second = await POST(request(message('Why that one?'), secret));
     assert.match((await second.json() as { text: string }).text, /on Pokter/);
+    assert.equal(calls.length, 2);
+    const payment = await POST(request(message('And can I pay here?'), secret));
+    assert.match((await payment.json() as { text: string }).text, /Scout cannot take payment/);
+    const greeting = await POST(request(message('How are you?'), secret));
+    const greetingBody = await greeting.json() as { text: string; reply_markup: { inline_keyboard: Array<Array<{ url: string }>> } };
+    assert.match(greetingBody.text, /I’m well/);
+    assert.equal(greetingBody.reply_markup.inline_keyboard.length, 1);
+    const product = await POST(request(message('What are the things i can do on pokter?'), secret));
+    assert.match((await product.json() as { text: string }).text, /browse builder-published services/);
+    const workspace = await POST(request(message('Can you help manage and monitor my jobs and hires? I want to build AI agents on Pokter.'), secret));
+    const workspaceBody = await workspace.json() as { text: string; reply_markup: { inline_keyboard: Array<Array<{ url: string }>> } };
+    assert.match(workspaceBody.text, /cannot see or monitor your private jobs/);
+    assert.ok(workspaceBody.reply_markup.inline_keyboard.some((row) => row[0].url.endsWith('/workspace/jobs')));
     assert.equal(calls.length, 2);
     assert.equal(calls[0].url, 'https://generativelanguage.googleapis.com/v1beta/interactions');
     assert.equal(calls[0].body.store, false);

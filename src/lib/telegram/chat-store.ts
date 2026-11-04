@@ -10,7 +10,7 @@ const RETENTION_MS = 24 * 60 * 60 * 1000;
 const MAX_TURNS = 6;
 
 export type ChatTurn = { role: 'user' | 'assistant'; content: string };
-export type ChatState = { turns: ChatTurn[]; evidence: string; buttons: BotButton[][]; aiEnabled: boolean };
+export type ChatState = { turns: ChatTurn[]; evidence: string; buttons: BotButton[][]; aiEnabled: boolean; lastAgentCategory?: string | null };
 
 let database: DatabaseSync | null = null;
 function db(): DatabaseSync {
@@ -34,7 +34,7 @@ export function readChat(chatId: number, now = Date.now()): ChatState {
   try {
     const state = JSON.parse(row.state_json) as ChatState;
     if (!Array.isArray(state.turns) || typeof state.evidence !== 'string' || !Array.isArray(state.buttons)) throw new Error('Invalid chat state');
-    return { turns: state.turns.slice(-MAX_TURNS), evidence: state.evidence.slice(0, 3500), buttons: state.buttons.slice(0, 3), aiEnabled: state.aiEnabled === true };
+    return { turns: state.turns.slice(-MAX_TURNS), evidence: state.evidence.slice(0, 3500), buttons: state.buttons.slice(0, 3), aiEnabled: state.aiEnabled === true, lastAgentCategory: typeof state.lastAgentCategory === 'string' ? state.lastAgentCategory : null };
   } catch {
     return { turns: [], evidence: '', buttons: [], aiEnabled: false };
   }
@@ -46,6 +46,7 @@ export function saveChat(chatId: number, state: ChatState, now = Date.now()): vo
     evidence: state.evidence.slice(0, 3500),
     buttons: state.buttons.slice(0, 3),
     aiEnabled: state.aiEnabled === true,
+    lastAgentCategory: state.lastAgentCategory ?? null,
   };
   const handle = db();
   handle.prepare(`INSERT INTO scout_chats (chat_id, state_json, updated_at) VALUES (?, ?, ?)
