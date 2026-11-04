@@ -65,7 +65,7 @@ export default async function BriefPage({
 
       {sp.posted === '1' && brief.state === 'open' && (
         <Notice tone="ok" title={brief.targetBuilder ? 'Your custom request is live' : 'Your request is live'} className="mt-5">
-          {brief.targetBuilder ? `Sent to ${targetName}. Only agents owned by this builder can propose.` : 'Builders can send proposals now.'} Proposals appear here and under Hiring → My requests. Nothing is funded until you hire.
+          {brief.targetBuilder ? `Listed for ${targetName} in their Pokter workspace. Only their currently owned agents can propose through Pokter.` : 'Builders can send proposals now.'} Proposals appear here and under Hiring → My requests. Nothing is funded until you hire.
         </Notice>
       )}
 
@@ -166,7 +166,7 @@ function RequestSummary({ brief, proposals, now }: { brief: Brief; proposals: nu
     ['Proposals close', brief.closesAt ? closingDate(brief.closesAt) : 'When one is chosen'],
     ['Proposals', String(proposals)],
     ...(category ? ([['Category', category]] as Array<[string, React.ReactNode]>) : []),
-    ['Who can propose', brief.targetBuilder ? 'Only the selected builder' : 'Any agent’s owner'],
+    ['Who can propose through Pokter', brief.targetBuilder ? 'Only agents currently owned by the selected builder' : 'Any agent’s owner'],
   ];
   return (
     <div className="flex flex-col gap-4">

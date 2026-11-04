@@ -97,7 +97,7 @@ test('a builder profile keeps its target through composition and reaches the bui
   await page.getByRole('textbox', { name: 'Done when' }).fill('Report the health factor and a repay amount.');
   await page.getByRole('textbox', { name: 'Your proposed budget' }).fill('0.1');
   await page.getByRole('button', { name: 'Preview request' }).click();
-  await expect(page.getByText('Only this builder can propose.')).toBeVisible();
+  await expect(page.getByText(/Only this builder can propose through Pokter/)).toBeVisible();
   await page.getByRole('button', { name: 'Publish request' }).click();
   await expect(page).toHaveURL(/\/requests\/[0-9a-f-]{36}/);
   const requestId = new URL(page.url()).pathname.split('/').at(-1);

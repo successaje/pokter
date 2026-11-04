@@ -226,7 +226,7 @@ export function RequestForm({ networks, initialTitle = '', copy = null, target =
   if (step === 'review') {
     return (
       <div className="flex max-w-[760px] flex-col gap-8">
-        {target && <div className="rounded-[12px] border border-rule bg-raised p-4 text-[14px]">For <Link href={target.href} className="font-semibold underline">{target.name}</Link> · Only this builder can propose.</div>}
+        {target && <div className="rounded-[12px] border border-rule bg-raised p-4 text-[14px]">For <Link href={target.href} className="font-semibold underline">{target.name}</Link> · Only this builder can propose through Pokter. The request is public.</div>}
         <div className="flex flex-col gap-1.5">
           <span className="t-label">Preview · as builders will see it</span>
           <p className="text-[14px] text-ink-2">Check it reads the way you mean it. Once published, these terms can&rsquo;t be edited.</p>
