@@ -97,6 +97,11 @@ test('local service preview stays separate from real offers and cannot start a h
 });
 
 test('Building leads to service publishing and old editor links keep their target', async ({ page }) => {
+  await page.goto('/services');
+  await page.getByRole('link', { name: 'Publish a service' }).click();
+  await expect(page).toHaveURL(/\/build\/services\/new$/);
+  await expect(page.getByRole('heading', { name: 'Publish a service' })).toBeVisible();
+
   await page.goto('/build');
   await page.getByRole('link', { name: 'Set up a service' }).click();
   await expect(page).toHaveURL(/\/build\/services$/);
@@ -225,6 +230,10 @@ test('a builder profile keeps its target through composition and reaches the bui
   await expect(builderPage.getByRole('heading', { name: 'Requests for your builder wallet' })).toBeVisible();
   await builderPage.getByRole('link', { name: /Check my Venus position/ }).first().click();
   await expect(builderPage.getByRole('button', { name: 'Make a proposal' })).toBeVisible();
+  await builderPage.goto('/builders/risk-fixture?view=building&tab=services');
+  await builderPage.getByRole('navigation', { name: 'Building tabs' }).getByRole('link', { name: 'Services' }).click();
+  await builderPage.getByRole('link', { name: 'Publish a service' }).click();
+  await expect(builderPage).toHaveURL(new RegExp(`/build/services/new\\?builder=${builder}`, 'i'));
   await builderPage.close();
   expect((await walletCalls(page)).filter((call) => ['eth_sendTransaction', 'wallet_sendCalls'].includes(call.method))).toEqual([]);
 });
