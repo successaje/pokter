@@ -3,7 +3,7 @@ import test from 'node:test';
 import { verifyMessage } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 
-import { avatarSrc, EMPTY_PROFILE, handleProblem, isEmptyProfile, linkLabel, normalizeProfile, profileMessage, profilePath, profileProblem, readProfileContent } from '../src/lib/profiles/model';
+import { avatarSrc, EMPTY_PROFILE, handleProblem, isEmptyProfile, linkLabel, normalizeProfile, profileMessage, profilePath, profileProblem, profileUploadMessage, readProfileContent } from '../src/lib/profiles/model';
 import { tallyJobs } from '../src/lib/profiles/record';
 
 /*
@@ -55,6 +55,16 @@ test('pictures are uploaded ids and links are https', () => {
   assert.equal(readProfileContent({ ...CONTENT, links: ['ftp://x'] }), null);
   assert.equal(linkLabel('https://www.github.com/ada?tab=repos'), 'github.com');
   assert.equal(profilePath('0xAbC', 'ada'), '/builders/ada');
+});
+
+test('an image upload signature binds wallet, network and exact image bytes', async () => {
+  const account = privateKeyToAccount('0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d');
+  const message = profileUploadMessage(account.address, 97, 'a'.repeat(64)) + '\nProfile challenge: one-use';
+  const signature = await account.signMessage({ message });
+  assert.equal(await verifyMessage({ address: account.address, message, signature }), true);
+  for (const changed of [profileUploadMessage(account.address, 97, 'b'.repeat(64)), profileUploadMessage(account.address, 56, 'a'.repeat(64)), profileUploadMessage('0x00000000000000000000000000000000000000bb', 97, 'a'.repeat(64))]) {
+    assert.equal(await verifyMessage({ address: account.address, message: changed + '\nProfile challenge: one-use', signature }), false);
+  }
 });
 
 test('a profile headline and style are bounded signed presentation, never evidence', () => {

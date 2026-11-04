@@ -15,6 +15,7 @@ import {
   PROFILE_LIMITS,
   PROFILE_THEMES,
   profileMessage,
+  profileUploadMessage,
   profilePath,
   profileProblem,
   USAGES,
@@ -94,6 +95,8 @@ export function ProfileEditor({
 }) {
   const router = useRouter();
   const save = useSaveProfile(wallet);
+  const { sign, canSign } = useActiveSigner();
+  const { chain } = useAccount();
   const [draft, setDraft] = useState<ProfileContent>(initial);
   const [step, setStep] = useState<'edit' | 'review'>('edit');
   const [busy, setBusy] = useState(false);
@@ -111,7 +114,24 @@ export function ProfileEditor({
     setUploading(true);
     setError(null);
     try {
-      const r = await fetch('/api/profiles/avatar', { method: 'POST', body: picked });
+      if (!canSign) throw new Error('Connect this wallet to sign the image upload.');
+      const chainId = chain && isEscrowChain(chain.id) ? chain.id : CHAIN_ID;
+      const digest = await crypto.subtle.digest('SHA-256', await picked.arrayBuffer());
+      const hash = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+      const challengeResponse = await fetch('/api/profiles', {
+        method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ wallet, chainId }),
+      });
+      const challengePayload = await challengeResponse.json() as { challenge?: { id: string; suffix: string }; error?: string };
+      if (!challengeResponse.ok || !challengePayload.challenge) throw new Error(challengePayload.error ?? 'Could not prepare image upload.');
+      const signature = await sign(profileUploadMessage(wallet, chainId, hash) + challengePayload.challenge.suffix);
+      const r = await fetch('/api/profiles/avatar', {
+        method: 'POST', body: picked, headers: {
+          'x-pokter-wallet': wallet,
+          'x-pokter-chain': String(chainId),
+          'x-pokter-signature': signature,
+          'x-pokter-challenge': challengePayload.challenge.id,
+        },
+      });
       const body = (await r.json().catch(() => ({}))) as { id?: string; error?: string };
       if (!r.ok || !body.id) throw new Error(body.error ?? 'The picture was not uploaded.');
       set(kind === 'cover' ? { cover: body.id } : { avatar: body.id });

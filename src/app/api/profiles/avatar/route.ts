@@ -1,8 +1,11 @@
 import { createHash } from 'node:crypto';
 import { NextResponse } from 'next/server';
+import { getAddress, isAddress, isHex, type Address, type Hex } from 'viem';
 
+import { profileUploadMessage } from '@/lib/profiles/model';
 import { getProfileStore } from '@/lib/profiles/store';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
+import { signedByWallet, walletCanBeChecked } from '@/lib/wallet/signed-by';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,9 +25,9 @@ function sniff(bytes: Uint8Array): string | null {
  *
  * Raster images only — PNG, JPEG or WebP, recognised by their bytes — so
  * nothing uploaded here can carry script the way an SVG can. The picture
- * is stored under the hash of its bytes and attached to a profile only
- * when the wallet signs a profile naming that hash; an upload by itself
- * changes nobody's profile.
+ * is stored under the hash of its bytes only after the controlling wallet
+ * signs that hash with a fresh one-use challenge. A separate profile edit
+ * is still required to attach it publicly.
  */
 export async function POST(request: Request): Promise<NextResponse> {
   const rate = consumeRateLimit(`profile-avatar:${requestClientKey(request)}`, { limit: 6, windowMs: 10 * 60_000 });
@@ -39,6 +42,24 @@ export async function POST(request: Request): Promise<NextResponse> {
   if (!mime) return NextResponse.json({ error: 'Use a PNG, JPEG or WebP picture.' }, { status: 415 });
 
   const id = createHash('sha256').update(bytes).digest('hex');
-  getProfileStore().putAvatar(id, mime, bytes);
+  const wallet = request.headers.get('x-pokter-wallet') ?? '';
+  const chainId = Number(request.headers.get('x-pokter-chain'));
+  const signature = request.headers.get('x-pokter-signature') ?? '';
+  const challengeId = request.headers.get('x-pokter-challenge') ?? '';
+  if (!isAddress(wallet) || ![56, 97].includes(chainId) || !isHex(signature)) {
+    return NextResponse.json({ error: 'Connect a wallet and sign this image upload.' }, { status: 401 });
+  }
+  const store = getProfileStore();
+  const suffix = store.challenge(challengeId, wallet, chainId);
+  if (!suffix) return NextResponse.json({ error: 'This image upload challenge expired or was already used.' }, { status: 409 });
+  const owner = getAddress(wallet) as Address;
+  if (!(await walletCanBeChecked(chainId, owner, signature as Hex))) {
+    return NextResponse.json({ error: 'This wallet signature cannot be checked on this network.' }, { status: 409 });
+  }
+  if (!(await signedByWallet(chainId, owner, profileUploadMessage(wallet, chainId, id) + suffix, signature as Hex))) {
+    return NextResponse.json({ error: 'That signature does not match this image.' }, { status: 403 });
+  }
+  if (!store.consumeChallenge(challengeId)) return NextResponse.json({ error: 'This image upload challenge was already used.' }, { status: 409 });
+  store.putAvatar(id, mime, bytes);
   return NextResponse.json({ id }, { status: 201 });
 }

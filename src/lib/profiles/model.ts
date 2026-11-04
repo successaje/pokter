@@ -23,6 +23,10 @@ export const PROFILE_EDIT_WINDOW_MS = 10 * 60_000;
 /** An uploaded picture, by the SHA-256 of its bytes. */
 export const AVATAR_ID = /^[0-9a-f]{64}$/;
 
+export function profileUploadMessage(wallet: string, chainId: number, imageHash: string): string {
+  return `Pokter profile image upload\nWallet: ${wallet.toLowerCase()}\nNetwork: ${chainId}\nImage SHA-256: ${imageHash}`;
+}
+
 /** What someone uses Pokter for. It shapes navigation and emphasis; it grants nothing. */
 export const USAGES = [
   { id: 'hire', label: 'Hire agents', role: 'Hires agents' },

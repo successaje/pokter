@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { parseUnits } from 'viem';
 import { isHex, type Hex } from 'viem';
@@ -10,8 +11,27 @@ import { mockChain } from './support/mock-chain';
 import { BUYER, TESTNET_ESCROW } from './support/funding-gate';
 import { TEST_AGENT } from './support/test-agent.mjs';
 import { EMPTY_PROFILE } from '../../src/lib/profiles/model';
+import { profileUploadMessage } from '../../src/lib/profiles/model';
 
 const unclaimed = '0x00000000000000000000000000000000000000bb' as const;
+
+test('profile image uploads require a fresh signature for the exact bytes', async ({ request }) => {
+  const owner = privateKeyToAccount(`0x${'45'.repeat(32)}`);
+  const image = Buffer.from('89504e470d0a1a0a0000000d49484452', 'hex');
+  const changed = Buffer.from('89504e470d0a1a0a0000000d49484453', 'hex');
+  const unsigned = await request.post('/api/profiles/avatar', { data: image });
+  expect(unsigned.status()).toBe(401);
+  const challengeResponse = await request.put('/api/profiles', { data: { wallet: owner.address, chainId: 97 } });
+  const { challenge } = await challengeResponse.json() as { challenge: { id: string; suffix: string } };
+  const hash = createHash('sha256').update(image).digest('hex');
+  const signature = await owner.signMessage({ message: profileUploadMessage(owner.address, 97, hash) + challenge.suffix });
+  const headers = { 'x-pokter-wallet': owner.address, 'x-pokter-chain': '97', 'x-pokter-signature': signature, 'x-pokter-challenge': challenge.id };
+  expect((await request.post('/api/profiles/avatar', { data: changed, headers })).status()).toBe(403);
+  const uploaded = await request.post('/api/profiles/avatar', { data: image, headers });
+  expect(uploaded.status()).toBe(201);
+  expect((await uploaded.json() as { id: string }).id).toBe(hash);
+  expect((await request.post('/api/profiles/avatar', { data: image, headers })).status()).toBe(409);
+});
 
 test('an unclaimed wallet has a public default profile but cannot receive a directed request', async ({ page }) => {
   await installMockWallet(page, { address: unclaimed, chainId: 97 });
