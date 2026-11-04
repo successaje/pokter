@@ -127,7 +127,7 @@ export function ProfileShell({
           <Link href={previewHref} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-[9px] border border-rule-strong px-3 text-[13.5px] font-medium text-ink-2 hover:border-ink-3 hover:text-ink">
             <Icon.Eye size={14} aria-hidden /> Preview public profile
           </Link>
-          {published?.showBuilding && published.agents.length > 0 && <Link href={`/workspace/services/new?builder=${wallet}`} className="inline-flex h-9 items-center justify-center rounded-[9px] border border-rule-strong px-3 text-[13.5px] font-medium text-ink-2 hover:text-ink">Publish a service</Link>}
+          {published?.showBuilding && published.agents.length > 0 && <Link href={`/build/services/new?builder=${wallet}`} className="inline-flex h-9 items-center justify-center rounded-[9px] border border-rule-strong px-3 text-[13.5px] font-medium text-ink-2 hover:text-ink">Publish a service</Link>}
           {!published && <p className="text-[12px] text-ink-3">{hasSaved ? 'Your saved profile is private; visitors see registry facts.' : 'Claim this wallet to customise the profile.'}</p>}
         </div>
       )}

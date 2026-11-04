@@ -15,6 +15,7 @@ export default function BuildingLayout({ children }: { children: React.ReactNode
       items={[
         { href: '/build', label: 'Overview', icon: <Icon.Grid size={17} />, exact: true },
         { href: '/build/agents', label: 'My agents', icon: <Icon.Layers size={17} /> },
+        { href: '/build/services', label: 'My services', icon: <Icon.Spark size={17} /> },
         { href: '/build/jobs', label: 'Jobs', icon: <Icon.Briefcase size={17} /> },
         { href: '/build/proposals', label: 'Proposals', icon: <Icon.Doc size={17} /> },
         { href: '/build/automation', label: 'Automation', icon: <Icon.Code size={17} /> },

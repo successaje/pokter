@@ -47,6 +47,9 @@ function Actions({ owner }: { owner: string }) {
       <LinkButton href={`/builders/${owner}`} intent="ghost" size="s" trailing={<Icon.ArrowUpRight size={13} />}>
         Public profile
       </LinkButton>
+      <LinkButton href="/build/services" intent="secondary" size="s" icon={<Icon.Spark size={14} />}>
+        My services
+      </LinkButton>
       <LinkButton href="/build/new" size="s" icon={<Icon.Plus size={14} />}>
         Create agent
       </LinkButton>
@@ -102,6 +105,8 @@ function Start() {
           </LinkButton>
         </Choice>
       </ul>
+
+      <p className="mt-5 text-[13px] text-ink-2">Want to offer a specific task? <Link href="/build/services" className="font-medium text-ink underline">Set up a service</Link> after verifying the wallet that owns your agent.</p>
 
       <div className="mt-12 flex flex-col gap-10">
         <DirectedRequestInbox />

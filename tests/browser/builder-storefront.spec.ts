@@ -56,6 +56,18 @@ test('service catalogue shows only published offers and preserves usable search 
   await expect(page.getByRole('heading', { name: 'No services match your search' })).toBeVisible();
 });
 
+test('Building leads to service publishing and old editor links keep their target', async ({ page }) => {
+  await page.goto('/build');
+  await page.getByRole('link', { name: 'Set up a service' }).click();
+  await expect(page).toHaveURL(/\/build\/services$/);
+  await expect(page.getByRole('heading', { name: 'My services' })).toBeVisible();
+  await expect(page.getByText('Verify your wallet to see your services')).toBeVisible();
+
+  await page.goto(`/workspace/services/new?builder=${unclaimed}`);
+  await expect(page).toHaveURL(new RegExp(`/build/services/new\\?builder=${unclaimed}`, 'i'));
+  await expect(page.getByRole('heading', { name: 'Publish a service' })).toBeVisible();
+});
+
 test('Requests & Services menu closes outside, on Escape and after navigation', async ({ page }) => {
   await page.goto('/services');
   const menu = page.getByRole('button', { name: /Requests & Services/ });
