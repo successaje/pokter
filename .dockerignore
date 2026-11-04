@@ -4,7 +4,8 @@ node_modules
 data
 docs
 experiments
-scripts
+scripts/*
+!scripts/telegram-marketplace-configure.mts
 *.md
 .env*
 tests

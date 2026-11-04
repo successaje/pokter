@@ -1,5 +1,5 @@
 /** Public bot copy and links. No wallet or request content is sent to Telegram. */
-export const POKTER_DISCORD_URL = 'https://discord.gg/Qu3QeTEfP';
+import { POKTER_SOCIAL_LINKS } from '@/lib/social/links';
 
 export const MARKETPLACE_BOT_COMMANDS = [
   { command: 'start', description: 'Meet Scout and open the menu' },
@@ -60,7 +60,7 @@ export function marketplaceBotReply(message: string, isPrivate: boolean): BotRep
   };
   if (command === 'discord' || message.trim() === 'Discord') return {
     text: 'Join the Pokter community on Discord.',
-    reply_markup: { inline_keyboard: [[{ text: 'Join Discord', url: POKTER_DISCORD_URL }]] },
+    reply_markup: { inline_keyboard: [[{ text: 'Join Discord', url: POKTER_SOCIAL_LINKS.discord }]] },
   };
   return null;
 }
