@@ -118,32 +118,24 @@ export function ProfileShell({
   const needsOnboarding = ownerTools && !hasSaved && !editing;
 
   return (
-    <div className="flex flex-col gap-8 lg:grid lg:grid-cols-[300px_minmax(0,1fr)] lg:items-start lg:gap-12">
-      <aside className="flex flex-col gap-5 lg:sticky lg:top-24">
-        {identity}
-        {ownerTools && !editing && (
-          <div className="flex flex-col gap-2 border-t border-rule pt-4">
-            <Button onClick={() => void openEditor()} busy={busy} icon={<Icon.Gear size={14} />} className="justify-center">
-              {hasSaved ? 'Edit profile' : 'Set up profile'}
-            </Button>
-            <Link href={previewHref} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-[9px] border border-rule-strong px-3 text-[13.5px] font-medium text-ink-2 hover:border-ink-3 hover:text-ink">
-              <Icon.Eye size={14} aria-hidden /> Preview public profile
-            </Link>
-            {published?.showBuilding && published.agents.length > 0 && <Link href={`/workspace/services/new?builder=${wallet}`} className="inline-flex h-9 items-center justify-center rounded-[9px] border border-rule-strong px-3 text-[13.5px] font-medium text-ink-2 hover:text-ink">Publish a service</Link>}
-            {!published && <p className="text-[12px] text-ink-3">{hasSaved ? 'Not published: visitors see only what the registry says about this wallet.' : 'No profile yet.'}</p>}
-          </div>
-        )}
-      </aside>
-
+    <div className="flex flex-col gap-6">
+      {ownerTools && !editing && (
+        <div className="flex flex-wrap items-center gap-2 rounded-[12px] border border-rule bg-raised p-3" aria-label="Your profile controls">
+          <Button onClick={() => void openEditor()} busy={busy} icon={<Icon.Gear size={14} />}>
+            {hasSaved ? 'Edit profile' : 'Set up profile'}
+          </Button>
+          <Link href={previewHref} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-[9px] border border-rule-strong px-3 text-[13.5px] font-medium text-ink-2 hover:border-ink-3 hover:text-ink">
+            <Icon.Eye size={14} aria-hidden /> Preview public profile
+          </Link>
+          {published?.showBuilding && published.agents.length > 0 && <Link href={`/workspace/services/new?builder=${wallet}`} className="inline-flex h-9 items-center justify-center rounded-[9px] border border-rule-strong px-3 text-[13.5px] font-medium text-ink-2 hover:text-ink">Publish a service</Link>}
+          {!published && <p className="text-[12px] text-ink-3">{hasSaved ? 'Your saved profile is private; visitors see registry facts.' : 'Claim this wallet to customise the profile.'}</p>}
+        </div>
+      )}
       <div className="flex min-w-0 flex-col gap-6">
         {own && previewing && (
           <Notice
             title="Previewing as a visitor"
-            action={
-              <Button size="s" intent="secondary" onClick={exitPreview}>
-                Exit preview
-              </Button>
-            }
+            action={<Button size="s" intent="secondary" onClick={exitPreview}>Exit preview</Button>}
           >
             This is what anyone with the link sees. Your edit controls are hidden.
           </Notice>
@@ -152,17 +144,21 @@ export function ProfileShell({
         {needsOnboarding && (
           <section aria-labelledby="onboard-title" className="flex flex-col gap-4 rounded-[18px] border border-ink bg-raised p-6">
             <div className="flex flex-col gap-1">
-              <h2 id="onboard-title" className="text-[19px] font-semibold">
-                What brings you to Pokter?
-              </h2>
-              <p className="text-[13.5px] text-ink-2">It shapes your navigation and what your profile leads with. You can change it any time in Settings, and it grants nothing on its own.</p>
+              <h2 id="onboard-title" className="text-[19px] font-semibold">What brings you to Pokter?</h2>
+              <p className="text-[13.5px] text-ink-2">Choose how your profile leads. You can change this later.</p>
             </div>
             <UsageChoice value={rememberedUsage(wallet)} onChange={(u) => void chooseUsage(u)} />
-            <p className="text-[12px] text-ink-3">{busy ? 'Approve in your wallet…' : 'Saved with a signature, privately. Nothing is published.'}</p>
+            <p className="text-[12px] text-ink-3">{busy ? 'Approve in your wallet…' : 'Saved privately with a wallet signature.'}</p>
           </section>
         )}
         {editing ? <ProfileEditor wallet={wallet} initial={editing} agents={agents} hiringActivity={hiringActivity} onDone={() => setEditing(null)} /> : children}
       </div>
+      {!editing && <details className="group rounded-[12px] border border-rule bg-raised px-5 py-3">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-[13.5px] font-medium [&::-webkit-details-marker]:hidden">
+          About this profile <Icon.ChevronDown size={15} className="text-ink-3 transition-transform group-open:rotate-180" aria-hidden />
+        </summary>
+        <div className="border-t border-rule pt-5 mt-3">{identity}</div>
+      </details>}
     </div>
   );
 }
