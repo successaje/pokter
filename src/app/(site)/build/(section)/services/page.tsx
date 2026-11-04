@@ -3,9 +3,10 @@ import Link from 'next/link';
 
 import { studioOwner } from '@/features/studio/data';
 import { BuildingSignedOut } from '@/features/studio/SignedOut';
+import { AgentRequired } from '@/features/services/AgentRequired';
 import { PageHeader } from '@/features/workspace/parts';
 import { getProfileStore } from '@/lib/profiles/store';
-import { registryOwner } from '@/lib/registry/onchain';
+import { verifiedOwnedAgents } from '@/lib/profiles/owned-agents';
 import { getServiceStore } from '@/lib/services/store';
 import { LinkButton } from '@/ui/Button';
 import { Icon } from '@/ui/icons';
@@ -23,11 +24,7 @@ export default async function MyServicesPage() {
 
   const profile = getProfileStore().get(owner);
   const published = Boolean(profile?.published && profile.showBuilding);
-  const ownership = published ? await Promise.all(profile!.agents.map(async (key) => {
-    const [chain, token] = key.split(':');
-    return registryOwner(Number(chain), token).catch(() => null);
-  })) : [];
-  const eligible = ownership.some((wallet) => wallet?.toLowerCase() === owner.toLowerCase());
+  const eligible = published && (await verifiedOwnedAgents(owner)).length > 0;
   const services = getServiceStore().byBuilder(owner);
   const createHref = '/build/services/new';
 
@@ -36,13 +33,9 @@ export default async function MyServicesPage() {
 
     {!published ? <div className="rounded-[14px] border border-rule bg-raised p-5 sm:p-6">
       <h2 className="text-[17px] font-semibold">Set up your builder profile first</h2>
-      <p className="mt-1 max-w-2xl text-[13.5px] text-ink-2">Publish the profile for this wallet, show your building activity, and add an agent you own. Then you can offer a service through that agent.</p>
-      <Link href={`/builders/${owner}`} className="mt-4 inline-flex items-center gap-1 text-[13.5px] font-medium underline">Open builder profile <Icon.Arrow size={13} /></Link>
-    </div> : !eligible ? <div className="rounded-[14px] border border-rule bg-raised p-5 sm:p-6">
-      <h2 className="text-[17px] font-semibold">Add a verified agent to your profile</h2>
-      <p className="mt-1 max-w-2xl text-[13.5px] text-ink-2">A service must be attached to an agent this wallet currently owns. {ownership.some((wallet) => wallet === null) ? 'The registry could not confirm every agent just now; try again when it is available.' : 'Edit your public profile and select an agent you own.'}</p>
-      <Link href={`/builders/${owner}`} className="mt-4 inline-flex items-center gap-1 text-[13.5px] font-medium underline">Edit builder profile <Icon.Arrow size={13} /></Link>
-    </div> : null}
+      <p className="mt-1 max-w-2xl text-[13.5px] text-ink-2">Publish the profile for this wallet and show your building activity. To offer a service, this wallet also needs to own an agent in the registry.</p>
+      <div className="mt-4 flex flex-wrap gap-4"><Link href={`/builders/${owner}`} className="inline-flex items-center gap-1 text-[13.5px] font-medium underline">Open builder profile <Icon.Arrow size={13} /></Link><Link href="/build/new" className="inline-flex items-center gap-1 text-[13.5px] font-medium underline">Create an agent <Icon.Arrow size={13} /></Link></div>
+    </div> : !eligible ? <AgentRequired /> : null}
 
     <section aria-labelledby="services-title" className="mt-8">
       <div className="mb-4 flex items-center justify-between gap-3"><h2 id="services-title" className="text-[18px] font-semibold">Your offers</h2><span className="text-[12.5px] text-ink-3">{services.length} total</span></div>
