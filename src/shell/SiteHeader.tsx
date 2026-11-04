@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { IS_TESTNET, MAINNET_ESCROW } from '@/lib/network/presentation';
 import { cn } from '@/lib/ui/cn';
@@ -29,6 +29,9 @@ export function SiteHeader() {
   const pathname = usePathname() ?? '/';
   const [scrolled, setScrolled] = useState(false);
   const [menu, setMenu] = useState(false);
+  const [marketMenu, setMarketMenu] = useState<string | null>(null);
+  const marketOpen = marketMenu === pathname;
+  const marketRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -36,6 +39,25 @@ export function SiteHeader() {
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
+
+  useEffect(() => {
+    if (!marketOpen) return;
+    const outside = (event: PointerEvent) => {
+      if (!marketRef.current?.contains(event.target as Node)) setMarketMenu(null);
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setMarketMenu(null);
+        marketRef.current?.querySelector('button')?.focus();
+      }
+    };
+    document.addEventListener('pointerdown', outside);
+    document.addEventListener('keydown', escape);
+    return () => {
+      document.removeEventListener('pointerdown', outside);
+      document.removeEventListener('keydown', escape);
+    };
+  }, [marketOpen]);
 
   return (
     <>
@@ -71,19 +93,29 @@ export function SiteHeader() {
           )}
 
           <nav aria-label="Primary" className="ml-4 hidden items-center gap-1 lg:flex">
-            {PRIMARY_NAV.map((item) => (
+            {PRIMARY_NAV.filter((item) => item.href !== '/requests').map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
                 aria-current={isActive(pathname, item.href) ? 'page' : undefined}
                 className={cn(
                   'rounded-[8px] px-3 py-2 text-sm font-medium transition-colors',
+                  item.href === '/discover' && 'order-[-2]',
                   isActive(pathname, item.href) ? 'text-ink' : 'text-ink-3 hover:text-ink',
                 )}
               >
                 {item.label}
               </Link>
             ))}
+            <div ref={marketRef} className="relative order-[-1] ml-0">
+              <button type="button" aria-expanded={marketOpen} aria-controls="marketplace-menu" aria-haspopup="true" onClick={() => setMarketMenu((open) => open === pathname ? null : pathname)} className={cn('rounded-[8px] px-3 py-2 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink', ['/requests', '/services'].some((path) => isActive(pathname, path)) ? 'text-ink' : 'text-ink-3 hover:text-ink')}>
+                Requests &amp; Services <Icon.ChevronDown size={13} className={cn('ml-1 inline-block transition-transform', marketOpen && 'rotate-180')} aria-hidden />
+              </button>
+              {marketOpen && <div id="marketplace-menu" className="absolute left-0 top-full z-50 mt-2 w-64 rounded-[12px] border border-rule bg-raised p-2 shadow-xl">
+                <Link href="/requests" onClick={() => setMarketMenu(null)} className="block rounded-[8px] px-3 py-2.5 text-sm hover:bg-sunken focus:bg-sunken"><strong className="block">Requests</strong><span className="text-xs text-ink-3">Browse work and post a request</span></Link>
+                <Link href="/services" onClick={() => setMarketMenu(null)} className="block rounded-[8px] px-3 py-2.5 text-sm hover:bg-sunken focus:bg-sunken"><strong className="block">Services</strong><span className="text-xs text-ink-3">Specific offers from agents</span></Link>
+              </div>}
+            </div>
           </nav>
 
           <div className="ml-auto flex items-center gap-1.5">
@@ -107,7 +139,7 @@ export function SiteHeader() {
       <Sheet open={menu} onClose={() => setMenu(false)} variant="drawer" title="Menu">
         <div onClick={(e) => (e.target as HTMLElement).closest('a') && setMenu(false)}>
         <nav aria-label="Mobile" className="flex flex-col">
-          {[{ href: '/', label: 'Home' }, ...PRIMARY_NAV].map((item) => (
+          {[{ href: '/', label: 'Home' }, ...PRIMARY_NAV.filter((item) => item.href !== '/requests')].map((item) => (
             <Link
               key={item.href}
               href={item.href}
@@ -117,6 +149,7 @@ export function SiteHeader() {
               <Icon.ChevronRight className="text-ink-3" />
             </Link>
           ))}
+          <div className="mt-3 border-t border-rule pt-3"><span className="t-label">Requests &amp; Services</span><Link href="/requests" className="flex justify-between border-b border-rule py-3 text-lg">Browse requests <Icon.ChevronRight className="text-ink-3" /></Link><Link href="/workspace/requests/new" className="flex justify-between border-b border-rule py-3 text-lg">Post work <Icon.ChevronRight className="text-ink-3" /></Link><Link href="/services" className="flex justify-between border-b border-rule py-3 text-lg">Browse services <Icon.ChevronRight className="text-ink-3" /></Link></div>
         </nav>
         <div className="mt-6 flex flex-col gap-2">
           <span className="t-label">Your space</span>

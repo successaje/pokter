@@ -16,9 +16,20 @@ import { registryClient } from '@/lib/registry/onchain';
  * a signature is its own. EOAs are unaffected.
  */
 export async function signedByWallet(chainId: number, owner: Address, message: string, signature: Hex): Promise<boolean> {
+  // An EOA can be verified without an RPC call. This also avoids sending a
+  // one-use challenge signature to a chain node when local recovery suffices.
+  if (looksLikeEoaSignature(signature) && await verifyMessage({ address: owner, message, signature })) return true;
   const client = registryClient(chainId);
   try {
-    if (client) return await client.verifyMessage({ address: owner, message, signature });
+    if (client) {
+      // A 65-byte signature may still come from a contract wallet. Check for
+      // code before trying ERC-1271, so an invalid EOA signature fails locally.
+      if (looksLikeEoaSignature(signature)) {
+        const code = await client.getCode({ address: owner });
+        if (!code || code === '0x') return false;
+      }
+      return await client.verifyMessage({ address: owner, message, signature });
+    }
   } catch {
     /* An RPC failure must not pass an unverified signature; fall back to
        the local EOA check, which is what this did before. */

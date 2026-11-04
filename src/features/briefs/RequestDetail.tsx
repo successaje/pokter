@@ -44,7 +44,8 @@ export function RequestDetail({
 }) {
   const { address } = useActiveWallet();
   const isPoster = Boolean(address && address.toLowerCase() === request.poster.toLowerCase());
-  const canPropose = taking && !isPoster;
+  const isTarget = !request.targetBuilder || Boolean(address && address.toLowerCase() === request.targetBuilder.toLowerCase());
+  const canPropose = taking && !isPoster && isTarget;
   const [proposing, setProposing] = useState(Boolean(prefill));
 
   return (
@@ -88,6 +89,8 @@ export function RequestDetail({
                 <p className="text-[12.5px] text-ink-3">This is your request. Proposals appear on the page as builders send them.</p>
               ) : !taking ? (
                 <p className="text-[12.5px] text-ink-3">This request is not taking proposals.</p>
+              ) : !isTarget ? (
+                <p className="text-[12.5px] text-ink-3">Only the selected builder can propose to this request.</p>
               ) : null}
             </>
           )}

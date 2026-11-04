@@ -73,6 +73,7 @@ class BriefStore {
      */
     if (!columns.some((c) => c.name === 'payment_token')) this.db.exec('ALTER TABLE briefs ADD COLUMN payment_token TEXT');
     if (!columns.some((c) => c.name === 'budget_raw')) this.db.exec('ALTER TABLE briefs ADD COLUMN budget_raw TEXT');
+    if (!columns.some((c) => c.name === 'target_builder')) this.db.exec('ALTER TABLE briefs ADD COLUMN target_builder TEXT');
     const bidColumns = this.db.prepare('PRAGMA table_info(bids)').all() as Array<{ name: string }>;
     if (!bidColumns.some((c) => c.name === 'payment_token')) this.db.exec('ALTER TABLE bids ADD COLUMN payment_token TEXT');
     if (!bidColumns.some((c) => c.name === 'price_raw')) this.db.exec('ALTER TABLE bids ADD COLUMN price_raw TEXT');
@@ -171,6 +172,7 @@ class BriefStore {
       awardedBidId: (row.awarded_bid_id as string | null) ?? null,
       closesAt: (row.closes_at as string | null) ?? null,
       category: (row.category as Brief['category']) ?? null,
+      targetBuilder: (row.target_builder as Brief['targetBuilder']) ?? null,
     };
   }
 
@@ -200,8 +202,8 @@ class BriefStore {
   add(brief: Brief): void {
     this.db
       .prepare(
-        `INSERT INTO briefs (id, poster, title, brief, acceptance, fail_signals, budget_u, chain_id, deliver_days, signature, state, posted_at, awarded_bid_id, closes_at, category, payment_token, budget_raw)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?)`,
+        `INSERT INTO briefs (id, poster, title, brief, acceptance, fail_signals, budget_u, chain_id, deliver_days, signature, state, posted_at, awarded_bid_id, closes_at, category, payment_token, budget_raw, target_builder)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?)`,
       )
       .run(
         brief.id,
@@ -220,6 +222,7 @@ class BriefStore {
         brief.category ?? null,
         brief.paymentToken ?? null,
         brief.budgetRaw,
+        brief.targetBuilder?.toLowerCase() ?? null,
       );
   }
 
@@ -271,6 +274,12 @@ class BriefStore {
   /** Requests one wallet posted, newest first: the Hiring view's "My requests". */
   byPoster(poster: string): Brief[] {
     const rows = this.db.prepare('SELECT * FROM briefs WHERE poster = ? ORDER BY posted_at DESC').all(poster.toLowerCase());
+    return (rows as Record<string, unknown>[]).map(BriefStore.toBrief);
+  }
+
+  /** Directed requests addressed to this builder wallet, including expired and responded work. */
+  byTarget(builder: string): Brief[] {
+    const rows = this.db.prepare('SELECT * FROM briefs WHERE lower(target_builder) = ? ORDER BY posted_at DESC').all(builder.toLowerCase());
     return (rows as Record<string, unknown>[]).map(BriefStore.toBrief);
   }
 

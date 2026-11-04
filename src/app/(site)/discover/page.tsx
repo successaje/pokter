@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { Suspense } from 'react';
 
 import { RememberDiscoverResults } from '@/features/discover/ReturnToResults';
-import { HirePulse, type HireMark } from '@/features/discover/HirePulse';
 
 import { AgentCard, AgentRow, MiniAgentCard } from '@/features/agents/AgentCard';
 import { CompareToggle, CompareTray } from '@/features/compare/CompareControls';
@@ -20,11 +19,6 @@ import { FilterBar } from '@/features/discover/FilterBar';
 import { deliveryTimes, DELIVERY_LOOKUP_CONCURRENCY } from '@/lib/agent/delivery-times';
 import { mapWithConcurrency } from '@/lib/concurrency';
 import { outsideActivity } from '@/lib/erc8183/outside-activity';
-import { fundingEvidence } from '@/lib/erc8183/funding-evidence';
-import { isSelfHire } from '@/lib/erc8183/production-proof';
-import { getJobStore } from '@/lib/erc8183/store';
-import { teamWalletSet } from '@/lib/team/server';
-import { fundedByTeam } from '@/lib/team/wallets';
 import { EmptyState, Notice } from '@/ui/Feedback';
 import { Icon } from '@/ui/icons';
 import { LinkButton } from '@/ui/Button';
@@ -34,6 +28,9 @@ import type { FindRow } from '@/lib/find/rows';
 import { requestHrefFor } from '@/features/discover/params';
 import { lastCheckAt } from '@/lib/history/last-check';
 import { Ago } from '@/ui/Ago';
+import { getServiceStore } from '@/lib/services/store';
+import { registryOwner } from '@/lib/registry/onchain';
+import { ServiceCard } from '@/features/services/ServiceCard';
 
 export const metadata: Metadata = {
   title: 'Find an agent for the job',
@@ -116,22 +113,14 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
   const checkedAt = lastCheckAt();
   /* The newest few requests still taking proposals. */
   const now = renderedAt();
-  const team = teamWalletSet();
-  const hireMarks: HireMark[] = getJobStore().all()
-    .filter((job) => (job.chainId === 56 || job.chainId === 97) && fundingEvidence(job) === 'funded')
-    .map((job) => ({
-      chainId: job.chainId,
-      jobId: job.jobId,
-      agentName: job.agentName,
-      hiredAt: job.hiredAt,
-      status: job.status,
-      funder: isSelfHire(job) ? 'self' : fundedByTeam(job, team) ? 'team' : 'outside',
-    }));
   const open = requestRows(now)
     .filter((r) => r.taking)
     .sort((x, y) => Date.parse(y.postedAt) - Date.parse(x.postedAt));
   const openTotal = open.length;
   const openRequests = open.slice(0, 4);
+  const serviceCandidates = getServiceStore().list({ limit: 8 }).items;
+  const serviceOwners = await Promise.all(serviceCandidates.map((service) => registryOwner(service.chainId, service.tokenId).catch(() => null)));
+  const services = serviceCandidates.filter((service, i) => serviceOwners[i]?.toLowerCase() === service.builder.toLowerCase()).slice(0, 3);
   const activeFilters = [p.category, p.hireable, p.answering, p.priced, p.checked, p.outsideDelivery, p.evidence !== 'any', p.chain !== 'any'].filter(Boolean).length;
   const playbook = flagshipPlaybook(p.category);
 
@@ -349,6 +338,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
                     {p.sort === 'completed' && 'Jobs completed through Pokter lead. Jobs merely funded do not count as completed work.'}
                     {p.sort === 'evidence' && 'More Pokter probes and published attestations lead. This is evidence volume, not a quality score.'}
                     {p.sort === 'price' && 'Current signed prices that this escrow can pay are sorted lowest first. Agents without one follow.'}
+                    {p.sort === 'newest' && 'Most recently listed agents lead. Listing date is not evidence of quality or availability.'}
                   </p>
                 </details>
                 <SortSelect params={base} variant="inline" className="gap-1 sm:gap-2" />
@@ -396,14 +386,14 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
             </div>
           )}
         </section>
-        <HirePulse initial={hireMarks} initialAsOf={now} />
+        {/* HirePulse is paused until the Discover activity section is redesigned. */}
 
         {/* The newest listings, under the results rather than inside them:
             these are not matches for anything that was asked, so they sit
             below the count that closes the search. */}
         {result.recent.length > 0 && (
           <section aria-labelledby="recent-title" className="pt-2">
-            <h2 id="recent-title" className="t-label mb-4">Recently listed</h2>
+            <div className="mb-4 flex items-center justify-between gap-3"><h2 id="recent-title" className="t-label">Recently listed</h2><Link href="/agents?sort=newest" className="inline-flex items-center gap-1 text-[13px] font-medium hover:underline">View all <Icon.Arrow size={13} /></Link></div>
             <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {result.recent.map((row) => (
                 <li key={row.key} className="flex min-w-0">
@@ -413,6 +403,11 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
             </ul>
           </section>
         )}
+
+        <section aria-labelledby="services-title" className="mt-10 border-t border-rule pt-8">
+          <div className="mb-4 flex flex-wrap items-end justify-between gap-3"><div><h2 id="services-title" className="text-[18px] font-semibold tracking-[-0.015em]">Available services</h2><p className="mt-1 text-[13.5px] text-ink-3">Specific offers published by builders. Your brief still gets a fresh agent-signed quote.</p></div><Link href="/services" className="inline-flex items-center gap-1 text-[13.5px] font-medium hover:underline">View all <Icon.Arrow size={13} /></Link></div>
+          {services.length ? <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{services.map((service) => <li key={service.id}><ServiceCard service={service} /></li>)}</ul> : <div className="rounded-[12px] border border-dashed border-rule-strong p-5 text-sm text-ink-2">No builder-published offers yet. <Link href="/build" className="font-medium underline">Build an agent</Link> and publish a service from your profile.</div>}
+        </section>
 
         {/* Work people have posted, for the builders who browse here too. Only when there is some. */}
         {openRequests.length > 0 && (

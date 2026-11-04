@@ -20,6 +20,8 @@ import { Address } from '@/ui/Data';
 import { AvatarImage } from '@/ui/AvatarImage';
 import { avatarUrl } from '@/lib/ui/avatar-art';
 import { publicIdentity } from '@/lib/profiles/identity';
+import { profilePath } from '@/lib/profiles/model';
+import { getProfileStore } from '@/lib/profiles/store';
 import { Notice } from '@/ui/Feedback';
 import { Icon } from '@/ui/icons';
 import { NetworkTag } from '@/ui/Network';
@@ -45,6 +47,8 @@ export default async function BriefPage({
   const bids = store.bidsFor(id);
   const taking = acceptsProposals(brief);
   const poster = publicIdentity(brief.poster);
+  const targetProfile = brief.targetBuilder ? getProfileStore().get(brief.targetBuilder) : null;
+  const targetName = targetProfile?.published ? targetProfile.displayName || `@${targetProfile.handle}` : 'the selected builder';
   const chosenBid = brief.awardedBidId ? bids.find((bid) => bid.id === brief.awardedBidId) : undefined;
   const hire = chosenBid
     ? hireForChosenProposal(getJobStore().byClient(brief.poster), brief, chosenBid)
@@ -60,19 +64,20 @@ export default async function BriefPage({
       </Link>
 
       {sp.posted === '1' && brief.state === 'open' && (
-        <Notice tone="ok" title="Your request is live" className="mt-5">
-          Builders can send proposals now. They appear here and under Hiring → My requests. Nothing is funded until you hire.
+        <Notice tone="ok" title={brief.targetBuilder ? 'Your custom request is live' : 'Your request is live'} className="mt-5">
+          {brief.targetBuilder ? `Listed for ${targetName} in their Pokter workspace. Only their currently owned agents can propose through Pokter.` : 'Builders can send proposals now.'} Proposals appear here and under Hiring → My requests. Nothing is funded until you hire.
         </Notice>
       )}
 
       <RequestDetail
-        request={{ id: brief.id, title: brief.title, chainId: brief.chainId, deliverDays: brief.deliverDays, budgetU: brief.budgetU, budgetRaw: brief.budgetRaw, paymentToken: brief.paymentToken, poster: brief.poster }}
+        request={{ id: brief.id, title: brief.title, chainId: brief.chainId, deliverDays: brief.deliverDays, budgetU: brief.budgetU, budgetRaw: brief.budgetRaw, paymentToken: brief.paymentToken, poster: brief.poster, targetBuilder: brief.targetBuilder }}
         taking={taking}
         ended={said.tone === 'ended'}
         prefill={taking ? readProposalPrefill(sp) : null}
         head={
           <div className="flex flex-col gap-3">
             <span className={`inline-flex h-6 w-fit items-center rounded-full border px-2.5 text-[12px] font-medium ${status.tone}`}>{status.label}</span>
+            {brief.targetBuilder && <p className="text-[13px] text-ink-2">Custom request for <Link href={profilePath(brief.targetBuilder, targetProfile?.published ? targetProfile.handle : null)} className="font-medium text-ink underline">{targetName}</Link></p>}
             <RequestTerms
               content={brief}
               part="head"
@@ -161,7 +166,7 @@ function RequestSummary({ brief, proposals, now }: { brief: Brief; proposals: nu
     ['Proposals close', brief.closesAt ? closingDate(brief.closesAt) : 'When one is chosen'],
     ['Proposals', String(proposals)],
     ...(category ? ([['Category', category]] as Array<[string, React.ReactNode]>) : []),
-    ['Who can propose', 'Any agent’s owner'],
+    ['Who can propose through Pokter', brief.targetBuilder ? 'Only agents currently owned by the selected builder' : 'Any agent’s owner'],
   ];
   return (
     <div className="flex flex-col gap-4">

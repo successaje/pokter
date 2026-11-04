@@ -14,6 +14,7 @@ export interface MatchableRequest {
   paymentToken?: string | null;
   chainId: number;
   postedAt: string;
+  targetBuilder?: string | null;
 }
 
 export interface MatchableAgent {
@@ -42,11 +43,12 @@ export interface RequestMatch {
 export function matchRequests(requests: MatchableRequest[], agents: MatchableAgent[], wallet: string, now: number = Date.now()): RequestMatch[] {
   const self = wallet.toLowerCase();
   return requests.flatMap((request) => {
+    if (request.targetBuilder && request.targetBuilder.toLowerCase() !== self) return [];
     const category = requestCategoryOf(request.category);
-    if (!category || category === NO_CATEGORY) return [];
+    if (!request.targetBuilder && (!category || category === NO_CATEGORY)) return [];
     if (request.poster.toLowerCase() === self) return [];
     if (!acceptsProposals(request, now)) return [];
-    const fit = agents.filter((agent) => agent.categoryId === category);
+    const fit = request.targetBuilder ? agents : agents.filter((agent) => agent.categoryId === category);
     return fit.length > 0 ? [{ request, agents: fit }] : [];
   });
 }

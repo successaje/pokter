@@ -5,6 +5,7 @@ import { Suspense } from 'react';
 
 import { DeliveryInbox } from '@/features/studio/DeliveryInbox';
 import { RequestsForYourAgents } from '@/features/briefs/RequestsForYourAgents';
+import { DirectedRequestInbox } from '@/features/briefs/DirectedRequestInbox';
 import { FleetList } from '@/features/studio/FleetList';
 import { BuilderAlerts, DraftsList, SignOutStudio } from '@/features/studio/StudioClient';
 import { VerifyOwner } from '@/features/studio/VerifyOwner';
@@ -45,6 +46,9 @@ function Actions({ owner }: { owner: string }) {
     <div className="flex flex-wrap items-center gap-2">
       <LinkButton href={`/builders/${owner}`} intent="ghost" size="s" trailing={<Icon.ArrowUpRight size={13} />}>
         Public profile
+      </LinkButton>
+      <LinkButton href="/build/services" intent="secondary" size="s" icon={<Icon.Spark size={14} />}>
+        My services
       </LinkButton>
       <LinkButton href="/build/new" size="s" icon={<Icon.Plus size={14} />}>
         Create agent
@@ -102,7 +106,10 @@ function Start() {
         </Choice>
       </ul>
 
+      <p className="mt-5 text-[13px] text-ink-2">Want to offer a specific task? <Link href="/build/services" className="font-medium text-ink underline">Set up a service</Link> after verifying the wallet that owns your agent.</p>
+
       <div className="mt-12 flex flex-col gap-10">
+        <DirectedRequestInbox />
         <RequestsForYourAgents />
         <DraftsList />
       </div>
@@ -204,6 +211,7 @@ async function Overview({ owner }: { owner: string }) {
       </section>
 
       <div className="mt-12 flex flex-col gap-10">
+        <DirectedRequestInbox />
         <RequestsForYourAgents />
         <BuilderAlerts />
         <DraftsList />

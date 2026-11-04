@@ -87,6 +87,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       { status: 403 },
     );
   }
+  if (brief.targetBuilder && getAddress(owner) !== getAddress(brief.targetBuilder)) {
+    return NextResponse.json({ error: 'This custom request is addressed to another builder.' }, { status: 403 });
+  }
 
   if (!(await walletCanBeChecked(content.agentChainId, bidder as Address, signature as Hex))) {
     return NextResponse.json(

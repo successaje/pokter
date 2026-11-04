@@ -5,6 +5,7 @@ import test from 'node:test';
 import { GET_REQUEST, PREPARE_PROPOSAL, PROPOSAL_TOOL_CHAIN, REQUEST_TOOLS, SEARCH_REQUESTS } from '../src/lib/assistant/request-tools';
 import { bidMessage, type Bid, type Brief } from '../src/lib/briefs/model';
 import { DELIVERY_OPTIONS, filterRequests, plainNote, PROPOSAL_LINK_MAX, proposalLink, readProposalPrefill, requestDetail, requestSummary } from '../src/lib/briefs/public-view';
+import { matchRequests } from '../src/lib/briefs/matching';
 import { apiEndpoints } from '../src/lib/api/endpoints';
 import { MCP_TOOL_SUMMARIES } from '../src/lib/mcp/catalogue';
 import { INSTRUCTIONS } from '../src/lib/mcp/server';
@@ -18,6 +19,13 @@ import { INSTRUCTIONS } from '../src/lib/mcp/server';
 const code = (path: string) => readFileSync(new URL(`../src/${path}`, import.meta.url), 'utf8');
 const USDT56 = '0x55d398326f99059fF775485246999027B3197955';
 const NOW = Date.parse('2026-10-27T12:00:00Z');
+
+test('a directed request matches only its selected builder, regardless of category', () => {
+  const request = brief({ targetBuilder: '0x00000000000000000000000000000000000000bb', category: null });
+  const agents = [{ chainId: 56, tokenId: '1', name: 'Agent', categoryId: null }];
+  assert.equal(matchRequests([request], agents, '0x00000000000000000000000000000000000000bb', NOW).length, 1);
+  assert.equal(matchRequests([request], agents, '0x00000000000000000000000000000000000000cc', NOW).length, 0);
+});
 
 const brief = (over: Partial<Brief> = {}): Brief => ({
   id: '3f6c1a2e-8d4b-4c7a-9e21-5b0d7f9a1c34',

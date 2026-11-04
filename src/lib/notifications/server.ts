@@ -491,6 +491,39 @@ export async function notifyBuilderJobEvent(input: {
   return { attempted: rows.length * events.length, sent };
 }
 
+/** A signed request addressed to one published builder, with the same inbox and verified email preference as job alerts. */
+export async function notifyBuilderCustomRequest(input: { owner: string; requestId: string; chainId: number; title: string }): Promise<void> {
+  const title = input.title.slice(0, 120);
+  db().prepare(`INSERT OR IGNORE INTO builder_notifications
+    (id,owner_address,chain_id,job_id,agent_name,event,title,body,created_at)
+    VALUES (?,?,?,?,?,?,?,?,?)`).run(
+    randomUUID(), input.owner.toLowerCase(), input.chainId, input.requestId, '', 'CUSTOM_REQUEST',
+    'New custom request', `A buyer sent you “${title}”. Review the brief and propose one of your agents.`, new Date().toISOString(),
+  );
+  const rows = db().prepare(`SELECT id,email FROM builder_notification_subscriptions
+    WHERE owner_address=? AND verified_at IS NOT NULL AND unsubscribed_at IS NULL`).all(input.owner.toLowerCase()) as { id: string; email: string }[];
+  for (const row of rows) {
+    const eventKey = `request:${input.requestId}`;
+    db().prepare(`INSERT OR IGNORE INTO builder_notification_outbox (id,subscription_id,event,created_at) VALUES (?,?,?,?)`)
+      .run(randomUUID(), row.id, eventKey, new Date().toISOString());
+    const pending = db().prepare(`SELECT id,sent_at FROM builder_notification_outbox WHERE subscription_id=? AND event=?`)
+      .get(row.id, eventKey) as { id: string; sent_at: string | null };
+    if (pending.sent_at) continue;
+    try {
+      const unsubscribeUrl = `${appUrl()}/api/notifications/unsubscribe?token=${encodeURIComponent(unsubscribeToken(row.id))}`;
+      const providerId = await sendEmail({
+        to: row.email,
+        subject: 'New custom request · Pokter',
+        idempotencyKey: `builder-${eventKey}-${row.id}`.slice(0, 256),
+        html: emailShell(`<p style="margin:0 0 10px;color:#9a7414;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase">Builder request</p><h1 style="font-size:25px;line-height:1.2;margin:0 0 12px">New custom request</h1><p style="font-size:14px;line-height:1.65;color:#55534d;margin:0">A buyer sent you a request on Pokter: ${escapeHtml(title)}.</p><div style="margin-top:22px">${emailButton(`${appUrl()}/requests/${input.requestId}`, 'Review request')}</div><p style="font-size:11px;line-height:1.6;color:#77756d;margin:22px 0 0">The full brief is on Pokter. <a href="${unsubscribeUrl}" style="color:#55534d;text-decoration:underline">Turn off builder alerts</a>.</p>`, 'A buyer sent a custom request to your Pokter builder profile.'),
+      });
+      db().prepare('UPDATE builder_notification_outbox SET provider_id=?,sent_at=?,last_error=NULL WHERE id=?').run(providerId, new Date().toISOString(), pending.id);
+    } catch (error) {
+      db().prepare('UPDATE builder_notification_outbox SET last_error=? WHERE id=?').run(String((error as Error).message).slice(0, 500), pending.id);
+    }
+  }
+}
+
 export async function notifyJobEvent(input: {
   chainId: number; jobId: string; status: string; agentName?: string;
 }): Promise<{ attempted: number; sent: number }> {

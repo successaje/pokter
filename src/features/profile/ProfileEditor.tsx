@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { useRef, useState } from 'react';
 import { useAccount } from 'wagmi';
 
@@ -14,6 +15,7 @@ import {
   PROFILE_LIMITS,
   PROFILE_THEMES,
   profileMessage,
+  profileUploadMessage,
   profilePath,
   profileProblem,
   USAGES,
@@ -45,11 +47,16 @@ export function useSaveProfile(wallet: string) {
     const signedAt = new Date().toISOString();
     /* The network the wallet is on, so a smart wallet's signature is checked where it lives. */
     const chainId = chain && isEscrowChain(chain.id) ? chain.id : CHAIN_ID;
-    const signature = await sign(profileMessage({ ...clean, wallet, signedAt }));
+    const challengeResponse = await fetch('/api/profiles', {
+      method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ wallet, chainId }),
+    });
+    const challengePayload = await challengeResponse.json() as { challenge?: { id: string; suffix: string }; error?: string };
+    if (!challengeResponse.ok || !challengePayload.challenge) throw new Error(challengePayload.error ?? 'Could not prepare profile signature.');
+    const signature = await sign(profileMessage({ ...clean, wallet, signedAt }) + challengePayload.challenge.suffix);
     const response = await fetch('/api/profiles', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ wallet, signature, signedAt, chainId, content: clean }),
+      body: JSON.stringify({ wallet, signature, signedAt, chainId, challengeId: challengePayload.challenge.id, content: clean }),
     });
     const payload = (await response.json().catch(() => ({}))) as { error?: string };
     if (!response.ok) throw new Error(payload.error ?? 'The profile was not saved.');
@@ -88,31 +95,52 @@ export function ProfileEditor({
 }) {
   const router = useRouter();
   const save = useSaveProfile(wallet);
+  const { sign, canSign } = useActiveSigner();
+  const { chain } = useAccount();
   const [draft, setDraft] = useState<ProfileContent>(initial);
   const [step, setStep] = useState<'edit' | 'review'>('edit');
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const file = useRef<HTMLInputElement>(null);
+  const coverFile = useRef<HTMLInputElement>(null);
   const links = [...draft.links, '', '', ''].slice(0, PROFILE_LIMITS.links);
   const handleIssue = handleProblem(draft.handle.trim().toLowerCase());
   const set = (patch: Partial<ProfileContent>) => setDraft((d) => ({ ...d, ...patch }));
   const chosen = agents.filter((a) => draft.agents.includes(a.key));
 
-  const upload = async (picked: File | undefined) => {
+  const upload = async (picked: File | undefined, kind: 'avatar' | 'cover' = 'avatar') => {
     if (!picked) return;
     setUploading(true);
     setError(null);
     try {
-      const r = await fetch('/api/profiles/avatar', { method: 'POST', body: picked });
+      if (!canSign) throw new Error('Connect this wallet to sign the image upload.');
+      const chainId = chain && isEscrowChain(chain.id) ? chain.id : CHAIN_ID;
+      const digest = await crypto.subtle.digest('SHA-256', await picked.arrayBuffer());
+      const hash = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+      const challengeResponse = await fetch('/api/profiles', {
+        method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ wallet, chainId }),
+      });
+      const challengePayload = await challengeResponse.json() as { challenge?: { id: string; suffix: string }; error?: string };
+      if (!challengeResponse.ok || !challengePayload.challenge) throw new Error(challengePayload.error ?? 'Could not prepare image upload.');
+      const signature = await sign(profileUploadMessage(wallet, chainId, hash) + challengePayload.challenge.suffix);
+      const r = await fetch('/api/profiles/avatar', {
+        method: 'POST', body: picked, headers: {
+          'x-pokter-wallet': wallet,
+          'x-pokter-chain': String(chainId),
+          'x-pokter-signature': signature,
+          'x-pokter-challenge': challengePayload.challenge.id,
+        },
+      });
       const body = (await r.json().catch(() => ({}))) as { id?: string; error?: string };
       if (!r.ok || !body.id) throw new Error(body.error ?? 'The picture was not uploaded.');
-      set({ avatar: body.id });
+      set(kind === 'cover' ? { cover: body.id } : { avatar: body.id });
     } catch (caught) {
       setError((caught as Error).message);
     } finally {
       setUploading(false);
       if (file.current) file.current.value = '';
+      if (coverFile.current) coverFile.current.value = '';
     }
   };
 
@@ -150,6 +178,7 @@ export function ProfileEditor({
       clean.tagline && `Headline “${clean.tagline}”`,
       `Profile style: ${PROFILE_THEMES.find((theme) => theme.id === clean.theme)?.label}`,
       clean.avatar ? 'Your uploaded picture' : 'A generated picture',
+      clean.cover && 'Your uploaded banner',
       clean.bio && 'Your bio',
       clean.tags.length > 0 && `What you build: ${clean.tags.map((t) => CATEGORIES.find((c) => c.id === t)?.label).join(', ')}`,
       clean.links.length > 0 && `${clean.links.length} ${clean.links.length === 1 ? 'link' : 'links'}`,
@@ -217,6 +246,17 @@ export function ProfileEditor({
 
       <fieldset className="flex flex-col gap-4">
         <legend className="mb-1 text-[15px] font-semibold">Identity</legend>
+        <div className="overflow-hidden rounded-[12px] border border-rule">
+          <div className={cn('relative h-32', draft.theme === 'forest' ? 'bg-[#173d33]' : draft.theme === 'sand' ? 'bg-[#d9c9a8]' : 'bg-[#191b20]')}>
+            {draft.cover && <Image src={avatarSrc(draft.cover) ?? ''} alt="Your banner preview" fill unoptimized sizes="(max-width: 768px) 100vw, 760px" className="object-cover" />}
+          </div>
+          <div className="flex flex-wrap items-center gap-2 px-4 py-3">
+            <Button size="s" intent="secondary" onClick={() => coverFile.current?.click()} busy={uploading}>Upload banner</Button>
+            {draft.cover && <Button size="s" intent="ghost" onClick={() => set({ cover: '' })}>Use colour</Button>}
+            <span className="text-[12px] text-ink-3">Wide PNG, JPEG or WebP, up to 512 KB.</span>
+            <input ref={coverFile} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" aria-label="Upload banner" onChange={(e) => void upload(e.target.files?.[0], 'cover')} />
+          </div>
+        </div>
         <div className="flex items-center gap-4">
           <AvatarImage src={avatarSrc(draft.avatar)} fallback={avatarUrl(wallet.toLowerCase())} name="Your picture" size={72} className="rounded-full" />
           <div className="flex flex-col gap-2">

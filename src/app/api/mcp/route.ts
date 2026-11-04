@@ -539,6 +539,7 @@ function tools(request: Request): McpTool[] {
 
         const owner = await registryOwner(c, t).catch(() => null);
         if (!owner) return { data: { error: 'The registry did not answer for that agent, or it does not exist, so Pokter cannot say who may propose for it.' }, isError: true };
+        if (brief.targetBuilder && getAddress(owner) !== getAddress(brief.targetBuilder)) return { data: { error: 'This custom request is addressed to another builder.' }, isError: true };
         if (typeof args.owner_address === 'string' && /^0x[0-9a-fA-F]{40}$/.test(args.owner_address) && getAddress(args.owner_address) !== owner) {
           return { data: { error: `Only the wallet the registry names as this agent’s owner can propose for it: ${owner}. ${args.owner_address} is not it, and its signature would be refused.`, owner }, isError: true };
         }

@@ -6,6 +6,8 @@ import { askProposalQuote } from '@/lib/briefs/proposal-quote';
 import { getBriefStore } from '@/lib/briefs/store';
 import { formatAmount } from '@/lib/network/tokens';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
+import { registryOwner } from '@/lib/registry/onchain';
+import { getAddress } from 'viem';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,6 +58,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
   const agent = agentOf(body);
   if (!agent) return NextResponse.json({ error: 'Invalid agent identifier.' }, { status: 400 });
+  if (brief.targetBuilder) {
+    const owner = await registryOwner(agent.chainId, agent.tokenId).catch(() => null);
+    if (!owner) return NextResponse.json({ error: 'The registry did not answer for this agent.' }, { status: 503 });
+    if (getAddress(owner) !== getAddress(brief.targetBuilder)) return NextResponse.json({ error: 'This custom request is addressed to another builder.' }, { status: 403 });
+  }
 
   const outcome = await askProposalQuote(brief, agent.chainId, agent.tokenId);
   if (!outcome.ok) return NextResponse.json({ error: outcome.error }, { status: outcome.status });

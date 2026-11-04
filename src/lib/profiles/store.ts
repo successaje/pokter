@@ -3,6 +3,9 @@ import 'server-only';
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { randomBytes, randomUUID } from 'node:crypto';
+
+import { siteUrl } from '@/lib/site';
 
 import { EMPTY_PROFILE, type Profile, type ProfileContent } from './model';
 
@@ -17,7 +20,7 @@ const DB_PATH = process.env.PROFILE_DB_PATH ?? './data/profiles.db';
  * up a bio by accident. Pictures sit beside the profiles, keyed by the
  * hash of their bytes, so the same image uploaded twice is stored once.
  */
-class ProfileStore {
+export class ProfileStore {
   private readonly db: DatabaseSync;
 
   constructor(path: string) {
@@ -39,7 +42,35 @@ class ProfileStore {
         bytes BLOB NOT NULL,
         created_at TEXT NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS profile_challenges (
+        id TEXT PRIMARY KEY,
+        wallet TEXT NOT NULL,
+        chain_id INTEGER NOT NULL,
+        suffix TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        consumed_at TEXT
+      );
     `);
+  }
+
+  createChallenge(wallet: string, chainId: number): { id: string; suffix: string; expiresAt: string } {
+    const id = randomUUID();
+    const expiresAt = new Date(Date.now() + 10 * 60_000).toISOString();
+    const suffix = `\nPokter domain: ${new URL(siteUrl()).host}\nProfile challenge: ${id}\nNonce: ${randomBytes(24).toString('base64url')}\nExpires: ${expiresAt}`;
+    this.db.prepare('INSERT INTO profile_challenges (id, wallet, chain_id, suffix, expires_at) VALUES (?, ?, ?, ?, ?)')
+      .run(id, wallet.toLowerCase(), chainId, suffix, expiresAt);
+    return { id, suffix, expiresAt };
+  }
+
+  challenge(id: string, wallet: string, chainId: number): string | null {
+    const row = this.db.prepare('SELECT suffix FROM profile_challenges WHERE id = ? AND wallet = ? AND chain_id = ? AND consumed_at IS NULL AND expires_at > ?')
+      .get(id, wallet.toLowerCase(), chainId, new Date().toISOString()) as { suffix: string } | undefined;
+    return row?.suffix ?? null;
+  }
+
+  consumeChallenge(id: string): boolean {
+    return this.db.prepare('UPDATE profile_challenges SET consumed_at = ? WHERE id = ? AND consumed_at IS NULL AND expires_at > ?')
+      .run(new Date().toISOString(), id, new Date().toISOString()).changes === 1;
   }
 
   private static toProfile(row: Record<string, string | null>): Profile {

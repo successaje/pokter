@@ -50,7 +50,7 @@ export function useRequestAlertSync(): void {
     },
   });
 
-  const hasCategorised = Boolean(agents.data?.some((a) => a.categoryId));
+  const hasCategorised = Boolean(agents.data?.length);
   const requests = useQuery({
     queryKey: ['open-requests'],
     /* No listed agent in a category, nothing could match: do not poll for it. */

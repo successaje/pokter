@@ -2,6 +2,15 @@ import { hireNetworkTags } from '@/lib/network/hire-networks';
 import { escrowMoney } from '@/lib/network/presentation';
 import { cn } from '@/lib/ui/cn';
 
+const networkTone = (mainnet: boolean) => mainnet ? 'bg-ok-wash text-ok' : 'bg-watch-wash text-watch';
+
+/** A registry or profile association. It names the chain without claiming that the agent is hireable there. */
+export function NetworkStageTag({ chainId, className }: { chainId: number | null; className?: string }) {
+  if (chainId !== 56 && chainId !== 97) return null;
+  const mainnet = chainId === 56;
+  return <span className={cn('inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11.5px] font-medium', networkTone(mainnet), className)} title={`BNB Chain · ${mainnet ? 'Mainnet' : 'Testnet'}`}>{mainnet ? 'Mainnet' : 'Testnet'}</span>;
+}
+
 /** BNB Chain's mark, in its own yellow: it identifies the network, so it keeps the network's colour in both themes. */
 export function BnbMark({ size = 28, className }: { size?: number; className?: string }) {
   return (
@@ -58,11 +67,10 @@ export function NetworkTag({ chainId, alsoHireOn = [], className }: { chainId: n
   const tags = hireNetworkTags([chainId, ...alsoHireOn]);
   if (tags.length === 0) return null;
   /* Coloured both ways, so the two read apart at a glance across a grid: green for money that is real, amber for money that is not. The words carry it too, for anyone who cannot tell the colours apart. */
-  const tone = (real: boolean) => (real ? 'bg-ok-wash text-ok' : 'bg-watch-wash text-watch');
   if (tags.length === 1) {
     const [tag] = tags;
     return (
-      <span className={cn('inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11.5px] font-medium', tone(tag.real), className)} title={tag.meaning}>
+      <span className={cn('inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11.5px] font-medium', networkTone(tag.real), className)} title={tag.meaning}>
         {tag.label}
         <span className="sr-only">: {tag.meaning.toLowerCase()}</span>
       </span>
@@ -71,7 +79,7 @@ export function NetworkTag({ chainId, alsoHireOn = [], className }: { chainId: n
   return (
     <span className={cn('inline-flex shrink-0 items-stretch overflow-hidden rounded-full text-[11.5px] font-medium', className)} title={tags.map((tag) => `${tag.label}: ${tag.meaning.toLowerCase()}`).join('. ')}>
       {tags.map((tag, i) => (
-        <span key={tag.chainId} className={cn('px-2 py-0.5', tone(tag.real), i > 0 && 'border-l border-paper/70')}>
+        <span key={tag.chainId} className={cn('px-2 py-0.5', networkTone(tag.real), i > 0 && 'border-l border-paper/70')}>
           {tag.label}
           <span className="sr-only">: {tag.meaning.toLowerCase()}{i < tags.length - 1 ? ';' : ''}</span>
         </span>

@@ -1,0 +1,13 @@
+{
+  "kind": "rpc",
+  "url": "https://bsc-testnet-rpc.publicnode.com/",
+  "method": "eth_getCode",
+  "params": [
+    "0xE0da1EdCea030875cD0F199d96eB70f6ab78fAF2",
+    "latest"
+  ],
+  "reply": {
+    "result": "0x"
+  },
+  "recordedAt": "2026-11-04T10:52:57.923Z"
+}

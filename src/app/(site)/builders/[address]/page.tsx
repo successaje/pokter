@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import Image from 'next/image';
 import { notFound, redirect } from 'next/navigation';
 import { getAddress, isAddress, type Address } from 'viem';
 
@@ -23,11 +24,14 @@ import { AgentAvatar } from '@/ui/Agent';
 import { AvatarImage } from '@/ui/AvatarImage';
 import { CopyButton } from '@/ui/Data';
 import { Icon } from '@/ui/icons';
+import { NetworkStageTag } from '@/ui/Network';
+import { getServiceStore } from '@/lib/services/store';
+import { ServiceCard } from '@/features/services/ServiceCard';
 
 export const dynamic = 'force-dynamic';
 
 type View = 'building' | 'hiring';
-type Tab = 'overview' | 'agents' | 'work' | 'reviews' | 'requests';
+type Tab = 'overview' | 'agents' | 'services' | 'work' | 'reviews' | 'requests';
 
 /**
  * A wallet, resolved from its handle or its address. A handle resolves
@@ -129,6 +133,7 @@ export default async function ProfilePage({
     })
     .sort((x, y) => Number(y.pinned) - Number(x.pinned));
   const quotes = getProbeStore().quotesFor(shown.map((agent) => ({ chainId: agent.chainId, tokenId: agent.tokenId })));
+  const services = published?.showBuilding ? getServiceStore().byBuilder(wallet).filter((service) => service.status === 'active' && shown.some((agent) => agent.status === 'owned' && agent.chainId === service.chainId && agent.tokenId === service.tokenId)) : [];
   const checksSince = new Date(now - 30 * 86_400_000);
   const checks = ([56, 97] as const).map((chainId) => {
     const rows = shown.filter((agent) => agent.chainId === chainId).flatMap((agent) => getProbeStore().historyFor(agent.chainId, agent.tokenId, checksSince));
@@ -138,8 +143,8 @@ export default async function ProfilePage({
   const sections: View[] = published ? [...(published.showBuilding ? (['building'] as const) : []), ...(published.showHiring ? (['hiring'] as const) : [])] : [];
   const preferred: View = published?.usage === 'hire' ? 'hiring' : 'building';
   const view: View = sections.includes(sp.view as View) ? (sp.view as View) : sections.includes(preferred) ? preferred : (sections[0] ?? 'building');
-  const tabs: Tab[] = view === 'building' ? ['overview', 'agents', 'work', 'reviews'] : ['overview', 'requests'];
-  const tab: Tab = tabs.includes(sp.tab as Tab) ? (sp.tab as Tab) : 'overview';
+  const tabs: Tab[] = view === 'building' ? ['agents', 'services', 'overview', 'work', 'reviews'] : ['overview', 'requests'];
+  const tab: Tab = tabs.includes(sp.tab as Tab) ? (sp.tab as Tab) : view === 'building' ? 'agents' : 'overview';
   const base = profilePath(wallet, published?.handle);
   const href = (v: View, t: Tab) => `${base}?view=${v}&tab=${t}`;
 
@@ -148,13 +153,15 @@ export default async function ProfilePage({
   const role = published?.usage ? USAGES.find((u) => u.id === published.usage)?.role : null;
   const requests = getBriefStore().byPoster(wallet);
   const theme = published?.theme === 'forest' ? 'bg-[#173d33] text-white' : published?.theme === 'sand' ? 'bg-[#d9c9a8] text-[#222017]' : 'bg-[#191b20] text-white';
+  const profileAgents = published ? shown : ownedOptions;
+  const profileNetworks = [...new Set(profileAgents.map((agent) => agent.chainId))].sort((a, b) => b - a);
 
   const identity = (
-    <div className="flex flex-col gap-4">
+    <div key="profile-identity" className="flex flex-col gap-4">
       <div className="flex items-center gap-4 lg:flex-col lg:items-start">
-        <AvatarImage src={avatarSrc(published?.avatar ?? '')} fallback={avatarUrl(wallet.toLowerCase())} name={name} size={88} className="shrink-0 rounded-full" eager />
+        {!published && <AvatarImage src={null} fallback={avatarUrl(wallet.toLowerCase())} name={name} size={88} className="shrink-0 rounded-full" eager />}
         <div className="flex min-w-0 flex-col gap-0.5">
-          {published ? <span className="text-[14.5px] font-medium text-ink-2">@{published.handle}</span> : <h1 className="break-words text-[clamp(1.5rem,3vw,1.9rem)] font-semibold leading-tight tracking-[-0.02em]"><span className="t-readout">{short(wallet)}</span></h1>}
+          {!published && <h2 className="break-words text-[clamp(1.5rem,3vw,1.9rem)] font-semibold leading-tight tracking-[-0.02em]"><span className="t-readout">{short(wallet)}</span></h2>}
           {role && <span className="mt-1 w-fit rounded-full bg-sunken px-2.5 py-0.5 text-[12.5px] font-medium text-ink-2">{role}</span>}
         </div>
       </div>
@@ -223,20 +230,11 @@ export default async function ProfilePage({
         )}
       </ul>
 
-      {/* Counts for the view being read, and only ones attributable to this person. */}
-      {published && sections.length > 0 && (
+      {/* Hiring counts live here; the storefront header carries the building summary. */}
+      {published && view === 'hiring' && sections.length > 0 && (
         <dl className="grid grid-cols-2 gap-2 text-[12.5px]">
-          {view === 'building' ? (
-            <>
-              <MiniStat label="Agents published" value={String(shown.length)} />
-              {operator.since && <MiniStat label="Jobs taken on" value={String(operator.mainnet.funded)} note={`mainnet · since ${day(operator.since)}`} />}
-            </>
-          ) : (
-            <>
-              <MiniStat label="Requests posted" value={String(hiring.requestsPosted)} />
-              <MiniStat label="Jobs funded" value={`${hiring.mainnet.funded}`} note={`mainnet · ${hiring.testnet.funded} testnet`} />
-            </>
-          )}
+          <MiniStat label="Requests posted" value={String(hiring.requestsPosted)} />
+          <MiniStat label="Jobs funded" value={`${hiring.mainnet.funded}`} note={`mainnet · ${hiring.testnet.funded} testnet`} />
         </dl>
       )}
       {published && <p className="text-[11.5px] leading-snug text-ink-3">Name, bio, tags and links are self-provided. Pokter does not endorse them or guarantee any agent&rsquo;s performance.</p>}
@@ -244,41 +242,74 @@ export default async function ProfilePage({
   );
 
   return (
-    <div className="frame pb-24 pt-8 sm:pt-12">
-      {published && (
-        <section className={cn('mb-8 overflow-hidden rounded-[18px] px-6 py-8 sm:px-9 sm:py-10', theme)} aria-label="Builder storefront header">
-          <span className="text-[11px] font-semibold uppercase tracking-[0.14em] opacity-70">Builder profile · @{published.handle}</span>
-          <h1 className="mt-3 max-w-3xl break-words text-[clamp(2rem,4vw,3.5rem)] font-semibold leading-[1.03] tracking-[-0.04em]">{name}</h1>
-          {(published.tagline || published.bio) && <p className="mt-3 max-w-2xl text-[clamp(1rem,1.7vw,1.25rem)] leading-relaxed opacity-85">{published.tagline || published.bio}</p>}
-          <p className="mt-5 text-[12px] opacity-70">Profile text and style chosen by the builder · agent ownership and work checked separately below</p>
+    <div className="frame pb-24 pt-6 sm:pt-8">
+      <nav aria-label="Breadcrumb" className="mb-4 flex items-center gap-2 text-[12.5px] text-ink-3">
+        <Link href="/discover" className="hover:text-ink">Discover</Link><span aria-hidden>/</span><span>Builders</span><span aria-hidden>/</span><span className="truncate text-ink">{published?.handle ? `@${published.handle}` : short(wallet)}</span>
+      </nav>
+      {(
+        <section className="overflow-hidden rounded-[18px] border border-rule bg-raised" aria-label="Builder storefront header">
+          <div className={cn('relative h-28 overflow-hidden sm:h-36', theme)}>
+            {published?.cover ? (
+              <Image src={avatarSrc(published.cover) ?? ''} alt="" fill unoptimized sizes="(max-width: 768px) 100vw, 1200px" className="object-cover" />
+            ) : (
+              <div className="absolute inset-0" aria-hidden>
+                <div className="absolute inset-0 opacity-[0.08]" style={{ backgroundImage: 'linear-gradient(currentColor 1px, transparent 1px), linear-gradient(90deg, currentColor 1px, transparent 1px)', backgroundSize: '32px 32px' }} />
+                <div className="absolute -right-20 -top-64 size-[540px] rounded-full border-[90px] border-current opacity-[0.07]" />
+                <div className="absolute -right-20 -top-72 size-[420px] rounded-full border-[60px] border-[#f0b90b] opacity-[0.65]" />
+                <div className="absolute -left-36 bottom-[-230px] size-[420px] rounded-full border-[65px] border-current opacity-[0.06]" />
+                <span className="absolute bottom-3 right-7 text-[clamp(3rem,9vw,7rem)] font-black uppercase leading-none tracking-[-0.08em] opacity-[0.09]">{published?.handle || 'BNB'}</span>
+              </div>
+            )}
+          </div>
+          <div className="relative px-5 pb-4 pt-4 sm:px-7 sm:pb-5">
+            <AvatarImage src={avatarSrc(published?.avatar ?? '')} fallback={avatarUrl(wallet.toLowerCase())} name={name} size={92} className="absolute -top-12 left-5 rounded-[18px] border-[4px] border-[var(--raised)] bg-raised shadow-sm sm:left-7" eager />
+            <div className="flex flex-col gap-4 pt-10 sm:flex-row sm:items-center sm:justify-between sm:pl-28 sm:pt-1">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-3"><h1 className="max-w-3xl break-words text-[clamp(1.8rem,3vw,2.5rem)] font-semibold leading-tight tracking-[-0.04em]">{name}</h1><span className="rounded-full border border-[#d99a11] px-2.5 py-1 text-[11.5px] font-medium text-[#9b6900]">{published ? 'Claimed profile' : 'Unclaimed profile'}</span></div>
+                <p className="mt-1.5 max-w-2xl text-[13.5px] leading-relaxed text-ink-2">{published?.tagline || published?.bio || 'This wallet has not claimed a Pokter profile. Agent associations come from the registry.'}</p>
+              </div>
+              <div className="flex shrink-0 flex-wrap items-center gap-2">
+                <ShareButton path={base} title={name} />
+                {published?.showBuilding && shown.some((agent) => agent.status === 'owned') ? <Link href={`/workspace/requests/new?builder=${encodeURIComponent(wallet)}`} className="inline-flex h-10 items-center justify-center rounded-[8px] bg-ink px-4 text-[13px] font-medium text-paper hover:opacity-90">Request custom work <Icon.Arrow size={14} className="ml-2" /></Link> : <span className="text-[12px] text-ink-3">{published ? 'Custom requests unavailable' : 'Custom requests after profile claim'}</span>}
+              </div>
+            </div>
+          </div>
         </section>
       )}
+      <div className="my-4 flex flex-wrap items-center gap-x-5 gap-y-2 rounded-[12px] border border-rule bg-raised px-5 py-3 text-[13px]">
+        <span className="font-semibold">{profileAgents.length} {profileAgents.length === 1 ? 'agent' : 'agents'}</span><span className="hidden text-rule-strong sm:inline" aria-hidden>│</span>
+        <span className="flex flex-wrap gap-1.5">{profileNetworks.length ? profileNetworks.map((chain) => <NetworkStageTag key={chain} chainId={chain} />) : 'No network yet'}</span><span className="hidden text-rule-strong sm:inline" aria-hidden>│</span>
+        <span className="text-ink-2">{indexUnavailable ? 'Registry index partly unavailable' : 'Agents from ERC-8004 registry'}</span>
+      </div>
       <ProfileShell wallet={wallet} published={published ? profileContentOf(published) : null} hasSaved={Boolean(profile)} agents={ownedOptions} hiringActivity={hiringActivity} identity={identity}>
         {!published ? (
-          <RegistryView agents={ownedOptions} unavailable={indexUnavailable} />
+          <RegistryView agents={ownedOptions} unavailable={indexUnavailable} active={sp.tab === 'services' || sp.tab === 'evidence' ? sp.tab : 'agents'} base={base} wallet={wallet} />
         ) : sections.length === 0 ? (
           <Empty title="Nothing shown yet">This profile shows no building or hiring activity.</Empty>
         ) : (
-          <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-wrap items-end justify-between gap-3 border-b border-rule">
+            <nav aria-label={`${view === 'building' ? 'Building' : 'Hiring'} tabs`} className="-mx-4 flex gap-1 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+              {tabs.map((t) => (
+                <Link key={t} href={href(view, t)} aria-current={tab === t ? 'page' : undefined} className={cn('-mb-px shrink-0 border-b-2 px-3 py-2.5 text-[14px] font-medium capitalize', tab === t ? 'border-[#e5a900] text-ink' : 'border-transparent text-ink-3 hover:text-ink')}>
+                  {t === 'overview' && view === 'building' ? 'Evidence' : t === 'reviews' ? `Reviews${reviews.reviews.length ? ` (${reviews.reviews.length})` : ''}` : t}
+                </Link>
+              ))}
+            </nav>
             {sections.length > 1 && (
-              <nav aria-label="Profile section" className="inline-flex w-fit rounded-[10px] bg-sunken p-1">
+              <nav aria-label="Profile section" className="mb-1 inline-flex w-fit rounded-[10px] bg-sunken p-1">
                 {sections.map((s) => (
-                  <Link key={s} href={href(s, 'overview')} aria-current={view === s ? 'page' : undefined} className={cn('rounded-[7px] px-4 py-1.5 text-[14px] font-medium', view === s ? 'bg-raised text-ink shadow-sm' : 'text-ink-3 hover:text-ink')}>
+                  <Link key={s} href={href(s, s === 'building' ? 'agents' : 'overview')} aria-current={view === s ? 'page' : undefined} className={cn('rounded-[7px] px-3 py-1 text-[12.5px] font-medium', view === s ? 'bg-raised text-ink shadow-sm' : 'text-ink-3 hover:text-ink')}>
                     {s === 'building' ? 'Building' : 'Hiring'}
                   </Link>
                 ))}
               </nav>
             )}
-            <nav aria-label={`${view === 'building' ? 'Building' : 'Hiring'} tabs`} className="-mx-4 flex gap-1 overflow-x-auto border-b border-rule px-4 sm:mx-0 sm:px-0">
-              {tabs.map((t) => (
-                <Link key={t} href={href(view, t)} aria-current={tab === t ? 'page' : undefined} className={cn('-mb-px shrink-0 border-b-2 px-3 py-2.5 text-[14px] font-medium capitalize', tab === t ? 'border-ink text-ink' : 'border-transparent text-ink-3 hover:text-ink')}>
-                  {t === 'reviews' ? `Reviews${reviews.reviews.length ? ` (${reviews.reviews.length})` : ''}` : t}
-                </Link>
-              ))}
-            </nav>
+            </div>
 
             {view === 'building' && tab === 'overview' && <BuildingOverview agents={shown} wallet={wallet} operator={operator} reviews={reviews} checks={checks} quotes={quotes} now={now} reviewsHref={href('building', 'reviews')} agentsHref={href('building', 'agents')} />}
             {view === 'building' && tab === 'agents' && <AgentsTab agents={shown} wallet={wallet} quotes={quotes} now={now} />}
+            {view === 'building' && tab === 'services' && (services.length ? <ul className="grid gap-4 sm:grid-cols-2">{services.map((service) => <li key={service.id}><ServiceCard service={service} /></li>)}</ul> : <Empty title="No published services">This builder has not published a specific offer yet. Browse their agents or request custom work.</Empty>)}
             {view === 'building' && tab === 'work' && <WorkTab agents={shown} wallet={wallet} takenOn={operator.jobIds} />}
             {view === 'building' && tab === 'reviews' && <ReviewsTab data={reviews} />}
             {view === 'hiring' && tab === 'overview' && <HiringOverview record={hiring} requestsHref={href('hiring', 'requests')} />}
@@ -312,37 +343,25 @@ function Empty({ title, children }: { title: string; children: React.ReactNode }
 
 type ShownAgent = { key: string; chainId: number; tokenId: string; name: string; description: string; imageUrl: string | null; category: string | null; status: 'owned' | 'unavailable'; pinned: boolean };
 
-/** Shown for a wallet with no published profile: registry facts only, labelled as not chosen by anyone. */
-function RegistryView({ agents, unavailable }: { agents: Array<{ key: string; chainId: number; tokenId: string; name: string; imageUrl: string | null; category: string | null }>; unavailable: boolean }) {
-  return (
-    <section aria-labelledby="registry-title" className="flex flex-col gap-3">
-      <h2 id="registry-title" className="text-[18px] font-semibold">
-        Agents this wallet owns
-      </h2>
-      <p className="text-[12.5px] text-ink-3">Source: the ERC-8004 registry, via the agent index. Not a profile: the owner has not chosen what to show.</p>
-      {unavailable && <p className="text-[13px] text-watch">The agent index did not answer for one network, so this list may be incomplete.</p>}
-      {agents.length === 0 ? (
-        !unavailable && <Empty title="No agents in the registry">This wallet owns no ERC-8004 agents on BNB Chain or testnet.</Empty>
-      ) : (
-        <ul className="ruled border-y border-rule">
-          {agents.map((a) => (
-            <li key={a.key}>
-              <Link href={`/agents/${a.chainId}/${a.tokenId}`} className="grid grid-cols-[40px_minmax(0,1fr)_auto] items-center gap-4 py-3.5 hover:bg-sunken/40">
-                <AgentAvatar name={a.name} imageUrl={a.imageUrl} seed={a.key} size={40} />
-                <span className="flex min-w-0 flex-col">
-                  <span className="truncate font-medium">{a.name}</span>
-                  <span className="text-[12.5px] text-ink-3">
-                    #{a.tokenId} · {chainLabel(a.chainId)} · {a.category ?? GENERAL_CATEGORY_LABEL}
-                  </span>
-                </span>
-                <Icon.ChevronRight size={16} className="text-ink-3" />
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
-  );
+/** The default storefront uses only network-specific registry associations. */
+function RegistryView({ agents, unavailable, active, base, wallet }: { agents: Array<{ key: string; chainId: number; tokenId: string; name: string; imageUrl: string | null; category: string | null }>; unavailable: boolean; active: 'agents' | 'services' | 'evidence'; base: string; wallet: string }) {
+  return <div className="flex flex-col gap-8">
+    <nav aria-label="Builder profile sections" className="flex gap-8 border-b border-rule">
+      {(['agents', 'services', 'evidence'] as const).map((section) => <Link key={section} href={`${base}?tab=${section}`} aria-label={section === 'agents' ? `Agents (${agents.length})` : section} aria-current={active === section ? 'page' : undefined} className={cn('-mb-px border-b-2 pb-3 text-[14px] font-medium capitalize', active === section ? 'border-[#e5a900] text-ink' : 'border-transparent text-ink-3 hover:text-ink')}>{section}{section === 'agents' && <span className="ml-2 rounded-full bg-[#f8e7b9] px-2 py-0.5 text-[11px] text-[#6a4900]">{agents.length}</span>}</Link>)}
+    </nav>
+    {active === 'agents' && <section aria-labelledby="registry-title" className="flex flex-col gap-4">
+      <div><h2 id="registry-title" className="text-[22px] font-semibold tracking-[-0.025em]">Agents owned by this wallet</h2><p className="mt-1 text-[13px] text-ink-3">Ownership is based on indexed ERC-8004 registry data.</p></div>
+      {unavailable && <p className="text-[13px] text-watch">The index did not answer for one network. This list may be incomplete.</p>}
+      {agents.length === 0 ? (!unavailable && <Empty title="No agents found">This wallet owns no indexed agents on BNB Chain or testnet.</Empty>) : <ul className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {agents.map((a) => <li key={a.key}><Link href={`/agents/${a.chainId}/${a.tokenId}`} className="group flex h-full flex-col rounded-[14px] border border-rule bg-raised p-4 transition-[border-color,box-shadow] hover:border-rule-strong hover:shadow-lift">
+          <span className="flex min-w-0 items-center gap-3"><AgentAvatar name={a.name} imageUrl={a.imageUrl} seed={a.key} size={48} /><span className="min-w-0"><strong className="block truncate text-[15px]">{a.name}</strong><span className="text-[12.5px] text-ink-3">#{a.tokenId} · {a.category ?? GENERAL_CATEGORY_LABEL}</span></span></span>
+          <span className="mt-4 flex items-center justify-between border-t border-rule pt-3 text-[12.5px]"><NetworkStageTag chainId={a.chainId} /><span className="font-medium text-[#9b6900]">View agent <Icon.Arrow size={13} className="inline-block transition-transform group-hover:translate-x-0.5" aria-hidden /></span></span>
+        </Link></li>)}
+      </ul>}
+    </section>}
+    {active === 'services' && <section className="rounded-[14px] border border-rule bg-raised p-6"><h2 className="text-[18px] font-semibold">No published services</h2><p className="mt-1 text-[13.5px] text-ink-2">This wallet has not claimed a profile or published an offer. You can still inspect its agents.</p><Link href={`${base}?tab=agents`} className="mt-4 inline-flex text-[13px] font-medium underline">View agents</Link></section>}
+    {active === 'evidence' && <section className="rounded-[14px] border border-rule bg-raised p-6"><h2 className="text-[18px] font-semibold">What Pokter can verify</h2><p className="mt-2 text-[13.5px] text-ink-2">The ERC-8004 index associates the agents shown here with <span className="t-readout">{short(wallet)}</span> by network. The owner has not claimed this profile, and Pokter has not verified a name or published service for it.</p>{unavailable && <p className="mt-3 text-[13px] text-watch">One network’s index was unavailable during this read.</p>}</section>}
+  </div>;
 }
 
 function day(iso: string): string {
@@ -392,10 +411,15 @@ function RecordTable({ mainnet, testnet, caption = 'External customer jobs' }: {
  * this person's ownership checks out, and the two things a visitor can
  * do with it. Its track record is one click away, not the card's bulk.
  */
-function AgentCard({ agent, wallet, quote, now }: { agent: ShownAgent; wallet: string; quote: QuoteRecord | null; now: number }) {
+function AgentCard({ agent, wallet, quote, now, compact = false }: { agent: ShownAgent; wallet: string; quote: QuoteRecord | null; now: number; compact?: boolean }) {
   const record = agentRecord(agent.chainId, agent.tokenId, wallet);
   const history = record.mainnet.funded + record.testnet.funded > 0;
-  const testnet = agent.chainId === 97;
+  if (compact) return <article className="flex h-full flex-col rounded-[14px] border border-rule bg-raised p-4 transition-[border-color,box-shadow] hover:border-rule-strong hover:shadow-lift">
+    <div className="flex min-w-0 items-center gap-3"><AgentAvatar name={agent.name} imageUrl={agent.imageUrl} seed={agent.key} size={48} /><div className="min-w-0"><Link href={`/agents/${agent.chainId}/${agent.tokenId}`} className="block truncate text-[15px] font-semibold hover:underline">{agent.name}</Link><p className="text-[12.5px] text-ink-3">#{agent.tokenId} · {agent.category ?? GENERAL_CATEGORY_LABEL}</p></div></div>
+    {agent.description && <p className="mt-3 line-clamp-2 text-[13px] leading-relaxed text-ink-2">{agent.description}</p>}
+    <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-rule pt-3 text-[12px]"><span className="flex flex-wrap items-center gap-1.5 text-ink-2"><NetworkStageTag chainId={agent.chainId} />{agent.status === 'owned' ? 'Owner verified' : 'Ownership check pending'}</span><Link href={`/agents/${agent.chainId}/${agent.tokenId}`} className="font-medium text-[#9b6900] hover:underline">View agent →</Link></div>
+    <p className="mt-2 text-[11.5px] text-ink-3">{quote ? `Last quoted ${quotePriceLabel(quote)}${quote.expiresAt && Date.parse(quote.expiresAt) <= now ? ' · expired' : ''}. Fresh quote before hire.` : 'No signed price yet. Fresh quote before hire.'}</p>
+  </article>;
   return (
     <article className="flex flex-col gap-3 rounded-[16px] border border-rule bg-raised p-5">
       <div className="flex items-start gap-3">
@@ -413,7 +437,7 @@ function AgentCard({ agent, wallet, quote, now }: { agent: ShownAgent; wallet: s
           </span>
           <span className="flex flex-wrap items-center gap-1.5 text-[12px]">
             {agent.category && <span className="rounded-full border border-rule-strong px-2 py-0.5 text-ink-2">{agent.category}</span>}
-            <span className={cn('rounded-full px-2 py-0.5 font-medium', testnet ? 'bg-watch-wash text-watch' : 'bg-sunken text-ink-2')}>{testnet ? 'BNB Testnet' : 'BNB Chain'}</span>
+            <NetworkStageTag chainId={agent.chainId} />
           </span>
         </div>
       </div>
@@ -507,7 +531,7 @@ function BuildingOverview({
       <section aria-labelledby="featured-title" className="flex flex-col gap-3">
         <div className="flex items-baseline justify-between">
           <h2 id="featured-title" className="text-[17px] font-semibold">
-            Services and agents
+            Featured agents
           </h2>
           {agents.length > featured.length && (
             <Link href={agentsHref} className="text-[13px] font-medium text-ink-2 hover:text-ink">
@@ -543,9 +567,9 @@ function BuildingOverview({
 function AgentsTab({ agents, wallet, quotes, now }: { agents: ShownAgent[]; wallet: string; quotes: Map<string, QuoteRecord>; now: number }) {
   if (agents.length === 0) return <Empty title="No agents shown">This profile has not chosen any agents to show.</Empty>;
   return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
       {agents.map((a) => (
-        <AgentCard key={a.key} agent={a} wallet={wallet} quote={quotes.get(a.key) ?? null} now={now} />
+        <AgentCard key={a.key} agent={a} wallet={wallet} quote={quotes.get(a.key) ?? null} now={now} compact />
       ))}
     </div>
   );

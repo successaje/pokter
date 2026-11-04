@@ -6,7 +6,8 @@ export type MarketplaceOrder =
   | 'responsive'
   | 'completed'
   | 'evidence'
-  | 'price';
+  | 'price'
+  | 'newest';
 
 export const MARKETPLACE_ORDERS: Array<{ value: MarketplaceOrder; label: string }> = [
   { value: 'recommended', label: 'Recommended' },
@@ -15,6 +16,7 @@ export const MARKETPLACE_ORDERS: Array<{ value: MarketplaceOrder; label: string 
   { value: 'completed', label: 'Most work completed' },
   { value: 'evidence', label: 'Most evidence' },
   { value: 'price', label: 'Lowest signed price' },
+  { value: 'newest', label: 'Recently listed' },
 ];
 
 export function parseMarketplaceOrder(value: unknown): MarketplaceOrder {
@@ -172,6 +174,7 @@ export function orderMarketplace(entries: SearchableAgent[], order: MarketplaceO
       const bPrice = currentPrice(b.entry);
       difference = aPrice === null ? 1 : bPrice === null ? -1 : aPrice - bPrice;
     }
+    if (order === 'newest') difference = String(b.entry.listing.agent.created_at ?? '').localeCompare(String(a.entry.listing.agent.created_at ?? ''));
     if (order === 'recommended') {
       difference = Number(offersDirectHire(b.entry)) - Number(offersDirectHire(a.entry));
       /*
