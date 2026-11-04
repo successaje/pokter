@@ -8,7 +8,24 @@ export const dynamic = 'force-dynamic';
 
 type TelegramUpdate = {
   message?: { text?: unknown; chat?: { id?: unknown; type?: unknown } };
+  callback_query?: {
+    id?: unknown;
+    data?: unknown;
+    from?: { id?: unknown };
+    message?: { chat?: { id?: unknown; type?: unknown } };
+  };
 };
+
+async function answerCallbackQuery(id: string): Promise<void> {
+  try {
+    await fetch(`https://api.telegram.org/bot${process.env.POKTER_TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ callback_query_id: id }),
+      signal: AbortSignal.timeout(2_000),
+    });
+  } catch { /* The confirmation message can still be delivered by the webhook response. */ }
+}
 
 function validSecret(received: string | null): boolean {
   const expected = process.env.POKTER_TELEGRAM_WEBHOOK_SECRET;
@@ -31,13 +48,19 @@ export async function POST(request: Request): Promise<Response> {
   } catch {
     return Response.json({ error: 'Invalid update' }, { status: 400 });
   }
-  const chat = update?.message?.chat;
-  const message = update?.message?.text;
+  const callback = update?.callback_query;
+  const chat = callback ? callback.message?.chat : update?.message?.chat;
+  const message = callback?.data === 'scout:enable_ai' ? 'Enable AI chat' : update?.message?.text;
   if (!chat || !Number.isSafeInteger(chat.id) || typeof message !== 'string' || message.length > 4096) {
+    return Response.json({ ok: true });
+  }
+  if (callback && (callback.data !== 'scout:enable_ai' || typeof callback.id !== 'string'
+    || !Number.isSafeInteger(callback.from?.id) || callback.from?.id !== chat.id || chat.type !== 'private')) {
     return Response.json({ ok: true });
   }
   const rate = consumeRateLimit(`telegram-marketplace:${String(chat.id)}`, { limit: 30, windowMs: 60_000 });
   if (!rate.allowed) return Response.json({ ok: true });
+  if (callback) await answerCallbackQuery(callback.id as string);
   const unavailable: BotReply = {
     text: 'Scout could not load that information right now. You can open Pokter directly and try again later.',
     reply_markup: { inline_keyboard: [[{ text: 'Open Pokter', url: publicPage('/discover') }]] },

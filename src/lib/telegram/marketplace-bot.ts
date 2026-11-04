@@ -13,7 +13,7 @@ export const MARKETPLACE_BOT_COMMANDS = [
   { command: 'help', description: 'See bot commands' },
 ] as const;
 
-export type BotButton = { text: string; url: string };
+export type BotButton = { text: string; url: string } | { text: string; callback_data: string };
 export type BotReply = {
   text: string;
   reply_markup: { inline_keyboard: BotButton[][] } | { keyboard: Array<Array<{ text: string }>>; resize_keyboard: true; is_persistent: true };

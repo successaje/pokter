@@ -79,7 +79,7 @@ if (!profileOnly) {
   await telegram('setWebhook', {
     url: `${origin!.origin}/api/telegram/marketplace`,
     secret_token: secret,
-    allowed_updates: ['message'],
+    allowed_updates: ['message', 'callback_query'],
     max_connections: 10,
   });
 }
