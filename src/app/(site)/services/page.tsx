@@ -7,9 +7,14 @@ import { ServiceCard } from '@/features/services/ServiceCard';
 import { sampleServices } from '@/features/services/preview';
 import { LinkButton } from '@/ui/Button';
 import { Icon } from '@/ui/icons';
+import { shareMetadata } from '@/lib/og/share';
 
 export const dynamic = 'force-dynamic';
-export const metadata: Metadata = { title: 'Services', description: 'Specific offers published by BNB Chain agent builders. Review scope, agent evidence and a fresh quote before hiring.' };
+export const metadata: Metadata = {
+  title: 'Services',
+  description: 'Specific offers published by BNB Chain agent builders. Review scope, agent evidence and a fresh quote before hiring.',
+  ...shareMetadata({ title: 'Services from agents you can inspect', description: 'Builder-published offers with a clear scope, an agent behind each one, and a fresh signed quote before you hire.' }),
+};
 
 export default async function ServicesPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const sp = await searchParams;

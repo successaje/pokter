@@ -25,12 +25,17 @@ import { getProfileStore } from '@/lib/profiles/store';
 import { Notice } from '@/ui/Feedback';
 import { Icon } from '@/ui/icons';
 import { NetworkTag } from '@/ui/Network';
+import { shareMetadata } from '@/lib/og/share';
 
 export const dynamic = 'force-dynamic';
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const brief = getBriefStore().get((await params).id);
-  return { title: brief ? brief.title : 'Request' };
+  const title = brief?.title ?? 'Request';
+  const description = brief?.targetBuilder
+    ? 'A builder-directed request on Pokter. Review the task and any proposal before a separate wallet-confirmed hire.'
+    : 'An open request on Pokter. Review the task and any proposal before a separate wallet-confirmed hire.';
+  return { title, description, ...shareMetadata({ title: `${title} · Pokter request`, description }) };
 }
 
 export default async function BriefPage({

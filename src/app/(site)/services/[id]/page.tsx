@@ -9,11 +9,14 @@ import { ServiceOwnerAction } from '@/features/services/ServiceOwnerAction';
 import { loadProfile } from '@/features/agent/profile';
 import { getProfileStore } from '@/lib/profiles/store';
 import { NetworkStageTag } from '@/ui/Network';
+import { shareMetadata } from '@/lib/og/share';
 
 export const dynamic = 'force-dynamic';
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const service = getServiceStore().get((await params).id);
-  return { title: service?.title ?? 'Service', description: service?.description };
+  const title = service?.title ?? 'Service';
+  const description = service?.description?.replace(/\s+/g, ' ').slice(0, 160) ?? 'A builder-published service on Pokter.';
+  return { title, description, ...shareMetadata({ title: `${title} · Pokter service`, description }) };
 }
 export default async function ServicePage({ params }: { params: Promise<{ id: string }> }) {
   const service = getServiceStore().get((await params).id);
