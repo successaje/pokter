@@ -1,13 +1,31 @@
-/** Run only after deploying the webhook route and setting the public bot's env vars. */
+/** Set the bot profile before deploy, or register its webhook after the route is live. */
 import { MARKETPLACE_BOT_COMMANDS } from '../src/lib/telegram/marketplace-bot';
 
-const token = process.env.POKTER_TELEGRAM_BOT_TOKEN;
+const profileOnly = process.argv.includes('--profile-only');
+const fromStdin = process.argv.includes('--token-stdin');
+const token = fromStdin
+  ? (await new Promise<string>((resolve) => {
+      let value = '';
+      process.stdin.setEncoding('utf8');
+      const done = (answer: string) => {
+        process.stdin.off('data', onData);
+        process.stdin.off('end', onEnd);
+        process.stdin.pause();
+        resolve(answer);
+      };
+      const onData = (chunk: string) => { value += chunk; if (value.includes('\n')) done(value.split('\n')[0].trim()); };
+      const onEnd = () => done(value.trim());
+      process.stdin.on('data', onData);
+      process.stdin.on('end', onEnd);
+    }))
+  : process.env.POKTER_TELEGRAM_BOT_TOKEN;
 const secret = process.env.POKTER_TELEGRAM_WEBHOOK_SECRET;
 const appUrl = process.env.NEXT_PUBLIC_APP_URL;
-if (!token || !secret || !appUrl) throw new Error('Set POKTER_TELEGRAM_BOT_TOKEN, POKTER_TELEGRAM_WEBHOOK_SECRET and NEXT_PUBLIC_APP_URL.');
-if (!/^[A-Za-z0-9_-]{32,256}$/.test(secret)) throw new Error('The webhook secret must be 32–256 letters, digits, underscores or hyphens.');
-const origin = new URL(appUrl);
-if (origin.protocol !== 'https:') throw new Error('The webhook needs a public HTTPS origin.');
+if (!token) throw new Error('Set POKTER_TELEGRAM_BOT_TOKEN or use --token-stdin.');
+if (!profileOnly && (!secret || !appUrl)) throw new Error('Set POKTER_TELEGRAM_WEBHOOK_SECRET and NEXT_PUBLIC_APP_URL.');
+if (!profileOnly && !/^[A-Za-z0-9_-]{32,256}$/.test(secret!)) throw new Error('The webhook secret must be 32–256 letters, digits, underscores or hyphens.');
+const origin = appUrl ? new URL(appUrl) : null;
+if (!profileOnly && origin?.protocol !== 'https:') throw new Error('The webhook needs a public HTTPS origin.');
 
 async function telegram(method: string, body: Record<string, unknown>): Promise<unknown> {
   const response = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
@@ -34,10 +52,12 @@ await telegram('setMyDescription', {
 await telegram('setMyShortDescription', {
   short_description: 'Scout helps you find agents and check the evidence on Pokter.',
 });
-await telegram('setWebhook', {
-  url: `${origin.origin}/api/telegram/marketplace`,
-  secret_token: secret,
-  allowed_updates: ['message'],
-  max_connections: 10,
-});
-console.log(`Configured @${bot.username} for ${origin.origin}/api/telegram/marketplace.`);
+if (!profileOnly) {
+  await telegram('setWebhook', {
+    url: `${origin!.origin}/api/telegram/marketplace`,
+    secret_token: secret,
+    allowed_updates: ['message'],
+    max_connections: 10,
+  });
+}
+console.log(profileOnly ? `Configured @${bot.username}'s profile and commands.` : `Configured @${bot.username} for ${origin!.origin}/api/telegram/marketplace.`);
