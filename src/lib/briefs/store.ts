@@ -222,7 +222,7 @@ class BriefStore {
         brief.category ?? null,
         brief.paymentToken ?? null,
         brief.budgetRaw,
-        brief.targetBuilder ?? null,
+        brief.targetBuilder?.toLowerCase() ?? null,
       );
   }
 
@@ -279,7 +279,7 @@ class BriefStore {
 
   /** Directed requests addressed to this builder wallet, including expired and responded work. */
   byTarget(builder: string): Brief[] {
-    const rows = this.db.prepare('SELECT * FROM briefs WHERE target_builder = ? ORDER BY posted_at DESC').all(builder.toLowerCase());
+    const rows = this.db.prepare('SELECT * FROM briefs WHERE lower(target_builder) = ? ORDER BY posted_at DESC').all(builder.toLowerCase());
     return (rows as Record<string, unknown>[]).map(BriefStore.toBrief);
   }
 

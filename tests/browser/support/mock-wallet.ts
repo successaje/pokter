@@ -18,6 +18,8 @@ export interface MockWallet {
   chainId: number;
   /** Answers for read methods (eth_call, eth_getTransactionReceipt...), by method name. */
   reads?: Record<string, unknown>;
+  /** Test-only EIP-191 signer. Transaction methods still always refuse. */
+  testSign?: (message: string) => Promise<`0x${string}`>;
 }
 
 export interface WalletCall {
@@ -31,8 +33,9 @@ export interface WalletCall {
 export const SIGNING_METHODS = ['eth_sendTransaction', 'wallet_sendCalls', 'eth_sign', 'personal_sign', 'eth_signTypedData_v4', 'eth_signTransaction'];
 
 export async function installMockWallet(page: Page, wallet: MockWallet): Promise<void> {
+  if (wallet.testSign) await page.exposeFunction('__pokterTestSign', wallet.testSign);
   await page.addInitScript(
-    ({ address, chainId, reads, signing }) => {
+    ({ address, chainId, reads, signing, canTestSign }) => {
       const calls: Array<{ method: string; params: unknown; outcome: 'answered' | 'refused' }> = [];
       const listeners = new Map<string, Set<(...args: unknown[]) => void>>();
       const hex = `0x${chainId.toString(16)}`;
@@ -64,6 +67,13 @@ export async function installMockWallet(page: Page, wallet: MockWallet): Promise
           // Recorded as refused until an answer is actually given.
           const call = { method, params: params ?? null, outcome: 'refused' as 'answered' | 'refused' };
           calls.push(call);
+          if (canTestSign && method === 'personal_sign') {
+            const message = (params as unknown[])?.find((value) => typeof value === 'string' && value !== address) as string | undefined;
+            if (!message) throw reject('Missing test message.', 4200);
+            const signature = await (window as unknown as { __pokterTestSign: (message: string) => Promise<string> }).__pokterTestSign(message);
+            call.outcome = 'answered';
+            return signature;
+          }
           const result = answer(method);
           call.outcome = 'answered';
           return result;
@@ -86,7 +96,7 @@ export async function installMockWallet(page: Page, wallet: MockWallet): Promise
         /* Storage blocked: the test connects through the page instead. */
       }
     },
-    { address: wallet.address, chainId: wallet.chainId, reads: wallet.reads ?? null, signing: SIGNING_METHODS },
+    { address: wallet.address, chainId: wallet.chainId, reads: wallet.reads ?? null, signing: SIGNING_METHODS, canTestSign: Boolean(wallet.testSign) },
   );
 }
 
