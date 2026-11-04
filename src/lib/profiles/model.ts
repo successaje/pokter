@@ -11,7 +11,7 @@ import { CATEGORIES, type Category } from '@/lib/agents/categories';
  * cannot be edited.
  */
 
-export const PROFILE_LIMITS = { handle: 20, name: 40, tagline: 100, bio: 280, links: 3, url: 200, tags: 5, agents: 24, pinned: 3 } as const;
+export const PROFILE_LIMITS = { handle: 20, name: 40, tagline: 100, bio: 280, links: 3, url: 200, tags: 5, agents: 24, hiddenAgents: 200, pinned: 3 } as const;
 export const PROFILE_THEMES = [
   { id: 'ink', label: 'Ink' },
   { id: 'forest', label: 'Forest' },
@@ -66,9 +66,11 @@ export interface ProfileContent {
   showHiring: boolean;
   /** Whether the wallet address is shown. Off by default: the profile leads with the handle. */
   showWallet: boolean;
-  /** Agents chosen for the profile, as "chain:token"; each must be owned by this wallet when saved. */
+  /** Legacy selection from older profiles. New profiles show registry-owned agents by default. */
   agents: string[];
-  /** Up to three of those, shown first. */
+  /** Registry-owned agents deliberately hidden from this published profile. */
+  hiddenAgents: string[];
+  /** Up to three visible agents, shown first. */
   pinned: string[];
 }
 
@@ -108,6 +110,7 @@ export function profileMessage(input: ProfileContent & { wallet: string; signedA
     `Sections: ${[input.showBuilding && 'building', input.showHiring && 'hiring'].filter(Boolean).join(', ') || 'none'}`,
     `Wallet shown: ${input.showWallet ? 'yes' : 'no'}`,
     `Agents: ${input.agents.join(', ')}`,
+    ...(input.hiddenAgents.length ? [`Hidden agents: ${input.hiddenAgents.join(', ')}`] : []),
     `Pinned: ${input.pinned.join(', ')}`,
     'This is self-provided information. Signing proves this wallet authorised it, not that it is true.',
   ].join('\n');
@@ -146,8 +149,9 @@ export function profileProblem(raw: ProfileContent): string | null {
   if (raw.links.some((l) => !httpsUrl(l))) return 'Each link must be an https address.';
   if (raw.usage && !USAGES.some((u) => u.id === raw.usage)) return 'Choose how you use Pokter.';
   if (raw.agents.length > PROFILE_LIMITS.agents || raw.agents.some((a) => !AGENT_KEY.test(a))) return 'Those agents could not be read.';
+  if (raw.hiddenAgents.length > PROFILE_LIMITS.hiddenAgents || raw.hiddenAgents.some((a) => !AGENT_KEY.test(a))) return 'Those hidden agents could not be read.';
   if (raw.pinned.length > PROFILE_LIMITS.pinned) return `Pin at most ${PROFILE_LIMITS.pinned} agents.`;
-  if (raw.pinned.some((p) => !raw.agents.includes(p))) return 'Only agents shown on the profile can be pinned.';
+  if (raw.pinned.some((p) => !AGENT_KEY.test(p) || raw.hiddenAgents.includes(p))) return 'Only visible agents can be pinned.';
   if (raw.published && !raw.handle) return 'Choose a handle before publishing.';
   return null;
 }
@@ -175,7 +179,8 @@ export function normalizeProfile(c: ProfileContent): ProfileContent {
     showHiring: Boolean(c.showHiring),
     showWallet: Boolean(c.showWallet),
     agents: [...new Set(c.agents)],
-    pinned: [...new Set(c.pinned)].filter((p) => c.agents.includes(p)),
+    hiddenAgents: [...new Set(c.hiddenAgents ?? [])],
+    pinned: [...new Set(c.pinned)].filter((p) => !(c.hiddenAgents ?? []).includes(p)),
   };
 }
 
@@ -186,6 +191,7 @@ export function readProfileContent(raw: unknown): ProfileContent | null {
   const strings = ['handle', 'displayName', 'tagline', 'bio', 'avatar', 'usage', 'theme'] as const;
   const arrays = ['links', 'tags', 'agents', 'pinned'] as const;
   if (strings.some((k) => typeof b[k] !== 'string') || arrays.some((k) => !Array.isArray(b[k]))) return null;
+  if (b.hiddenAgents !== undefined && !Array.isArray(b.hiddenAgents)) return null;
   const content = normalizeProfile({
     handle: b.handle as string,
     displayName: b.displayName as string,
@@ -203,13 +209,14 @@ export function readProfileContent(raw: unknown): ProfileContent | null {
     showHiring: b.showHiring === true,
     showWallet: b.showWallet === true,
     agents: (b.agents as unknown[]).map(String),
+    hiddenAgents: Array.isArray(b.hiddenAgents) ? (b.hiddenAgents as unknown[]).map(String) : [],
     pinned: (b.pinned as unknown[]).map(String),
   });
   return profileProblem(content) ? null : content;
 }
 
 export function isEmptyProfile(c: ProfileContent): boolean {
-  return !c.handle && !c.displayName && !c.tagline && !c.bio && !c.avatar && !c.cover && c.tags.length === 0 && c.links.length === 0 && !c.usage && !c.published && c.agents.length === 0;
+  return !c.handle && !c.displayName && !c.tagline && !c.bio && !c.avatar && !c.cover && c.tags.length === 0 && c.links.length === 0 && !c.usage && !c.published && c.agents.length === 0 && c.hiddenAgents.length === 0;
 }
 
 export const EMPTY_PROFILE: ProfileContent = {
@@ -229,6 +236,7 @@ export const EMPTY_PROFILE: ProfileContent = {
   showHiring: false,
   showWallet: false,
   agents: [],
+  hiddenAgents: [],
   pinned: [],
 };
 
@@ -251,6 +259,7 @@ export function profileContentOf(p: Profile): ProfileContent {
     showHiring: p.showHiring,
     showWallet: p.showWallet,
     agents: p.agents,
+    hiddenAgents: p.hiddenAgents ?? [],
     pinned: p.pinned,
   };
 }

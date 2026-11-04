@@ -193,11 +193,12 @@ test('a builder profile keeps its target through composition and reaches the bui
   test.setTimeout(180_000);
   const dataDir = process.env.POKTER_TEST_DATA_DIR!;
   const builder = '0xb72335e083a7eed9731d24c48dbf07c4ef1f051a';
-  const profile = { ...EMPTY_PROFILE, handle: 'risk-fixture', displayName: 'Risk fixture', published: true, showBuilding: true, usage: 'build', agents: ['97:2618'] };
+  const profile = { ...EMPTY_PROFILE, handle: 'risk-fixture', displayName: 'Risk fixture', published: true, showBuilding: true, usage: 'build', agents: [] };
   execFileSync(process.execPath, ['-e', `const {DatabaseSync}=require('node:sqlite');const [path,raw]=process.argv.slice(1);const db=new DatabaseSync(path);db.exec('CREATE TABLE IF NOT EXISTS profiles (wallet TEXT PRIMARY KEY,handle TEXT,content TEXT NOT NULL,signed_at TEXT NOT NULL,signature TEXT NOT NULL)');db.prepare('INSERT INTO profiles (wallet,handle,content,signed_at,signature) VALUES (?,?,?,?,?)').run('0xb72335e083a7eed9731d24c48dbf07c4ef1f051a','risk-fixture',raw,'2026-11-01T00:00:00.000Z','fixture-only');db.close();`, join(dataDir, 'profiles.db'), JSON.stringify(profile)], { env: { ...process.env, NODE_OPTIONS: '' } });
   const buyer = privateKeyToAccount(`0x${'42'.repeat(32)}`);
   await installMockWallet(page, { address: buyer.address, chainId: 97, testSign: async (message) => buyer.signMessage({ message: isHex(message) ? { raw: message as Hex } : message }) });
   await page.goto('/builders/risk-fixture');
+  await expect(page.getByRole('link', { name: TEST_AGENT.name }).first()).toBeVisible();
   await page.getByRole('link', { name: 'Request custom work' }).click();
   await expect(page).toHaveURL(new RegExp(`builder=${builder}`, 'i'));
   await page.reload();

@@ -71,8 +71,8 @@ export async function generateMetadata({ params }: { params: Promise<{ address: 
  * main area is evidence, each figure defined and scoped: an agent's
  * record is the agent's (under every owner it has had), never added up
  * into the current owner's own track record, and a hirer's record is
- * the jobs this wallet funded. What appears is what the owner chose to
- * publish; an unpublished wallet shows only what the registry says.
+ * the jobs this wallet funded. A published building section shows current
+ * registry-owned agents unless the owner hides one.
  */
 export default async function ProfilePage({
   params,
@@ -108,16 +108,17 @@ export default async function ProfilePage({
   const hiringActivity = { requests: hiring.requestsPosted, jobsFunded: hiring.mainnet.funded + hiring.testnet.funded };
 
   /*
-   * The agents the owner chose to show, each checked against the registry
+   * The indexed agents the owner has not hidden, each checked against the registry
    * now. "Unavailable" when the registry did not answer — never read as
    * "no longer owned"; an agent the registry says is someone else's is
    * left off the page.
    */
-  const chosen = published?.showBuilding ? published.agents : [];
+  const chosen = published?.showBuilding ? ownedOptions.map((agent) => agent.key) : [];
   const live = await Promise.all(chosen.map((key) => registryOwner(Number(key.split(':')[0]), key.split(':')[1]).catch(() => null)));
+  const verifiedOwnedKeys = new Set(chosen.filter((_, i) => live[i] === wallet));
   const shown = chosen
     .map((key, i) => ({ key, status: live[i] === null ? ('unavailable' as const) : live[i] === wallet ? ('owned' as const) : ('elsewhere' as const) }))
-    .filter((a): a is { key: string; status: 'owned' | 'unavailable' } => a.status !== 'elsewhere')
+    .filter((a): a is { key: string; status: 'owned' | 'unavailable' } => a.status !== 'elsewhere' && !published?.hiddenAgents?.includes(a.key))
     .map((a) => {
       const [chain, token] = a.key.split(':');
       const option = byKey.get(a.key);
@@ -134,7 +135,7 @@ export default async function ProfilePage({
     })
     .sort((x, y) => Number(y.pinned) - Number(x.pinned));
   const quotes = getProbeStore().quotesFor(shown.map((agent) => ({ chainId: agent.chainId, tokenId: agent.tokenId })));
-  const services = published?.showBuilding ? getServiceStore().byBuilder(wallet).filter((service) => service.status === 'active' && shown.some((agent) => agent.status === 'owned' && agent.chainId === service.chainId && agent.tokenId === service.tokenId)) : [];
+  const services = published?.showBuilding ? getServiceStore().byBuilder(wallet).filter((service) => service.status === 'active' && verifiedOwnedKeys.has(`${service.chainId}:${service.tokenId}`)) : [];
   const checksSince = new Date(now - 30 * 86_400_000);
   const checks = ([56, 97] as const).map((chainId) => {
     const rows = shown.filter((agent) => agent.chainId === chainId).flatMap((agent) => getProbeStore().historyFor(agent.chainId, agent.tokenId, checksSince));
@@ -249,7 +250,7 @@ export default async function ProfilePage({
               </div>
               <div className="flex shrink-0 flex-wrap items-center gap-2">
                 <ShareButton path={base} title={name} />
-                {published?.showBuilding && shown.some((agent) => agent.status === 'owned') ? <Link href={`/workspace/requests/new?builder=${encodeURIComponent(wallet)}`} className="inline-flex h-10 items-center justify-center rounded-[8px] bg-ink px-4 text-[13px] font-medium text-paper hover:opacity-90">Request custom work <Icon.Arrow size={14} className="ml-2" /></Link> : <span className="text-[12px] text-ink-3">{published ? 'Custom requests unavailable' : 'Custom requests after profile claim'}</span>}
+                {published?.showBuilding && verifiedOwnedKeys.size > 0 ? <Link href={`/workspace/requests/new?builder=${encodeURIComponent(wallet)}`} className="inline-flex h-10 items-center justify-center rounded-[8px] bg-ink px-4 text-[13px] font-medium text-paper hover:opacity-90">Request custom work <Icon.Arrow size={14} className="ml-2" /></Link> : <span className="text-[12px] text-ink-3">{published ? 'Custom requests unavailable' : 'Custom requests after profile claim'}</span>}
               </div>
             </div>
           </div>
@@ -466,7 +467,7 @@ function BuildingOverview({
   reviewsHref: string;
   agentsHref: string;
 }) {
-  if (agents.length === 0) return <Empty title="No agents shown">This profile has not chosen any agents to show.</Empty>;
+  if (agents.length === 0) return <Empty title="No agents shown">No registry-owned agents are currently visible on this profile.</Empty>;
   /* Pinned first (the list is already ordered that way), then the rest, up to four. */
   const featured = agents.slice(0, 4);
   return (
@@ -530,7 +531,7 @@ function BuildingOverview({
 }
 
 function AgentsTab({ agents, wallet, quotes, now }: { agents: ShownAgent[]; wallet: string; quotes: Map<string, QuoteRecord>; now: number }) {
-  if (agents.length === 0) return <Empty title="No agents shown">This profile has not chosen any agents to show.</Empty>;
+  if (agents.length === 0) return <Empty title="No agents shown">No registry-owned agents are currently visible on this profile.</Empty>;
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
       {agents.map((a) => (

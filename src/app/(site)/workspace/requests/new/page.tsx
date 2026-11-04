@@ -10,7 +10,7 @@ import { Icon } from '@/ui/icons';
 import { getProfileStore } from '@/lib/profiles/store';
 import { getAddress, isAddress } from 'viem';
 import { avatarSrc, profilePath } from '@/lib/profiles/model';
-import { registryOwner } from '@/lib/registry/onchain';
+import { verifiedOwnedAgents } from '@/lib/profiles/owned-agents';
 
 export const metadata: Metadata = { title: 'Post a request', robots: { index: false } };
 
@@ -34,8 +34,7 @@ export default async function PostRequestPage({ searchParams }: { searchParams: 
   const copy = source ? { title: source.title, draft: draftFromRequest(source) } : null;
   const targetWallet = typeof sp.builder === 'string' && isAddress(sp.builder) ? getAddress(sp.builder) : null;
   const targetProfile = targetWallet ? getProfileStore().get(targetWallet) : null;
-  const targetOwners = targetProfile?.agents.length ? await Promise.all(targetProfile.agents.map((key) => { const [chain, token] = key.split(':'); return registryOwner(Number(chain), token).catch(() => null); })) : [];
-  const hasAgent = targetWallet && targetOwners.some((owner) => owner?.toLowerCase() === targetWallet.toLowerCase());
+  const hasAgent = targetWallet && targetProfile?.published && targetProfile.showBuilding && (await verifiedOwnedAgents(targetWallet)).length > 0;
   const target = targetWallet && targetProfile?.published && targetProfile.showBuilding && hasAgent
     ? { wallet: targetWallet, name: targetProfile.displayName || `@${targetProfile.handle}`, avatar: avatarSrc(targetProfile.avatar), href: profilePath(targetWallet, targetProfile.handle) }
     : null;
