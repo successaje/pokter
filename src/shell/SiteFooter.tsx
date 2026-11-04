@@ -2,6 +2,7 @@ import { FooterAssembly } from './FooterAssembly';
 import Link from 'next/link';
 
 import { GUIDES } from '@/lib/guides/catalogue';
+import { POKTER_SOCIAL_LINKS } from '@/lib/social/links';
 import { SUPPORT_EMAIL } from '@/lib/support/contact';
 import { Mark } from './Logo';
 
@@ -49,7 +50,9 @@ const GROUPS: Array<{ title: string; links: Array<{ href: string; label: string;
     title: 'Company',
     links: [
       { href: '/about', label: 'About' },
-      { href: 'https://x.com/usepokter', label: 'X (@usepokter)', external: true },
+      { href: POKTER_SOCIAL_LINKS.x, label: 'X (@usepokter)', external: true },
+      { href: POKTER_SOCIAL_LINKS.telegram, label: 'Telegram (Scout)', external: true },
+      { href: POKTER_SOCIAL_LINKS.discord, label: 'Discord', external: true },
       { href: `mailto:${SUPPORT_EMAIL}`, label: 'Contact', external: true },
     ],
   },
@@ -159,6 +162,8 @@ export function CompactFooter() {
     { href: '/rankings', label: 'Outcome rankings' },
     { href: '/leaderboard', label: 'Leaderboard' },
     { href: '/support', label: 'Support' },
+    { href: POKTER_SOCIAL_LINKS.telegram, label: 'Telegram' },
+    { href: POKTER_SOCIAL_LINKS.discord, label: 'Discord' },
     { href: '/terms', label: 'Terms' },
     { href: '/privacy', label: 'Privacy' },
     { href: '/risk', label: 'Risk' },
@@ -173,9 +178,11 @@ export function CompactFooter() {
           </Link>
           <nav aria-label="Footer" className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[13px]">
             {links.map((link) => (
-              <Link key={link.href} href={link.href} className="text-ink-2 hover:text-ink">
-                {link.label}
-              </Link>
+              link.href.startsWith('http') ? (
+                <a key={link.href} href={link.href} target="_blank" rel="noreferrer noopener" className="text-ink-2 hover:text-ink">{link.label}</a>
+              ) : (
+                <Link key={link.href} href={link.href} className="text-ink-2 hover:text-ink">{link.label}</Link>
+              )
             ))}
           </nav>
         </div>

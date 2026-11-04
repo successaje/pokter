@@ -57,6 +57,7 @@ primary_region = 'iad'
   # The public origin. demo-seller writes this into the deliverable URL it
   # commits on chain, so it must match the live host before anything delivers.
   NEXT_PUBLIC_APP_URL = 'https://pokter.xyz'
+  POKTER_TELEGRAM_BOT_USERNAME = 'PokterScoutBot'
   # Pins passkeys to the apex so a credential created on www still signs on
   # the bare domain. Without it the rpId follows whichever host was typed.
   NEXT_PUBLIC_PASSKEY_RP_ID = 'pokter.xyz'
