@@ -427,6 +427,18 @@ img { max-width: 100%; }
 }
 .pulse { animation: pulse-dot 1.4s ease-in-out infinite; }
 
+@keyframes hire-scan {
+  from { left: 82px; opacity: 0; }
+  8%, 88% { opacity: 1; }
+  to { left: 100%; opacity: 0; }
+}
+.hire-scan { animation: hire-scan 18s linear infinite; }
+@keyframes hire-chip {
+  0%, 9%, 100% { opacity: 1; transform: scale(1); }
+  4% { opacity: 0.55; transform: scale(1.55); }
+}
+.hire-chip { animation: hire-chip 18s ease-in-out infinite; }
+
 /*
  * A full-bleed section that ends a page meets the footer directly.
  *

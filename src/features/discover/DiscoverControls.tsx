@@ -38,10 +38,10 @@ export function DiscoverSearch({ params }: { params: DiscoverParams }) {
         event.preventDefault();
         start(() => router.push(discoverHref({ q: value.trim() }, params)));
       }}
-      /* One row from `sm`; on a phone the box takes the width and the two actions share the line under it. */
-      className="grid grid-cols-2 gap-2.5 sm:flex sm:flex-row"
+      /* Keep the search group shorter than the page header; on a phone the actions share the line below the input. */
+      className="grid max-w-[940px] grid-cols-2 gap-2.5 sm:flex sm:flex-row sm:items-center"
     >
-      <div className="col-span-2 flex min-h-13 flex-1 items-center gap-3 rounded-[12px] border border-rule-strong bg-raised px-4 transition-[border-color,box-shadow] focus-within:border-ink focus-within:shadow-[0_0_0_3px_color-mix(in_oklab,var(--signal)_24%,transparent)] sm:min-h-14 sm:rounded-[14px]">
+      <div className="col-span-2 flex min-h-12 flex-1 items-center gap-3 rounded-[12px] border border-rule-strong bg-raised px-4 transition-[border-color,box-shadow] focus-within:border-ink focus-within:shadow-[0_0_0_3px_color-mix(in_oklab,var(--signal)_24%,transparent)] sm:min-h-12">
         {pending ? <Spinner size={18} className="text-ink-3" /> : <Icon.Search size={18} className="shrink-0 text-ink-3" />}
         <label htmlFor="discover-q" className="sr-only">
           What outcome do you need?
@@ -51,11 +51,11 @@ export function DiscoverSearch({ params }: { params: DiscoverParams }) {
           id="discover-q"
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          placeholder="e.g. Watch my Venus loan for liquidation risk"
+          placeholder="What outcome do you need?"
           maxLength={400}
           autoComplete="off"
           enterKeyHint="search"
-          className="h-full min-w-0 flex-1 bg-transparent text-[15px] placeholder:text-ink-3 focus:outline-none sm:text-[16px]"
+          className="h-full min-w-0 flex-1 bg-transparent text-[15px] placeholder:text-ink-3 focus:outline-none"
         />
         {value && (
           <button
@@ -74,7 +74,7 @@ export function DiscoverSearch({ params }: { params: DiscoverParams }) {
       <button
         type="submit"
         disabled={pending}
-        className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-[11px] bg-ink px-6 text-[13.5px] font-semibold text-paper transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 sm:h-14 sm:rounded-[14px]"
+        className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-[11px] bg-ink px-5 text-[13.5px] font-semibold text-paper transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
       >
         Find an agent
         <Icon.Arrow size={14} />
@@ -86,7 +86,7 @@ export function DiscoverSearch({ params }: { params: DiscoverParams }) {
       */}
       <Link
         href={requestHrefFor(value)}
-        className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-[11px] border border-rule-strong px-6 text-[13.5px] font-semibold text-ink transition-colors hover:border-ink sm:h-14 sm:rounded-[14px]"
+        className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-[11px] px-2 text-[13.5px] font-medium text-ink-2 transition-colors hover:text-ink hover:underline"
       >
         <Icon.Plus size={15} aria-hidden />
         Post a request

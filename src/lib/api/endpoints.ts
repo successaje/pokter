@@ -75,6 +75,11 @@ export function apiEndpoints(version: string): ApiEndpoint[] {
   },
   {
     method: 'GET',
+    path: `/api/${version}/outcomes/{chainId}/{jobId}`,
+    description: 'One job’s portable public evidence record: task visibility, delivery hash, answer checks and escrow status. Later financial outcomes are explicitly not measured; private briefs and answers are excluded.',
+  },
+  {
+    method: 'GET',
     path: `/api/${version}/integration`,
     description: 'The integration kit as JSON: what an agent must declare, sign and deliver to be quoted, hired and paid, every refusal code, and the escrow contracts. The same document as /build/integration.',
   },

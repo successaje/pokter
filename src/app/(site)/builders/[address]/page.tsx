@@ -5,7 +5,10 @@ import { getAddress, isAddress, type Address } from 'viem';
 
 import { CATEGORY_BY_ID, GENERAL_CATEGORY_LABEL, classify } from '@/lib/agents/categories';
 import { getBriefStore } from '@/lib/briefs/store';
+import { quotePriceLabel } from '@/lib/find/price';
+import { getProbeStore, type QuoteRecord } from '@/lib/history/store';
 import { chainLabel, explorerBaseFor } from '@/lib/network/presentation';
+import { settlementChainOf } from '@/lib/network/tokens';
 import { agentJobs, agentRecord, eligibleReviews, hirerRecord, JOB_STATE_LABEL, operatorRecord, type NetworkRecord } from '@/lib/profiles/evidence';
 import { avatarSrc, linkLabel, profileContentOf, profilePath, USAGES, type Profile } from '@/lib/profiles/model';
 import { getProfileStore } from '@/lib/profiles/store';
@@ -39,6 +42,7 @@ function resolve(param: string): { wallet: Address; profile: Profile | null } | 
 }
 
 const short = (wallet: string) => `${wallet.slice(0, 6)}…${wallet.slice(-4)}`;
+function renderedAt(): number { return Date.now(); }
 
 export async function generateMetadata({ params }: { params: Promise<{ address: string }> }): Promise<Metadata> {
   const found = resolve((await params).address);
@@ -73,6 +77,7 @@ export default async function ProfilePage({
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
   const [{ address: raw }, sp] = await Promise.all([params, searchParams]);
+  const now = renderedAt();
   const found = resolve(raw);
   if (!found) notFound();
   const { wallet, profile } = found;
@@ -123,6 +128,12 @@ export default async function ProfilePage({
       };
     })
     .sort((x, y) => Number(y.pinned) - Number(x.pinned));
+  const quotes = getProbeStore().quotesFor(shown.map((agent) => ({ chainId: agent.chainId, tokenId: agent.tokenId })));
+  const checksSince = new Date(now - 30 * 86_400_000);
+  const checks = ([56, 97] as const).map((chainId) => {
+    const rows = shown.filter((agent) => agent.chainId === chainId).flatMap((agent) => getProbeStore().historyFor(agent.chainId, agent.tokenId, checksSince));
+    return { chainId, total: rows.length, answered: rows.filter((row) => row.ok).length, last: rows.map((row) => row.probedAt).sort().at(-1) ?? null };
+  });
 
   const sections: View[] = published ? [...(published.showBuilding ? (['building'] as const) : []), ...(published.showHiring ? (['hiring'] as const) : [])] : [];
   const preferred: View = published?.usage === 'hire' ? 'hiring' : 'building';
@@ -136,18 +147,19 @@ export default async function ProfilePage({
   const name = published?.displayName || (published?.handle ? `@${published.handle}` : short(wallet));
   const role = published?.usage ? USAGES.find((u) => u.id === published.usage)?.role : null;
   const requests = getBriefStore().byPoster(wallet);
+  const theme = published?.theme === 'forest' ? 'bg-[#173d33] text-white' : published?.theme === 'sand' ? 'bg-[#d9c9a8] text-[#222017]' : 'bg-[#191b20] text-white';
 
   const identity = (
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-4 lg:flex-col lg:items-start">
         <AvatarImage src={avatarSrc(published?.avatar ?? '')} fallback={avatarUrl(wallet.toLowerCase())} name={name} size={88} className="shrink-0 rounded-full" eager />
         <div className="flex min-w-0 flex-col gap-0.5">
-          <h1 className="break-words text-[clamp(1.5rem,3vw,1.9rem)] font-semibold leading-tight tracking-[-0.02em]">{published?.displayName || (published?.handle ? `@${published.handle}` : <span className="t-readout">{short(wallet)}</span>)}</h1>
-          {published?.handle && published.displayName && <span className="text-[14.5px] text-ink-3">@{published.handle}</span>}
+          {published ? <span className="text-[14.5px] font-medium text-ink-2">@{published.handle}</span> : <h1 className="break-words text-[clamp(1.5rem,3vw,1.9rem)] font-semibold leading-tight tracking-[-0.02em]"><span className="t-readout">{short(wallet)}</span></h1>}
           {role && <span className="mt-1 w-fit rounded-full bg-sunken px-2.5 py-0.5 text-[12.5px] font-medium text-ink-2">{role}</span>}
         </div>
       </div>
-      {published?.bio && <p className="whitespace-pre-wrap break-words text-[14.5px] leading-relaxed text-ink-2">{published.bio}</p>}
+      {published && ((published.bio && published.tagline) || published.tags.length > 0 || published.links.length > 0) && <span className="t-label">Builder-provided</span>}
+      {published?.bio && published.tagline && <p className="whitespace-pre-wrap break-words text-[14.5px] leading-relaxed text-ink-2">{published.bio}</p>}
       {published && published.showBuilding && published.tags.length > 0 && (
         <ul aria-label="Builds" className="flex flex-wrap gap-1.5">
           {published.tags.map((t) => (
@@ -185,7 +197,8 @@ export default async function ProfilePage({
       </div>
 
       {/* What was checked, said exactly. None of it is identity verification or an endorsement. */}
-      <ul aria-label="Checks" className="flex flex-col gap-2 border-t border-rule pt-4 text-[12.5px]">
+      <ul aria-label="Pokter-observed checks" className="flex flex-col gap-2 border-t border-rule pt-4 text-[12.5px]">
+        <li className="t-label">Pokter-observed</li>
         {published && (
           <li className="flex flex-col">
             <span className="inline-flex items-center gap-1 font-medium text-ok">
@@ -232,6 +245,14 @@ export default async function ProfilePage({
 
   return (
     <div className="frame pb-24 pt-8 sm:pt-12">
+      {published && (
+        <section className={cn('mb-8 overflow-hidden rounded-[18px] px-6 py-8 sm:px-9 sm:py-10', theme)} aria-label="Builder storefront header">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.14em] opacity-70">Builder profile · @{published.handle}</span>
+          <h1 className="mt-3 max-w-3xl break-words text-[clamp(2rem,4vw,3.5rem)] font-semibold leading-[1.03] tracking-[-0.04em]">{name}</h1>
+          {(published.tagline || published.bio) && <p className="mt-3 max-w-2xl text-[clamp(1rem,1.7vw,1.25rem)] leading-relaxed opacity-85">{published.tagline || published.bio}</p>}
+          <p className="mt-5 text-[12px] opacity-70">Profile text and style chosen by the builder · agent ownership and work checked separately below</p>
+        </section>
+      )}
       <ProfileShell wallet={wallet} published={published ? profileContentOf(published) : null} hasSaved={Boolean(profile)} agents={ownedOptions} hiringActivity={hiringActivity} identity={identity}>
         {!published ? (
           <RegistryView agents={ownedOptions} unavailable={indexUnavailable} />
@@ -256,8 +277,8 @@ export default async function ProfilePage({
               ))}
             </nav>
 
-            {view === 'building' && tab === 'overview' && <BuildingOverview agents={shown} wallet={wallet} operator={operator} reviews={reviews} reviewsHref={href('building', 'reviews')} agentsHref={href('building', 'agents')} />}
-            {view === 'building' && tab === 'agents' && <AgentsTab agents={shown} wallet={wallet} />}
+            {view === 'building' && tab === 'overview' && <BuildingOverview agents={shown} wallet={wallet} operator={operator} reviews={reviews} checks={checks} quotes={quotes} now={now} reviewsHref={href('building', 'reviews')} agentsHref={href('building', 'agents')} />}
+            {view === 'building' && tab === 'agents' && <AgentsTab agents={shown} wallet={wallet} quotes={quotes} now={now} />}
             {view === 'building' && tab === 'work' && <WorkTab agents={shown} wallet={wallet} takenOn={operator.jobIds} />}
             {view === 'building' && tab === 'reviews' && <ReviewsTab data={reviews} />}
             {view === 'hiring' && tab === 'overview' && <HiringOverview record={hiring} requestsHref={href('hiring', 'requests')} />}
@@ -325,7 +346,7 @@ function RegistryView({ agents, unavailable }: { agents: Array<{ key: string; ch
 }
 
 function day(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
 }
 
 function RecordTable({ mainnet, testnet, caption = 'External customer jobs' }: { mainnet: NetworkRecord; testnet: NetworkRecord; caption?: string }) {
@@ -371,7 +392,7 @@ function RecordTable({ mainnet, testnet, caption = 'External customer jobs' }: {
  * this person's ownership checks out, and the two things a visitor can
  * do with it. Its track record is one click away, not the card's bulk.
  */
-function AgentCard({ agent, wallet }: { agent: ShownAgent; wallet: string }) {
+function AgentCard({ agent, wallet, quote, now }: { agent: ShownAgent; wallet: string; quote: QuoteRecord | null; now: number }) {
   const record = agentRecord(agent.chainId, agent.tokenId, wallet);
   const history = record.mainnet.funded + record.testnet.funded > 0;
   const testnet = agent.chainId === 97;
@@ -397,6 +418,12 @@ function AgentCard({ agent, wallet }: { agent: ShownAgent; wallet: string }) {
         </div>
       </div>
       {agent.description && <p className="line-clamp-3 break-words text-[13.5px] leading-relaxed text-ink-2">{agent.description}</p>}
+      <div className="flex flex-col gap-0.5 border-t border-rule pt-3">
+        <span className="t-label">{quote ? 'Last signed quote' : 'Price'}</span>
+        {quote ? (
+          <><span className="t-readout text-[17px]">{quotePriceLabel(quote)}</span><span className="text-[11.5px] text-ink-3">{settlementChainOf(quote.currency) ? chainLabel(settlementChainOf(quote.currency)!) : 'Currency not supported'} · quoted {day(quote.quotedAt)}{quote.expiresAt && Date.parse(quote.expiresAt) <= now ? ' · expired' : ''}. A fresh price is checked for your brief.</span></>
+        ) : <span className="text-[12.5px] text-ink-3">No signed price observed yet.</span>}
+      </div>
       <span className={cn('inline-flex items-center gap-1 text-[12.5px] font-medium', agent.status === 'owned' ? 'text-ok' : 'text-watch')}>
         {agent.status === 'owned' ? <Icon.Shield size={13} aria-hidden /> : <Icon.Alert size={13} aria-hidden />}
         {agent.status === 'owned' ? 'Ownership verified' : 'Ownership check unavailable'}
@@ -434,6 +461,9 @@ function BuildingOverview({
   wallet,
   operator,
   reviews,
+  checks,
+  quotes,
+  now,
   reviewsHref,
   agentsHref,
 }: {
@@ -441,6 +471,9 @@ function BuildingOverview({
   wallet: string;
   operator: ReturnType<typeof operatorRecord>;
   reviews: ReturnType<typeof eligibleReviews>;
+  checks: Array<{ chainId: number; total: number; answered: number; last: string | null }>;
+  quotes: Map<string, QuoteRecord>;
+  now: number;
   reviewsHref: string;
   agentsHref: string;
 }) {
@@ -449,10 +482,32 @@ function BuildingOverview({
   const featured = agents.slice(0, 4);
   return (
     <div className="flex flex-col gap-8">
+      <section aria-labelledby="builder-evidence" className="flex flex-col gap-3">
+        <div>
+          <span className="t-label">Pokter-observed evidence</span>
+          <h2 id="builder-evidence" className="mt-1 text-[17px] font-semibold">What has been checked and paid for</h2>
+          <p className="mt-1 text-[12.5px] leading-relaxed text-ink-3">Checks cover agents shown here over the last 30 days. Paid jobs and outside-buyer deliveries follow this wallet as owner at funding, including agents it no longer shows.</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {checks.map((check) => {
+            const jobs = check.chainId === 56 ? operator.mainnet : operator.testnet;
+            const evidenceNote = check.total === 0 && jobs.funded === 0 ? 'Not enough evidence yet.' : jobs.funded === 0 ? 'No outside-buyer paid work yet.' : check.total < 10 ? 'Limited recent checks.' : null;
+            return <div key={check.chainId} className="rounded-[12px] border border-rule bg-raised p-4">
+              <p className="text-[13px] font-semibold">{chainLabel(check.chainId)}</p>
+              <dl className="mt-3 grid grid-cols-3 gap-2">
+                <div><dt className="text-[11px] text-ink-3">Answered checks</dt><dd className="t-readout text-[16px]">{check.answered}/{check.total}</dd></div>
+                <div><dt className="text-[11px] text-ink-3">Outside jobs</dt><dd className="t-readout text-[16px]">{jobs.funded}</dd></div>
+                <div><dt className="text-[11px] text-ink-3">Outside deliveries</dt><dd className="t-readout text-[16px]">{jobs.submitted}</dd></div>
+              </dl>
+              <p className="mt-3 text-[11.5px] text-ink-3">{evidenceNote && <span className="font-medium text-ink-2">{evidenceNote} </span>}{check.last ? `Last check ${day(check.last)}` : 'No checks in 30 days'} · owner job records {operator.since ? `since ${day(operator.since)}` : 'not yet available'}</p>
+            </div>;
+          })}
+        </div>
+      </section>
       <section aria-labelledby="featured-title" className="flex flex-col gap-3">
         <div className="flex items-baseline justify-between">
           <h2 id="featured-title" className="text-[17px] font-semibold">
-            Agents
+            Services and agents
           </h2>
           {agents.length > featured.length && (
             <Link href={agentsHref} className="text-[13px] font-medium text-ink-2 hover:text-ink">
@@ -460,9 +515,10 @@ function BuildingOverview({
             </Link>
           )}
         </div>
+        <p className="text-[12.5px] text-ink-3">Descriptions are builder or agent claims. Prices are last signed quotes where available, not a promise of your final price.</p>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {featured.map((a) => (
-            <AgentCard key={a.key} agent={a} wallet={wallet} />
+            <AgentCard key={a.key} agent={a} wallet={wallet} quote={quotes.get(a.key) ?? null} now={now} />
           ))}
         </div>
       </section>
@@ -484,12 +540,12 @@ function BuildingOverview({
   );
 }
 
-function AgentsTab({ agents, wallet }: { agents: ShownAgent[]; wallet: string }) {
+function AgentsTab({ agents, wallet, quotes, now }: { agents: ShownAgent[]; wallet: string; quotes: Map<string, QuoteRecord>; now: number }) {
   if (agents.length === 0) return <Empty title="No agents shown">This profile has not chosen any agents to show.</Empty>;
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
       {agents.map((a) => (
-        <AgentCard key={a.key} agent={a} wallet={wallet} />
+        <AgentCard key={a.key} agent={a} wallet={wallet} quote={quotes.get(a.key) ?? null} now={now} />
       ))}
     </div>
   );

@@ -51,6 +51,10 @@ import { StructuredProfile } from '@/features/agent/StructuredProfile';
 import { TradesForYouCard } from '@/features/trading/TradesForYouCard';
 import { structuredProfile } from '@/features/agent/structured';
 import { hireBlocker } from '@/lib/hire/blocker';
+import { avatarSrc, profilePath } from '@/lib/profiles/model';
+import { getProfileStore } from '@/lib/profiles/store';
+import { AvatarImage } from '@/ui/AvatarImage';
+import { avatarUrl } from '@/lib/ui/avatar-art';
 
 export const dynamic = 'force-dynamic';
 
@@ -66,6 +70,27 @@ export const dynamic = 'force-dynamic';
    a testnet job says testnet.bscscan.com because that is where its link goes. */
 function explorerHost(chainId: number): string {
   return explorerBaseFor(chainId).replace('https://', '');
+}
+
+/** Registry ownership is observed; the name and bio are signed, self-provided profile content. */
+function BuilderIdentity({ owner }: { owner: string }) {
+  const profile = getProfileStore().get(owner);
+  const published = profile?.published ? profile : null;
+  const name = published?.displayName || (published?.handle ? `@${published.handle}` : `${owner.slice(0, 6)}…${owner.slice(-4)}`);
+  return (
+    <section aria-label="Builder identity" className="mt-4 rounded-[14px] border border-rule bg-raised p-4">
+      <span className="t-label">Built by</span>
+      <div className="mt-3 flex items-center gap-3">
+        <AvatarImage src={avatarSrc(published?.avatar ?? '')} fallback={avatarUrl(owner.toLowerCase())} name={name} size={40} className="shrink-0 rounded-full" />
+        <div className="flex min-w-0 flex-col">
+          <Link href={profilePath(owner, published?.handle)} className="truncate text-[14px] font-semibold hover:underline">{name}</Link>
+          {published && <span className="t-readout text-[12px] text-ink-3">@{published.handle} · {owner.slice(0, 6)}…{owner.slice(-4)}</span>}
+        </div>
+      </div>
+      <p className="mt-3 text-[12px] leading-relaxed text-ink-3">{published ? 'Builder name and bio are self-provided; this wallet owns the agent in the registry.' : 'Registry owner. No public builder profile has been published yet.'}</p>
+      <Link href={profilePath(owner, published?.handle)} className="mt-3 inline-flex items-center gap-1 text-[12.5px] font-medium hover:underline">View builder and services <Icon.Arrow size={12} aria-hidden /></Link>
+    </section>
+  );
 }
 
 const REVIEW_SPEED: Record<string, string> = {
@@ -1249,12 +1274,14 @@ export default async function AgentPage({ params, searchParams }: { params: Para
         <div className="hidden lg:block">
           <div className="sticky top-32">
             <HirePanel profile={p} />
+            <BuilderIdentity owner={p.owner} />
             <TradesForYouCard chainId={p.chainId} tokenId={p.tokenId} />
           </div>
         </div>
       </div>
       <div className="frame mt-12 lg:hidden">
         <HirePanel profile={p} />
+        <BuilderIdentity owner={p.owner} />
         <TradesForYouCard chainId={p.chainId} tokenId={p.tokenId} />
       </div>
       <MobileHireBar profile={p} />

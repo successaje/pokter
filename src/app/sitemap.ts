@@ -2,6 +2,7 @@ import type { MetadataRoute } from 'next';
 
 import { listMarketplace } from '@/lib/marketplace';
 import { CATEGORIES } from '@/lib/agents/categories';
+import { FLAGSHIP_PLAYBOOKS } from '@/lib/agents/flagship-playbooks';
 import { acceptsProposals } from '@/lib/briefs/model';
 import { getBriefStore } from '@/lib/briefs/store';
 import { getJobStore } from '@/lib/erc8183/store';
@@ -28,6 +29,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { path: '/guides', priority: 0.9 },
     ...GUIDES.map((g) => ({ path: g.href, priority: 0.9 })),
     { path: '/discover', priority: 0.9 },
+    ...Object.keys(FLAGSHIP_PLAYBOOKS).map((category) => ({ path: `/task-guides/${category}`, priority: 0.7 })),
     { path: '/requests', priority: 0.8 },
     { path: '/how-it-works', priority: 0.8 },
     { path: '/methodology', priority: 0.8 },

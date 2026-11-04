@@ -9,6 +9,7 @@ import { PlanChecks } from '@/features/delivery/PlanChecks';
 import { loadJobEvidence, type JobEvidence } from '@/lib/jobs/evidence';
 import { FUNDER_LABEL, fundedWhen, jobEvidencePath, jobStatusWords, utcWhen } from '@/lib/jobs/evidence-view';
 import { jobChainParam, jobHref } from '@/lib/jobs/href';
+import { outcomeRecord } from '@/lib/jobs/outcome-record';
 import { chainLabel, explorerBaseFor } from '@/lib/network/presentation';
 
 /*
@@ -63,6 +64,7 @@ export default async function JobEvidencePage({ params }: { params: Promise<Para
 
   const explorer = explorerBaseFor(e.chainId);
   const status = jobStatusWords(e.status, e.paidToCourier);
+  const record = outcomeRecord(e);
   const settled = e.status === 'COMPLETED' || e.status === 'REJECTED' || e.status === 'EXPIRED';
   const facts: Array<{ label: string; value: ReactNode }> = [
     { label: 'Network', value: `${chainLabel(e.chainId)} (${e.chainId})${e.chainId === 97 ? ', test tokens with no value' : ''}` },
@@ -117,6 +119,27 @@ export default async function JobEvidencePage({ params }: { params: Promise<Para
           ))}
         </dl>
       </section>
+
+      <DocSection id="outcome-record" title="What this job proves">
+        <p>One record for the task, the answer and what happened afterward. Each stage keeps its own evidence; settlement alone is not a verdict on the answer.</p>
+        <dl className="grid gap-px overflow-hidden rounded-[14px] border border-rule bg-rule sm:grid-cols-2 xl:grid-cols-5">
+          {[
+            { label: 'Task', value: record.task.brief === 'public-on-job-page' ? 'Brief visible below' : 'Buyer brief private', note: record.task.terms === 'signed-by-agent' ? 'Check terms signed by the agent' : record.task.terms === 'recorded-by-pokter' ? 'Check plan recorded by Pokter' : 'No check plan recorded' },
+            { label: 'Delivery', value: record.delivery.hashMatched === true ? 'Hash matches' : record.delivery.hashMatched === false ? 'Hash mismatch' : record.delivery.submittedAt ? 'Not verified' : 'Awaiting delivery', note: record.delivery.paidToCourier ? 'Carried and paid to Pokter’s courier' : 'Agent delivery path' },
+            { label: 'Answer checks', value: record.answerChecks.state === 'published-and-checked' ? `${record.answerChecks.passed} passed · ${record.answerChecks.failed} failed` : record.answerChecks.state === 'answer-private' ? 'Buyer kept answer private' : 'No result available', note: record.answerChecks.state === 'published-and-checked' ? `${record.answerChecks.notVerified} not verified · ${record.answerChecks.agreedBeforeFunding ? 'signed plan' : 'no signed plan established'}` : 'No private answer is exposed here' },
+            { label: 'Escrow', value: status.label, note: record.settlement.source === 'onchain' ? 'Status read from the chain' : 'Last status in Pokter’s index' },
+            { label: 'Observed outcome', value: 'Not measured', note: 'No later execution, position or return linked to this job' },
+          ].map((stage) => (
+            <div key={stage.label} className="flex flex-col gap-2 bg-raised p-4">
+              <dt className="t-label">{stage.label}</dt>
+              <dd className="text-[14px] font-semibold text-ink">{stage.value}</dd>
+              <dd className="text-[12px] leading-relaxed text-ink-3">{stage.note}</dd>
+            </div>
+          ))}
+        </dl>
+        <p className="text-[13px] text-ink-3">{record.observedOutcome.reason}</p>
+        <Link href={`/api/v1/outcomes/${e.chainId}/${e.jobId}`} className="link text-[13px]">Read the portable JSON record</Link>
+      </DocSection>
 
       <DocSection id="evidence" title="What the chain says, and what Pokter checked">
         <ol className="flex flex-col divide-y divide-rule border-y border-rule">

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Suspense } from 'react';
 
 import { RememberDiscoverResults } from '@/features/discover/ReturnToResults';
+import { HirePulse, type HireMark } from '@/features/discover/HirePulse';
 
 import { AgentCard, AgentRow, MiniAgentCard } from '@/features/agents/AgentCard';
 import { CompareToggle, CompareTray } from '@/features/compare/CompareControls';
@@ -19,10 +20,16 @@ import { FilterBar } from '@/features/discover/FilterBar';
 import { deliveryTimes, DELIVERY_LOOKUP_CONCURRENCY } from '@/lib/agent/delivery-times';
 import { mapWithConcurrency } from '@/lib/concurrency';
 import { outsideActivity } from '@/lib/erc8183/outside-activity';
+import { fundingEvidence } from '@/lib/erc8183/funding-evidence';
+import { isSelfHire } from '@/lib/erc8183/production-proof';
+import { getJobStore } from '@/lib/erc8183/store';
+import { teamWalletSet } from '@/lib/team/server';
+import { fundedByTeam } from '@/lib/team/wallets';
 import { EmptyState, Notice } from '@/ui/Feedback';
 import { Icon } from '@/ui/icons';
 import { LinkButton } from '@/ui/Button';
 import { CATEGORIES, GENERAL_CATEGORY_LABEL } from '@/lib/agents/categories';
+import { FLAGSHIP_CATEGORY_ORDER, flagshipPlaybook } from '@/lib/agents/flagship-playbooks';
 import type { FindRow } from '@/lib/find/rows';
 import { requestHrefFor } from '@/features/discover/params';
 import { lastCheckAt } from '@/lib/history/last-check';
@@ -109,12 +116,24 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
   const checkedAt = lastCheckAt();
   /* The newest few requests still taking proposals. */
   const now = renderedAt();
+  const team = teamWalletSet();
+  const hireMarks: HireMark[] = getJobStore().all()
+    .filter((job) => (job.chainId === 56 || job.chainId === 97) && fundingEvidence(job) === 'funded')
+    .map((job) => ({
+      chainId: job.chainId,
+      jobId: job.jobId,
+      agentName: job.agentName,
+      hiredAt: job.hiredAt,
+      status: job.status,
+      funder: isSelfHire(job) ? 'self' : fundedByTeam(job, team) ? 'team' : 'outside',
+    }));
   const open = requestRows(now)
     .filter((r) => r.taking)
     .sort((x, y) => Date.parse(y.postedAt) - Date.parse(x.postedAt));
   const openTotal = open.length;
   const openRequests = open.slice(0, 4);
   const activeFilters = [p.category, p.hireable, p.answering, p.priced, p.checked, p.outsideDelivery, p.evidence !== 'any', p.chain !== 'any'].filter(Boolean).length;
+  const playbook = flagshipPlaybook(p.category);
 
   return (
     <div className="frame pb-24 pt-8 sm:pt-12">
@@ -195,13 +214,13 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
           <DiscoverSearch params={base} />
         </div>
         {activity.funded > 0 && (
-          <ul aria-label="Across all of Pokter, not just these results" className="grid grid-cols-2 gap-x-6 gap-y-3 text-[13px] sm:order-1 sm:flex sm:flex-wrap sm:items-baseline sm:gap-x-7 sm:gap-y-2">
+          <ul aria-label="Across Pokter on testnet and mainnet, not just these results" className="grid grid-cols-2 gap-x-6 gap-y-3 text-[13px] sm:order-1 sm:flex sm:flex-wrap sm:items-baseline sm:gap-x-7 sm:gap-y-2">
             {/*
               Marketplace-wide, and said so: under a category filter, "8
               outside deliveries" sat above one Health Factor result and read
               as that category's record.
             */}
-            <li className="t-label col-span-2 self-center sm:col-span-1">Across Pokter</li>
+            <li className="t-label col-span-2 self-center sm:col-span-1">Across Pokter <span className="ml-1 text-ink-3">Testnet + mainnet</span></li>
             {[
               { value: activity.funded, label: 'outside jobs funded', note: 'Funded through Pokter\u2019s escrow by a buyer that is not Pokter, on either chain, with lifecycle demonstrations and self-hires taken out.' },
               { value: activity.open, label: 'open now', note: 'Funded or delivered and not yet settled: the escrow is still holding the money.' },
@@ -214,6 +233,14 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
             ))}
           </ul>
         )}
+        <nav aria-label="Task guides" className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12.5px] sm:order-3">
+          <span className="t-label">Plan a better hire</span>
+          {FLAGSHIP_CATEGORY_ORDER.map((category) => (
+            <Link key={category} href={`/task-guides/${category}`} className="text-ink-2 hover:text-ink hover:underline">
+              {CATEGORIES.find((item) => item.id === category)?.label}
+            </Link>
+          ))}
+        </nav>
       </header>
 
 
@@ -262,6 +289,17 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
       <div className="mt-8 flex flex-col gap-6">
         <FilterBar p={base} counts={result.categoryCounts} allTasks={result.allTasksCount} filterCounts={result.filterCounts} />
 
+        {playbook && (
+          <section aria-label={`${CATEGORIES.find((category) => category.id === playbook.category)?.label} buying guide`} className="flex flex-col gap-3 rounded-[14px] border border-rule bg-raised p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6 sm:p-5">
+            <div>
+              <span className="t-label">Before you hire</span>
+              <h2 className="mt-1 text-[16px] font-semibold tracking-[-0.01em]">{playbook.headline}</h2>
+              <p className="mt-1 max-w-2xl text-[13px] leading-relaxed text-ink-2">{playbook.summary}</p>
+            </div>
+            <Link href={`/task-guides/${playbook.category}`} className="inline-flex shrink-0 items-center gap-1.5 text-[13px] font-medium text-ink hover:underline">See the brief and checks <Icon.Arrow size={13} /></Link>
+          </section>
+        )}
+
         <section aria-label="Results" className="min-w-0">
           {/* The top few that can be hired, asked for a price on these exact words. Only when there are words, and at least two to compare. */}
           {p.q && result.total > 0 && (
@@ -300,9 +338,21 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
                   and "Outcome rankings" were here and are errands rather
                   than a next step — both are still in the footer and on
                   their own pages. */}
-              <div className="flex w-full items-center justify-between gap-3 sm:w-auto sm:justify-end">
-                <SortSelect params={base} variant="inline" />
-                <Link href="/agents" className="t-readout inline-flex shrink-0 items-center gap-1 text-[13px] text-ink-2 hover:text-ink hover:underline">
+              <div className="flex w-full flex-wrap items-center justify-between gap-x-1.5 gap-y-2 sm:w-auto sm:justify-end sm:gap-x-3">
+                <details className="relative shrink-0 text-[12.5px] leading-relaxed text-ink-3">
+                  <summary className="cursor-pointer font-medium text-ink-2 hover:text-ink">Why this order?</summary>
+                  <p className="absolute left-0 top-full z-20 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-[10px] border border-rule bg-raised p-3 shadow-lg sm:right-0 sm:left-auto">
+                    {p.q && 'Name and task matches lead; the chosen sort orders agents within each match group. '}
+                    {p.sort === 'recommended' && 'Hireable agents lead, followed by payable signed prices, fewer missed jobs, outside-buyer completed work, passed checks, and recent replies. Pokter-operated agents receive no boost.'}
+                    {p.sort === 'reliable' && 'Agents need at least 20 probes this week to rank on reliability. Missed paid jobs lower their place; agents with too few probes remain visible afterward.'}
+                    {p.sort === 'responsive' && 'Agents with a higher share of answered calls in the last 24 hours lead.'}
+                    {p.sort === 'completed' && 'Jobs completed through Pokter lead. Jobs merely funded do not count as completed work.'}
+                    {p.sort === 'evidence' && 'More Pokter probes and published attestations lead. This is evidence volume, not a quality score.'}
+                    {p.sort === 'price' && 'Current signed prices that this escrow can pay are sorted lowest first. Agents without one follow.'}
+                  </p>
+                </details>
+                <SortSelect params={base} variant="inline" className="gap-1 sm:gap-2" />
+                <Link href="/agents" className="t-readout inline-flex shrink-0 items-center gap-0.5 text-[12.5px] text-ink-2 hover:text-ink hover:underline sm:gap-1 sm:text-[13px]">
                   View all <Icon.Arrow size={13} />
                 </Link>
               </div>
@@ -346,12 +396,13 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
             </div>
           )}
         </section>
+        <HirePulse initial={hireMarks} initialAsOf={now} />
 
         {/* The newest listings, under the results rather than inside them:
             these are not matches for anything that was asked, so they sit
             below the count that closes the search. */}
         {result.recent.length > 0 && (
-          <section aria-labelledby="recent-title" className="mt-6 border-t border-rule pt-8">
+          <section aria-labelledby="recent-title" className="pt-2">
             <h2 id="recent-title" className="t-label mb-4">Recently listed</h2>
             <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {result.recent.map((row) => (
