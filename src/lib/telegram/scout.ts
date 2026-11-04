@@ -6,7 +6,7 @@ import type { Service } from '@/lib/services/model';
 import { consumeRateLimit } from '@/lib/security/rate-limit';
 import { marketplaceBotReply, publicPage, scoutMenu, type BotButton, type BotReply } from './marketplace-bot';
 import { forgetChat, readChat, saveChat } from './chat-store';
-import { generateScoutAnswer } from './scout-ai';
+import { generateScoutAnswer } from './scout-gemini';
 
 const network = (chainId: number) => chainId === 97 ? 'BNB Testnet' : 'BNB Mainnet';
 const short = (text: string, max = 135) => text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text;
@@ -184,10 +184,10 @@ async function chatWithScout(raw: string, chatId: number): Promise<BotReply> {
   const buttons = search && 'inline_keyboard' in search.reply_markup
     ? search.reply_markup.inline_keyboard : state.buttons;
   try {
-    const answer = await generateScoutAnswer({ message: raw, turns: state.turns, evidence, apiKey: process.env.SCOUT_OPENAI_API_KEY! });
+    const answer = await generateScoutAnswer({ message: raw, turns: state.turns, evidence, apiKey: process.env.SCOUT_GEMINI_API_KEY! });
     saveChat(chatId, {
       turns: [...state.turns, { role: 'user', content: raw }, { role: 'assistant', content: answer }],
-      evidence, buttons,
+      evidence, buttons, aiEnabled: true,
     });
     return reply(answer, buttons.length ? buttons : [[link('Explore Pokter', publicPage('/discover'))]]);
   } catch {
@@ -210,6 +210,19 @@ export async function scoutReply(message: string, isPrivate: boolean, chatId?: n
     if (chatId !== undefined) forgetChat(chatId);
     return reply('I’ve cleared your recent Scout conversation from Pokter.', [[link('Open Discover', publicPage('/discover'))]]);
   }
+  if (isPrivate && (raw === '/ai' || raw === 'Chat with Scout')) {
+    if (!process.env.SCOUT_GEMINI_API_KEY) return reply('AI chat is not available yet. You can still search agents and check evidence here.', [[link('Open Discover', publicPage('/discover'))]]);
+    return {
+      text: 'AI chat uses Gemini’s free tier. Google may use submitted content to improve its products. Your messages and recent Scout context go to Gemini; never send private keys, passwords or confidential briefs. Pokter keeps recent chat available for 24 hours, and /forget clears it. Read https://pokter.xyz/privacy.\n\nTap Enable AI chat if you agree.',
+      reply_markup: { keyboard: [[{ text: 'Enable AI chat' }], [{ text: 'Back to menu' }]], resize_keyboard: true, is_persistent: true },
+    };
+  }
+  if (isPrivate && raw === 'Enable AI chat') {
+    if (!process.env.SCOUT_GEMINI_API_KEY || chatId === undefined) return reply('AI chat is not available yet. You can still search agents here.', [[link('Open Discover', publicPage('/discover'))]]);
+    const state = readChat(chatId);
+    saveChat(chatId, { ...state, aiEnabled: true });
+    return reply('AI chat is on. Ask me about an agent or describe a task. I’ll use Pokter evidence and link you to the source. Send /forget to clear this chat.', [[link('Browse agents', publicPage('/discover'))]]);
+  }
   if (raw === 'Find an agent' || raw === '/find' || raw === '/discover') return categoryKeyboard(false);
   if (raw === 'All categories' || raw === '/categories') return categoryKeyboard(true);
   if (raw === 'Check an agent' || raw === '/check') return reply('Send a Pokter agent URL or a network and ID, such as 56:123 or 97:123. I’ll show what Pokter has measured and what remains missing.', [[link('Browse agents', publicPage('/discover'))]]);
@@ -225,5 +238,5 @@ export async function scoutReply(message: string, isPrivate: boolean, chatId?: n
   if (category) return findAgents('', category.id);
   if (raw.startsWith('/')) return isPrivate ? scoutMenu() : null;
   if (!isPrivate) return null;
-  return process.env.SCOUT_OPENAI_API_KEY && chatId !== undefined ? chatWithScout(raw, chatId) : findAgents(raw);
+  return process.env.SCOUT_GEMINI_API_KEY && chatId !== undefined && readChat(chatId).aiEnabled ? chatWithScout(raw, chatId) : findAgents(raw);
 }

@@ -40,7 +40,7 @@ export default function PrivacyPage() {
           <strong>On Pokter&rsquo;s servers:</strong> a record of each job hired through Pokter (including its brief and the wallet that funded it), the prices you asked agents for, hires you started and did not finish, requests, bids, reviews, profiles, email subscriptions and publisher verifications. Most of it is kept with no automatic deletion; the exceptions are listed below.
         </li>
         <li>
-          <strong>Scout in Telegram:</strong> when AI chat is enabled, Pokter makes the last six short turns and recent public evidence available to Scout for 24 hours. Send /forget in Scout to remove that chat immediately.
+          <strong>Scout in Telegram:</strong> if you opt into AI chat, Pokter makes the last six short turns and recent public evidence available to Scout for 24 hours. Send /forget in Scout to remove that chat and turn AI off immediately.
         </li>
         <li>
           <strong>Published by Pokter:</strong> each job&rsquo;s evidence page: its status, amount and token, and whether the delivery matches its hash. The agent&rsquo;s answer only if you choose to publish it; your brief and your address never, except on Pokter&rsquo;s own test jobs.
@@ -94,7 +94,7 @@ export default function PrivacyPage() {
           <strong>Request data:</strong> to apply rate limits, your IP address is used as a key for about an hour. The hosting provider processes ordinary request data (IP address, user agent, the page requested) to serve the site. None of it is used to profile visitors or sold.
         </li>
         <li>
-          <strong>Scout AI chat:</strong> recent private Telegram messages, Scout&rsquo;s replies and the public Pokter evidence used for the answer are available to Scout for 24 hours. The Telegram chat id is kept only in this local record for conversation continuity and rate limits. /forget deletes the conversation; expired rows are removed when the store is next used.
+          <strong>Scout AI chat:</strong> after you tap Enable AI chat, recent private Telegram messages, Scout&rsquo;s replies and the public Pokter evidence used for the answer are available to Scout for 24 hours. The Telegram chat id is kept only in this local record for conversation continuity and rate limits. /forget deletes the conversation and turns AI off; expired rows are removed when the store is next used.
         </li>
         <li>
           <strong>Operator counts:</strong> Pokter&rsquo;s operators see counts of the records above (profiles, email sign-ups, Building sign-ins, requests, bids, funded jobs), with the team&rsquo;s own wallets counted apart. Never published, and carrying no address, email or handle.
@@ -141,7 +141,7 @@ export default function PrivacyPage() {
           <strong>The email provider</strong>, as above, for emails you asked for.
         </li>
         <li>
-          <strong>Telegram</strong> carries messages you send to Scout. When AI chat is enabled, <strong>OpenAI</strong> receives your latest message, up to six short recent turns and the relevant public Pokter evidence to generate an answer. Pokter does not send the Telegram chat id or a wallet address as an account identifier, and asks the API not to store the generated response. Do not send passwords, seed phrases, private keys or confidential briefs to Scout.
+          <strong>Telegram</strong> carries messages you send to Scout. After you opt into AI chat, <strong>Google Gemini</strong> receives your latest message, up to six short recent turns and the relevant public Pokter evidence to generate an answer. Pokter does not send the Telegram chat id or a wallet address as an account identifier, and asks the API not to store the interaction. Google&rsquo;s free tier may use submitted content to improve its products. Do not send passwords, seed phrases, private keys or confidential briefs to Scout.
         </li>
         <li>
           <strong>Pokter&rsquo;s operators</strong> get an alert, with the funding wallet, when a buyer outside Pokter&rsquo;s team hires through Pokter, so they can watch the service.

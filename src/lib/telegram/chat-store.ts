@@ -9,7 +9,7 @@ const RETENTION_MS = 24 * 60 * 60 * 1000;
 const MAX_TURNS = 6;
 
 export type ChatTurn = { role: 'user' | 'assistant'; content: string };
-export type ChatState = { turns: ChatTurn[]; evidence: string; buttons: Array<Array<{ text: string; url: string }>> };
+export type ChatState = { turns: ChatTurn[]; evidence: string; buttons: Array<Array<{ text: string; url: string }>>; aiEnabled: boolean };
 
 let database: DatabaseSync | null = null;
 function db(): DatabaseSync {
@@ -29,13 +29,13 @@ export function readChat(chatId: number, now = Date.now()): ChatState {
   const handle = db();
   handle.prepare('DELETE FROM scout_chats WHERE updated_at < ?').run(now - RETENTION_MS);
   const row = handle.prepare('SELECT state_json, updated_at FROM scout_chats WHERE chat_id = ?').get(String(chatId)) as { state_json: string; updated_at: number } | undefined;
-  if (!row || row.updated_at < now - RETENTION_MS) return { turns: [], evidence: '', buttons: [] };
+  if (!row || row.updated_at < now - RETENTION_MS) return { turns: [], evidence: '', buttons: [], aiEnabled: false };
   try {
     const state = JSON.parse(row.state_json) as ChatState;
     if (!Array.isArray(state.turns) || typeof state.evidence !== 'string' || !Array.isArray(state.buttons)) throw new Error('Invalid chat state');
-    return { turns: state.turns.slice(-MAX_TURNS), evidence: state.evidence.slice(0, 3500), buttons: state.buttons.slice(0, 3) };
+    return { turns: state.turns.slice(-MAX_TURNS), evidence: state.evidence.slice(0, 3500), buttons: state.buttons.slice(0, 3), aiEnabled: state.aiEnabled === true };
   } catch {
-    return { turns: [], evidence: '', buttons: [] };
+    return { turns: [], evidence: '', buttons: [], aiEnabled: false };
   }
 }
 
@@ -44,6 +44,7 @@ export function saveChat(chatId: number, state: ChatState, now = Date.now()): vo
     turns: state.turns.slice(-MAX_TURNS).map((turn) => ({ role: turn.role, content: turn.content.slice(0, 1200) })),
     evidence: state.evidence.slice(0, 3500),
     buttons: state.buttons.slice(0, 3),
+    aiEnabled: state.aiEnabled === true,
   };
   const handle = db();
   handle.prepare(`INSERT INTO scout_chats (chat_id, state_json, updated_at) VALUES (?, ?, ?)

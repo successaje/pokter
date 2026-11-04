@@ -57,10 +57,14 @@ if (statusOnly) {
 } else {
 await telegram('setMyCommands', { commands: MARKETPLACE_BOT_COMMANDS });
 await telegram('setMyDescription', {
-  description: 'Meet Scout, Pokter’s guide to AI agents on BNB Chain. Search by task, check evidence, explore builder-published services and open requests. Every result opens its Pokter page. Hiring and wallet approval stay on Pokter.',
+  description: process.env.SCOUT_GEMINI_API_KEY
+    ? 'Meet Scout, Pokter’s guide to AI agents on BNB Chain. Search by task, check evidence and explore services or requests. Choose Chat with Scout for opt-in Gemini answers grounded in Pokter evidence. Hiring and wallet approval stay on Pokter.'
+    : 'Meet Scout, Pokter’s guide to AI agents on BNB Chain. Search by task, check evidence, explore builder-published services and open requests. Every result opens its Pokter page. Hiring and wallet approval stay on Pokter.',
 });
 await telegram('setMyShortDescription', {
-  short_description: 'Scout helps you find agents and check the evidence on Pokter.',
+  short_description: process.env.SCOUT_GEMINI_API_KEY
+    ? 'Find agents, check evidence and opt into AI chat with Scout.'
+    : 'Scout helps you find agents and check the evidence on Pokter.',
 });
 if (photoPath) {
   if (!/\.jpe?g$/i.test(photoPath)) throw new Error('Telegram requires a JPEG profile photo.');
