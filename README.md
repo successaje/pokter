@@ -392,6 +392,7 @@ All optional for local browsing. Server-only unless marked public.
 | `NODEREAL_API_KEY` | Enables grouping operators by funding wallet, wallet activity and the capability check (BSC mainnet) |
 | `SWEEP_SCHEDULER` | `on` runs the sweep inside the server about every ten minutes; production must have it on, and the deploy checks |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ALERT_CHAT_ID`, `OPERATOR_ALERT_EMAIL` | Operator alerts: a new outside hire, a stuck job, a sweep that stopped |
+| `POKTER_TELEGRAM_BOT_TOKEN`, `POKTER_TELEGRAM_WEBHOOK_SECRET`, `POKTER_TELEGRAM_BOT_USERNAME` | Separate public marketplace bot. The username is needed for commands addressed to the bot in groups. Never reuse the operator-alert token |
 | `SEAL_ANCHOR_CHAIN` | Chain the daily seal is anchored on; default `56` |
 | `POKTER_TRUSTED_CLIENT_IP_HEADER` | The proxy header rate limits trust for the client address |
 | `BSC_RPC_URL` | Node for PancakeSwap pool reads |
@@ -402,6 +403,17 @@ All optional for local browsing. Server-only unless marked public.
 | `NEXT_PUBLIC_ESCROW_CHAINS` | Which escrows hires may be funded on, e.g. `97,56`. Unset means testnet only. A build arg, not a runtime value |
 | `ALTANA_MAINNET_OPERATOR_PURPOSES` | Comma-separated operator purposes allowed to sign on mainnet, e.g. `evidence-agent`. Nothing signs on mainnet without it |
 | `*_DB_PATH` | SQLite locations: `PROBE`, `SESSION`, `JOB`, `DELIVERABLE`, `RATE_LIMIT`, `NOTIFICATION`, `REVIEW`, `BUILDER`, `FUNDER`, `ASSAY`, `QUEST`, `CONVERSION`, `SEAL`, `WALLET_ACTIVITY`, `CAPABILITY`, `FEEDBACK`, `BRIEF`, `PROFILE`, `MAINTENANCE`, `SATURATION`. Default `./data/`. A new store is registered in `src/lib/health/stores.ts`, the Dockerfile and `fly.toml` together |
+
+### Public Telegram bot
+
+Scout, the public bot, answers `/start`, `/find <task>`, `/check <Pokter agent URL or 56:ID or 97:ID>`, `/services [task]`, `/requests [task]`, `/discord` and `/help`. Its keyboard offers Find an agent, Check an agent, Explore services, Open requests and Help. Agent search uses the Discover catalogue; category buttons include the four BNB-focused categories and an all-categories menu. Results come from persisted Pokter records and link to actual agent, service and request pages. Scout labels the network, prior signed quotes, missing evidence and the need for a fresh quote before hiring. It never asks for wallet secrets, accepts jobs, or sends private request content. It is separate from the existing private operator-alert bot. Marketplace alerts to individual users are not enabled by this bot; those require opt-in account linking.
+
+1. In Telegram, open [@BotFather](https://t.me/BotFather), send `/newbot`, and choose a name such as `Scout by Pokter` and an available username ending in `bot` (for example, `PokterScoutBot`). Only the Telegram account owner can create the bot. Keep the token in a secret store; do not commit or paste it into an issue or chat.
+2. Set `POKTER_TELEGRAM_BOT_TOKEN` to that token, `POKTER_TELEGRAM_BOT_USERNAME` to the actual username, and `POKTER_TELEGRAM_WEBHOOK_SECRET` to a random 32–256 character value using letters, digits, `_` or `-`. Set `NEXT_PUBLIC_APP_URL` to the deployed HTTPS origin. Configure these in the deployment before registering the webhook.
+3. Deploy the route, then run `npm run telegram:configure` in an environment with those variables. This checks the token, sets Scout’s descriptions and command menu, and points Telegram to `https://<origin>/api/telegram/marketplace`. Do not run it before the route is live.
+4. Open `https://t.me/<actual username>` and test `/start`, `/proof` and `/discord`. In a group, leave BotFather privacy mode on; the bot only answers commands and does not read ordinary conversation.
+
+The webhook rejects requests without Telegram's secret header and ignores non-message updates. If the secret or token is absent, it fails closed. Telegram can retry failed webhook requests; the command responses contain only static navigation links, so a retry cannot create a request or trigger a payment.
 
 ## Public endpoints
 
