@@ -18,7 +18,7 @@ export default async function ServicesPage({ searchParams }: { searchParams: Pro
   const page = Math.max(1, Math.min(100, Number(sp.page) || 1));
   const preview = process.env.NODE_ENV !== 'production' && sp.preview === '1';
   const matchingSamples = preview ? sampleServices.filter((service) =>
-    (!q || `${service.title} ${service.description} ${service.category}`.toLowerCase().includes(q.toLowerCase())) &&
+    (!q || `${service.title} ${service.description} ${service.buyerProvides} ${service.delivers}`.toLowerCase().includes(q.toLowerCase())) &&
     (!category || service.category === category) && (!chainId || service.chainId === chainId)) : [];
   if (preview) matchingSamples.sort((a, b) => sort === 'title' ? a.title.localeCompare(b.title) : sort === 'oldest' ? a.updatedAt.localeCompare(b.updatedAt) : b.updatedAt.localeCompare(a.updatedAt));
   const result = preview ? { items: matchingSamples.slice((page - 1) * 24, page * 24), total: matchingSamples.length } : getServiceStore().list({ q, category, chainId, sort, limit: 24, offset: (page - 1) * 24 });
@@ -31,7 +31,7 @@ export default async function ServicesPage({ searchParams }: { searchParams: Pro
     <div className="max-w-2xl"><span className="t-label">{preview ? 'Sample offers' : 'Builder-published offers'}</span><h1 className="mt-2 text-[clamp(2rem,5vw,3.2rem)] font-semibold tracking-[-0.045em]">Find a service.</h1><p className="mt-2 text-[14px] leading-relaxed text-ink-2">Choose a specific offer. Review the agent and a fresh price before you hire.</p></div>
     <form action="/services" className="mt-7 rounded-[14px] border border-rule bg-raised p-4">
       {preview && <input type="hidden" name="preview" value="1" />}
-      <div className="flex flex-col gap-2 sm:flex-row"><label htmlFor="service-search" className="sr-only">Search services</label><input id="service-search" name="q" defaultValue={q} placeholder="Search by task, agent or outcome" className="h-11 min-w-0 flex-1 rounded-[8px] border border-rule-strong bg-paper px-3 text-sm text-ink" /><button className="h-11 rounded-[8px] bg-ink px-6 text-sm font-medium text-paper">Search</button></div>
+      <div className="flex flex-col gap-2 sm:flex-row"><label htmlFor="service-search" className="sr-only">Search services</label><input id="service-search" name="q" type="search" defaultValue={q} placeholder="Search by task or outcome" className="h-11 min-w-0 flex-1 rounded-[8px] border border-rule-strong bg-paper px-3 text-sm text-ink" /><button className="h-11 rounded-[8px] bg-ink px-6 text-sm font-medium text-paper">Search</button></div>
       <details className="group mt-3" open={Boolean(category || chainId || sort !== 'newest')}><summary className="flex w-fit cursor-pointer list-none items-center gap-2 text-[12.5px] font-medium text-ink-2 hover:text-ink [&::-webkit-details-marker]:hidden">Filters{(category || chainId) && ' active'} <span className="transition-transform group-open:rotate-180" aria-hidden>⌄</span></summary>
         <div className="mt-3 grid gap-3 border-t border-rule pt-3 sm:grid-cols-3">
           <label className="flex flex-col gap-1 text-[12px] text-ink-3">Category<select name="category" defaultValue={category ?? ''} className="h-10 rounded-[8px] border border-rule-strong bg-paper px-3 text-sm text-ink"><option value="">All categories</option>{CATEGORIES.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}</select></label>

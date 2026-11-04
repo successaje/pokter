@@ -50,7 +50,7 @@ test('service catalogue shows only published offers and preserves usable search 
   await page.goto('/services');
   await expect(page.getByRole('heading', { name: 'Find a service.' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'No services published yet' })).toBeVisible();
-  await page.getByRole('textbox', { name: 'Search services' }).fill('risk');
+  await page.getByRole('searchbox', { name: 'Search services' }).fill('risk');
   await page.getByRole('button', { name: 'Search', exact: true }).click();
   await expect(page).toHaveURL(/services\?q=risk/);
   await expect(page.getByRole('heading', { name: 'No services match your search' })).toBeVisible();
@@ -59,6 +59,13 @@ test('service catalogue shows only published offers and preserves usable search 
 test('local service preview stays separate from real offers and cannot start a hire', async ({ page }) => {
   await page.goto('/services?preview=1');
   await expect(page.getByText('These sample services are not published and cannot be hired.')).toBeVisible();
+  await expect(page.getByTitle('BNB Chain · Mainnet')).toHaveClass(/bg-ok-wash/);
+  await expect(page.getByTitle('BNB Chain · Testnet').first()).toHaveClass(/bg-watch-wash/);
+  await page.getByRole('searchbox', { name: 'Search services' }).fill('scenario notes');
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Grid strategy review' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Health factor review' })).toHaveCount(0);
+  await page.goto('/services?preview=1');
   await expect(page.getByRole('heading', { name: 'Health factor review' })).toBeVisible();
   await page.getByRole('link', { name: 'Health factor review' }).click();
   await expect(page).toHaveURL(/\/services\/preview\/health-factor-review$/);

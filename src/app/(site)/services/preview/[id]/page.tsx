@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 
 import { sampleServices } from '@/features/services/preview';
 import { CATEGORIES } from '@/lib/agents/categories';
+import { NetworkStageTag } from '@/ui/Network';
 
 export const metadata: Metadata = { title: 'Sample service preview', robots: { index: false } };
 
@@ -19,7 +20,7 @@ export default async function SampleServicePage({ params }: { params: Promise<{ 
     <Link href="/services?preview=1" className="text-[13px] text-ink-2 hover:underline">← Sample services</Link>
     <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(300px,0.65fr)]">
       <main className="min-w-0">
-        <div className="flex flex-wrap gap-2 text-xs text-ink-3"><span className="rounded-full border border-rule-strong px-2.5 py-1">{category}</span><span className="rounded-full border border-rule-strong px-2.5 py-1">BNB {service.chainId === 56 ? 'Mainnet' : 'Testnet'}</span><span className="rounded-full border border-rule-strong px-2.5 py-1">Sample offer</span></div>
+        <div className="flex flex-wrap items-center gap-2 text-xs text-ink-3"><span className="rounded-full border border-rule-strong px-2.5 py-1">{category}</span><NetworkStageTag chainId={service.chainId} /><span className="rounded-full border border-rule-strong px-2.5 py-1">Sample offer</span></div>
         <h1 className="mt-5 break-words text-[clamp(2rem,4vw,3rem)] font-medium leading-tight tracking-[-0.04em]">{service.title}</h1>
         <p className="mt-4 whitespace-pre-wrap text-[15px] leading-relaxed text-ink-2">{service.description}</p>
         <div className="mt-8 grid gap-4 sm:grid-cols-2"><div className="rounded-[12px] border border-rule p-5"><h2 className="t-label">You provide</h2><p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed">{service.buyerProvides}</p></div><div className="rounded-[12px] border border-rule p-5"><h2 className="t-label">You get back</h2><p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed">{service.delivers}</p></div></div>

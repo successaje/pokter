@@ -11,6 +11,8 @@ test('service revisions preserve prior scope and archive never deletes history',
   const content = { title: 'Risk report', description: 'Review positions and explain liquidation exposure.', buyerProvides: 'Wallet and risk limits', delivers: 'A written report with sources', category: 'health-factor', chainId: 97 as const, tokenId: '2225', status: 'active' as const };
   const first = store.save(null, builder, content);
   assert.equal(store.list().total, 1);
+  assert.equal(store.list({ q: 'written report' }).total, 1);
+  assert.equal(store.list({ q: 'risk limits' }).total, 1);
   const second = store.save(first.id, builder, { ...content, delivers: 'A CSV and written report' });
   assert.equal(second.revision, 2);
   assert.equal(store.revision(first.id, 1)?.delivers, content.delivers);

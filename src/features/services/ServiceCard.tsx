@@ -4,6 +4,7 @@ import { CATEGORIES } from '@/lib/agents/categories';
 import { getProfileStore } from '@/lib/profiles/store';
 import { getProbeStore } from '@/lib/history/store';
 import { quotePriceLabel } from '@/lib/find/price';
+import { NetworkStageTag } from '@/ui/Network';
 
 function renderedAt() { return Date.now(); }
 
@@ -20,7 +21,7 @@ export function ServiceCard({ service, preview = false }: { service: Service; pr
   return <article className="flex h-full flex-col rounded-[14px] border border-rule bg-raised p-5 transition-[border-color,box-shadow] hover:border-rule-strong hover:shadow-lift">
     <div className="flex flex-wrap items-center gap-2 text-[11px] font-medium text-ink-3">
       <span className="rounded-full border border-rule-strong px-2 py-0.5">{category}</span>
-      <span>BNB {service.chainId === 56 ? 'Mainnet' : 'Testnet'}</span>
+      <NetworkStageTag chainId={service.chainId} />
     </div>
     <h3 className="mt-4 text-[18px] font-semibold leading-snug"><Link href={href} className="hover:underline">{service.title}</Link></h3>
     <p className="mt-2 line-clamp-2 text-[13.5px] leading-relaxed text-ink-2">{service.description}</p>

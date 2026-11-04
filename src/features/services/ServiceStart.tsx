@@ -20,7 +20,7 @@ export function ServiceStart({ service }: { service: Service }) {
       <p className="mt-3 text-sm text-ink-2">The builder&apos;s published scope is copied here. Edit the brief to fit your job. A fresh agent-signed quote is required before payment.</p>
       <label className="mt-5 block text-sm font-medium" htmlFor="service-brief">Brief for agent</label>
       <textarea id="service-brief" value={brief} onChange={(event) => setBrief(event.target.value)} maxLength={2000} rows={12} className="mt-2 w-full rounded-[9px] border border-rule-strong bg-paper p-3 text-sm" />
-      <div className="mt-4 flex flex-wrap gap-3"><button type="button" onClick={() => setStep('inputs')} className="rounded-[8px] border border-rule-strong px-4 py-2 text-sm">Edit inputs</button><Link aria-disabled={!task} href={task ? `/hire/${service.chainId}/${service.tokenId}?task=${encodeURIComponent(task)}&service=${service.id}&revision=${service.revision}` : '#'} className="rounded-[8px] bg-ink px-5 py-2 text-sm font-medium text-paper">Continue to quote and hire</Link></div>
+      <div className="mt-4 flex flex-wrap gap-3"><button type="button" onClick={() => setStep('inputs')} className="rounded-[8px] border border-rule-strong px-4 py-2 text-sm">Edit inputs</button>{task ? <Link href={`/hire/${service.chainId}/${service.tokenId}?task=${encodeURIComponent(task)}&service=${service.id}&revision=${service.revision}`} className="rounded-[8px] bg-ink px-5 py-2 text-sm font-medium text-paper">Continue to quote and hire</Link> : <span aria-disabled="true" className="rounded-[8px] bg-ink px-5 py-2 text-sm font-medium text-paper opacity-50">Continue to quote and hire</span>}</div>
     </>}
   </section>;
 }

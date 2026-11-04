@@ -6,6 +6,7 @@ import { PageHeader } from '@/features/workspace/parts';
 import { sampleServices } from '@/features/services/preview';
 import { LinkButton } from '@/ui/Button';
 import { Icon } from '@/ui/icons';
+import { NetworkStageTag } from '@/ui/Network';
 
 export const metadata: Metadata = { title: 'My services preview', robots: { index: false } };
 
@@ -25,7 +26,7 @@ export default function ServicePreviewPage() {
         <li className="flex flex-col rounded-[14px] border border-rule bg-raised p-5">
           <div className="flex items-start justify-between gap-3"><h3 className="text-[16px] font-semibold leading-snug">{sampleService.title}</h3><span className="shrink-0 rounded-full border border-rule-strong px-2 py-0.5 text-[11px] text-ink-2">Sample</span></div>
           <p className="mt-2 line-clamp-3 text-[13px] text-ink-2">{sampleService.description}</p>
-          <p className="mt-3 text-[12px] text-ink-3">Sample agent · BNB Testnet</p>
+          <div className="mt-3 flex flex-wrap items-center gap-2"><span className="text-[12px] text-ink-3">Sample agent</span><NetworkStageTag chainId={sampleService.chainId} /></div>
           <div className="mt-auto border-t border-rule pt-3 text-[13px] font-medium"><Link href="/build/services/preview/new" className="hover:underline">Explore the editor →</Link></div>
         </li>
       </ul>

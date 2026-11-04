@@ -42,7 +42,7 @@ export class ServiceStore {
   list(input: { q?: string; category?: string; chainId?: number; sort?: 'newest' | 'oldest' | 'title'; limit?: number; offset?: number } = {}): { items: Service[]; total: number } {
     const where = ['status = ?'];
     const values: Array<string | number> = ['active'];
-    if (input.q) { where.push("(json_extract(content, '$.title') LIKE ? OR json_extract(content, '$.description') LIKE ?)"); values.push(`%${input.q}%`, `%${input.q}%`); }
+    if (input.q) { where.push("(json_extract(content, '$.title') LIKE ? OR json_extract(content, '$.description') LIKE ? OR json_extract(content, '$.buyerProvides') LIKE ? OR json_extract(content, '$.delivers') LIKE ?)"); values.push(`%${input.q}%`, `%${input.q}%`, `%${input.q}%`, `%${input.q}%`); }
     if (input.category) { where.push('category = ?'); values.push(input.category); }
     if (input.chainId) { where.push('chain_id = ?'); values.push(input.chainId); }
     const sql = ` FROM services WHERE ${where.join(' AND ')}`;

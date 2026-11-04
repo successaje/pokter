@@ -24,6 +24,7 @@ import { AgentAvatar } from '@/ui/Agent';
 import { AvatarImage } from '@/ui/AvatarImage';
 import { CopyButton } from '@/ui/Data';
 import { Icon } from '@/ui/icons';
+import { NetworkStageTag } from '@/ui/Network';
 import { getServiceStore } from '@/lib/services/store';
 import { ServiceCard } from '@/features/services/ServiceCard';
 
@@ -277,7 +278,7 @@ export default async function ProfilePage({
       )}
       <div className="my-4 flex flex-wrap items-center gap-x-5 gap-y-2 rounded-[12px] border border-rule bg-raised px-5 py-3 text-[13px]">
         <span className="font-semibold">{profileAgents.length} {profileAgents.length === 1 ? 'agent' : 'agents'}</span><span className="hidden text-rule-strong sm:inline" aria-hidden>│</span>
-        <span>{profileNetworks.length ? profileNetworks.map((chain) => chainLabel(chain)).join(' · ') : 'No network yet'}</span><span className="hidden text-rule-strong sm:inline" aria-hidden>│</span>
+        <span className="flex flex-wrap gap-1.5">{profileNetworks.length ? profileNetworks.map((chain) => <NetworkStageTag key={chain} chainId={chain} />) : 'No network yet'}</span><span className="hidden text-rule-strong sm:inline" aria-hidden>│</span>
         <span className="text-ink-2">{indexUnavailable ? 'Registry index partly unavailable' : 'Agents from ERC-8004 registry'}</span>
       </div>
       <ProfileShell wallet={wallet} published={published ? profileContentOf(published) : null} hasSaved={Boolean(profile)} agents={ownedOptions} hiringActivity={hiringActivity} identity={identity}>
@@ -354,7 +355,7 @@ function RegistryView({ agents, unavailable, active, base, wallet }: { agents: A
       {agents.length === 0 ? (!unavailable && <Empty title="No agents found">This wallet owns no indexed agents on BNB Chain or testnet.</Empty>) : <ul className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {agents.map((a) => <li key={a.key}><Link href={`/agents/${a.chainId}/${a.tokenId}`} className="group flex h-full flex-col rounded-[14px] border border-rule bg-raised p-4 transition-[border-color,box-shadow] hover:border-rule-strong hover:shadow-lift">
           <span className="flex min-w-0 items-center gap-3"><AgentAvatar name={a.name} imageUrl={a.imageUrl} seed={a.key} size={48} /><span className="min-w-0"><strong className="block truncate text-[15px]">{a.name}</strong><span className="text-[12.5px] text-ink-3">#{a.tokenId} · {a.category ?? GENERAL_CATEGORY_LABEL}</span></span></span>
-          <span className="mt-4 flex items-center justify-between border-t border-rule pt-3 text-[12.5px]"><span className="text-ink-2">{chainLabel(a.chainId)}</span><span className="font-medium text-[#9b6900]">View agent <Icon.Arrow size={13} className="inline-block transition-transform group-hover:translate-x-0.5" aria-hidden /></span></span>
+          <span className="mt-4 flex items-center justify-between border-t border-rule pt-3 text-[12.5px]"><NetworkStageTag chainId={a.chainId} /><span className="font-medium text-[#9b6900]">View agent <Icon.Arrow size={13} className="inline-block transition-transform group-hover:translate-x-0.5" aria-hidden /></span></span>
         </Link></li>)}
       </ul>}
     </section>}
@@ -413,12 +414,11 @@ function RecordTable({ mainnet, testnet, caption = 'External customer jobs' }: {
 function AgentCard({ agent, wallet, quote, now, compact = false }: { agent: ShownAgent; wallet: string; quote: QuoteRecord | null; now: number; compact?: boolean }) {
   const record = agentRecord(agent.chainId, agent.tokenId, wallet);
   const history = record.mainnet.funded + record.testnet.funded > 0;
-  const testnet = agent.chainId === 97;
   if (compact) return <article className="flex h-full flex-col rounded-[14px] border border-rule bg-raised p-4 transition-[border-color,box-shadow] hover:border-rule-strong hover:shadow-lift">
     <div className="flex min-w-0 items-center gap-3"><AgentAvatar name={agent.name} imageUrl={agent.imageUrl} seed={agent.key} size={48} /><div className="min-w-0"><Link href={`/agents/${agent.chainId}/${agent.tokenId}`} className="block truncate text-[15px] font-semibold hover:underline">{agent.name}</Link><p className="text-[12.5px] text-ink-3">#{agent.tokenId} · {agent.category ?? GENERAL_CATEGORY_LABEL}</p></div></div>
     {agent.description && <p className="mt-3 line-clamp-2 text-[13px] leading-relaxed text-ink-2">{agent.description}</p>}
-    <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-rule pt-3 text-[12px]"><span className="text-ink-2">{chainLabel(agent.chainId)} · {agent.status === 'owned' ? 'Owner verified' : 'Ownership check pending'}</span><Link href={`/agents/${agent.chainId}/${agent.tokenId}`} className="font-medium text-[#9b6900] hover:underline">View agent →</Link></div>
-    <p className="mt-2 text-[11.5px] text-ink-3">{quote ? `Last quoted ${quotePriceLabel(quote)}${quote.expiresAt && Date.parse(quote.expiresAt) <= now ? ' · expired' : ''}` : 'No signed price yet'}. Fresh quote before hire.</p>
+    <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-rule pt-3 text-[12px]"><span className="flex flex-wrap items-center gap-1.5 text-ink-2"><NetworkStageTag chainId={agent.chainId} />{agent.status === 'owned' ? 'Owner verified' : 'Ownership check pending'}</span><Link href={`/agents/${agent.chainId}/${agent.tokenId}`} className="font-medium text-[#9b6900] hover:underline">View agent →</Link></div>
+    <p className="mt-2 text-[11.5px] text-ink-3">{quote ? `Last quoted ${quotePriceLabel(quote)}${quote.expiresAt && Date.parse(quote.expiresAt) <= now ? ' · expired' : ''}. Fresh quote before hire.` : 'No signed price yet. Fresh quote before hire.'}</p>
   </article>;
   return (
     <article className="flex flex-col gap-3 rounded-[16px] border border-rule bg-raised p-5">
@@ -437,7 +437,7 @@ function AgentCard({ agent, wallet, quote, now, compact = false }: { agent: Show
           </span>
           <span className="flex flex-wrap items-center gap-1.5 text-[12px]">
             {agent.category && <span className="rounded-full border border-rule-strong px-2 py-0.5 text-ink-2">{agent.category}</span>}
-            <span className={cn('rounded-full px-2 py-0.5 font-medium', testnet ? 'bg-watch-wash text-watch' : 'bg-sunken text-ink-2')}>{testnet ? 'BNB Testnet' : 'BNB Chain'}</span>
+            <NetworkStageTag chainId={agent.chainId} />
           </span>
         </div>
       </div>
