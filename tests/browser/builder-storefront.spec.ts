@@ -37,7 +37,8 @@ test('an unclaimed wallet has a public default profile but cannot receive a dire
   await installMockWallet(page, { address: unclaimed, chainId: 97 });
   await page.goto(`/builders/${unclaimed}`);
   await expect(page.getByRole('region', { name: 'Builder storefront header' }).getByRole('heading', { name: /0x0000.*00bb/i })).toBeVisible();
-  await expect(page.getByText('Registry-derived builder profile')).toBeVisible();
+  await expect(page.getByText('Unclaimed profile', { exact: true })).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Builder profile sections' }).getByRole('link', { name: 'Agents (0)' })).toHaveAttribute('aria-current', 'page');
   await expect(page.getByRole('link', { name: 'Request custom work' })).toHaveCount(0);
   await page.goto(`/workspace/requests/new?builder=${unclaimed}`);
   await expect(page.getByRole('heading', { name: 'This builder cannot receive a directed request yet' })).toBeVisible();
@@ -47,12 +48,42 @@ test('an unclaimed wallet has a public default profile but cannot receive a dire
 
 test('service catalogue shows only published offers and preserves usable search navigation', async ({ page }) => {
   await page.goto('/services');
-  await expect(page.getByRole('heading', { name: 'Services with a clear scope.' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'No published services here yet' })).toBeVisible();
-  await page.getByRole('textbox', { name: 'Search' }).fill('risk');
+  await expect(page.getByRole('heading', { name: 'Find a service.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'No services published yet' })).toBeVisible();
+  await page.getByRole('textbox', { name: 'Search services' }).fill('risk');
   await page.getByRole('button', { name: 'Search', exact: true }).click();
   await expect(page).toHaveURL(/services\?q=risk/);
-  await expect(page.getByRole('heading', { name: 'No published services here yet' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'No services match your search' })).toBeVisible();
+});
+
+test('Requests & Services menu closes outside, on Escape and after navigation', async ({ page }) => {
+  await page.goto('/services');
+  const menu = page.getByRole('button', { name: /Requests & Services/ });
+  await menu.click();
+  await expect(menu).toHaveAttribute('aria-expanded', 'true');
+  await page.mouse.click(1000, 550);
+  await expect(menu).toHaveAttribute('aria-expanded', 'false');
+  await menu.click();
+  await page.keyboard.press('Escape');
+  await expect(menu).toHaveAttribute('aria-expanded', 'false');
+  await menu.click();
+  await page.getByRole('link', { name: /Requests Browse work/ }).click();
+  await expect(page).toHaveURL(/\/requests$/);
+  await expect(menu).toHaveAttribute('aria-expanded', 'false');
+});
+
+test('builder, service and request pages fit a phone viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  for (const [path, title, file] of [
+    [`/builders/${unclaimed}`, /0x0000.*00bb/i, 'builder'],
+    ['/services', 'Find a service.', 'services'],
+    ['/requests', 'Find work to build.', 'requests'],
+  ] as const) {
+    await page.goto(path);
+    await expect(page.getByRole('heading', { name: title, level: 1 })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.screenshot({ path: `/tmp/pokter-${file}-mobile.png`, fullPage: true });
+  }
 });
 
 test('a persisted service supplies an editable brief to the existing signed quote review', async ({ page }) => {
@@ -103,6 +134,11 @@ test('a builder profile keeps its target through composition and reaches the bui
   const requestId = new URL(page.url()).pathname.split('/').at(-1);
   const saved = await (await page.request.get(`/api/briefs?target=${builder}`)).json() as { briefs: Array<{ id: string; targetBuilder: string }> };
   expect(saved.briefs.some((brief) => brief.id === requestId && brief.targetBuilder.toLowerCase() === builder)).toBe(true);
+  await page.goto('/requests');
+  const requestCard = page.getByRole('link', { name: /Check my Venus position/ });
+  await expect(requestCard).toBeVisible();
+  await expect(page.locator('ul.grid').filter({ has: requestCard })).toBeVisible();
+  await page.screenshot({ path: '/tmp/pokter-requests-grid.png', fullPage: true });
   const builderPage = await page.context().newPage();
   await installMockWallet(builderPage, { address: builder as `0x${string}`, chainId: 97 });
   await builderPage.goto('/build');

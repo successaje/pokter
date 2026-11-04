@@ -100,7 +100,7 @@ export function RequestsBoard({ requests, now, networks }: { requests: Array<Req
   };
 
   return (
-    <div className="@container mt-7 flex min-w-0 flex-col gap-5">
+    <div className="@container mt-6 flex min-w-0 flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-rule">
         <nav aria-label="Request views" className="flex gap-5 sm:gap-8">
           {([
@@ -113,7 +113,7 @@ export function RequestsBoard({ requests, now, networks }: { requests: Array<Req
             </button>
           ))}
         </nav>
-        <Link href="/api/v1/requests" className="t-readout mb-3 text-[12px] text-ink-3 hover:text-ink hover:underline">Open requests API ↗</Link>
+        <Link href="/api/v1/requests" className="t-readout mb-3 text-[12px] text-ink-3 hover:text-ink hover:underline">API ↗</Link>
       </div>
 
       {requests.length > 0 && (
@@ -150,10 +150,7 @@ export function RequestsBoard({ requests, now, networks }: { requests: Array<Req
 
       {visible.length > 0 ? (
         <div>
-          <div className="hidden grid-cols-[minmax(0,1fr)_220px] border-b border-rule pb-2 text-[11px] font-medium uppercase tracking-wide text-ink-3 sm:grid">
-            <span>Task</span><span>Proposed budget · network</span>
-          </div>
-          <ul className="divide-y divide-rule border-b border-rule">
+          <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {visible.map((r) => <li key={r.id}><RequestRow request={r} now={now} board /></li>)}
           </ul>
         </div>

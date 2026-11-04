@@ -82,7 +82,7 @@ export function RequestRow({ request, now, preview = false, board = false }: { r
         </span>
       </span>
       {/* The tag under the amount at every width, as on an agent card: in a row beside it, narrow cards put the same fact somewhere else. */}
-      <span className="mt-auto flex shrink-0 flex-col items-start gap-1 border-t border-rule pt-3 @lg:mt-0 @lg:items-end @lg:border-0 @lg:pt-0">
+      <span className={cn('mt-auto flex shrink-0 flex-col items-start gap-1 border-t border-rule pt-3', !board && '@lg:mt-0 @lg:items-end @lg:border-0 @lg:pt-0')}>
         <span className="hidden text-[11.5px] text-ink-3 @lg:block">Proposed budget</span>
         {/* No amount yet (the form's preview) is a dash in the chosen token, never a "$U" the request may not be in. */}
         <span className="t-readout text-[19px] text-ink">{request.budgetU > 0 ? requestAmountLabel(request, request.budgetU) : `— ${tokenSymbol(request)}`}</span>
@@ -93,7 +93,7 @@ export function RequestRow({ request, now, preview = false, board = false }: { r
   );
 
   const shell = board
-    ? 'flex h-full flex-col gap-3 px-1 py-4 @lg:flex-row @lg:items-start @lg:gap-4 @lg:py-5'
+    ? 'flex h-full flex-col gap-3 rounded-[14px] border border-rule bg-raised p-4 transition-[border-color,box-shadow] hover:border-rule-strong hover:shadow-lift'
     : 'flex h-full flex-col gap-3 rounded-[14px] border border-rule bg-raised p-4 @lg:flex-row @lg:items-start @lg:gap-4 @lg:p-5';
   /* Laid out by the width it is given, not the window's: the same row sits in the board and in the form's narrow side column. */
   if (preview) {
@@ -105,9 +105,9 @@ export function RequestRow({ request, now, preview = false, board = false }: { r
   }
   return (
     <div className="@container h-full">
-      <Link href={`/requests/${request.id}`} className={cn(shell, 'group', board ? 'transition-colors hover:bg-sunken' : 'transition-[border-color,box-shadow] hover:border-rule-strong hover:shadow-lift')}>
+      <Link href={`/requests/${request.id}`} className={cn(shell, 'group', !board && 'transition-[border-color,box-shadow] hover:border-rule-strong hover:shadow-lift')}>
         {body}
-        <Icon.Arrow size={15} className="hidden shrink-0 self-center text-ink-3 transition-transform group-hover:translate-x-0.5 group-hover:text-ink @lg:block" />
+        {!board && <Icon.Arrow size={15} className="hidden shrink-0 self-center text-ink-3 transition-transform group-hover:translate-x-0.5 group-hover:text-ink @lg:block" />}
       </Link>
     </div>
   );

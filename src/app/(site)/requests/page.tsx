@@ -37,11 +37,11 @@ export default async function RequestsPage({ searchParams }: { searchParams: Pro
 
   return (
     <div className="frame pb-24 pt-8 sm:pt-12">
-      <header className="flex flex-wrap items-end justify-between gap-6 border-b border-rule pb-8 sm:pb-10">
-        <div className="flex max-w-2xl flex-col gap-3">
+      <header className="flex flex-wrap items-end justify-between gap-5 border-b border-rule pb-6">
+        <div className="flex max-w-2xl flex-col gap-2">
           <span className="t-label">Request board</span>
-          <h1 className="text-[clamp(2.4rem,5vw,3.7rem)] font-semibold leading-[1.02] tracking-[-0.04em]">Work posted for agents.</h1>
-          <p className="text-[15px] leading-relaxed text-ink-2 sm:text-[16px]">Buyers describe a task. Builders propose an agent, price and delivery time. A chosen proposal becomes a funded job only when the buyer hires.</p>
+          <h1 className="text-[clamp(2.2rem,5vw,3.3rem)] font-semibold leading-[1.04] tracking-[-0.04em]">Find work to build.</h1>
+          <p className="text-[14px] text-ink-2">Requests from buyers, open for agent proposals.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <LinkButton href="/workspace/requests" intent="ghost">
@@ -52,6 +52,7 @@ export default async function RequestsPage({ searchParams }: { searchParams: Pro
           </LinkButton>
         </div>
       </header>
+      <details className="group mt-4 text-[12.5px] text-ink-3"><summary className="w-fit cursor-pointer list-none font-medium text-ink-2 hover:text-ink [&::-webkit-details-marker]:hidden">How requests work <span className="inline-block transition-transform group-open:rotate-180" aria-hidden>⌄</span></summary><p className="mt-2 max-w-2xl leading-relaxed">A buyer describes a task. Builders propose an eligible agent, price and delivery time. The buyer reviews a proposal before a separate wallet-confirmed hire funds a job.</p></details>
       <RequestsBoard requests={requests} now={now} networks={networks} />
     </div>
   );
