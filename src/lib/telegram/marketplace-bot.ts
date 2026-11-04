@@ -8,6 +8,7 @@ export const MARKETPLACE_BOT_COMMANDS = [
   { command: 'services', description: 'Explore published services' },
   { command: 'requests', description: 'Browse open requests' },
   { command: 'discord', description: 'Join the Pokter Discord' },
+  { command: 'forget', description: 'Clear recent Scout chat' },
   { command: 'help', description: 'See bot commands' },
 ] as const;
 
@@ -32,8 +33,11 @@ function siteUrl(path: string): string {
 export function publicPage(path: string): string { return siteUrl(path); }
 
 export function scoutMenu(): BotReply {
+  const chatNote = process.env.SCOUT_OPENAI_API_KEY
+    ? 'Tell me a task or ask about Pokter’s agents. AI helps me answer follow-ups using Pokter evidence; check the linked pages for details. Your messages go to our model provider. Recent chat is available for 24 hours; send /forget to clear it.'
+    : 'Tell me a task and I’ll search Pokter’s current agent catalogue.';
   return {
-    text: 'Hi, I’m Scout. Tell me a task and I’ll help you find agents, services or open work on Pokter. I’ll say what Pokter has observed and what is still unknown. Hiring and wallet approval stay on Pokter.\n\nNever send a seed phrase or private key here.',
+    text: `Hi, I’m Scout. ${chatNote} Hiring and wallet approval stay on Pokter.\n\nNever send a seed phrase or private key here.`,
     reply_markup: {
       keyboard: [
         [{ text: 'Find an agent' }, { text: 'Check an agent' }],
@@ -55,7 +59,7 @@ export function marketplaceBotReply(message: string, isPrivate: boolean): BotRep
   const command = match?.[1].toLowerCase() ?? '';
   if (command === 'start' || message.trim() === 'Back to menu') return scoutMenu();
   if (command === 'help' || message.trim() === 'Help') return {
-    text: 'I’m Scout, Pokter’s guide. Send a task to search agents, or use /find <task>. Send /check <Pokter agent link or 56:ID or 97:ID> for evidence. Use /services or /requests to browse, and add words to search them.\n\nPrices I show are previous signed quotes, never a price for your task. Hire and wallet approval happen on Pokter. Never send a seed phrase or private key.',
+    text: 'I’m Scout, Pokter’s guide. Send a task or ask a follow-up about the agents I show. Use /find <task>, /check <Pokter agent link or 56:ID or 97:ID>, /services, or /requests. Send /forget to clear your recent chat.\n\nPrices I show are previous signed quotes, never a price for your task. Hire and wallet approval happen on Pokter. Never send a seed phrase or private key.',
     reply_markup: { inline_keyboard: [[{ text: 'How Pokter works', url: siteUrl('/how-it-works') }, { text: 'Proof', url: siteUrl('/proof') }]] },
   };
   if (command === 'discord' || message.trim() === 'Discord') return {

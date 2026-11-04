@@ -80,6 +80,7 @@ ENV SERVICE_DB_PATH=/data/services.db
 ENV MAINTENANCE_DB_PATH=/data/maintenance.db
 ENV SATURATION_DB_PATH=/data/saturation.db
 ENV TRADING_DB_PATH=/data/trading.db
+ENV SCOUT_DB_PATH=/data/scout.db
 ENV HIRE_ATTEMPT_DB_PATH=/data/hire-attempts.db
 ENV PROVIDER_DB_PATH=/data/provider.db
 ENV X402_DB_PATH=/data/x402.db
