@@ -47,6 +47,7 @@ ENV NEXT_PUBLIC_X402_ENABLED=$NEXT_PUBLIC_X402_ENABLED
 ENV NEXT_PUBLIC_HIRE_TOKENS=$NEXT_PUBLIC_HIRE_TOKENS
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
+RUN ./node_modules/.bin/esbuild scripts/telegram-marketplace-configure.mts --bundle --platform=node --format=esm --outfile=telegram-marketplace-configure.mjs
 
 FROM node:24-slim AS runner
 WORKDIR /app
@@ -89,6 +90,7 @@ RUN groupadd --system --gid 1001 nodejs \
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/telegram-marketplace-configure.mjs ./telegram-marketplace-configure.mjs
 
 # The volume is mounted here at runtime; creating it now means the first boot
 # does not race the mount.
