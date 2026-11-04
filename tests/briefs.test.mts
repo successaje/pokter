@@ -46,6 +46,15 @@ test('the poster is compared in one case, so the same wallet signs one message',
   );
 });
 
+test('a custom request signs its selected builder and rejects a malformed target', () => {
+  const open = briefMessage({ ...CONTENT, poster: POSTER, postedAt: AT });
+  const directed = briefMessage({ ...CONTENT, targetBuilder: POSTER, poster: POSTER, postedAt: AT });
+  assert.notEqual(directed, open);
+  assert.match(directed, new RegExp(`For builder: ${POSTER.toLowerCase()}`));
+  assert.equal(readBriefContent({ ...CONTENT, targetBuilder: 'not-a-wallet' }), null);
+  assert.equal(readBriefContent({ ...CONTENT, targetBuilder: POSTER.toLowerCase() })?.targetBuilder?.toLowerCase(), POSTER.toLowerCase());
+});
+
 test('a real signature verifies, and a changed budget does not', async () => {
   const account = privateKeyToAccount('0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d');
   const message = briefMessage({ ...CONTENT, poster: account.address, postedAt: AT });

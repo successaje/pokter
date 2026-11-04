@@ -30,7 +30,7 @@ export function RequestsForYourAgents() {
   });
   const requests = useQuery({
     queryKey: ['open-requests'],
-    enabled: Boolean(address) && Boolean(agents.data?.some((a) => a.categoryId)),
+    enabled: Boolean(address) && Boolean(agents.data?.length),
     staleTime: 60_000,
     queryFn: async (): Promise<MatchableRequest[]> => {
       const r = await fetch('/api/briefs', { cache: 'no-store' });

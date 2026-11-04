@@ -23,7 +23,7 @@ import { Field, Input, Select, Textarea } from '@/ui/Field';
 import { Icon } from '@/ui/icons';
 
 /** `paymentToken` is the request's (null on a request from before tokens, which is $U); the proposal is always in it. */
-export type ProposalRequest = { id: string; title: string; chainId: number; deliverDays: number; budgetU: number; budgetRaw: string; paymentToken: string | null; poster: string };
+export type ProposalRequest = { id: string; title: string; chainId: number; deliverDays: number; budgetU: number; budgetRaw: string; paymentToken: string | null; poster: string; targetBuilder?: string | null };
 type Agent = { chainId: number; tokenId: string; name: string; imageUrl: string | null; category: string | null; owner?: string };
 
 const days = (n: number) => (n === 1 ? '1 day' : `${n} days`);

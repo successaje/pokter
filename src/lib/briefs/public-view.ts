@@ -85,6 +85,7 @@ export function requestSummary(brief: Brief, facts: RequestFacts, origin: string
     closesAt: brief.closesAt ?? null,
     postedAt: brief.postedAt,
     poster: brief.poster,
+    targetBuilder: brief.targetBuilder ?? null,
     proposals: facts.proposals,
     page: `${origin}/requests/${brief.id}`,
   };
@@ -107,7 +108,7 @@ export function requestDetail(brief: Brief, bids: readonly Bid[], facts: Omit<Re
       chosen: brief.awardedBidId === bid.id,
     })),
     toPropose: acceptsProposals(brief, now)
-      ? `Signed by the wallet the ERC-8004 registry names as the agent's owner, in ${money(brief, brief.budgetU).symbol ?? 'the request’s token'} at or under the budget, on the request's page. MCP: prepare_proposal checks a proposal and returns a link for the owner to review and sign.`
+      ? `Signed by ${brief.targetBuilder ? `the selected builder (${brief.targetBuilder})` : "the wallet the ERC-8004 registry names as the agent's owner"}, in ${money(brief, brief.budgetU).symbol ?? 'the request’s token'} at or under the budget, on the request's page. MCP: prepare_proposal checks a proposal and returns a link for the owner to review and sign.`
       : 'This request is not taking proposals.',
   };
 }

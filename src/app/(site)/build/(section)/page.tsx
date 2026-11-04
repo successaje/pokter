@@ -5,6 +5,7 @@ import { Suspense } from 'react';
 
 import { DeliveryInbox } from '@/features/studio/DeliveryInbox';
 import { RequestsForYourAgents } from '@/features/briefs/RequestsForYourAgents';
+import { DirectedRequestInbox } from '@/features/briefs/DirectedRequestInbox';
 import { FleetList } from '@/features/studio/FleetList';
 import { BuilderAlerts, DraftsList, SignOutStudio } from '@/features/studio/StudioClient';
 import { VerifyOwner } from '@/features/studio/VerifyOwner';
@@ -103,6 +104,7 @@ function Start() {
       </ul>
 
       <div className="mt-12 flex flex-col gap-10">
+        <DirectedRequestInbox />
         <RequestsForYourAgents />
         <DraftsList />
       </div>
@@ -204,6 +206,7 @@ async function Overview({ owner }: { owner: string }) {
       </section>
 
       <div className="mt-12 flex flex-col gap-10">
+        <DirectedRequestInbox />
         <RequestsForYourAgents />
         <BuilderAlerts />
         <DraftsList />

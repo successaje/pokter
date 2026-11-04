@@ -38,6 +38,7 @@ export function requestRows(now: number): Array<RequestRowData & { taking: boole
     chainId: b.chainId,
     closesAt: b.closesAt ?? null,
     category: b.category ?? null,
+    targetBuilder: b.targetBuilder ?? null,
     postedAt: b.postedAt,
     state: b.state,
     proposals: store.bidsFor(b.id).length,

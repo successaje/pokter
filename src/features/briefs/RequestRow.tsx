@@ -8,7 +8,7 @@ import { AvatarImage } from '@/ui/AvatarImage';
 import { Icon } from '@/ui/icons';
 import { NetworkTag } from '@/ui/Network';
 
-export interface RequestRowData extends Pick<BriefContent, 'title' | 'brief' | 'budgetU' | 'budgetRaw' | 'paymentToken' | 'chainId' | 'closesAt' | 'category'> {
+export interface RequestRowData extends Pick<BriefContent, 'title' | 'brief' | 'budgetU' | 'budgetRaw' | 'paymentToken' | 'chainId' | 'closesAt' | 'category' | 'targetBuilder'> {
   id: string;
   poster: string;
   /** The poster's published name and picture; absent while their profile is private. */
@@ -64,6 +64,7 @@ export function RequestRow({ request, now, preview = false, board = false }: { r
             {status.label}
           </span>
           {category && <span className="inline-flex h-6 items-center rounded-full border border-rule-strong px-2.5 text-[12px] font-medium text-ink-2">{category}</span>}
+          {request.targetBuilder && <span className="inline-flex h-6 items-center rounded-full border border-rule-strong px-2.5 text-[12px] font-medium text-ink-2">Custom request</span>}
         </span>
         <span className={cn('min-w-0 break-words text-[16px] font-semibold tracking-[-0.015em]', !request.title && 'text-ink-3')}>
           {request.title || 'Your title'}

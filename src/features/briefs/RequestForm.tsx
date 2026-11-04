@@ -44,7 +44,8 @@ const lines = (value: string) => value.split('\n').map((l) => l.trim()).filter(B
  * retyping it (`draftFromRequest`). It is still checked and signed as a new
  * request, and a draft saved in this browser is left where it is.
  */
-export function RequestForm({ networks, initialTitle = '', copy = null }: { networks: number[]; initialTitle?: string; copy?: { title: string; draft: Draft } | null }) {
+export function RequestForm({ networks, initialTitle = '', copy = null, target = null }: { networks: number[]; initialTitle?: string; copy?: { title: string; draft: Draft } | null; target?: { wallet: string; name: string; avatar: string | null; href: string } | null }) {
+  const draftKey = target ? `${DRAFT_KEY}:${target.wallet.toLowerCase()}` : DRAFT_KEY;
   const router = useRouter();
   const { openConnect } = useConnect();
   const { address, canSign, sign } = useActiveSigner();
@@ -66,6 +67,7 @@ export function RequestForm({ networks, initialTitle = '', copy = null }: { netw
   const moreOptions = useRef<HTMLDetailsElement>(null);
   const [problems, setProblems] = useState<Problems>({});
   const [busy, setBusy] = useState(false);
+  const submitting = useRef(false);
   const [error, setError] = useState<string | null>(null);
 
   /* A saved draft lives in this browser only, so it is read after mount. A copy being posted again wins over it, and leaves it saved. */
@@ -76,7 +78,7 @@ export function RequestForm({ networks, initialTitle = '', copy = null }: { netw
       return;
     }
     try {
-      const raw = window.localStorage.getItem(DRAFT_KEY);
+      const raw = window.localStorage.getItem(draftKey);
       if (!raw) return;
       const saved = JSON.parse(raw) as Draft;
       /*
@@ -126,14 +128,15 @@ export function RequestForm({ networks, initialTitle = '', copy = null }: { netw
       deliverDays: draft.deliverDays,
       closesAt: draft.closesInDays > 0 ? closingFromNow(draft.closesInDays) : null,
       category: draft.category,
+      targetBuilder: target?.wallet as BriefContent['targetBuilder'] ?? null,
     }),
-    [draft, token],
+    [draft, token, target],
   );
 
   const saveDraft = () => {
     const at = new Date().toISOString();
     try {
-      window.localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...draft, savedAt: at }));
+      window.localStorage.setItem(draftKey, JSON.stringify({ ...draft, savedAt: at }));
       setSavedAt(at);
       setOwnsDraft(true);
     } catch {
@@ -143,7 +146,7 @@ export function RequestForm({ networks, initialTitle = '', copy = null }: { netw
 
   const discardDraft = () => {
     try {
-      window.localStorage.removeItem(DRAFT_KEY);
+      window.localStorage.removeItem(draftKey);
     } catch {
       /* Nothing to remove. */
     }
@@ -186,10 +189,12 @@ export function RequestForm({ networks, initialTitle = '', copy = null }: { netw
   };
 
   const publish = async () => {
+    if (submitting.current) return;
     if (!address || !canSign) {
       openConnect('to sign and publish this request');
       return;
     }
+    submitting.current = true;
     setBusy(true);
     setError(null);
     try {
@@ -205,7 +210,7 @@ export function RequestForm({ networks, initialTitle = '', copy = null }: { netw
       const payload = (await response.json().catch(() => ({}))) as { error?: string; brief?: { id: string } };
       if (!response.ok || !payload.brief) throw new Error(payload.error ?? 'The request was not published.');
       try {
-        if (ownsDraft) window.localStorage.removeItem(DRAFT_KEY);
+        if (ownsDraft) window.localStorage.removeItem(draftKey);
       } catch {
         /* The request is live either way. */
       }
@@ -214,12 +219,14 @@ export function RequestForm({ networks, initialTitle = '', copy = null }: { netw
       const message = (caught as Error).message || 'The request was not published.';
       setError(/reject|denied/i.test(message) ? 'You declined the signature. Nothing was published.' : message);
       setBusy(false);
+      submitting.current = false;
     }
   };
 
   if (step === 'review') {
     return (
       <div className="flex max-w-[760px] flex-col gap-8">
+        {target && <div className="rounded-[12px] border border-rule bg-raised p-4 text-[14px]">For <Link href={target.href} className="font-semibold underline">{target.name}</Link> · Only this builder can propose.</div>}
         <div className="flex flex-col gap-1.5">
           <span className="t-label">Preview · as builders will see it</span>
           <p className="text-[14px] text-ink-2">Check it reads the way you mean it. Once published, these terms can&rsquo;t be edited.</p>
@@ -255,6 +262,7 @@ export function RequestForm({ networks, initialTitle = '', copy = null }: { netw
   return (
     <div className="grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1fr)_340px]">
       <div className="flex min-w-0 flex-col gap-6">
+        {target && <Notice title={`Custom request for ${target.name}`}>Only agents owned by this builder can propose. <Link href="/workspace/requests/new" className="font-medium underline">Post an open request instead</Link>.</Notice>}
         {copiedFrom !== null && (
           <Notice
             title={<>Copied from &ldquo;{copiedFrom}&rdquo;</>}
@@ -439,7 +447,7 @@ export function RequestForm({ networks, initialTitle = '', copy = null }: { netw
           <RequestRow preview now={openedAt} request={{ ...content, id: 'preview', poster: address ?? 'new-request', postedAt: '', proposals: 0, state: 'open' }} />
           <ol className="flex flex-col gap-3 text-[13px] leading-snug text-ink-2">
             {[
-              ['Builders send proposals', 'Each names an agent, a price and a delivery time, signed by the agent’s owner.'],
+              [target ? `${target.name} can propose` : 'Builders send proposals', 'Each proposal names an agent, a price and a delivery time, signed by the agent’s owner.'],
               ['You choose one', 'Compare price, approach and delivery record. Choosing moves no money.'],
               ['You fund the hire', 'The agent signs a quote for this exact task; you review it and fund the escrow yourself.'],
             ].map(([title, body], i) => (

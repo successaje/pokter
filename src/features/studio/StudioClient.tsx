@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState, useSyncExternalStore, type FormEvent } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore, type FormEvent } from 'react';
 import { getAddress } from 'viem';
 
 import { DRAFTS_KEY, announceDraftsChanged, draftProgress, draftTitle, draftsServerSnapshot, draftsSnapshot, subscribeToDrafts, type DraftRecord } from '@/lib/builder/drafts';
@@ -39,6 +39,8 @@ export function BuilderAlerts() {
   const [email, setEmail] = useState('');
   const [message, setMessage] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [browserAlerts, setBrowserAlerts] = useState(false);
+  const seenAlerts = useRef<Set<string> | null>(null);
   const inbox = useQuery({
     queryKey: ['builder-notifications'],
     queryFn: async () => {
@@ -52,6 +54,30 @@ export function BuilderAlerts() {
     queryKey: ['builder-email-status'],
     queryFn: async () => (await (await fetch('/api/builders/notifications/email', { cache: 'no-store' })).json()) as { configured: boolean; verified: boolean; emailMasked: string | null },
   });
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- browser permission and saved preference are read only after hydration
+    setBrowserAlerts(typeof Notification !== 'undefined' && Notification.permission === 'granted' && window.localStorage.getItem('pokter.builder-browser-alerts') === 'on');
+  }, []);
+  useEffect(() => {
+    if (!inbox.data) return;
+    if (seenAlerts.current === null) { seenAlerts.current = new Set(inbox.data.items.map((item) => item.id)); return; }
+    for (const item of inbox.data.items) {
+      if (!seenAlerts.current.has(item.id) && !item.readAt && browserAlerts && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        const alert = new Notification(item.title, { body: item.body, icon: '/brand/pokter-app-icon-192.png' });
+        alert.onclick = () => { window.focus(); window.location.href = item.event === 'CUSTOM_REQUEST' ? `/requests/${item.jobId}` : '/build'; };
+      }
+      seenAlerts.current.add(item.id);
+    }
+  }, [inbox.data, browserAlerts]);
+
+  async function enableBrowserAlerts() {
+    if (typeof Notification === 'undefined') { setMessage('This browser does not support desktop alerts.'); return; }
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') { setMessage('Browser alerts were not enabled.'); return; }
+    window.localStorage.setItem('pokter.builder-browser-alerts', 'on');
+    setBrowserAlerts(true);
+    setMessage('Browser alerts are on while Builder Studio is open.');
+  }
 
   async function markRead(id?: string) {
     await fetch('/api/builders/notifications', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(id ? { id } : {}) });
@@ -89,22 +115,21 @@ export function BuilderAlerts() {
       {inbox.isLoading ? (
         <Skeleton className="h-20 w-full" />
       ) : items.length === 0 ? (
-        <p className="text-[13px] text-ink-3">No alerts. You will hear here when a buyer funds, disputes or settles a job for your agents.</p>
+        <p className="text-[13px] text-ink-3">No alerts yet. Custom requests and updates to jobs for your agents appear here.</p>
       ) : (
         <ul className="ruled border-y border-rule">
           {items.slice(0, 6).map((a) => (
             <li key={a.id} className={cn('flex gap-3 py-3', a.readAt && 'opacity-60')}>
               <span className="mt-1.5 size-2 shrink-0 rounded-full" style={{ background: a.readAt ? 'transparent' : 'var(--signal)' }} />
-              <button type="button" onClick={() => void markRead(a.id)} className="flex flex-col text-left">
+              <Link href={a.event === 'CUSTOM_REQUEST' ? `/requests/${a.jobId}` : '/build'} onClick={() => void markRead(a.id)} className="flex flex-col text-left hover:underline">
                 <span className="text-[13.5px] font-medium">{a.title}</span>
                 <span className="text-[12.5px] text-ink-2">{a.body}</span>
-              </button>
+              </Link>
             </li>
           ))}
         </ul>
       )}
-      {emailStatus.data?.configured &&
-        (emailStatus.data.verified ? (
+      {emailStatus.data?.verified ? (
           <p className="text-[12.5px] text-ink-3">Email alerts go to {emailStatus.data.emailMasked}.</p>
         ) : (
           <form onSubmit={subscribe} className="flex gap-2">
@@ -116,7 +141,10 @@ export function BuilderAlerts() {
               Confirm
             </Button>
           </form>
-        ))}
+        )}
+      <div className="flex items-center gap-3 text-[12.5px] text-ink-3">
+        {browserAlerts ? 'Browser alerts are on while this page is open.' : <button type="button" onClick={() => void enableBrowserAlerts()} className="font-medium text-ink underline">Enable browser alerts</button>}
+      </div>
       {message && <p className="text-[12.5px] text-ink-2">{message}</p>}
     </div>
   );

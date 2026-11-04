@@ -1,4 +1,4 @@
-import { getAddress, type Address, type Hex } from 'viem';
+import { getAddress, isAddress, type Address, type Hex } from 'viem';
 
 import { CATEGORIES, NO_CATEGORY, type Category } from '@/lib/agents/categories';
 import { formatQuotedPrice } from '@/lib/erc8183/pricing';
@@ -131,6 +131,8 @@ export interface BriefContent {
    * `requestCategoryOf`.
    */
   category?: string | null;
+  /** A published builder wallet this request is addressed to. Only its agents may propose. */
+  targetBuilder?: Address | null;
 }
 
 export interface Brief extends BriefContent {
@@ -216,6 +218,7 @@ export function briefMessage(input: BriefMessageInput): string {
        verifies against the message its poster actually signed. */
     ...(input.closesAt ? [`Proposals close: ${input.closesAt}`] : []),
     ...(input.category ? [`Category: ${input.category}`] : []),
+    ...(input.targetBuilder ? [`For builder: ${input.targetBuilder.toLowerCase()}`] : []),
   ].join('\n');
 }
 
@@ -526,9 +529,11 @@ export function parseBriefContent(raw: unknown, now: number = Date.now(), enable
     if (typeof b.category !== 'string' || requestCategoryOf(b.category) === null) return fail();
     category = b.category;
   }
+  if (b.targetBuilder !== undefined && b.targetBuilder !== null && b.targetBuilder !== '' && (typeof b.targetBuilder !== 'string' || !isAddress(b.targetBuilder))) return fail();
+  const targetBuilder = typeof b.targetBuilder === 'string' && b.targetBuilder ? getAddress(b.targetBuilder) : null;
   return {
     ok: true,
-    content: { title, brief, acceptance, failSignals: lines(b.failSignals), budgetU, paymentToken: getAddress(token.address), budgetRaw: budgetRaw.toString(), chainId, deliverDays, closesAt, category },
+    content: { title, brief, acceptance, failSignals: lines(b.failSignals), budgetU, paymentToken: getAddress(token.address), budgetRaw: budgetRaw.toString(), chainId, deliverDays, closesAt, category, targetBuilder },
   };
 }
 

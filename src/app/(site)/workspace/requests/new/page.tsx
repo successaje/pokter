@@ -7,6 +7,10 @@ import { draftFromRequest } from '@/lib/briefs/request-draft';
 import { getBriefStore } from '@/lib/briefs/store';
 import { enabledEscrowChains } from '@/lib/network/escrow';
 import { Icon } from '@/ui/icons';
+import { getProfileStore } from '@/lib/profiles/store';
+import { getAddress, isAddress } from 'viem';
+import { avatarSrc, profilePath } from '@/lib/profiles/model';
+import { registryOwner } from '@/lib/registry/onchain';
 
 export const metadata: Metadata = { title: 'Post a request', robots: { index: false } };
 
@@ -28,6 +32,20 @@ export default async function PostRequestPage({ searchParams }: { searchParams: 
   const initialTitle = typeof sp.title === 'string' ? sp.title.trim().slice(0, 120) : '';
   const source = typeof sp.from === 'string' && /^[0-9a-f-]{36}$/i.test(sp.from) ? getBriefStore().get(sp.from) : null;
   const copy = source ? { title: source.title, draft: draftFromRequest(source) } : null;
+  const targetWallet = typeof sp.builder === 'string' && isAddress(sp.builder) ? getAddress(sp.builder) : null;
+  const targetProfile = targetWallet ? getProfileStore().get(targetWallet) : null;
+  const targetOwners = targetProfile?.agents.length ? await Promise.all(targetProfile.agents.map((key) => { const [chain, token] = key.split(':'); return registryOwner(Number(chain), token).catch(() => null); })) : [];
+  const hasAgent = targetWallet && targetOwners.some((owner) => owner?.toLowerCase() === targetWallet.toLowerCase());
+  const target = targetWallet && targetProfile?.published && targetProfile.showBuilding && hasAgent
+    ? { wallet: targetWallet, name: targetProfile.displayName || `@${targetProfile.handle}`, avatar: avatarSrc(targetProfile.avatar), href: profilePath(targetWallet, targetProfile.handle) }
+    : null;
+  if (sp.builder !== undefined && !target) {
+    return <div className="mx-auto max-w-2xl rounded-[16px] border border-rule bg-raised p-8">
+      <h1 className="text-2xl font-semibold">This builder cannot receive a directed request yet</h1>
+      <p className="mt-3 text-ink-2">The builder must publish a profile with building enabled before you can address a request to them. Nothing has been posted.</p>
+      <Link href={targetWallet ? `/builders/${targetWallet}` : '/discover'} className="mt-5 inline-flex text-sm font-semibold underline">Back to builder</Link>
+    </div>;
+  }
   return (
     <>
       <div className="mb-6">
@@ -36,10 +54,10 @@ export default async function PostRequestPage({ searchParams }: { searchParams: 
         </Link>
       </div>
       <PageHeader
-        title={copy ? 'Post a request again' : 'Post a request'}
-        description={copy ? 'The same request with a new date. Check the budget and when proposals close, change anything else that should differ, then sign it as a new request.' : 'Describe what you need. Choose an agent from the proposals you receive.'}
+        title={target ? `Request work from ${target.name}` : copy ? 'Post a request again' : 'Post a request'}
+        description={target ? 'Describe the work for this builder. Only agents owned by this builder can propose. Your signed request will be public.' : copy ? 'The same request with a new date. Check the budget and when proposals close, change anything else that should differ, then sign it as a new request.' : 'Describe what you need. Choose an agent from the proposals you receive.'}
       />
-      <RequestForm networks={enabledEscrowChains()} initialTitle={initialTitle} copy={copy} />
+      <RequestForm networks={enabledEscrowChains()} initialTitle={initialTitle} copy={copy} target={target} />
     </>
   );
 }
