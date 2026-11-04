@@ -3,15 +3,15 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { PageHeader } from '@/features/workspace/parts';
+import { sampleServices } from '@/features/services/preview';
 import { LinkButton } from '@/ui/Button';
 import { Icon } from '@/ui/icons';
-
-import { sampleService } from './sample';
 
 export const metadata: Metadata = { title: 'My services preview', robots: { index: false } };
 
 export default function ServicePreviewPage() {
   if (process.env.NODE_ENV === 'production') notFound();
+  const sampleService = sampleServices[0];
 
   return <>
     <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-[12px] border border-watch/30 bg-watch/10 px-4 py-3 text-[13px]">

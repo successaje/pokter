@@ -56,6 +56,18 @@ test('service catalogue shows only published offers and preserves usable search 
   await expect(page.getByRole('heading', { name: 'No services match your search' })).toBeVisible();
 });
 
+test('local service preview stays separate from real offers and cannot start a hire', async ({ page }) => {
+  await page.goto('/services?preview=1');
+  await expect(page.getByText('These sample services are not published and cannot be hired.')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Health factor review' })).toBeVisible();
+  await page.getByRole('link', { name: 'Health factor review' }).click();
+  await expect(page).toHaveURL(/\/services\/preview\/health-factor-review$/);
+  await expect(page.getByText('Preview only · hiring is unavailable')).toBeVisible();
+  await page.getByRole('link', { name: 'View real services' }).click();
+  await expect(page).toHaveURL(/\/services$/);
+  await expect(page.getByRole('heading', { name: 'No services published yet' })).toBeVisible();
+});
+
 test('Building leads to service publishing and old editor links keep their target', async ({ page }) => {
   await page.goto('/build');
   await page.getByRole('link', { name: 'Set up a service' }).click();

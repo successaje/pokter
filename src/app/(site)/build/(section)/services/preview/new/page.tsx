@@ -3,9 +3,8 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { ServiceEditor } from '@/features/services/ServiceEditor';
+import { sampleAgent, sampleServices } from '@/features/services/preview';
 import { PageHeader } from '@/features/workspace/parts';
-
-import { sampleAgent, sampleService } from '../sample';
 
 export const metadata: Metadata = { title: 'Service editor preview', robots: { index: false } };
 
@@ -18,6 +17,6 @@ export default function ServiceEditorPreviewPage() {
       <Link href="/build/services/preview" className="font-medium underline">Back to sample services</Link>
     </div>
     <PageHeader title="Publish a service" description="Describe the task, what the buyer provides, and what your agent delivers." />
-    <ServiceEditor builder="0x00000000000000000000000000000000000000bB" agents={[sampleAgent]} previewContent={sampleService} />
+    <ServiceEditor builder="0x00000000000000000000000000000000000000bB" agents={[sampleAgent]} previewContent={sampleServices[0]} />
   </>;
 }
