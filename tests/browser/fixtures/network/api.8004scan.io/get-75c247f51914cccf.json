@@ -1,0 +1,17 @@
+{
+  "kind": "http",
+  "method": "GET",
+  "url": "https://api.8004scan.io/api/v1/agents?chain_id=97&limit=100&offset=0&sort_by=total_score&sort_order=desc&owner_address=0x00000000000000000000000000000000000000bb",
+  "requestBodySha256": null,
+  "response": {
+    "status": 200,
+    "statusText": "OK",
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "text": "{\"items\":[],\"total\":0,\"limit\":100,\"offset\":0,\"next_cursor\":null,\"has_more\":false}"
+    }
+  },
+  "recordedAt": "2026-11-04T10:49:57.506Z"
+}
