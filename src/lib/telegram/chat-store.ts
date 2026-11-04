@@ -3,13 +3,14 @@ import 'server-only';
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
+import type { BotButton } from './marketplace-bot';
 
 const DB_PATH = process.env.SCOUT_DB_PATH ?? './data/scout.db';
 const RETENTION_MS = 24 * 60 * 60 * 1000;
 const MAX_TURNS = 6;
 
 export type ChatTurn = { role: 'user' | 'assistant'; content: string };
-export type ChatState = { turns: ChatTurn[]; evidence: string; buttons: Array<Array<{ text: string; url: string }>>; aiEnabled: boolean };
+export type ChatState = { turns: ChatTurn[]; evidence: string; buttons: BotButton[][]; aiEnabled: boolean };
 
 let database: DatabaseSync | null = null;
 function db(): DatabaseSync {

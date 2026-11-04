@@ -12,6 +12,9 @@ process.env.SCOUT_DB_PATH = join(mkdtempSync(join(tmpdir(), 'pokter-scout-chat-t
 const { POST } = await import('../../src/app/api/telegram/marketplace/route');
 const url = 'https://pokter.xyz/api/telegram/marketplace';
 const message = (text: string, type = 'private') => JSON.stringify({ update_id: 1, message: { text, chat: { id: 42, type } } });
+const callback = (fromId = 42) => JSON.stringify({ update_id: 2, callback_query: {
+  id: 'local-callback', data: 'scout:enable_ai', from: { id: fromId }, message: { chat: { id: 42, type: 'private' } },
+} });
 const request = (body: string, secret?: string) => new Request(url, {
   method: 'POST',
   headers: secret ? { 'x-telegram-bot-api-secret-token': secret } : {},
@@ -54,6 +57,7 @@ test('private Scout chat requires opt-in, remembers a follow-up, and forgets it'
   process.env.SCOUT_GEMINI_API_KEY = 'test-only-key';
   const calls: Array<{ url: string; body: Record<string, unknown> }> = [];
   globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    if (String(input).endsWith('/answerCallbackQuery')) return Response.json({ ok: true });
     calls.push({ url: String(input), body: JSON.parse(String(init?.body)) as Record<string, unknown> });
     const answer = calls.length === 1 ? 'Pokter helps you compare agents with observed evidence.' : 'Payment and wallet approval happen on Pokter, not here.';
     return Response.json({ status: 'completed', steps: [{ type: 'model_output', content: [{ type: 'text', text: answer }] }] });
@@ -61,9 +65,12 @@ test('private Scout chat requires opt-in, remembers a follow-up, and forgets it'
   try {
     const secret = process.env.POKTER_TELEGRAM_WEBHOOK_SECRET;
     const consent = await POST(request(message('/ai'), secret));
-    assert.match((await consent.json() as { text: string }).text, /may use submitted content/);
+    const consentBody = await consent.json() as { text: string; reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data?: string }>> } };
+    assert.match(consentBody.text, /may use submitted content/);
+    assert.equal(consentBody.reply_markup.inline_keyboard[0][0].callback_data, 'scout:enable_ai');
     assert.equal(calls.length, 0);
-    const enabled = await POST(request(message('Enable AI chat'), secret));
+    assert.deepEqual(await (await POST(request(callback(99), secret))).json(), { ok: true });
+    const enabled = await POST(request(callback(), secret));
     assert.match((await enabled.json() as { text: string }).text, /AI chat is on/);
     const first = await POST(request(message('What is Pokter?'), secret));
     assert.match((await first.json() as { text: string }).text, /compare agents/);

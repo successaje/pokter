@@ -212,10 +212,10 @@ export async function scoutReply(message: string, isPrivate: boolean, chatId?: n
   }
   if (isPrivate && (raw === '/ai' || raw === 'Chat with Scout')) {
     if (!process.env.SCOUT_GEMINI_API_KEY) return reply('AI chat is not available yet. You can still search agents and check evidence here.', [[link('Open Discover', publicPage('/discover'))]]);
-    return {
-      text: 'AI chat uses Gemini’s free tier. Google may use submitted content to improve its products. Your messages and recent Scout context go to Gemini; never send private keys, passwords or confidential briefs. Pokter keeps recent chat available for 24 hours, and /forget clears it. Read https://pokter.xyz/privacy.\n\nTap Enable AI chat if you agree.',
-      reply_markup: { keyboard: [[{ text: 'Enable AI chat' }], [{ text: 'Back to menu' }]], resize_keyboard: true, is_persistent: true },
-    };
+    return reply(
+      'AI chat uses Gemini’s free tier. Google may use submitted content to improve its products. Your messages and recent Scout context go to Gemini; never send private keys, passwords or confidential briefs. Pokter keeps recent chat available for 24 hours, and /forget clears it.\n\nTap Enable AI chat if you agree.',
+      [[{ text: 'Enable AI chat', callback_data: 'scout:enable_ai' }], [link('Read privacy policy', publicPage('/privacy'))]],
+    );
   }
   if (isPrivate && raw === 'Enable AI chat') {
     if (!process.env.SCOUT_GEMINI_API_KEY || chatId === undefined) return reply('AI chat is not available yet. You can still search agents here.', [[link('Open Discover', publicPage('/discover'))]]);
