@@ -38,14 +38,14 @@ export async function installMockWallet(page: Page, wallet: MockWallet): Promise
     ({ address, chainId, reads, signing, canTestSign }) => {
       const calls: Array<{ method: string; params: unknown; outcome: 'answered' | 'refused' }> = [];
       const listeners = new Map<string, Set<(...args: unknown[]) => void>>();
-      const hex = `0x${chainId.toString(16)}`;
+      let currentChainId = chainId;
       const reject = (message: string, code: number) => Object.assign(new Error(message), { code });
-      const answer = (method: string): unknown => {
+      const answer = (method: string, params: unknown): unknown => {
         switch (method) {
           case 'eth_chainId':
-            return hex;
+            return `0x${currentChainId.toString(16)}`;
           case 'net_version':
-            return String(chainId);
+            return String(currentChainId);
           case 'eth_accounts':
           case 'eth_requestAccounts':
             return [address];
@@ -53,6 +53,8 @@ export async function installMockWallet(page: Page, wallet: MockWallet): Promise
           case 'wallet_getPermissions':
             return [{ parentCapability: 'eth_accounts' }];
           case 'wallet_switchEthereumChain':
+            currentChainId = Number((params as Array<{ chainId: string }>)?.[0]?.chainId);
+            queueMicrotask(() => listeners.get('chainChanged')?.forEach((listener) => listener(`0x${currentChainId.toString(16)}`)));
             return null;
           case 'wallet_getCapabilities':
             return {};
@@ -74,7 +76,7 @@ export async function installMockWallet(page: Page, wallet: MockWallet): Promise
             call.outcome = 'answered';
             return signature;
           }
-          const result = answer(method);
+          const result = answer(method, params);
           call.outcome = 'answered';
           return result;
         },

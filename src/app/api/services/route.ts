@@ -35,8 +35,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Publish your builder profile and enable Building first.' }, { status: 403 });
   const suffix = getProfileStore().challenge(challengeId, owner, content.chainId);
   if (!suffix) return NextResponse.json({ error: 'This signing challenge expired or was used.' }, { status: 409 });
-  if (!(await walletCanBeChecked(content.chainId, owner, signature as Hex)) ||
-      !(await signedByWallet(content.chainId, owner, serviceMessage(owner, suffix, id, content), signature as Hex)))
+  if (!(await walletCanBeChecked(content.chainId, owner, signature as Hex)))
+    return NextResponse.json({ error: 'This smart wallet is not active on the selected network yet.' }, { status: 409 });
+  if (!(await signedByWallet(content.chainId, owner, serviceMessage(owner, suffix, id, content), signature as Hex)))
     return NextResponse.json({ error: 'The builder signature is invalid.' }, { status: 403 });
   const registry = await registryOwner(content.chainId, content.tokenId).catch(() => null);
   if (!registry) return NextResponse.json({ error: 'Registry ownership could not be checked.' }, { status: 503 });

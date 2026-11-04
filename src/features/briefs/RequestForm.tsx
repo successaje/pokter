@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useAccount } from 'wagmi';
 
 import { amountWithinLimits, budgetLimitsFor } from '@/lib/hire/budget-limits';
 import { amountToRaw, briefMessage, listProblem, REQUEST_CATEGORIES, type BriefContent } from '@/lib/briefs/model';
@@ -11,6 +12,9 @@ import { escrowMoney } from '@/lib/network/presentation';
 import { defaultHireToken, displaySymbol, hireTokenAt, offeredTokens, tokenIdentity, tokenName, type PaymentToken } from '@/lib/network/tokens';
 import { cn } from '@/lib/ui/cn';
 import { useActiveSigner } from '@/lib/wallet/use-active-signer';
+import { WALLET_NETWORK } from '@/lib/wallet/passkey';
+import { useLiveSignMessage } from '@/lib/wallet/use-live-sign-message';
+import { useLiveSwitchChain } from '@/lib/wallet/use-live-switch-chain';
 import { useConnect } from '@/shell/wallet/ConnectProvider';
 import { Button } from '@/ui/Button';
 import { Notice } from '@/ui/Feedback';
@@ -49,6 +53,10 @@ export function RequestForm({ networks, initialTitle = '', copy = null, target =
   const router = useRouter();
   const { openConnect } = useConnect();
   const { address, canSign, sign } = useActiveSigner();
+  const { address: browserAddress, isConnected, chain } = useAccount();
+  const { signMessageAsync } = useLiveSignMessage();
+  const { switchChainAsync } = useLiveSwitchChain();
+  const postingAddress = isConnected && browserAddress ? browserAddress : address;
 
   const empty: Draft = { title: initialTitle, brief: '', acceptance: '', failSignals: '', budget: '', chainId: networks[0] ?? 97, paymentToken: null, deliverDays: 3, closesInDays: 0, category: null };
   /* A network or token turned off since the draft was written is dropped rather than kept unpayable. */
@@ -190,7 +198,7 @@ export function RequestForm({ networks, initialTitle = '', copy = null, target =
 
   const publish = async () => {
     if (submitting.current) return;
-    if (!address || !canSign) {
+    if (!postingAddress || (!isConnected && !canSign)) {
       openConnect('to sign and publish this request');
       return;
     }
@@ -201,11 +209,14 @@ export function RequestForm({ networks, initialTitle = '', copy = null, target =
       const postedAt = new Date().toISOString();
       /* The closing time is fixed now, at signing, rather than when the review opened. */
       const terms: BriefContent = { ...content, closesAt: draft.closesInDays > 0 ? closingFromNow(draft.closesInDays) : null };
-      const signature = await sign(briefMessage({ ...terms, poster: address, postedAt }));
+      if (isConnected && browserAddress && chain?.id !== terms.chainId) await switchChainAsync({ chainId: terms.chainId as 56 | 97 });
+      else if (!isConnected && WALLET_NETWORK.chainId !== terms.chainId) throw new Error(`This passkey wallet cannot sign a request for BNB ${terms.chainId === 56 ? 'Mainnet' : 'Testnet'}. Connect a browser wallet on that network.`);
+      const message = briefMessage({ ...terms, poster: postingAddress, postedAt });
+      const signature = isConnected && browserAddress ? await signMessageAsync({ message }) : await sign(message);
       const response = await fetch('/api/briefs', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ poster: address, signature, postedAt, content: terms }),
+        body: JSON.stringify({ poster: postingAddress, signature, postedAt, content: terms }),
       });
       const payload = (await response.json().catch(() => ({}))) as { error?: string; brief?: { id: string } };
       if (!response.ok || !payload.brief) throw new Error(payload.error ?? 'The request was not published.');
@@ -232,7 +243,7 @@ export function RequestForm({ networks, initialTitle = '', copy = null, target =
           <p className="text-[14px] text-ink-2">Check it reads the way you mean it. Once published, these terms can&rsquo;t be edited.</p>
         </div>
         <div className="rounded-[18px] border border-rule bg-raised p-6 sm:p-8">
-          <RequestTerms heading="h2" content={content} byline={address ? <>Posted by your wallet · 0 proposals</> : 'Posted by your wallet'} />
+          <RequestTerms heading="h2" content={content} byline={postingAddress ? <>Posted by your wallet · 0 proposals</> : 'Posted by your wallet'} />
         </div>
         <div className="flex flex-col gap-3">
           <Notice title="Publishing does not fund a job">
@@ -250,7 +261,7 @@ export function RequestForm({ networks, initialTitle = '', copy = null, target =
           </Button>
           <div className="flex flex-col items-stretch gap-1.5 sm:items-end">
             <Button onClick={publish} busy={busy}>
-              {busy ? 'Approve in your wallet' : address && canSign ? 'Publish request' : 'Connect a wallet to publish'}
+              {busy ? 'Approve in your wallet' : postingAddress ? 'Publish request' : 'Connect a wallet to publish'}
             </Button>
             <span className="text-[12px] text-ink-3">A signature, not a transaction. No fee.</span>
           </div>
@@ -444,7 +455,7 @@ export function RequestForm({ networks, initialTitle = '', copy = null, target =
       <aside className="hidden lg:block">
         <div className="sticky top-24 flex flex-col gap-5">
           <span className="t-label">On the Requests board</span>
-          <RequestRow preview now={openedAt} request={{ ...content, id: 'preview', poster: address ?? 'new-request', postedAt: '', proposals: 0, state: 'open' }} />
+          <RequestRow preview now={openedAt} request={{ ...content, id: 'preview', poster: postingAddress ?? 'new-request', postedAt: '', proposals: 0, state: 'open' }} />
           <ol className="flex flex-col gap-3 text-[13px] leading-snug text-ink-2">
             {[
               [target ? `${target.name} can propose` : 'Builders send proposals', 'Each proposal names an agent, a price and a delivery time, signed by the agent’s owner.'],
