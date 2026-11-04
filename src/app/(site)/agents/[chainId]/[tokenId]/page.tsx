@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { GENERAL_CATEGORY_LABEL } from '@/lib/agents/categories';
 import { notFound, redirect } from 'next/navigation';
 import { Suspense, type ReactNode } from 'react';
+import { getServiceStore } from '@/lib/services/store';
 
 import { CHAIN_ID, chainLabel, explorerBaseFor } from '@/lib/network/presentation';
 import { cn } from '@/lib/ui/cn';
@@ -73,9 +74,10 @@ function explorerHost(chainId: number): string {
 }
 
 /** Registry ownership is observed; the name and bio are signed, self-provided profile content. */
-function BuilderIdentity({ owner }: { owner: string }) {
+function BuilderIdentity({ owner, chainId, tokenId }: { owner: string; chainId: number; tokenId: string }) {
   const profile = getProfileStore().get(owner);
   const published = profile?.published ? profile : null;
+  const services = published ? getServiceStore().byBuilder(owner).filter((service) => service.status === 'active' && service.chainId === chainId && service.tokenId === tokenId) : [];
   const name = published?.displayName || (published?.handle ? `@${published.handle}` : `${owner.slice(0, 6)}…${owner.slice(-4)}`);
   return (
     <section aria-label="Builder identity" className="mt-4 rounded-[14px] border border-rule bg-raised p-4">
@@ -89,6 +91,7 @@ function BuilderIdentity({ owner }: { owner: string }) {
       </div>
       <p className="mt-3 text-[12px] leading-relaxed text-ink-3">{published ? 'Builder name and bio are self-provided; this wallet owns the agent in the registry.' : 'Registry owner. No public builder profile has been published yet.'}</p>
       <Link href={profilePath(owner, published?.handle)} className="mt-3 inline-flex items-center gap-1 text-[12.5px] font-medium hover:underline">View builder and services <Icon.Arrow size={12} aria-hidden /></Link>
+      {services.length > 0 && <div className="mt-4 border-t border-rule pt-4"><span className="t-label">Published services for this agent</span><ul className="mt-2 flex flex-col gap-2">{services.map((service) => <li key={service.id}><Link href={`/services/${service.id}`} className="text-[13px] font-medium hover:underline">{service.title} →</Link></li>)}</ul></div>}
     </section>
   );
 }
@@ -1274,14 +1277,14 @@ export default async function AgentPage({ params, searchParams }: { params: Para
         <div className="hidden lg:block">
           <div className="sticky top-32">
             <HirePanel profile={p} />
-            <BuilderIdentity owner={p.owner} />
+            <BuilderIdentity owner={p.owner} chainId={p.chainId} tokenId={p.tokenId} />
             <TradesForYouCard chainId={p.chainId} tokenId={p.tokenId} />
           </div>
         </div>
       </div>
       <div className="frame mt-12 lg:hidden">
         <HirePanel profile={p} />
-        <BuilderIdentity owner={p.owner} />
+        <BuilderIdentity owner={p.owner} chainId={p.chainId} tokenId={p.tokenId} />
         <TradesForYouCard chainId={p.chainId} tokenId={p.tokenId} />
       </div>
       <MobileHireBar profile={p} />

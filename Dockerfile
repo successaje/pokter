@@ -75,6 +75,7 @@ ENV CAPABILITY_DB_PATH=/data/capability.db
 ENV FEEDBACK_DB_PATH=/data/feedback.db
 ENV BRIEF_DB_PATH=/data/briefs.db
 ENV PROFILE_DB_PATH=/data/profiles.db
+ENV SERVICE_DB_PATH=/data/services.db
 ENV MAINTENANCE_DB_PATH=/data/maintenance.db
 ENV SATURATION_DB_PATH=/data/saturation.db
 ENV TRADING_DB_PATH=/data/trading.db

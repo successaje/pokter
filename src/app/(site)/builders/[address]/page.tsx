@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import Image from 'next/image';
 import { notFound, redirect } from 'next/navigation';
 import { getAddress, isAddress, type Address } from 'viem';
 
@@ -23,11 +24,13 @@ import { AgentAvatar } from '@/ui/Agent';
 import { AvatarImage } from '@/ui/AvatarImage';
 import { CopyButton } from '@/ui/Data';
 import { Icon } from '@/ui/icons';
+import { getServiceStore } from '@/lib/services/store';
+import { ServiceCard } from '@/features/services/ServiceCard';
 
 export const dynamic = 'force-dynamic';
 
 type View = 'building' | 'hiring';
-type Tab = 'overview' | 'agents' | 'work' | 'reviews' | 'requests';
+type Tab = 'overview' | 'agents' | 'services' | 'work' | 'reviews' | 'requests';
 
 /**
  * A wallet, resolved from its handle or its address. A handle resolves
@@ -129,6 +132,7 @@ export default async function ProfilePage({
     })
     .sort((x, y) => Number(y.pinned) - Number(x.pinned));
   const quotes = getProbeStore().quotesFor(shown.map((agent) => ({ chainId: agent.chainId, tokenId: agent.tokenId })));
+  const services = published?.showBuilding ? getServiceStore().byBuilder(wallet).filter((service) => service.status === 'active' && shown.some((agent) => agent.status === 'owned' && agent.chainId === service.chainId && agent.tokenId === service.tokenId)) : [];
   const checksSince = new Date(now - 30 * 86_400_000);
   const checks = ([56, 97] as const).map((chainId) => {
     const rows = shown.filter((agent) => agent.chainId === chainId).flatMap((agent) => getProbeStore().historyFor(agent.chainId, agent.tokenId, checksSince));
@@ -138,7 +142,7 @@ export default async function ProfilePage({
   const sections: View[] = published ? [...(published.showBuilding ? (['building'] as const) : []), ...(published.showHiring ? (['hiring'] as const) : [])] : [];
   const preferred: View = published?.usage === 'hire' ? 'hiring' : 'building';
   const view: View = sections.includes(sp.view as View) ? (sp.view as View) : sections.includes(preferred) ? preferred : (sections[0] ?? 'building');
-  const tabs: Tab[] = view === 'building' ? ['overview', 'agents', 'work', 'reviews'] : ['overview', 'requests'];
+  const tabs: Tab[] = view === 'building' ? ['overview', 'agents', 'services', 'work', 'reviews'] : ['overview', 'requests'];
   const tab: Tab = tabs.includes(sp.tab as Tab) ? (sp.tab as Tab) : 'overview';
   const base = profilePath(wallet, published?.handle);
   const href = (v: View, t: Tab) => `${base}?view=${v}&tab=${t}`;
@@ -150,11 +154,11 @@ export default async function ProfilePage({
   const theme = published?.theme === 'forest' ? 'bg-[#173d33] text-white' : published?.theme === 'sand' ? 'bg-[#d9c9a8] text-[#222017]' : 'bg-[#191b20] text-white';
 
   const identity = (
-    <div className="flex flex-col gap-4">
+    <div key="profile-identity" className="flex flex-col gap-4">
       <div className="flex items-center gap-4 lg:flex-col lg:items-start">
-        <AvatarImage src={avatarSrc(published?.avatar ?? '')} fallback={avatarUrl(wallet.toLowerCase())} name={name} size={88} className="shrink-0 rounded-full" eager />
+        {!published && <AvatarImage src={null} fallback={avatarUrl(wallet.toLowerCase())} name={name} size={88} className="shrink-0 rounded-full" eager />}
         <div className="flex min-w-0 flex-col gap-0.5">
-          {published ? <span className="text-[14.5px] font-medium text-ink-2">@{published.handle}</span> : <h1 className="break-words text-[clamp(1.5rem,3vw,1.9rem)] font-semibold leading-tight tracking-[-0.02em]"><span className="t-readout">{short(wallet)}</span></h1>}
+          {!published && <h2 className="break-words text-[clamp(1.5rem,3vw,1.9rem)] font-semibold leading-tight tracking-[-0.02em]"><span className="t-readout">{short(wallet)}</span></h2>}
           {role && <span className="mt-1 w-fit rounded-full bg-sunken px-2.5 py-0.5 text-[12.5px] font-medium text-ink-2">{role}</span>}
         </div>
       </div>
@@ -223,20 +227,11 @@ export default async function ProfilePage({
         )}
       </ul>
 
-      {/* Counts for the view being read, and only ones attributable to this person. */}
-      {published && sections.length > 0 && (
+      {/* Hiring counts live here; the storefront header carries the building summary. */}
+      {published && view === 'hiring' && sections.length > 0 && (
         <dl className="grid grid-cols-2 gap-2 text-[12.5px]">
-          {view === 'building' ? (
-            <>
-              <MiniStat label="Agents published" value={String(shown.length)} />
-              {operator.since && <MiniStat label="Jobs taken on" value={String(operator.mainnet.funded)} note={`mainnet · since ${day(operator.since)}`} />}
-            </>
-          ) : (
-            <>
-              <MiniStat label="Requests posted" value={String(hiring.requestsPosted)} />
-              <MiniStat label="Jobs funded" value={`${hiring.mainnet.funded}`} note={`mainnet · ${hiring.testnet.funded} testnet`} />
-            </>
-          )}
+          <MiniStat label="Requests posted" value={String(hiring.requestsPosted)} />
+          <MiniStat label="Jobs funded" value={`${hiring.mainnet.funded}`} note={`mainnet · ${hiring.testnet.funded} testnet`} />
         </dl>
       )}
       {published && <p className="text-[11.5px] leading-snug text-ink-3">Name, bio, tags and links are self-provided. Pokter does not endorse them or guarantee any agent&rsquo;s performance.</p>}
@@ -245,12 +240,39 @@ export default async function ProfilePage({
 
   return (
     <div className="frame pb-24 pt-8 sm:pt-12">
-      {published && (
-        <section className={cn('mb-8 overflow-hidden rounded-[18px] px-6 py-8 sm:px-9 sm:py-10', theme)} aria-label="Builder storefront header">
-          <span className="text-[11px] font-semibold uppercase tracking-[0.14em] opacity-70">Builder profile · @{published.handle}</span>
-          <h1 className="mt-3 max-w-3xl break-words text-[clamp(2rem,4vw,3.5rem)] font-semibold leading-[1.03] tracking-[-0.04em]">{name}</h1>
-          {(published.tagline || published.bio) && <p className="mt-3 max-w-2xl text-[clamp(1rem,1.7vw,1.25rem)] leading-relaxed opacity-85">{published.tagline || published.bio}</p>}
-          <p className="mt-5 text-[12px] opacity-70">Profile text and style chosen by the builder · agent ownership and work checked separately below</p>
+      {(
+        <section className="mb-8 overflow-hidden rounded-[16px] border border-rule bg-raised" aria-label="Builder storefront header">
+          <div className={cn('relative h-40 overflow-hidden sm:h-52', theme)}>
+            {published?.cover ? (
+              <Image src={avatarSrc(published.cover) ?? ''} alt="" fill unoptimized sizes="(max-width: 768px) 100vw, 1200px" className="object-cover" />
+            ) : (
+              <div className="absolute inset-0" aria-hidden>
+                <div className="absolute inset-0 opacity-[0.08]" style={{ backgroundImage: 'linear-gradient(currentColor 1px, transparent 1px), linear-gradient(90deg, currentColor 1px, transparent 1px)', backgroundSize: '32px 32px' }} />
+                <div className="absolute -right-20 -top-64 size-[540px] rounded-full border-[90px] border-current opacity-[0.07]" />
+                <div className="absolute -left-36 bottom-[-230px] size-[420px] rounded-full border-[65px] border-current opacity-[0.06]" />
+                <span className="absolute bottom-3 right-7 text-[clamp(3rem,9vw,7rem)] font-black uppercase leading-none tracking-[-0.08em] opacity-[0.09]">{published?.handle || 'BNB'}</span>
+              </div>
+            )}
+          </div>
+          <div className="relative px-5 pb-5 pt-4 sm:px-8 sm:pb-6">
+            <AvatarImage src={avatarSrc(published?.avatar ?? '')} fallback={avatarUrl(wallet.toLowerCase())} name={name} size={88} className="absolute -top-11 left-5 rounded-[16px] border-[4px] border-[var(--raised)] bg-raised shadow-sm sm:left-8" eager />
+            <div className="flex flex-col gap-4 pt-10 sm:flex-row sm:items-start sm:justify-between sm:pl-24 sm:pt-0">
+              <div className="min-w-0">
+                <p className="t-label">{published ? 'Claimed builder profile' : 'Registry-derived builder profile'} <span className="mx-1 text-ink-3">·</span> {published ? `@${published.handle}` : short(wallet)}</p>
+                <h1 className="mt-1.5 max-w-3xl break-words text-[clamp(1.8rem,3vw,2.6rem)] font-semibold leading-tight tracking-[-0.04em]">{name}</h1>
+                {(published?.tagline || published?.bio) && <p className="mt-1.5 max-w-2xl text-[14px] leading-relaxed text-ink-2">{published.tagline || published.bio}</p>}
+                <p className="mt-2 text-[11.5px] text-ink-3">{published ? 'Profile signed by this wallet. The builder chose the name, image and description.' : 'This wallet has not claimed a Pokter profile. Agent associations below come from the registry.'}</p>
+              </div>
+              {published?.showBuilding && shown.some((agent) => agent.status === 'owned') ? <Link href={`/workspace/requests/new?builder=${encodeURIComponent(wallet)}`} className="inline-flex h-10 shrink-0 items-center justify-center rounded-[8px] bg-ink px-4 text-[13px] font-medium text-paper hover:opacity-90">Request custom work <Icon.Arrow size={14} className="ml-2" /></Link> : <span className="self-start rounded-[8px] border border-rule-strong px-3 py-2 text-[12px] text-ink-3">{published ? 'No verified agent available for custom requests' : 'Custom requests available after profile claim'}</span>}
+            </div>
+            {published?.showBuilding && (
+              <dl className="mt-5 grid max-w-xl grid-cols-3 border-t border-rule pt-4 text-[12px] sm:ml-24">
+                <div><dt className="t-label">Agents</dt><dd className="t-readout mt-1 text-[17px]">{shown.length}</dd></div>
+                <div><dt className="t-label">Answered checks</dt><dd className="t-readout mt-1 text-[17px]">{checks.reduce((n, check) => n + check.answered, 0)}<span className="ml-1 text-[11px] text-ink-3">/ 30d</span></dd></div>
+                <div><dt className="t-label">Outside jobs</dt><dd className="t-readout mt-1 text-[17px]">{operator.since ? operator.mainnet.funded + operator.testnet.funded : '—'}</dd></div>
+              </dl>
+            )}
+          </div>
         </section>
       )}
       <ProfileShell wallet={wallet} published={published ? profileContentOf(published) : null} hasSaved={Boolean(profile)} agents={ownedOptions} hiringActivity={hiringActivity} identity={identity}>
@@ -279,6 +301,7 @@ export default async function ProfilePage({
 
             {view === 'building' && tab === 'overview' && <BuildingOverview agents={shown} wallet={wallet} operator={operator} reviews={reviews} checks={checks} quotes={quotes} now={now} reviewsHref={href('building', 'reviews')} agentsHref={href('building', 'agents')} />}
             {view === 'building' && tab === 'agents' && <AgentsTab agents={shown} wallet={wallet} quotes={quotes} now={now} />}
+            {view === 'building' && tab === 'services' && (services.length ? <ul className="grid gap-4 sm:grid-cols-2">{services.map((service) => <li key={service.id}><ServiceCard service={service} /></li>)}</ul> : <Empty title="No published services">This builder has not published a specific offer yet. Browse their agents or request custom work.</Empty>)}
             {view === 'building' && tab === 'work' && <WorkTab agents={shown} wallet={wallet} takenOn={operator.jobIds} />}
             {view === 'building' && tab === 'reviews' && <ReviewsTab data={reviews} />}
             {view === 'hiring' && tab === 'overview' && <HiringOverview record={hiring} requestsHref={href('hiring', 'requests')} />}
@@ -507,7 +530,7 @@ function BuildingOverview({
       <section aria-labelledby="featured-title" className="flex flex-col gap-3">
         <div className="flex items-baseline justify-between">
           <h2 id="featured-title" className="text-[17px] font-semibold">
-            Services and agents
+            Featured agents
           </h2>
           {agents.length > featured.length && (
             <Link href={agentsHref} className="text-[13px] font-medium text-ink-2 hover:text-ink">
