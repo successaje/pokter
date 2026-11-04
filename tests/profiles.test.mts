@@ -62,6 +62,10 @@ test('a profile headline and style are bounded signed presentation, never eviden
   assert.match(profileProblem({ ...CONTENT, tagline: 'a'.repeat(101) }) ?? '', /headline/);
   assert.match(profileProblem({ ...CONTENT, theme: 'official' as never }) ?? '', /style/);
   assert.equal(readProfileContent({ ...CONTENT, theme: 'forest', tagline: 'Risk checks' })?.theme, 'forest');
+  const cover = 'a'.repeat(64);
+  assert.match(profileMessage({ ...CONTENT, cover, wallet: '0xabc', signedAt: AT }), new RegExp(`Cover: ${cover}`));
+  assert.equal(readProfileContent({ ...CONTENT, cover })?.cover, cover);
+  assert.match(profileProblem({ ...CONTENT, cover: 'https://example.com/cover.png' }) ?? '', /banner/);
 });
 
 test('job states are counted for what they prove, and payment is never called acceptance', () => {

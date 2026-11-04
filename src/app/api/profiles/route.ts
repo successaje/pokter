@@ -9,6 +9,17 @@ import { signedByWallet, walletCanBeChecked } from '@/lib/wallet/signed-by';
 
 export const dynamic = 'force-dynamic';
 
+/** One-use, domain-bound signing challenge for every profile edit. */
+export async function PUT(request: Request): Promise<NextResponse> {
+  const rate = consumeRateLimit(`profile-challenge:${requestClientKey(request)}`, { limit: 10, windowMs: 60_000 });
+  if (!rate.allowed) return NextResponse.json({ error: 'Too many requests. Try again shortly.' }, { status: 429 });
+  const body = await request.json().catch(() => null) as { wallet?: unknown; chainId?: unknown } | null;
+  const wallet = String(body?.wallet ?? '');
+  const chainId = Number(body?.chainId);
+  if (!isAddress(wallet) || ![56, 97].includes(chainId)) return NextResponse.json({ error: 'A valid wallet and network are required.' }, { status: 400 });
+  return NextResponse.json({ challenge: getProfileStore().createChallenge(wallet, chainId) });
+}
+
 /**
  * A wallet's published profile, and whether it has one at all. A profile
  * that is not published comes back as `published: null`: its content is
@@ -45,6 +56,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   const signature = String(body.signature ?? '');
   const signedAt = String(body.signedAt ?? '');
   const chainId = Number(body.chainId);
+  const challengeId = String(body.challengeId ?? '');
   const content = readProfileContent(body.content);
   if (!isAddress(wallet) || !isHex(signature) || !content || (chainId !== 56 && chainId !== 97)) {
     return NextResponse.json({ error: 'The profile could not be read, or breaks a limit.' }, { status: 400 });
@@ -55,6 +67,8 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ error: 'This edit was signed too long ago. Sign it again.' }, { status: 400 });
   }
   const store = getProfileStore();
+  const suffix = store.challenge(challengeId, wallet, chainId);
+  if (!suffix) return NextResponse.json({ error: 'This profile challenge expired or was already used. Sign again.' }, { status: 409 });
   const current = store.get(wallet);
   if (current && Date.parse(current.signedAt) >= at) {
     return NextResponse.json({ error: 'A newer edit is already saved.' }, { status: 409 });
@@ -64,7 +78,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   if (!(await walletCanBeChecked(chainId, owner, signature as Hex))) {
     return NextResponse.json({ error: 'This wallet has no code on chain yet, so its signature cannot be checked.' }, { status: 409 });
   }
-  if (!(await signedByWallet(chainId, owner, profileMessage({ ...content, wallet, signedAt }), signature as Hex))) {
+  if (!(await signedByWallet(chainId, owner, profileMessage({ ...content, wallet, signedAt }) + suffix, signature as Hex))) {
     return NextResponse.json({ error: 'That signature does not match this profile.' }, { status: 403 });
   }
 
@@ -73,6 +87,9 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
   if (content.avatar && !store.avatar(content.avatar)) {
     return NextResponse.json({ error: 'That picture was not found. Upload it again.' }, { status: 400 });
+  }
+  if (content.cover && !store.avatar(content.cover)) {
+    return NextResponse.json({ error: 'That banner was not found. Upload it again.' }, { status: 400 });
   }
 
   /*
@@ -92,6 +109,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ error: `This wallet does not own ${notOwned.map((k) => `#${k.split(':')[1]}`).join(', ')} in the registry, so it cannot be shown as yours.` }, { status: 409 });
   }
 
+  if (!store.consumeChallenge(challengeId)) return NextResponse.json({ error: 'This profile challenge expired or was already used.' }, { status: 409 });
   if (isEmptyProfile(content)) store.remove(wallet);
   else store.put({ ...content, wallet, signedAt, signature });
   return NextResponse.json({ profile: isEmptyProfile(content) ? null : store.get(wallet) });

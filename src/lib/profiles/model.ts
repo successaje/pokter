@@ -42,6 +42,8 @@ export interface ProfileContent {
   theme: ProfileTheme;
   /** An uploaded picture's id, or empty for the generated one. */
   avatar: string;
+  /** Optional uploaded banner image. Empty uses the chosen header colour. */
+  cover: string;
   /** Agent categories this builder works in, by id. */
   tags: Category[];
   links: string[];
@@ -93,6 +95,7 @@ export function profileMessage(input: ProfileContent & { wallet: string; signedA
     `Bio: ${input.bio}`,
     `Theme: ${input.theme}`,
     `Avatar: ${input.avatar || 'generated'}`,
+    ...(input.cover ? [`Cover: ${input.cover}`] : []),
     `Tags: ${input.tags.join(', ')}`,
     `Links: ${input.links.join(' | ')}`,
     `Usage: ${input.usage || 'unset'}`,
@@ -132,6 +135,7 @@ export function profileProblem(raw: ProfileContent): string | null {
   if (SPEAKS_FOR_POKTER.test(raw.displayName)) return 'A name cannot include “Pokter”, so it is never read as Pokter speaking.';
   if (raw.bio.length > PROFILE_LIMITS.bio) return `Keep the bio under ${PROFILE_LIMITS.bio} characters.`;
   if (raw.avatar && !AVATAR_ID.test(raw.avatar)) return 'That picture could not be found. Upload it again.';
+  if (raw.cover && !AVATAR_ID.test(raw.cover)) return 'That banner could not be found. Upload it again.';
   if (raw.tags.length > PROFILE_LIMITS.tags) return `At most ${PROFILE_LIMITS.tags} tags.`;
   if (raw.tags.some((t) => !CATEGORIES.some((c) => c.id === t))) return 'Tags come from the agent categories.';
   if (raw.links.length > PROFILE_LIMITS.links) return `At most ${PROFILE_LIMITS.links} links.`;
@@ -157,6 +161,7 @@ export function normalizeProfile(c: ProfileContent): ProfileContent {
     bio: c.bio.trim(),
     theme: c.theme,
     avatar: c.avatar.trim(),
+    cover: c.cover?.trim() ?? '',
     tags: CATEGORIES.map((cat) => cat.id).filter((id) => c.tags.includes(id)),
     links: c.links.map((l) => l.trim()).filter(Boolean),
     usage: c.usage,
@@ -184,6 +189,7 @@ export function readProfileContent(raw: unknown): ProfileContent | null {
     bio: b.bio as string,
     theme: b.theme as ProfileTheme,
     avatar: b.avatar as string,
+    cover: typeof b.cover === 'string' ? b.cover : '',
     tags: (b.tags as unknown[]).map(String) as Category[],
     links: (b.links as unknown[]).map(String),
     usage: b.usage as Usage | '',
@@ -199,7 +205,7 @@ export function readProfileContent(raw: unknown): ProfileContent | null {
 }
 
 export function isEmptyProfile(c: ProfileContent): boolean {
-  return !c.handle && !c.displayName && !c.tagline && !c.bio && !c.avatar && c.tags.length === 0 && c.links.length === 0 && !c.usage && !c.published && c.agents.length === 0;
+  return !c.handle && !c.displayName && !c.tagline && !c.bio && !c.avatar && !c.cover && c.tags.length === 0 && c.links.length === 0 && !c.usage && !c.published && c.agents.length === 0;
 }
 
 export const EMPTY_PROFILE: ProfileContent = {
@@ -209,6 +215,7 @@ export const EMPTY_PROFILE: ProfileContent = {
   bio: '',
   theme: 'ink',
   avatar: '',
+  cover: '',
   tags: [],
   links: [],
   usage: '',
@@ -230,6 +237,7 @@ export function profileContentOf(p: Profile): ProfileContent {
     bio: p.bio,
     theme: p.theme,
     avatar: p.avatar,
+    cover: p.cover,
     tags: p.tags,
     links: p.links,
     usage: p.usage,
