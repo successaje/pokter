@@ -8,6 +8,14 @@ process.env.SCOUT_DB_PATH = join(mkdtempSync(join(tmpdir(), 'pokter-scout-store-
 
 const { forgetChat, readChat, saveChat } = await import('../../src/lib/telegram/chat-store');
 const { generateScoutAnswer } = await import('../../src/lib/telegram/scout-gemini');
+const { scoutKnowledgeFor } = await import('../../src/lib/telegram/scout-knowledge');
+
+test('Scout selects Pokter documentation for the question and links to real guides', () => {
+  const request = scoutKnowledgeFor('How do buyers post a request and builders propose?');
+  assert.match(request.context, /A request describes work but is not a funded hire/);
+  assert.ok(request.links.some((link) => link.path === '/guides/find-jobs'));
+  assert.ok(request.context.length <= 3200);
+});
 
 test('Scout keeps a short local window for one day and /forget removes it', () => {
   const now = Date.UTC(2026, 10, 4);
@@ -23,13 +31,17 @@ test('Scout keeps a short local window for one day and /forget removes it', () =
 test('Scout refuses model-written links and keeps API storage disabled', async () => {
   const originalFetch = globalThis.fetch;
   let sentStore: unknown;
+  let sentDocs: unknown;
   globalThis.fetch = (async (_input: string | URL | Request, init?: RequestInit) => {
-    sentStore = (JSON.parse(String(init?.body)) as Record<string, unknown>).store;
+    const body = JSON.parse(String(init?.body)) as { store: unknown; input: string };
+    sentStore = body.store;
+    sentDocs = (JSON.parse(body.input) as { pokter_docs?: string }).pokter_docs;
     return Response.json({ status: 'completed', steps: [{ type: 'model_output', content: [{ type: 'text', text: 'Open https://example.com/fake-agent' }] }] });
   }) as typeof fetch;
   try {
-    await assert.rejects(generateScoutAnswer({ message: 'which one?', turns: [], evidence: 'No verified links', apiKey: 'test' }), /unverified link/);
+    await assert.rejects(generateScoutAnswer({ message: 'which one?', turns: [], evidence: 'No verified links', docs: 'Official Pokter guide facts', apiKey: 'test' }), /unverified link/);
     assert.equal(sentStore, false);
+    assert.equal(sentDocs, 'Official Pokter guide facts');
   } finally {
     globalThis.fetch = originalFetch;
   }

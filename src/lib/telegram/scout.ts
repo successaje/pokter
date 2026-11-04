@@ -7,6 +7,7 @@ import { consumeRateLimit } from '@/lib/security/rate-limit';
 import { marketplaceBotReply, publicPage, scoutMenu, type BotButton, type BotReply } from './marketplace-bot';
 import { forgetChat, readChat, saveChat } from './chat-store';
 import { generateScoutAnswer } from './scout-gemini';
+import { scoutKnowledgeFor } from './scout-knowledge';
 
 const network = (chainId: number) => chainId === 97 ? 'BNB Testnet' : 'BNB Mainnet';
 const short = (text: string, max = 135) => text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text;
@@ -230,13 +231,15 @@ async function chatWithScout(raw: string, chatId: number): Promise<BotReply> {
     return search;
   }
   try {
-    const answer = await generateScoutAnswer({ message: raw, turns: state.turns, evidence, apiKey: process.env.SCOUT_GEMINI_API_KEY! });
+    const knowledge = scoutKnowledgeFor(raw);
+    const answer = await generateScoutAnswer({ message: raw, turns: state.turns, evidence, docs: knowledge.context, apiKey: process.env.SCOUT_GEMINI_API_KEY! });
     saveChat(chatId, {
       turns: [...state.turns, { role: 'user', content: raw }, { role: 'assistant', content: answer }],
       evidence, buttons, aiEnabled: true,
       lastAgentCategory: activeFollowUp ? state.lastAgentCategory : search ? scoutCategoryFor(raw) ?? null : state.lastAgentCategory,
     });
-    return reply(answer, buttons.length ? buttons : [[link('Explore Pokter', publicPage('/discover'))]]);
+    const responseButtons = [...buttons, ...knowledge.links.map((doc) => [link(doc.text, publicPage(doc.path))])].slice(0, 5);
+    return reply(answer, responseButtons.length ? responseButtons : [[link('Explore Pokter', publicPage('/discover'))]]);
   } catch {
     return search ?? reply('I couldn’t complete that answer right now. Try a new search or open the Pokter evidence directly.', buttons.length ? buttons : [[link('Open Discover', publicPage('/discover'))]]);
   }
