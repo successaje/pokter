@@ -87,5 +87,5 @@ test('a copy is signed as a new request and leaves a saved draft alone', () => {
   assert.match(form, /if \(copy\) \{\s*\/\*[^]*?\*\/\s*if \(moreOptions\.current\) moreOptions\.current\.open = true;\s*return;/, 'not replaced by the saved draft, and the window is in view');
   assert.match(form, /if \(ownsDraft\) window\.localStorage\.removeItem\(draftKey\)/, 'publishing a copy does not delete unrelated work');
   assert.match(form, /target \? `\$\{DRAFT_KEY\}:\$\{target\.wallet\.toLowerCase\(\)\}` : DRAFT_KEY/, 'a directed draft cannot overwrite an open request draft');
-  assert.match(form, /briefMessage\(\{ \.\.\.terms, poster: address, postedAt \}\)/, 'a fresh signature over fresh dates');
+  assert.match(form, /briefMessage\(\{ \.\.\.terms, poster: postingAddress, postedAt \}\)/, 'a fresh signature over fresh dates and the selected wallet');
 });

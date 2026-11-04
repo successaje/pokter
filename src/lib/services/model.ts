@@ -30,7 +30,9 @@ export function parseService(value: unknown): ServiceContent | null {
 
 export function serviceMessage(builder: string, challengeSuffix: string, id: string | null, content: ServiceContent): string {
   if (!isAddress(builder)) throw new Error('Invalid builder');
-  return `Pokter service\nBuilder: ${getAddress(builder)}\nService: ${id ?? 'new'}\nContent: ${JSON.stringify(content)}${challengeSuffix}`;
+  const canonical = parseService(content);
+  if (!canonical) throw new Error('Invalid service details');
+  return `Pokter service\nBuilder: ${getAddress(builder)}\nService: ${id ?? 'new'}\nContent: ${JSON.stringify(canonical)}${challengeSuffix}`;
 }
 
 export function serviceBrief(service: ServiceContent, inputs: string): string {

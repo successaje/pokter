@@ -15,6 +15,7 @@ test('signed service terms bind builder, agent and full scope', () => {
   const wallet = '0x00000000000000000000000000000000000000bb';
   const parsed = parseService(content)!;
   const message = serviceMessage(wallet, '\nChallenge: one', null, parsed);
+  assert.equal(message, serviceMessage(wallet, '\nChallenge: one', null, { ...parsed, title: `  ${parsed.title}  `, description: `${parsed.description}  ` }));
   assert.notEqual(message, serviceMessage(wallet, '\nChallenge: two', null, parsed));
   assert.notEqual(message, serviceMessage(wallet, '\nChallenge: one', null, { ...parsed, delivers: 'Different output' }));
   assert.match(serviceBrief(parsed, 'My wallet is 0x123'), /My wallet is 0x123/);
