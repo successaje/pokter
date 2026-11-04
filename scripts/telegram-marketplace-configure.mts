@@ -1,9 +1,11 @@
 /** Set the bot profile before deploy, or register its webhook after the route is live. */
+import { readFile } from 'node:fs/promises';
 import { MARKETPLACE_BOT_COMMANDS } from '../src/lib/telegram/marketplace-bot';
 
 const profileOnly = process.argv.includes('--profile-only');
 const statusOnly = process.argv.includes('--status');
 const fromStdin = process.argv.includes('--token-stdin');
+const photoPath = process.argv.includes('--photo-path') ? process.argv[process.argv.indexOf('--photo-path') + 1] : null;
 const token = fromStdin
   ? (await new Promise<string>((resolve) => {
       let value = '';
@@ -60,6 +62,15 @@ await telegram('setMyDescription', {
 await telegram('setMyShortDescription', {
   short_description: 'Scout helps you find agents and check the evidence on Pokter.',
 });
+if (photoPath) {
+  if (!/\.jpe?g$/i.test(photoPath)) throw new Error('Telegram requires a JPEG profile photo.');
+  const form = new FormData();
+  form.set('photo', JSON.stringify({ type: 'static', photo: 'attach://avatar' }));
+  form.set('avatar', new Blob([new Uint8Array(await readFile(photoPath))], { type: 'image/jpeg' }), 'scout.jpg');
+  const response = await fetch(`https://api.telegram.org/bot${token}/setMyProfilePhoto`, { method: 'POST', body: form, signal: AbortSignal.timeout(15_000) });
+  const result = await response.json() as { ok: boolean; description?: string };
+  if (!response.ok || !result.ok) throw new Error(`Telegram setMyProfilePhoto failed: ${result.description ?? response.status}`);
+}
 if (!profileOnly) {
   await telegram('setWebhook', {
     url: `${origin!.origin}/api/telegram/marketplace`,
