@@ -11,8 +11,9 @@ const { generateScoutAnswer } = await import('../../src/lib/telegram/scout-gemin
 
 test('Scout keeps a short local window for one day and /forget removes it', () => {
   const now = Date.UTC(2026, 10, 4);
-  saveChat(101, { turns: Array.from({ length: 8 }, (_, i) => ({ role: i % 2 ? 'assistant' as const : 'user' as const, content: `turn ${i}` })), evidence: 'observed', buttons: [], aiEnabled: true }, now);
+  saveChat(101, { turns: Array.from({ length: 8 }, (_, i) => ({ role: i % 2 ? 'assistant' as const : 'user' as const, content: `turn ${i}` })), evidence: 'observed', buttons: [], aiEnabled: true, lastAgentCategory: 'research' }, now);
   assert.equal(readChat(101, now + 1_000).turns.length, 6);
+  assert.equal(readChat(101, now + 1_000).lastAgentCategory, 'research');
   assert.equal(readChat(101, now + 24 * 60 * 60 * 1000 + 1).turns.length, 0);
   saveChat(101, { turns: [{ role: 'user', content: 'new task' }], evidence: '', buttons: [], aiEnabled: true }, now);
   forgetChat(101);

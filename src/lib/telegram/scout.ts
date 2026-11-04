@@ -44,26 +44,32 @@ function agentPrice(agent: AgentSummary): string {
   return `Last signed quote ${amount} (${price.quotedAt.slice(0, 10)}${expiry}); fresh quote needed for your task`;
 }
 
-async function findAgents(query: string, category?: string): Promise<BotReply> {
+async function findAgents(query: string, category?: string, responsive = false): Promise<BotReply> {
   const [{ GET: agentsApi }, { agentRecord }] = await Promise.all([
     import('@/app/api/v1/agents/route'), import('@/lib/profiles/evidence'),
   ]);
   const url = new URL('https://pokter.xyz/api/v1/agents');
-  url.searchParams.set('limit', '3');
-  if (query) url.searchParams.set('q', query.slice(0, 120));
+  url.searchParams.set('limit', responsive ? '100' : '3');
+  const searchQuery = [query.slice(0, 120), responsive ? 'is:responsive' : ''].filter(Boolean).join(' ');
+  if (searchQuery) url.searchParams.set('q', searchQuery);
   if (category) url.searchParams.set('category', category);
   const response = await agentsApi(new Request(url));
   if (!response.ok) return reply('I couldn’t search agents right now. Try a shorter task or open Discover.', [[link('Open Discover', publicPage('/discover'))]]);
-  const data = await response.json() as { items: AgentSummary[]; total: number };
-  if (!data.items.length) return reply('I found no agents for that task in Pokter’s current catalogue. Try broader words or browse Discover.', [[link('Browse Discover', publicPage('/discover'))]]);
-  const lines = data.items.map((a, index) => {
+  const data = await response.json() as { items: Array<AgentSummary & { hirable?: boolean }>; total: number };
+  if (!data.items.length) return reply(responsive
+    ? `I found no ${category ? `${CATEGORIES.find((c) => c.id === category)?.label ?? category} ` : ''}agents that answered a Pokter check in the last 24 hours. That does not prove none are operating; try again later or inspect Discover.`
+    : 'I found no agents for that task in Pokter’s current catalogue. Try broader words or browse Discover.', [[link('Browse Discover', publicPage('/discover'))]]);
+  const ranked = responsive ? [...data.items].sort((a, b) => Number(b.hirable === true) - Number(a.hirable === true)
+    || (b.availability.value ?? 0) - (a.availability.value ?? 0)
+    || b.probes.value.total - a.probes.value.total).slice(0, 3) : data.items;
+  const lines = ranked.map((a, index) => {
     const probes = a.probes.value;
     const evidence = probes.total ? `${probes.answered}/${probes.total} Pokter checks answered` : 'No Pokter checks recorded';
     const jobs = agentRecord(a.chainId, a.tokenId, a.owner.value ?? '');
     const outside = jobs.mainnet.funded + jobs.testnet.funded;
-    return `${index + 1}. ${short(a.name, 65)} · ${network(a.chainId)} · ID ${a.chainId}:${a.tokenId}\n${evidence} · ${a.verdictLabel}\n${outside} outside-buyer funded ${outside === 1 ? 'job' : 'jobs'} (${jobs.mainnet.funded} mainnet, ${jobs.testnet.funded} testnet)\n${agentPrice(a)}`;
+    return `${index + 1}. ${short(a.name, 65)} · ${network(a.chainId)} · ID ${a.chainId}:${a.tokenId}\n${responsive ? 'Answered a Pokter check in the last 24 hours · ' : ''}${evidence} · ${a.verdictLabel}${a.hirable ? ' · direct hire shown on Pokter' : ''}\n${outside} outside-buyer funded ${outside === 1 ? 'job' : 'jobs'} (${jobs.mainnet.funded} mainnet, ${jobs.testnet.funded} testnet)\n${agentPrice(a)}`;
   });
-  return reply(`Scout found ${data.total} matching ${data.total === 1 ? 'agent' : 'agents'}. Here are ${data.items.length}:\n\n${lines.join('\n\n')}\n\nChecks measure responses, not the quality of delivered work.`, data.items.map((a) => [link(`Open ${short(a.name, 34)}`, publicPage(`/agents/${a.chainId}/${a.tokenId}`))]));
+  return reply(`Scout found ${data.total} matching ${responsive ? 'recently responsive ' : ''}${data.total === 1 ? 'agent' : 'agents'}${category ? ` in ${CATEGORIES.find((c) => c.id === category)?.label ?? category}` : ''}. Here are ${ranked.length}:\n\n${lines.join('\n\n')}\n\nChecks measure responses, not the quality of delivered work. A fresh quote and live hire check are still required.`, ranked.map((a) => [link(`Open ${short(a.name, 34)}`, publicPage(`/agents/${a.chainId}/${a.tokenId}`))]));
 }
 
 type AgentDetail = {
@@ -140,8 +146,37 @@ function isFollowUp(text: string): boolean {
     || /\b(previous|above|result|recommendation)\b/i.test(text);
 }
 
-function isGeneralQuestion(text: string): boolean {
-  return /^(hi|hello|hey|thanks|thank you|what is pokter|what can you do|how does pokter|how do i hire|how do requests work|who are you)\b/i.test(text);
+function isGreeting(text: string): boolean {
+  return /^(hi|hello|hey|how are you|thanks|thank you|who are you)[?!.\s]*$/i.test(text);
+}
+
+function isProductQuestion(text: string): boolean {
+  return /\b(what (?:are the things|can i|can you|is possible to).*(?:do|pokter)|what is pokter|how does pokter|how do i hire|how do requests work)\b/i.test(text);
+}
+
+function isAccountQuestion(text: string): boolean {
+  return /\b(my (?:jobs|hires|agents)|keep track|build ai agents|builder workspace|(?:manage|monitor).*(?:jobs|hires))\b/i.test(text);
+}
+
+function isPaymentQuestion(text: string): boolean {
+  return /\b(?:can i pay|pay here|hire here|how (?:do|can) i (?:hire|pay))\b/i.test(text);
+}
+
+export function scoutCategoryFor(text: string): string | undefined {
+  return [
+    { id: 'health-factor', pattern: /health factor|liquidation|collateral|lending position/i },
+    { id: 'grid-trading', pattern: /grid|ladder|dca bot/i },
+    { id: 'rebalancing', pattern: /rebalanc|allocation|portfolio weight/i },
+    { id: 'yield', pattern: /yield|apy|staking|vault|farming/i },
+    { id: 'token-safety', pattern: /token safety|honeypot|rug pull|contract safety/i },
+    { id: 'research', pattern: /research|due diligence/i },
+    { id: 'content', pattern: /content|copywriting|blog/i },
+    { id: 'trading', pattern: /trading|trade signal/i },
+  ].find((entry) => entry.pattern.test(text))?.id;
+}
+
+export function scoutActiveCategory(text: string, lastCategory?: string | null): string | undefined {
+  return /\b(active|working|responsive|online|dry)\b/i.test(text) ? lastCategory ?? undefined : undefined;
 }
 
 async function marketEvidence(text: string): Promise<BotReply> {
@@ -154,17 +189,8 @@ async function marketEvidence(text: string): Promise<BotReply> {
     const query = plainQuery(text.replace(/\b(open|public|requests?|work|bid)\b/gi, ' '));
     return openRequests(query);
   }
-  const category = [
-    { id: 'health-factor', pattern: /health factor|liquidation|collateral|lending position/i },
-    { id: 'grid-trading', pattern: /grid|ladder|dca bot/i },
-    { id: 'rebalancing', pattern: /rebalanc|allocation|portfolio weight/i },
-    { id: 'yield', pattern: /yield|apy|staking|vault|farming/i },
-    { id: 'token-safety', pattern: /token safety|honeypot|rug pull|contract safety/i },
-    { id: 'research', pattern: /research|due diligence/i },
-    { id: 'content', pattern: /content|copywriting|blog/i },
-    { id: 'trading', pattern: /trading|trade signal/i },
-  ].find((entry) => entry.pattern.test(text));
-  if (category) return findAgents('', category.id);
+  const category = scoutCategoryFor(text);
+  if (category) return findAgents('', category);
   const terms = plainQuery(text.replace(/\b(agent|agents|bot|bots|help|task|that|does|do|my)\b/gi, ' ')).split(/\s+/).filter(Boolean);
   return findAgents(terms.slice(0, 2).join(' ') || text);
 }
@@ -178,16 +204,37 @@ async function chatWithScout(raw: string, chatId: number): Promise<BotReply> {
   if (!perChat.allowed || !global.allowed) return reply('Scout has reached its chat limit for now. You can still browse Pokter directly.', [[link('Open Discover', publicPage('/discover'))]]);
 
   const state = readChat(chatId);
-  const usePrevious = !!state.evidence && isFollowUp(raw);
-  const search = !usePrevious && !isGeneralQuestion(raw) ? await marketEvidence(raw) : null;
+  const direct = isGreeting(raw)
+    ? reply('I’m well, thanks. Tell me what you want an agent to do, or ask about Pokter.', [[link('Explore Pokter', publicPage('/discover'))]])
+    : isAccountQuestion(raw)
+      ? reply('I can help plan an agent, explain public evidence and guide you through Pokter. I cannot see or monitor your private jobs, hires or agents in Telegram. Connect your wallet on Pokter to see them in your workspace. For building, use Build; for buyer jobs, use Your jobs. Scout alerts and wallet-linked tracking are not available yet.', [[link('Your jobs', publicPage('/workspace/jobs'))], [link('Build agents', publicPage('/build/agents'))], [link('Builder jobs', publicPage('/build/jobs'))]])
+      : isPaymentQuestion(raw)
+        ? reply('Hiring and wallet approval happen on Pokter. Choose an agent, write a brief, review a fresh signed quote and the network, then confirm any funded hire in your wallet. Scout cannot take payment in Telegram.', [[link('Find an agent', publicPage('/discover'))], [link('How hiring works', publicPage('/how-it-works'))]])
+      : isProductQuestion(raw)
+        ? reply('On Pokter you can find and compare agents, check their evidence, browse builder-published services, post a request, hire with a fresh signed quote, and track jobs after connecting your wallet. Builders can publish agents and services and respond to requests. Scout can explain public listings, but cannot see your private workspace from Telegram.', [[link('Discover agents', publicPage('/discover'))], [link('Browse services', publicPage('/services'))], [link('Your workspace', publicPage('/workspace'))]])
+        : null;
+  if (direct) {
+    saveChat(chatId, { ...state, turns: [...state.turns, { role: 'user', content: raw }, { role: 'assistant', content: direct.text }], evidence: '', buttons: [], lastAgentCategory: null });
+    return direct;
+  }
+  const activeFollowUp = !!scoutActiveCategory(raw, state.lastAgentCategory);
+  const usePrevious = !!state.evidence && isFollowUp(raw) && !activeFollowUp;
+  const search = activeFollowUp
+    ? await findAgents('', state.lastAgentCategory ?? undefined, true)
+    : !usePrevious ? await marketEvidence(raw) : null;
   const evidence = search?.text ?? state.evidence;
   const buttons = search && 'inline_keyboard' in search.reply_markup
     ? search.reply_markup.inline_keyboard : state.buttons;
+  if (search && (activeFollowUp || search.text.startsWith('I found no'))) {
+    saveChat(chatId, { ...state, turns: [...state.turns, { role: 'user', content: raw }, { role: 'assistant', content: search.text }], evidence, buttons, lastAgentCategory: activeFollowUp ? state.lastAgentCategory : scoutCategoryFor(raw) ?? null });
+    return search;
+  }
   try {
     const answer = await generateScoutAnswer({ message: raw, turns: state.turns, evidence, apiKey: process.env.SCOUT_GEMINI_API_KEY! });
     saveChat(chatId, {
       turns: [...state.turns, { role: 'user', content: raw }, { role: 'assistant', content: answer }],
       evidence, buttons, aiEnabled: true,
+      lastAgentCategory: activeFollowUp ? state.lastAgentCategory : search ? scoutCategoryFor(raw) ?? null : state.lastAgentCategory,
     });
     return reply(answer, buttons.length ? buttons : [[link('Explore Pokter', publicPage('/discover'))]]);
   } catch {
