@@ -77,8 +77,8 @@ function friendly(error: unknown, fallback: string): string {
  * Identity, how the person uses Pokter, which parts of their activity
  * the profile shows and which agents it represents, and whether it is
  * published. Nothing becomes public by changing how someone uses Pokter:
- * sections and agents are chosen here, explicitly, and the review step
- * lists them before anything is signed.
+ * sections are chosen here. Registry-owned agents appear by default;
+ * the owner may hide or pin them before signing.
  */
 export function ProfileEditor({
   wallet,
@@ -107,7 +107,7 @@ export function ProfileEditor({
   const links = [...draft.links, '', '', ''].slice(0, PROFILE_LIMITS.links);
   const handleIssue = handleProblem(draft.handle.trim().toLowerCase());
   const set = (patch: Partial<ProfileContent>) => setDraft((d) => ({ ...d, ...patch }));
-  const chosen = agents.filter((a) => draft.agents.includes(a.key));
+  const chosen = agents.filter((a) => !draft.hiddenAgents.includes(a.key));
 
   const upload = async (picked: File | undefined, kind: 'avatar' | 'cover' = 'avatar') => {
     if (!picked) return;
@@ -184,7 +184,7 @@ export function ProfileEditor({
       clean.links.length > 0 && `${clean.links.length} ${clean.links.length === 1 ? 'link' : 'links'}`,
       clean.usage && `Role: ${USAGES.find((u) => u.id === clean.usage)?.role}`,
       clean.showWallet && 'Your wallet address',
-      clean.showBuilding && `Building: ${chosen.length} ${chosen.length === 1 ? 'agent' : 'agents'} you chose, each with its own record and its eligible reviews`,
+      clean.showBuilding && `Building: ${chosen.length} currently visible registry-owned ${chosen.length === 1 ? 'agent' : 'agents'}, including newly registered agents unless you hide them`,
       clean.showHiring && `Hiring: ${hiringActivity.requests} public ${hiringActivity.requests === 1 ? 'request' : 'requests'} and counts of the ${hiringActivity.jobsFunded} ${hiringActivity.jobsFunded === 1 ? 'job' : 'jobs'} you funded (never amounts)`,
     ].filter(Boolean) as string[];
     return (
@@ -332,7 +332,7 @@ export function ProfileEditor({
           checked={draft.showBuilding}
           onChange={(e) => set({ showBuilding: e.target.checked })}
           label="Building"
-          description="The agents you choose below, each with its own record and its eligible reviews."
+          description="Your registry-owned agents appear automatically. Hide or pin individual agents below."
         />
         {draft.showBuilding && (
           <div className="flex flex-col gap-2 pl-7">
@@ -359,10 +359,10 @@ export function ProfileEditor({
                       })}
                     </div>
                   </div>
-                <span className="mt-2 text-[13px] font-medium">Agents to show · pin up to {PROFILE_LIMITS.pinned}</span>
+                <span className="mt-2 text-[13px] font-medium">Your agents · pin up to {PROFILE_LIMITS.pinned}</span>
                 <ul className="flex flex-col divide-y divide-rule rounded-[12px] border border-rule">
                   {agents.map((a) => {
-                    const shown = draft.agents.includes(a.key);
+                    const shown = !draft.hiddenAgents.includes(a.key);
                     const pinned = draft.pinned.includes(a.key);
                     return (
                       <li key={a.key} className="flex items-center gap-3 px-3 py-2.5">
@@ -370,7 +370,7 @@ export function ProfileEditor({
                           type="checkbox"
                           aria-label={`Show ${a.name}`}
                           checked={shown}
-                          onChange={(e) => set({ agents: e.target.checked ? [...draft.agents, a.key] : draft.agents.filter((k) => k !== a.key), pinned: e.target.checked ? draft.pinned : draft.pinned.filter((k) => k !== a.key) })}
+                          onChange={(e) => set({ hiddenAgents: e.target.checked ? draft.hiddenAgents.filter((k) => k !== a.key) : [...draft.hiddenAgents, a.key], pinned: e.target.checked ? draft.pinned : draft.pinned.filter((k) => k !== a.key) })}
                           className="size-4 accent-[var(--ink)]"
                         />
                         <AgentAvatar name={a.name} imageUrl={a.imageUrl} seed={a.key} size={32} />
@@ -394,7 +394,7 @@ export function ProfileEditor({
                     );
                   })}
                 </ul>
-                <span className="text-[12px] text-ink-3">Only agents this wallet owns in the registry now. Saved agents are never shown as yours.</span>
+                <span className="text-[12px] text-ink-3">New registry-owned agents appear automatically. Turning off “Show” hides an agent here, but its ownership remains public on chain.</span>
               </>
             )}
           </div>

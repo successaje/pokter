@@ -93,20 +93,21 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   /*
-   * Every agent put on the profile must be this wallet's now, by the
+   * Every hidden or pinned agent must be this wallet's now, by the
    * registry itself. If the registry cannot be read, nothing is saved:
    * "could not check" must never be recorded as either answer.
    */
-  const owners = await Promise.all(content.agents.map((key) => {
+  const referencedAgents = [...new Set([...content.hiddenAgents, ...content.pinned])];
+  const owners = await Promise.all(referencedAgents.map((key) => {
     const [chain, token] = key.split(':');
     return registryOwner(Number(chain), token).catch(() => null);
   }));
   if (owners.some((o) => o === null)) {
     return NextResponse.json({ error: 'Ownership check unavailable: the registry did not answer. Nothing was saved; try again shortly.' }, { status: 503 });
   }
-  const notOwned = content.agents.filter((_, i) => owners[i] !== owner);
+  const notOwned = referencedAgents.filter((_, i) => owners[i] !== owner);
   if (notOwned.length > 0) {
-    return NextResponse.json({ error: `This wallet does not own ${notOwned.map((k) => `#${k.split(':')[1]}`).join(', ')} in the registry, so it cannot be shown as yours.` }, { status: 409 });
+    return NextResponse.json({ error: `This wallet does not own ${notOwned.map((k) => `#${k.split(':')[1]}`).join(', ')} in the registry, so it cannot change their profile visibility.` }, { status: 409 });
   }
 
   if (!store.consumeChallenge(challengeId)) return NextResponse.json({ error: 'This profile challenge expired or was already used.' }, { status: 409 });

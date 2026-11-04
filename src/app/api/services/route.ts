@@ -31,8 +31,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid service details.' }, { status: 400 });
   const owner = getAddress(builder);
   const profile = getProfileStore().get(owner);
-  if (!profile?.published || !profile.showBuilding || !profile.agents.includes(`${content.chainId}:${content.tokenId}`))
-    return NextResponse.json({ error: 'Publish this agent on your builder profile first.' }, { status: 403 });
+  if (!profile?.published || !profile.showBuilding)
+    return NextResponse.json({ error: 'Publish your builder profile and enable Building first.' }, { status: 403 });
   const suffix = getProfileStore().challenge(challengeId, owner, content.chainId);
   if (!suffix) return NextResponse.json({ error: 'This signing challenge expired or was used.' }, { status: 409 });
   if (!(await walletCanBeChecked(content.chainId, owner, signature as Hex)) ||

@@ -19,6 +19,7 @@ import { listAgents } from '@/lib/scan/client';
 import { avatarUrl } from '@/lib/ui/avatar-art';
 import { cn } from '@/lib/ui/cn';
 import { ProfileShell } from '@/features/profile/ProfileShell';
+import { ProfileTabs } from '@/features/profile/ProfileTabs';
 import { ShareButton } from '@/features/profile/ShareButton';
 import { AgentAvatar } from '@/ui/Agent';
 import { AvatarImage } from '@/ui/AvatarImage';
@@ -70,8 +71,8 @@ export async function generateMetadata({ params }: { params: Promise<{ address: 
  * main area is evidence, each figure defined and scoped: an agent's
  * record is the agent's (under every owner it has had), never added up
  * into the current owner's own track record, and a hirer's record is
- * the jobs this wallet funded. What appears is what the owner chose to
- * publish; an unpublished wallet shows only what the registry says.
+ * the jobs this wallet funded. A published building section shows current
+ * registry-owned agents unless the owner hides one.
  */
 export default async function ProfilePage({
   params,
@@ -107,16 +108,17 @@ export default async function ProfilePage({
   const hiringActivity = { requests: hiring.requestsPosted, jobsFunded: hiring.mainnet.funded + hiring.testnet.funded };
 
   /*
-   * The agents the owner chose to show, each checked against the registry
+   * The indexed agents the owner has not hidden, each checked against the registry
    * now. "Unavailable" when the registry did not answer — never read as
    * "no longer owned"; an agent the registry says is someone else's is
    * left off the page.
    */
-  const chosen = published?.showBuilding ? published.agents : [];
+  const chosen = published?.showBuilding ? ownedOptions.map((agent) => agent.key) : [];
   const live = await Promise.all(chosen.map((key) => registryOwner(Number(key.split(':')[0]), key.split(':')[1]).catch(() => null)));
+  const verifiedOwnedKeys = new Set(chosen.filter((_, i) => live[i] === wallet));
   const shown = chosen
     .map((key, i) => ({ key, status: live[i] === null ? ('unavailable' as const) : live[i] === wallet ? ('owned' as const) : ('elsewhere' as const) }))
-    .filter((a): a is { key: string; status: 'owned' | 'unavailable' } => a.status !== 'elsewhere')
+    .filter((a): a is { key: string; status: 'owned' | 'unavailable' } => a.status !== 'elsewhere' && !published?.hiddenAgents?.includes(a.key))
     .map((a) => {
       const [chain, token] = a.key.split(':');
       const option = byKey.get(a.key);
@@ -133,7 +135,7 @@ export default async function ProfilePage({
     })
     .sort((x, y) => Number(y.pinned) - Number(x.pinned));
   const quotes = getProbeStore().quotesFor(shown.map((agent) => ({ chainId: agent.chainId, tokenId: agent.tokenId })));
-  const services = published?.showBuilding ? getServiceStore().byBuilder(wallet).filter((service) => service.status === 'active' && shown.some((agent) => agent.status === 'owned' && agent.chainId === service.chainId && agent.tokenId === service.tokenId)) : [];
+  const services = published?.showBuilding ? getServiceStore().byBuilder(wallet).filter((service) => service.status === 'active' && verifiedOwnedKeys.has(`${service.chainId}:${service.tokenId}`)) : [];
   const checksSince = new Date(now - 30 * 86_400_000);
   const checks = ([56, 97] as const).map((chainId) => {
     const rows = shown.filter((agent) => agent.chainId === chainId).flatMap((agent) => getProbeStore().historyFor(agent.chainId, agent.tokenId, checksSince));
@@ -143,12 +145,10 @@ export default async function ProfilePage({
   const sections: View[] = published ? [...(published.showBuilding ? (['building'] as const) : []), ...(published.showHiring ? (['hiring'] as const) : [])] : [];
   const preferred: View = published?.usage === 'hire' ? 'hiring' : 'building';
   const view: View = sections.includes(sp.view as View) ? (sp.view as View) : sections.includes(preferred) ? preferred : (sections[0] ?? 'building');
-  const tabs: Tab[] = view === 'building' ? ['agents', 'services', 'overview', 'work', 'reviews'] : ['overview', 'requests'];
-  const tab: Tab = tabs.includes(sp.tab as Tab) ? (sp.tab as Tab) : view === 'building' ? 'agents' : 'overview';
   const base = profilePath(wallet, published?.handle);
   const href = (v: View, t: Tab) => `${base}?view=${v}&tab=${t}`;
 
-  const reviews = view === 'building' && shown.length > 0 ? eligibleReviews(shown, wallet) : { reviews: [], hidden: 0 };
+  const reviews = shown.length > 0 ? eligibleReviews(shown, wallet) : { reviews: [], hidden: 0 };
   const name = published?.displayName || (published?.handle ? `@${published.handle}` : short(wallet));
   const role = published?.usage ? USAGES.find((u) => u.id === published.usage)?.role : null;
   const requests = getBriefStore().byPoster(wallet);
@@ -158,13 +158,7 @@ export default async function ProfilePage({
 
   const identity = (
     <div key="profile-identity" className="flex flex-col gap-4">
-      <div className="flex items-center gap-4 lg:flex-col lg:items-start">
-        {!published && <AvatarImage src={null} fallback={avatarUrl(wallet.toLowerCase())} name={name} size={88} className="shrink-0 rounded-full" eager />}
-        <div className="flex min-w-0 flex-col gap-0.5">
-          {!published && <h2 className="break-words text-[clamp(1.5rem,3vw,1.9rem)] font-semibold leading-tight tracking-[-0.02em]"><span className="t-readout">{short(wallet)}</span></h2>}
-          {role && <span className="mt-1 w-fit rounded-full bg-sunken px-2.5 py-0.5 text-[12.5px] font-medium text-ink-2">{role}</span>}
-        </div>
-      </div>
+      {role && <span className="w-fit rounded-full bg-sunken px-2.5 py-0.5 text-[12.5px] font-medium text-ink-2">{role}</span>}
       {published && ((published.bio && published.tagline) || published.tags.length > 0 || published.links.length > 0) && <span className="t-label">Builder-provided</span>}
       {published?.bio && published.tagline && <p className="whitespace-pre-wrap break-words text-[14.5px] leading-relaxed text-ink-2">{published.bio}</p>}
       {published && published.showBuilding && published.tags.length > 0 && (
@@ -188,20 +182,6 @@ export default async function ProfilePage({
         </ul>
       )}
       {!published && <p className="text-[13.5px] text-ink-3">No public profile. What follows is what the ERC-8004 registry says about this wallet.</p>}
-
-      <div className="flex flex-wrap gap-2">
-        {sections.includes('building') && shown.length > 0 && (
-          <Link href={href('building', 'agents')} className="inline-flex h-9 items-center justify-center rounded-[9px] bg-ink px-3 text-[13.5px] font-medium text-paper hover:opacity-90">
-            View agents
-          </Link>
-        )}
-        {sections.includes('hiring') && hiring.requestsOpen > 0 && (
-          <Link href={href('hiring', 'requests')} className={cn('inline-flex h-9 items-center justify-center rounded-[9px] px-3 text-[13.5px] font-medium', sections.includes('building') && shown.length > 0 ? 'border border-rule-strong text-ink-2 hover:text-ink' : 'bg-ink text-paper hover:opacity-90')}>
-            View open requests
-          </Link>
-        )}
-        <ShareButton path={base} title={name} />
-      </div>
 
       {/* What was checked, said exactly. None of it is identity verification or an endorsement. */}
       <ul aria-label="Pokter-observed checks" className="flex flex-col gap-2 border-t border-rule pt-4 text-[12.5px]">
@@ -231,7 +211,7 @@ export default async function ProfilePage({
       </ul>
 
       {/* Hiring counts live here; the storefront header carries the building summary. */}
-      {published && view === 'hiring' && sections.length > 0 && (
+      {published && sections.includes('hiring') && (
         <dl className="grid grid-cols-2 gap-2 text-[12.5px]">
           <MiniStat label="Requests posted" value={String(hiring.requestsPosted)} />
           <MiniStat label="Jobs funded" value={`${hiring.mainnet.funded}`} note={`mainnet · ${hiring.testnet.funded} testnet`} />
@@ -247,8 +227,8 @@ export default async function ProfilePage({
         <Link href="/discover" className="hover:text-ink">Discover</Link><span aria-hidden>/</span><span>Builders</span><span aria-hidden>/</span><span className="truncate text-ink">{published?.handle ? `@${published.handle}` : short(wallet)}</span>
       </nav>
       {(
-        <section className="overflow-hidden rounded-[18px] border border-rule bg-raised" aria-label="Builder storefront header">
-          <div className={cn('relative h-28 overflow-hidden sm:h-36', theme)}>
+        <section className="relative z-10 rounded-[18px] border border-rule bg-raised" aria-label="Builder storefront header">
+          <div className={cn('relative h-28 overflow-hidden rounded-t-[17px] sm:h-36', theme)}>
             {published?.cover ? (
               <Image src={avatarSrc(published.cover) ?? ''} alt="" fill unoptimized sizes="(max-width: 768px) 100vw, 1200px" className="object-cover" />
             ) : (
@@ -270,7 +250,7 @@ export default async function ProfilePage({
               </div>
               <div className="flex shrink-0 flex-wrap items-center gap-2">
                 <ShareButton path={base} title={name} />
-                {published?.showBuilding && shown.some((agent) => agent.status === 'owned') ? <Link href={`/workspace/requests/new?builder=${encodeURIComponent(wallet)}`} className="inline-flex h-10 items-center justify-center rounded-[8px] bg-ink px-4 text-[13px] font-medium text-paper hover:opacity-90">Request custom work <Icon.Arrow size={14} className="ml-2" /></Link> : <span className="text-[12px] text-ink-3">{published ? 'Custom requests unavailable' : 'Custom requests after profile claim'}</span>}
+                {published?.showBuilding && verifiedOwnedKeys.size > 0 ? <Link href={`/workspace/requests/new?builder=${encodeURIComponent(wallet)}`} className="inline-flex h-10 items-center justify-center rounded-[8px] bg-ink px-4 text-[13px] font-medium text-paper hover:opacity-90">Request custom work <Icon.Arrow size={14} className="ml-2" /></Link> : <span className="text-[12px] text-ink-3">{published ? 'Custom requests unavailable' : 'Custom requests after profile claim'}</span>}
               </div>
             </div>
           </div>
@@ -283,38 +263,27 @@ export default async function ProfilePage({
       </div>
       <ProfileShell wallet={wallet} published={published ? profileContentOf(published) : null} hasSaved={Boolean(profile)} agents={ownedOptions} hiringActivity={hiringActivity} identity={identity}>
         {!published ? (
-          <RegistryView agents={ownedOptions} unavailable={indexUnavailable} active={sp.tab === 'services' || sp.tab === 'evidence' ? sp.tab : 'agents'} base={base} wallet={wallet} />
+          <ProfileTabs base={base} defaultView="building" sections={[{ id: 'building', panels: [
+            { id: 'agents', label: 'Agents', ariaLabel: `Agents (${ownedOptions.length})`, content: <RegistryPanel agents={ownedOptions} unavailable={indexUnavailable} active="agents" base={base} wallet={wallet} /> },
+            { id: 'services', label: 'Services', content: <RegistryPanel agents={ownedOptions} unavailable={indexUnavailable} active="services" base={base} wallet={wallet} /> },
+            { id: 'evidence', label: 'Evidence', content: <RegistryPanel agents={ownedOptions} unavailable={indexUnavailable} active="evidence" base={base} wallet={wallet} /> },
+          ] }]} />
         ) : sections.length === 0 ? (
           <Empty title="Nothing shown yet">This profile shows no building or hiring activity.</Empty>
         ) : (
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-wrap items-end justify-between gap-3 border-b border-rule">
-            <nav aria-label={`${view === 'building' ? 'Building' : 'Hiring'} tabs`} className="-mx-4 flex gap-1 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-              {tabs.map((t) => (
-                <Link key={t} href={href(view, t)} aria-current={tab === t ? 'page' : undefined} className={cn('-mb-px shrink-0 border-b-2 px-3 py-2.5 text-[14px] font-medium capitalize', tab === t ? 'border-[#e5a900] text-ink' : 'border-transparent text-ink-3 hover:text-ink')}>
-                  {t === 'overview' && view === 'building' ? 'Evidence' : t === 'reviews' ? `Reviews${reviews.reviews.length ? ` (${reviews.reviews.length})` : ''}` : t}
-                </Link>
-              ))}
-            </nav>
-            {sections.length > 1 && (
-              <nav aria-label="Profile section" className="mb-1 inline-flex w-fit rounded-[10px] bg-sunken p-1">
-                {sections.map((s) => (
-                  <Link key={s} href={href(s, s === 'building' ? 'agents' : 'overview')} aria-current={view === s ? 'page' : undefined} className={cn('rounded-[7px] px-3 py-1 text-[12.5px] font-medium', view === s ? 'bg-raised text-ink shadow-sm' : 'text-ink-3 hover:text-ink')}>
-                    {s === 'building' ? 'Building' : 'Hiring'}
-                  </Link>
-                ))}
-              </nav>
-            )}
-            </div>
-
-            {view === 'building' && tab === 'overview' && <BuildingOverview agents={shown} wallet={wallet} operator={operator} reviews={reviews} checks={checks} quotes={quotes} now={now} reviewsHref={href('building', 'reviews')} agentsHref={href('building', 'agents')} />}
-            {view === 'building' && tab === 'agents' && <AgentsTab agents={shown} wallet={wallet} quotes={quotes} now={now} />}
-            {view === 'building' && tab === 'services' && (services.length ? <ul className="grid gap-4 sm:grid-cols-2">{services.map((service) => <li key={service.id}><ServiceCard service={service} /></li>)}</ul> : <Empty title="No published services">This builder has not published a specific offer yet. Browse their agents or request custom work.</Empty>)}
-            {view === 'building' && tab === 'work' && <WorkTab agents={shown} wallet={wallet} takenOn={operator.jobIds} />}
-            {view === 'building' && tab === 'reviews' && <ReviewsTab data={reviews} />}
-            {view === 'hiring' && tab === 'overview' && <HiringOverview record={hiring} requestsHref={href('hiring', 'requests')} />}
-            {view === 'hiring' && tab === 'requests' && <RequestsTab requests={requests} />}
-          </div>
+          <ProfileTabs base={base} defaultView={view} sections={[
+            ...(sections.includes('building') ? [{ id: 'building' as const, panels: [
+              { id: 'agents', label: 'Agents', content: <AgentsTab agents={shown} wallet={wallet} quotes={quotes} now={now} /> },
+              { id: 'services', label: 'Services', content: services.length ? <ul className="grid gap-4 sm:grid-cols-2">{services.map((service) => <li key={service.id}><ServiceCard service={service} /></li>)}</ul> : <Empty title="No published services">This builder has not published a specific offer yet. Browse their agents or request custom work.</Empty> },
+              { id: 'overview', label: 'Evidence', content: <BuildingOverview agents={shown} wallet={wallet} operator={operator} reviews={reviews} checks={checks} quotes={quotes} now={now} reviewsHref={href('building', 'reviews')} agentsHref={href('building', 'agents')} /> },
+              { id: 'work', label: 'Work', content: <WorkTab agents={shown} wallet={wallet} takenOn={operator.jobIds} /> },
+              { id: 'reviews', label: `Reviews${reviews.reviews.length ? ` (${reviews.reviews.length})` : ''}`, content: <ReviewsTab data={reviews} /> },
+            ] }] : []),
+            ...(sections.includes('hiring') ? [{ id: 'hiring' as const, panels: [
+              { id: 'overview', label: 'Overview', content: <HiringOverview record={hiring} requestsHref={href('hiring', 'requests')} /> },
+              { id: 'requests', label: 'Requests', content: <RequestsTab requests={requests} /> },
+            ] }] : []),
+          ]} />
         )}
       </ProfileShell>
     </div>
@@ -344,11 +313,8 @@ function Empty({ title, children }: { title: string; children: React.ReactNode }
 type ShownAgent = { key: string; chainId: number; tokenId: string; name: string; description: string; imageUrl: string | null; category: string | null; status: 'owned' | 'unavailable'; pinned: boolean };
 
 /** The default storefront uses only network-specific registry associations. */
-function RegistryView({ agents, unavailable, active, base, wallet }: { agents: Array<{ key: string; chainId: number; tokenId: string; name: string; imageUrl: string | null; category: string | null }>; unavailable: boolean; active: 'agents' | 'services' | 'evidence'; base: string; wallet: string }) {
-  return <div className="flex flex-col gap-8">
-    <nav aria-label="Builder profile sections" className="flex gap-8 border-b border-rule">
-      {(['agents', 'services', 'evidence'] as const).map((section) => <Link key={section} href={`${base}?tab=${section}`} aria-label={section === 'agents' ? `Agents (${agents.length})` : section} aria-current={active === section ? 'page' : undefined} className={cn('-mb-px border-b-2 pb-3 text-[14px] font-medium capitalize', active === section ? 'border-[#e5a900] text-ink' : 'border-transparent text-ink-3 hover:text-ink')}>{section}{section === 'agents' && <span className="ml-2 rounded-full bg-[#f8e7b9] px-2 py-0.5 text-[11px] text-[#6a4900]">{agents.length}</span>}</Link>)}
-    </nav>
+function RegistryPanel({ agents, unavailable, active, base, wallet }: { agents: Array<{ key: string; chainId: number; tokenId: string; name: string; imageUrl: string | null; category: string | null }>; unavailable: boolean; active: 'agents' | 'services' | 'evidence'; base: string; wallet: string }) {
+  return <div className="flex flex-col gap-4">
     {active === 'agents' && <section aria-labelledby="registry-title" className="flex flex-col gap-4">
       <div><h2 id="registry-title" className="text-[22px] font-semibold tracking-[-0.025em]">Agents owned by this wallet</h2><p className="mt-1 text-[13px] text-ink-3">Ownership is based on indexed ERC-8004 registry data.</p></div>
       {unavailable && <p className="text-[13px] text-watch">The index did not answer for one network. This list may be incomplete.</p>}
@@ -501,7 +467,7 @@ function BuildingOverview({
   reviewsHref: string;
   agentsHref: string;
 }) {
-  if (agents.length === 0) return <Empty title="No agents shown">This profile has not chosen any agents to show.</Empty>;
+  if (agents.length === 0) return <Empty title="No agents shown">No registry-owned agents are currently visible on this profile.</Empty>;
   /* Pinned first (the list is already ordered that way), then the rest, up to four. */
   const featured = agents.slice(0, 4);
   return (
@@ -565,7 +531,7 @@ function BuildingOverview({
 }
 
 function AgentsTab({ agents, wallet, quotes, now }: { agents: ShownAgent[]; wallet: string; quotes: Map<string, QuoteRecord>; now: number }) {
-  if (agents.length === 0) return <Empty title="No agents shown">This profile has not chosen any agents to show.</Empty>;
+  if (agents.length === 0) return <Empty title="No agents shown">No registry-owned agents are currently visible on this profile.</Empty>;
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
       {agents.map((a) => (

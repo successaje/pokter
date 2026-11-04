@@ -8,7 +8,7 @@ import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 import { signedByWallet, walletCanBeChecked } from '@/lib/wallet/signed-by';
 import { getProfileStore } from '@/lib/profiles/store';
 import { notifyBuilderCustomRequest } from '@/lib/notifications/server';
-import { registryOwner } from '@/lib/registry/onchain';
+import { verifiedOwnedAgents } from '@/lib/profiles/owned-agents';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,8 +56,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   if (content.targetBuilder) {
     const target = getProfileStore().get(content.targetBuilder);
     if (!target?.published || !target.showBuilding) return NextResponse.json({ error: 'This builder is no longer accepting public requests.' }, { status: 409 });
-    const owners = await Promise.all(target.agents.map((key) => { const [chain, token] = key.split(':'); return registryOwner(Number(chain), token).catch(() => null); }));
-    if (!owners.some((owner) => owner?.toLowerCase() === content.targetBuilder?.toLowerCase())) return NextResponse.json({ error: 'This builder has no currently owned agent that can propose. Nothing was posted.' }, { status: 409 });
+    if ((await verifiedOwnedAgents(content.targetBuilder)).length === 0) return NextResponse.json({ error: 'This builder has no currently owned agent that can propose. Nothing was posted.' }, { status: 409 });
   }
   if (!isAddress(poster) || !isHex(signature) || Number.isNaN(Date.parse(postedAt))) {
     return NextResponse.json({ error: 'The brief payload is invalid.' }, { status: 400 });

@@ -20,17 +20,26 @@ test('the signature covers every field, including what is published, and says wh
   assert.match(message, /not that it is true/);
   const signature = await account.signMessage({ message });
   assert.equal(await verifyMessage({ address: account.address, message, signature }), true);
-  for (const changed of [{ ...CONTENT, bio: 'Audited by everyone.' }, { ...CONTENT, tagline: 'Trusted by everyone.' }, { ...CONTENT, theme: 'forest' as const }, { ...CONTENT, published: false }, { ...CONTENT, showHiring: true }, { ...CONTENT, agents: ['97:2618', '56:1'] }, { ...CONTENT, usage: 'hire' as const }, { ...CONTENT, showWallet: true }]) {
+  for (const changed of [{ ...CONTENT, bio: 'Audited by everyone.' }, { ...CONTENT, tagline: 'Trusted by everyone.' }, { ...CONTENT, theme: 'forest' as const }, { ...CONTENT, published: false }, { ...CONTENT, showHiring: true }, { ...CONTENT, agents: ['97:2618', '56:1'] }, { ...CONTENT, hiddenAgents: ['56:1'] }, { ...CONTENT, usage: 'hire' as const }, { ...CONTENT, showWallet: true }]) {
     assert.equal(await verifyMessage({ address: account.address, message: profileMessage({ ...changed, wallet: account.address, signedAt: AT }), signature }), false);
   }
 });
 
-test('publishing needs a handle; indexing needs publishing; pins must be shown agents', () => {
+test('publishing needs a handle; indexing needs publishing; pins must be visible agents', () => {
   assert.match(profileProblem({ ...CONTENT, handle: '' }) ?? '', /handle/);
   assert.equal(normalizeProfile({ ...CONTENT, published: false, indexable: true }).indexable, false, 'an unpublished profile is never indexable');
-  assert.match(profileProblem({ ...CONTENT, pinned: ['56:1'] }) ?? '', /pinned/);
+  assert.match(profileProblem({ ...CONTENT, hiddenAgents: ['97:2618'] }) ?? '', /visible agents/);
+  assert.equal(profileProblem({ ...CONTENT, agents: [], pinned: ['97:2618'] }), null, 'pinning no longer requires the legacy manual selection');
   assert.ok(profileProblem({ ...CONTENT, agents: ['1:2'] }), 'agents are chain:token on 56 or 97');
+  assert.ok(profileProblem({ ...CONTENT, hiddenAgents: ['1:2'] }), 'hidden agents are chain:token on 56 or 97');
   assert.ok(profileProblem({ ...CONTENT, pinned: ['97:1', '97:2', '97:3', '97:4'], agents: ['97:1', '97:2', '97:3', '97:4'] }));
+});
+
+test('older signed profiles read with no hidden agents and newer edits cannot smuggle a malformed hide list', () => {
+  const legacy: Record<string, unknown> = { ...CONTENT };
+  delete legacy.hiddenAgents;
+  assert.deepEqual(readProfileContent(legacy)?.hiddenAgents, []);
+  assert.equal(readProfileContent({ ...CONTENT, hiddenAgents: '97:2618' }), null);
 });
 
 test('a usage choice alone saves a private, otherwise empty profile', () => {

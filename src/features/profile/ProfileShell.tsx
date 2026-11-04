@@ -127,11 +127,24 @@ export function ProfileShell({
           <Link href={previewHref} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-[9px] border border-rule-strong px-3 text-[13.5px] font-medium text-ink-2 hover:border-ink-3 hover:text-ink">
             <Icon.Eye size={14} aria-hidden /> Preview public profile
           </Link>
-          {published?.showBuilding && published.agents.length > 0 && <Link href={`/build/services/new?builder=${wallet}`} className="inline-flex h-9 items-center justify-center rounded-[9px] border border-rule-strong px-3 text-[13.5px] font-medium text-ink-2 hover:text-ink">Publish a service</Link>}
+          {published?.showBuilding && agents.length > 0 && <Link href={`/build/services/new?builder=${wallet}`} className="inline-flex h-9 items-center justify-center rounded-[9px] border border-rule-strong px-3 text-[13.5px] font-medium text-ink-2 hover:text-ink">Publish a service</Link>}
           {!published && <p className="text-[12px] text-ink-3">{hasSaved ? 'Your saved profile is private; visitors see registry facts.' : 'Claim this wallet to customise the profile.'}</p>}
         </div>
       )}
-      <div className="flex min-w-0 flex-col gap-6">
+      <div className="grid min-w-0 items-start gap-5 lg:grid-cols-[minmax(0,250px)_minmax(0,1fr)] xl:grid-cols-[270px_minmax(0,1fr)]">
+        {!editing && <>
+          <aside aria-label="About this profile" className="hidden rounded-[14px] border border-rule bg-raised p-5 lg:block">
+            <h2 className="border-b border-rule pb-3 text-[14px] font-semibold">About this profile</h2>
+            <div className="pt-4">{identity}</div>
+          </aside>
+          <details className="group rounded-[12px] border border-rule bg-raised px-4 py-3 lg:hidden">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-[13.5px] font-medium [&::-webkit-details-marker]:hidden">
+              About this profile <Icon.ChevronDown size={15} className="text-ink-3 transition-transform group-open:rotate-180" aria-hidden />
+            </summary>
+            <div className="mt-3 border-t border-rule pt-4">{identity}</div>
+          </details>
+        </>}
+        <div className={editing ? 'min-w-0 lg:col-span-2' : 'min-w-0'}>
         {own && previewing && (
           <Notice
             title="Previewing as a visitor"
@@ -152,13 +165,8 @@ export function ProfileShell({
           </section>
         )}
         {editing ? <ProfileEditor wallet={wallet} initial={editing} agents={agents} hiringActivity={hiringActivity} onDone={() => setEditing(null)} /> : children}
+        </div>
       </div>
-      {!editing && <details className="group rounded-[12px] border border-rule bg-raised px-5 py-3">
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-[13.5px] font-medium [&::-webkit-details-marker]:hidden">
-          About this profile <Icon.ChevronDown size={15} className="text-ink-3 transition-transform group-open:rotate-180" aria-hidden />
-        </summary>
-        <div className="border-t border-rule pt-5 mt-3">{identity}</div>
-      </details>}
     </div>
   );
 }

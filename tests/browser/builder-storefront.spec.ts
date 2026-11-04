@@ -46,6 +46,27 @@ test('an unclaimed wallet has a public default profile but cannot receive a dire
   expect((await walletCalls(page)).filter((call) => SIGNING_METHODS.includes(call.method))).toEqual([]);
 });
 
+test('builder tabs switch in place, keep scroll, and respect browser history', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 600 });
+  await page.goto(`/builders/${unclaimed}`);
+  const firstLoad = await page.evaluate(() => performance.timeOrigin);
+  const tabs = page.getByRole('navigation', { name: 'Builder profile sections' });
+  await page.evaluate(() => window.scrollTo({ top: 120, behavior: 'instant' }));
+  const previousScroll = await page.evaluate(() => window.scrollY);
+  expect(previousScroll).toBeGreaterThan(0);
+
+  await tabs.getByRole('link', { name: 'Services' }).click();
+  await expect(page).toHaveURL(/tab=services/);
+  await expect(page.getByRole('heading', { name: 'No published services' })).toBeVisible();
+  expect(await page.evaluate(() => performance.timeOrigin)).toBe(firstLoad);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+
+  await page.goBack();
+  await expect(tabs.getByRole('link', { name: 'Agents (0)' })).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByRole('heading', { name: 'Agents owned by this wallet' })).toBeVisible();
+  expect(await page.evaluate(() => performance.timeOrigin)).toBe(firstLoad);
+});
+
 test('service catalogue shows only published offers and preserves usable search navigation', async ({ page }) => {
   await page.goto('/services');
   await expect(page.getByRole('heading', { name: 'Find a service.' })).toBeVisible();
@@ -113,6 +134,19 @@ test('builder, service and request pages fit a phone viewport', async ({ page })
     await page.goto(path);
     await expect(page.getByRole('heading', { name: title, level: 1 })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    if (file === 'builder') {
+      await page.getByRole('region', { name: 'Builder storefront header' }).getByRole('button', { name: 'Share' }).click();
+      await expect(page.getByRole('dialog', { name: 'Share this profile' })).toBeVisible();
+      expect(await page.evaluate(() => {
+        const header = document.querySelector('[aria-label="Builder storefront header"]')!;
+        const dialog = document.querySelector('[role="dialog"][aria-label="Share this profile"]')!;
+        const box = dialog.getBoundingClientRect();
+        const headerBottom = header.getBoundingClientRect().bottom;
+        return box.bottom > headerBottom + 12 && dialog.contains(document.elementFromPoint(box.left + 24, headerBottom + 12));
+      })).toBe(true);
+      await page.screenshot({ path: '/tmp/pokter-builder-share-mobile.png', fullPage: true });
+      await page.getByRole('region', { name: 'Builder storefront header' }).getByRole('button', { name: 'Share' }).click();
+    }
     await page.screenshot({ path: `/tmp/pokter-${file}-mobile.png`, fullPage: true });
   }
 });
@@ -141,15 +175,30 @@ test('a persisted service supplies an editable brief to the existing signed quot
   expect((await walletCalls(page)).filter((call) => SIGNING_METHODS.includes(call.method))).toEqual([]);
 });
 
+test('claimed builder tabs switch without reloading the storefront', async ({ page }) => {
+  const dataDir = process.env.POKTER_TEST_DATA_DIR!;
+  const profile = { ...EMPTY_PROFILE, handle: 'tabs-fixture', displayName: 'Tabs fixture', published: true, showBuilding: true, usage: 'build', agents: [] };
+  execFileSync(process.execPath, ['-e', `const {DatabaseSync}=require('node:sqlite');const [path,raw]=process.argv.slice(1);const db=new DatabaseSync(path);db.exec('CREATE TABLE IF NOT EXISTS profiles (wallet TEXT PRIMARY KEY,handle TEXT,content TEXT NOT NULL,signed_at TEXT NOT NULL,signature TEXT NOT NULL)');db.prepare('INSERT INTO profiles (wallet,handle,content,signed_at,signature) VALUES (?,?,?,?,?)').run('0x00000000000000000000000000000000000000bb','tabs-fixture',raw,'2026-11-01T00:00:00.000Z','fixture-only');db.close();`, join(dataDir, 'profiles.db'), JSON.stringify(profile)], { env: { ...process.env, NODE_OPTIONS: '' } });
+  await page.goto('/builders/tabs-fixture');
+  const profileLoad = await page.evaluate(() => performance.timeOrigin);
+  const profileTabs = page.getByRole('navigation', { name: 'Building tabs' });
+  for (const name of ['Services', 'Evidence', 'Work', 'Reviews', 'Agents']) {
+    await profileTabs.getByRole('link', { name }).click();
+    await expect(profileTabs.getByRole('link', { name })).toHaveAttribute('aria-current', 'page');
+    expect(await page.evaluate(() => performance.timeOrigin)).toBe(profileLoad);
+  }
+});
+
 test('a builder profile keeps its target through composition and reaches the builder inbox', async ({ page }) => {
   test.setTimeout(180_000);
   const dataDir = process.env.POKTER_TEST_DATA_DIR!;
   const builder = '0xb72335e083a7eed9731d24c48dbf07c4ef1f051a';
-  const profile = { ...EMPTY_PROFILE, handle: 'risk-fixture', displayName: 'Risk fixture', published: true, showBuilding: true, usage: 'build', agents: ['97:2618'] };
+  const profile = { ...EMPTY_PROFILE, handle: 'risk-fixture', displayName: 'Risk fixture', published: true, showBuilding: true, usage: 'build', agents: [] };
   execFileSync(process.execPath, ['-e', `const {DatabaseSync}=require('node:sqlite');const [path,raw]=process.argv.slice(1);const db=new DatabaseSync(path);db.exec('CREATE TABLE IF NOT EXISTS profiles (wallet TEXT PRIMARY KEY,handle TEXT,content TEXT NOT NULL,signed_at TEXT NOT NULL,signature TEXT NOT NULL)');db.prepare('INSERT INTO profiles (wallet,handle,content,signed_at,signature) VALUES (?,?,?,?,?)').run('0xb72335e083a7eed9731d24c48dbf07c4ef1f051a','risk-fixture',raw,'2026-11-01T00:00:00.000Z','fixture-only');db.close();`, join(dataDir, 'profiles.db'), JSON.stringify(profile)], { env: { ...process.env, NODE_OPTIONS: '' } });
   const buyer = privateKeyToAccount(`0x${'42'.repeat(32)}`);
   await installMockWallet(page, { address: buyer.address, chainId: 97, testSign: async (message) => buyer.signMessage({ message: isHex(message) ? { raw: message as Hex } : message }) });
   await page.goto('/builders/risk-fixture');
+  await expect(page.getByRole('link', { name: TEST_AGENT.name }).first()).toBeVisible();
   await page.getByRole('link', { name: 'Request custom work' }).click();
   await expect(page).toHaveURL(new RegExp(`builder=${builder}`, 'i'));
   await page.reload();
@@ -174,7 +223,7 @@ test('a builder profile keeps its target through composition and reaches the bui
   await installMockWallet(builderPage, { address: builder as `0x${string}`, chainId: 97 });
   await builderPage.goto('/build');
   await expect(builderPage.getByRole('heading', { name: 'Requests for your builder wallet' })).toBeVisible();
-  await builderPage.getByRole('link', { name: /Check my Venus position/ }).click();
+  await builderPage.getByRole('link', { name: /Check my Venus position/ }).first().click();
   await expect(builderPage.getByRole('button', { name: 'Make a proposal' })).toBeVisible();
   await builderPage.close();
   expect((await walletCalls(page)).filter((call) => ['eth_sendTransaction', 'wallet_sendCalls'].includes(call.method))).toEqual([]);
