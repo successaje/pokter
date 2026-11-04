@@ -25,12 +25,12 @@ export default async function EditServicePage({ searchParams }: { searchParams: 
   if (current && (!isAddress(current.builder) || getAddress(current.builder) !== getAddress(owner))) notFound();
   const builder = getAddress(owner);
   const profile = getProfileStore().get(builder);
+  const agents = await verifiedOwnedAgents(builder);
   if (!profile?.published || !profile.showBuilding) return <>
     <PageHeader title="Publish a service" description="Start with a public builder profile." />
-    <p className="rounded-[12px] border border-rule bg-raised p-5 text-[13.5px] text-ink-2">Publish your builder profile and show your building activity. A service also needs an agent this wallet owns. Registry-owned agents appear automatically. <Link href={`/builders/${builder}`} className="font-medium text-ink underline">Open your profile</Link> or <Link href="/build/new" className="font-medium text-ink underline">create an agent</Link>.</p>
+    <p className="rounded-[12px] border border-rule bg-raised p-5 text-[13.5px] text-ink-2">Publish your builder profile and show your building activity. A service also needs an agent this wallet owns; registry-owned agents appear automatically. <Link href={`/builders/${builder}`} className="font-medium text-ink underline">Open your profile</Link>.</p>
+    {!agents.length && <div className="mt-4"><AgentRequired /></div>}
   </>;
-
-  const agents = await verifiedOwnedAgents(builder);
 
   return <>
     <Link href="/build/services" className="text-[13px] text-ink-2 hover:underline">← My services</Link>
