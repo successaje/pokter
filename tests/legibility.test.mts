@@ -24,7 +24,7 @@ test('home and Discover say when Pokter last checked an agent, beside the hireab
 test('a card shows where its money settles as a coloured pill on its own line under the price', () => {
   const card = code('features/agents/AgentCard.tsx');
   // One tag for every card that shows money, agents and requests alike (ui/Network.tsx).
-  assert.match(code('ui/Network.tsx'), /real \? 'bg-ok-wash text-ok' : 'bg-watch-wash text-watch'/);
+  assert.match(code('ui/Network.tsx'), /const networkTone = \(mainnet: boolean\) => mainnet \? 'bg-ok-wash text-ok' : 'bg-watch-wash text-watch'/);
   assert.match(card, /import \{ NetworkTag \} from '@\/ui\/Network';/);
   assert.match(code('features/briefs/RequestRow.tsx'), /<NetworkTag chainId=\{request\.chainId\} \/>/);
   // A request's own page says it the same way: in its summary's Network row, and over the proposal form.
