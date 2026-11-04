@@ -31,6 +31,7 @@ import { Ago } from '@/ui/Ago';
 import { getServiceStore } from '@/lib/services/store';
 import { registryOwner } from '@/lib/registry/onchain';
 import { ServiceCard } from '@/features/services/ServiceCard';
+import { getProfileStore } from '@/lib/profiles/store';
 
 export const metadata: Metadata = {
   title: 'Find an agent for the job',
@@ -85,6 +86,14 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
   // Changing anything but the page count starts from the first page again.
   const base = { ...p, pages: 1 };
   const shown = result.rows.slice(0, p.pages * PAGE_SIZE);
+  const profiles = getProfileStore();
+  const builderHandles = new Map(
+    [...new Set([...shown, ...result.recent].map((row) => row.owner.toLowerCase()))]
+      .map((owner) => {
+        const profile = profiles.get(owner);
+        return [owner, profile?.published ? profile.handle : undefined] as const;
+      }),
+  );
   /*
    * How long each agent's deliveries took, for the cards on this page only.
    *
@@ -367,7 +376,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
                   <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                     {group.map((row) => (
                       <li key={row.key} className="flex min-w-0 flex-col">
-                        <AgentCard row={row} note={withNetworks(row)} hireChainIds={row.hireChainIds} deliveryMs={deliveryByKey.get(row.key) ?? null} compare={<CompareToggle agentKey={row.key} variant="checkbox" compact />} />
+                        <AgentCard row={row} builderHandle={builderHandles.get(row.owner.toLowerCase())} note={withNetworks(row)} hireChainIds={row.hireChainIds} deliveryMs={deliveryByKey.get(row.key) ?? null} compare={<CompareToggle agentKey={row.key} variant="checkbox" compact />} />
                       </li>
                     ))}
                   </ul>
@@ -397,7 +406,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
             <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {result.recent.map((row) => (
                 <li key={row.key} className="flex min-w-0">
-                  <MiniAgentCard row={row} />
+                  <MiniAgentCard row={row} builderHandle={builderHandles.get(row.owner.toLowerCase())} />
                 </li>
               ))}
             </ul>

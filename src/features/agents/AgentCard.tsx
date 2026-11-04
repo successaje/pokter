@@ -12,6 +12,15 @@ import { VerdictLabel } from '@/ui/Verdict';
 import { MaturityLabel } from '@/ui/Maturity';
 import { LinkButton } from '@/ui/Button';
 import { isHouseAgent } from '@/lib/house/wallets';
+import { profilePath } from '@/lib/profiles/model';
+
+function BuilderByline({ owner, handle }: { owner: string; handle?: string }) {
+  return (
+    <Link href={profilePath(owner, handle)} className="relative z-10 w-fit text-[11.5px] text-ink-3 hover:text-ink hover:underline">
+      by {handle ? `@${handle}` : `${owner.slice(0, 6)}…${owner.slice(-4)}`}
+    </Link>
+  );
+}
 
 /** Paid jobs the agent let lapse, said only when there are some. */
 function MissedNote({ row, className }: { row: FindRow; className?: string }) {
@@ -199,13 +208,13 @@ export function TrialNote({ className }: { className?: string }) {
  * delivery time. Those are for choosing between agents, and this is for
  * noticing one.
  */
-export function MiniAgentCard({ row }: { row: FindRow }) {
+export function MiniAgentCard({ row, builderHandle }: { row: FindRow; builderHandle?: string }) {
   return (
     <article className="group relative flex h-full items-start gap-3 rounded-[12px] border border-rule bg-raised p-3.5 transition-colors hover:border-rule-strong">
       <AgentAvatar name={row.name} imageUrl={row.imageUrl} seed={row.key} size={36} status={answerState(row)} />
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         <Link href={agentHref(row)} className="truncate text-[13.5px] font-medium after:absolute after:inset-0 focus-visible:outline-none">{row.name}</Link>
-        <Link href={`/builders/${row.owner}`} className="relative z-10 w-fit text-[11.5px] text-ink-3 hover:text-ink hover:underline">by {row.owner.slice(0, 6)}…{row.owner.slice(-4)}</Link>
+        <BuilderByline owner={row.owner} handle={builderHandle} />
         <span className="line-clamp-1 text-[12.5px] text-ink-3">{row.description || 'No description published.'}</span>
       </span>
       <PriceText row={row} className="shrink-0 text-[13px]" />
@@ -226,6 +235,7 @@ export function AgentCard({
   compare,
   deliveryMs,
   hireChainIds,
+  builderHandle,
 }: {
   row: FindRow;
   className?: string;
@@ -237,6 +247,8 @@ export function AgentCard({
    * names only the network of the registration it shows.
    */
   hireChainIds?: number[];
+  /** A published profile's username, resolved by the server rendering this card. */
+  builderHandle?: string;
   /**
    * Median time from funding to submission, when the caller has read it.
    * Optional because reading it costs a chain call per job: a surface that
@@ -286,7 +298,7 @@ export function AgentCard({
             <OnChainTag row={row} />
             {isHouseAgent({ owner_address: row.owner }) ? <span className="shrink-0">Run by Pokter</span> : null}
           </span>
-          <Link href={`/builders/${row.owner}`} className="relative z-10 w-fit text-[11.5px] text-ink-3 hover:text-ink hover:underline">by {row.owner.slice(0, 6)}…{row.owner.slice(-4)}</Link>
+          <BuilderByline owner={row.owner} handle={builderHandle} />
         </div>
         {/* The footer that used to hold this went with "View evidence";
             the card itself has always linked to the agent page. */}
