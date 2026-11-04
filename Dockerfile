@@ -47,7 +47,7 @@ ENV NEXT_PUBLIC_X402_ENABLED=$NEXT_PUBLIC_X402_ENABLED
 ENV NEXT_PUBLIC_HIRE_TOKENS=$NEXT_PUBLIC_HIRE_TOKENS
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
-RUN ./node_modules/.bin/esbuild scripts/telegram-marketplace-configure.mts --bundle --platform=node --format=esm --outfile=telegram-marketplace-configure.mjs
+RUN ./node_modules/.bin/esbuild src/lib/telegram/configure.mts --bundle --platform=node --format=esm --outfile=telegram-marketplace-configure.mjs
 
 FROM node:24-slim AS runner
 WORKDIR /app

@@ -1,6 +1,6 @@
 /** Set the bot profile before deploy, or register its webhook after the route is live. */
 import { readFile } from 'node:fs/promises';
-import { MARKETPLACE_BOT_COMMANDS } from '../src/lib/telegram/marketplace-bot';
+import { MARKETPLACE_BOT_COMMANDS } from './marketplace-bot';
 
 const profileOnly = process.argv.includes('--profile-only');
 const statusOnly = process.argv.includes('--status');
