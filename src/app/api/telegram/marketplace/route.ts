@@ -44,7 +44,7 @@ export async function POST(request: Request): Promise<Response> {
   };
   let timeout: ReturnType<typeof setTimeout> | undefined;
   const reply = await Promise.race([
-    scoutReply(message, chat.type === 'private').catch(() => unavailable),
+    scoutReply(message, chat.type === 'private', chat.id as number).catch(() => unavailable),
     new Promise<BotReply>((resolve) => { timeout = setTimeout(() => resolve(unavailable), 8_000); }),
   ]);
   if (timeout) clearTimeout(timeout);

@@ -3,7 +3,10 @@ import 'server-only';
 import { CATEGORIES } from '@/lib/agents/categories';
 import type { AgentSummary } from '@/lib/api/v1';
 import type { Service } from '@/lib/services/model';
+import { consumeRateLimit } from '@/lib/security/rate-limit';
 import { marketplaceBotReply, publicPage, scoutMenu, type BotButton, type BotReply } from './marketplace-bot';
+import { forgetChat, readChat, saveChat } from './chat-store';
+import { generateScoutAnswer } from './scout-gemini';
 
 const network = (chainId: number) => chainId === 97 ? 'BNB Testnet' : 'BNB Mainnet';
 const short = (text: string, max = 135) => text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text;
@@ -42,7 +45,9 @@ function agentPrice(agent: AgentSummary): string {
 }
 
 async function findAgents(query: string, category?: string): Promise<BotReply> {
-  const { GET: agentsApi } = await import('@/app/api/v1/agents/route');
+  const [{ GET: agentsApi }, { agentRecord }] = await Promise.all([
+    import('@/app/api/v1/agents/route'), import('@/lib/profiles/evidence'),
+  ]);
   const url = new URL('https://pokter.xyz/api/v1/agents');
   url.searchParams.set('limit', '3');
   if (query) url.searchParams.set('q', query.slice(0, 120));
@@ -54,7 +59,9 @@ async function findAgents(query: string, category?: string): Promise<BotReply> {
   const lines = data.items.map((a, index) => {
     const probes = a.probes.value;
     const evidence = probes.total ? `${probes.answered}/${probes.total} Pokter checks answered` : 'No Pokter checks recorded';
-    return `${index + 1}. ${short(a.name, 65)} · ${network(a.chainId)}\n${evidence} · ${a.verdictLabel}\n${agentPrice(a)}`;
+    const jobs = agentRecord(a.chainId, a.tokenId, a.owner.value ?? '');
+    const outside = jobs.mainnet.funded + jobs.testnet.funded;
+    return `${index + 1}. ${short(a.name, 65)} · ${network(a.chainId)} · ID ${a.chainId}:${a.tokenId}\n${evidence} · ${a.verdictLabel}\n${outside} outside-buyer funded ${outside === 1 ? 'job' : 'jobs'} (${jobs.mainnet.funded} mainnet, ${jobs.testnet.funded} testnet)\n${agentPrice(a)}`;
   });
   return reply(`Scout found ${data.total} matching ${data.total === 1 ? 'agent' : 'agents'}. Here are ${data.items.length}:\n\n${lines.join('\n\n')}\n\nChecks measure responses, not the quality of delivered work.`, data.items.map((a) => [link(`Open ${short(a.name, 34)}`, publicPage(`/agents/${a.chainId}/${a.tokenId}`))]));
 }
@@ -128,7 +135,67 @@ async function openRequests(query: string): Promise<BotReply> {
   return reply(`Open requests on Pokter:\n\n${lines.join('\n\n')}\n\nA request is not a funded job. Read its terms before proposing.`, open.map((r) => [link(`Open request ${r.id.slice(0, 8)}`, publicPage(`/requests/${r.id}`))]));
 }
 
-export async function scoutReply(message: string, isPrivate: boolean): Promise<BotReply | null> {
+function isFollowUp(text: string): boolean {
+  return /^(which|what about|of those|and |the (first|second|third|one)|these|those|them|their|it |compare|how many|do any|does any|are any|is any|more about|tell me more|why |who |what is its|what is their)/i.test(text)
+    || /\b(previous|above|result|recommendation)\b/i.test(text);
+}
+
+function isGeneralQuestion(text: string): boolean {
+  return /^(hi|hello|hey|thanks|thank you|what is pokter|what can you do|how does pokter|how do i hire|how do requests work|who are you)\b/i.test(text);
+}
+
+async function marketEvidence(text: string): Promise<BotReply> {
+  const plainQuery = (value: string) => value.replace(/\b(can|could|you|i|want|need|looking|find|show|me|available|published|for|about|please|any|are|there|a|an|the|with|to)\b/gi, ' ').replace(/[^a-z0-9\s-]/gi, ' ').trim();
+  if (/\b(services?|offers?)\b/i.test(text)) {
+    const query = plainQuery(text.replace(/\b(services?|offers?)\b/gi, ' '));
+    return exploreServices(query);
+  }
+  if (/\b(requests?|work to bid|open work)\b/i.test(text) && !/how do requests work/i.test(text)) {
+    const query = plainQuery(text.replace(/\b(open|public|requests?|work|bid)\b/gi, ' '));
+    return openRequests(query);
+  }
+  const category = [
+    { id: 'health-factor', pattern: /health factor|liquidation|collateral|lending position/i },
+    { id: 'grid-trading', pattern: /grid|ladder|dca bot/i },
+    { id: 'rebalancing', pattern: /rebalanc|allocation|portfolio weight/i },
+    { id: 'yield', pattern: /yield|apy|staking|vault|farming/i },
+    { id: 'token-safety', pattern: /token safety|honeypot|rug pull|contract safety/i },
+    { id: 'research', pattern: /research|due diligence/i },
+    { id: 'content', pattern: /content|copywriting|blog/i },
+    { id: 'trading', pattern: /trading|trade signal/i },
+  ].find((entry) => entry.pattern.test(text));
+  if (category) return findAgents('', category.id);
+  const terms = plainQuery(text.replace(/\b(agent|agents|bot|bots|help|task|that|does|do|my)\b/gi, ' ')).split(/\s+/).filter(Boolean);
+  return findAgents(terms.slice(0, 2).join(' ') || text);
+}
+
+async function chatWithScout(raw: string, chatId: number): Promise<BotReply> {
+  if (/\b(seed phrase|recovery phrase|private key)\b/i.test(raw) || /\b0x[a-fA-F0-9]{64}\b/.test(raw)) {
+    return reply('Please keep wallet secrets out of chat. I can help you compare public Pokter evidence instead.', [[link('Open Pokter', publicPage('/discover'))]]);
+  }
+  const perChat = consumeRateLimit(`scout-ai:${chatId}`, { limit: 12, windowMs: 15 * 60_000 });
+  const global = consumeRateLimit('scout-ai:global', { limit: 120, windowMs: 60 * 60_000 });
+  if (!perChat.allowed || !global.allowed) return reply('Scout has reached its chat limit for now. You can still browse Pokter directly.', [[link('Open Discover', publicPage('/discover'))]]);
+
+  const state = readChat(chatId);
+  const usePrevious = !!state.evidence && isFollowUp(raw);
+  const search = !usePrevious && !isGeneralQuestion(raw) ? await marketEvidence(raw) : null;
+  const evidence = search?.text ?? state.evidence;
+  const buttons = search && 'inline_keyboard' in search.reply_markup
+    ? search.reply_markup.inline_keyboard : state.buttons;
+  try {
+    const answer = await generateScoutAnswer({ message: raw, turns: state.turns, evidence, apiKey: process.env.SCOUT_GEMINI_API_KEY! });
+    saveChat(chatId, {
+      turns: [...state.turns, { role: 'user', content: raw }, { role: 'assistant', content: answer }],
+      evidence, buttons, aiEnabled: true,
+    });
+    return reply(answer, buttons.length ? buttons : [[link('Explore Pokter', publicPage('/discover'))]]);
+  } catch {
+    return search ?? reply('I couldn’t complete that answer right now. Try a new search or open the Pokter evidence directly.', buttons.length ? buttons : [[link('Open Discover', publicPage('/discover'))]]);
+  }
+}
+
+export async function scoutReply(message: string, isPrivate: boolean, chatId?: number): Promise<BotReply | null> {
   const raw = message.trim();
   if (!isPrivate && /^\/(?:start|help)(?:@[a-z0-9_]+)?$/i.test(raw)) {
     const username = process.env.POKTER_TELEGRAM_BOT_USERNAME?.replace(/^@/, '');
@@ -139,6 +206,23 @@ export async function scoutReply(message: string, isPrivate: boolean): Promise<B
   const staticReply = marketplaceBotReply(raw, isPrivate);
   if (staticReply) return staticReply;
   if (!isPrivate && !raw.startsWith('/')) return null;
+  if (isPrivate && (raw === '/forget' || raw === 'Forget chat')) {
+    if (chatId !== undefined) forgetChat(chatId);
+    return reply('I’ve cleared your recent Scout conversation from Pokter.', [[link('Open Discover', publicPage('/discover'))]]);
+  }
+  if (isPrivate && (raw === '/ai' || raw === 'Chat with Scout')) {
+    if (!process.env.SCOUT_GEMINI_API_KEY) return reply('AI chat is not available yet. You can still search agents and check evidence here.', [[link('Open Discover', publicPage('/discover'))]]);
+    return {
+      text: 'AI chat uses Gemini’s free tier. Google may use submitted content to improve its products. Your messages and recent Scout context go to Gemini; never send private keys, passwords or confidential briefs. Pokter keeps recent chat available for 24 hours, and /forget clears it. Read https://pokter.xyz/privacy.\n\nTap Enable AI chat if you agree.',
+      reply_markup: { keyboard: [[{ text: 'Enable AI chat' }], [{ text: 'Back to menu' }]], resize_keyboard: true, is_persistent: true },
+    };
+  }
+  if (isPrivate && raw === 'Enable AI chat') {
+    if (!process.env.SCOUT_GEMINI_API_KEY || chatId === undefined) return reply('AI chat is not available yet. You can still search agents here.', [[link('Open Discover', publicPage('/discover'))]]);
+    const state = readChat(chatId);
+    saveChat(chatId, { ...state, aiEnabled: true });
+    return reply('AI chat is on. Ask me about an agent or describe a task. I’ll use Pokter evidence and link you to the source. Send /forget to clear this chat.', [[link('Browse agents', publicPage('/discover'))]]);
+  }
   if (raw === 'Find an agent' || raw === '/find' || raw === '/discover') return categoryKeyboard(false);
   if (raw === 'All categories' || raw === '/categories') return categoryKeyboard(true);
   if (raw === 'Check an agent' || raw === '/check') return reply('Send a Pokter agent URL or a network and ID, such as 56:123 or 97:123. I’ll show what Pokter has measured and what remains missing.', [[link('Browse agents', publicPage('/discover'))]]);
@@ -153,5 +237,6 @@ export async function scoutReply(message: string, isPrivate: boolean): Promise<B
   const category = CATEGORIES.find((c) => c.label.toLowerCase() === raw.toLowerCase());
   if (category) return findAgents('', category.id);
   if (raw.startsWith('/')) return isPrivate ? scoutMenu() : null;
-  return isPrivate ? findAgents(raw) : null;
+  if (!isPrivate) return null;
+  return process.env.SCOUT_GEMINI_API_KEY && chatId !== undefined && readChat(chatId).aiEnabled ? chatWithScout(raw, chatId) : findAgents(raw);
 }
