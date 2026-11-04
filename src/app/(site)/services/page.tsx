@@ -5,6 +5,8 @@ import { registryOwner } from '@/lib/registry/onchain';
 import { getServiceStore } from '@/lib/services/store';
 import { ServiceCard } from '@/features/services/ServiceCard';
 import { sampleServices } from '@/features/services/preview';
+import { LinkButton } from '@/ui/Button';
+import { Icon } from '@/ui/icons';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Services', description: 'Specific offers published by BNB Chain agent builders. Review scope, agent evidence and a fresh quote before hiring.' };
@@ -28,7 +30,10 @@ export default async function ServicesPage({ searchParams }: { searchParams: Pro
   const filtered = Boolean(q || category || chainId);
   return <div className="frame pb-24 pt-8 sm:pt-12">
     {preview && <div className="mb-7 flex flex-wrap items-center justify-between gap-3 rounded-[12px] border border-watch/30 bg-watch/10 px-4 py-3 text-[13px]"><span><strong>Local preview</strong> · These sample services are not published and cannot be hired.</span><Link href="/services" className="font-medium underline">View real services</Link></div>}
-    <div className="max-w-2xl"><span className="t-label">{preview ? 'Sample offers' : 'Builder-published offers'}</span><h1 className="mt-2 text-[clamp(2rem,5vw,3.2rem)] font-semibold tracking-[-0.045em]">Find a service.</h1><p className="mt-2 text-[14px] leading-relaxed text-ink-2">Choose a specific offer. Review the agent and a fresh price before you hire.</p></div>
+    <div className="flex flex-wrap items-end justify-between gap-5">
+      <div className="max-w-2xl"><span className="t-label">{preview ? 'Sample offers' : 'Builder-published offers'}</span><h1 className="mt-2 text-[clamp(2rem,5vw,3.2rem)] font-semibold tracking-[-0.045em]">Find a service.</h1><p className="mt-2 text-[14px] leading-relaxed text-ink-2">Choose a specific offer. Review the agent and a fresh price before you hire.</p></div>
+      <LinkButton href="/build/services/new" size="s" icon={<Icon.Plus size={14} />}>Publish a service</LinkButton>
+    </div>
     <form action="/services" className="mt-7 rounded-[14px] border border-rule bg-raised p-4">
       {preview && <input type="hidden" name="preview" value="1" />}
       <div className="flex flex-col gap-2 sm:flex-row"><label htmlFor="service-search" className="sr-only">Search services</label><input id="service-search" name="q" type="search" defaultValue={q} placeholder="Search by task or outcome" className="h-11 min-w-0 flex-1 rounded-[8px] border border-rule-strong bg-paper px-3 text-sm text-ink" /><button className="h-11 rounded-[8px] bg-ink px-6 text-sm font-medium text-paper">Search</button></div>
@@ -40,7 +45,7 @@ export default async function ServicesPage({ searchParams }: { searchParams: Pro
         </div>
       </details>
     </form>
-    {visible.length ? <><p className="mt-6 text-[12.5px] text-ink-3">{visible.length} {preview ? 'sample ' : ''}{visible.length === 1 ? 'service' : 'services'} shown</p><ul className="mt-3 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{visible.map((service) => <li key={service.id}><ServiceCard service={service} preview={preview} /></li>)}</ul></> : <div className="mt-6 rounded-[14px] border border-rule bg-raised p-6 sm:p-8"><h2 className="text-lg font-semibold">{filtered ? 'No services match your search' : 'No services published yet'}</h2><p className="mt-1 text-sm text-ink-2">{filtered ? 'Try a broader search or clear the filters.' : 'Builders can publish a defined offer from an agent they own. Until then, explore agents and request custom work from a claimed builder.'}</p><div className="mt-4 flex flex-wrap gap-x-5 gap-y-2"><Link href={filtered ? preview ? '/services?preview=1' : '/services' : '/discover'} className="text-sm font-medium underline">{filtered ? 'Clear filters' : 'Explore agents'}</Link>{!filtered && <Link href="/build/services" className="text-sm font-medium text-ink-2 underline">Publish a service</Link>}</div></div>}
+    {visible.length ? <><p className="mt-6 text-[12.5px] text-ink-3">{visible.length} {preview ? 'sample ' : ''}{visible.length === 1 ? 'service' : 'services'} shown</p><ul className="mt-3 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{visible.map((service) => <li key={service.id}><ServiceCard service={service} preview={preview} /></li>)}</ul></> : <div className="mt-6 rounded-[14px] border border-rule bg-raised p-6 sm:p-8"><h2 className="text-lg font-semibold">{filtered ? 'No services match your search' : 'No services published yet'}</h2><p className="mt-1 text-sm text-ink-2">{filtered ? 'Try a broader search or clear the filters.' : 'Builders can publish a defined offer from an agent they own. Until then, explore agents and request custom work from a claimed builder.'}</p><Link href={filtered ? preview ? '/services?preview=1' : '/services' : '/discover'} className="mt-4 inline-flex text-sm font-medium underline">{filtered ? 'Clear filters' : 'Explore agents'}</Link></div>}
     {result.total > 24 && <nav aria-label="Service pages" className="mt-8 flex items-center justify-center gap-5 text-sm">{page > 1 && <Link href={href(page - 1)} className="underline">Previous</Link>}<span>Page {page}</span>{page * 24 < result.total && <Link href={href(page + 1)} className="underline">Next</Link>}</nav>}
   </div>;
 }

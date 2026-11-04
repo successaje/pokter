@@ -28,6 +28,7 @@ import { Icon } from '@/ui/icons';
 import { NetworkStageTag } from '@/ui/Network';
 import { getServiceStore } from '@/lib/services/store';
 import { ServiceCard } from '@/features/services/ServiceCard';
+import { PublishServiceAction } from '@/features/profile/PublishServiceAction';
 
 export const dynamic = 'force-dynamic';
 
@@ -274,7 +275,19 @@ export default async function ProfilePage({
           <ProfileTabs base={base} defaultView={view} sections={[
             ...(sections.includes('building') ? [{ id: 'building' as const, panels: [
               { id: 'agents', label: 'Agents', content: <AgentsTab agents={shown} wallet={wallet} quotes={quotes} now={now} /> },
-              { id: 'services', label: 'Services', content: services.length ? <ul className="grid gap-4 sm:grid-cols-2">{services.map((service) => <li key={service.id}><ServiceCard service={service} /></li>)}</ul> : <Empty title="No published services">This builder has not published a specific offer yet. Browse their agents or request custom work.</Empty> },
+              { id: 'services', label: 'Services', content: (
+                <div className="space-y-4">
+                  <div className="flex min-h-9 items-center justify-between gap-3">
+                    <h2 className="text-[18px] font-semibold">Services</h2>
+                    {verifiedOwnedKeys.size > 0 && <PublishServiceAction wallet={wallet} />}
+                  </div>
+                  {services.length ? (
+                    <ul className="grid gap-4 sm:grid-cols-2">
+                      {services.map((service) => <li key={service.id}><ServiceCard service={service} /></li>)}
+                    </ul>
+                  ) : <Empty title="No published services">This builder has not published a specific offer yet. Browse their agents or request custom work.</Empty>}
+                </div>
+              ) },
               { id: 'overview', label: 'Evidence', content: <BuildingOverview agents={shown} wallet={wallet} operator={operator} reviews={reviews} checks={checks} quotes={quotes} now={now} reviewsHref={href('building', 'reviews')} agentsHref={href('building', 'agents')} /> },
               { id: 'work', label: 'Work', content: <WorkTab agents={shown} wallet={wallet} takenOn={operator.jobIds} /> },
               { id: 'reviews', label: `Reviews${reviews.reviews.length ? ` (${reviews.reviews.length})` : ''}`, content: <ReviewsTab data={reviews} /> },
