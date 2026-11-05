@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -10,7 +11,7 @@ import { shortAddress } from '@/lib/ui/format';
 import { useActiveWallet } from '@/lib/wallet/active';
 import { useActiveSigner } from '@/lib/wallet/use-active-signer';
 import { useConnect } from '@/shell/wallet/ConnectProvider';
-import { Button } from '@/ui/Button';
+import { Button, LinkButton } from '@/ui/Button';
 import { Notice } from '@/ui/Feedback';
 import { Icon } from '@/ui/icons';
 
@@ -83,7 +84,14 @@ export function VerifyOwner() {
 
   const agents = owned.data?.agents ?? [];
   if (agents.length === 0) {
-    return <p className="text-[13.5px] text-ink-2">{who} owns no agents on BNB Chain or BNB Testnet. Connect the wallet that registered yours, or create one.</p>;
+    return <div className="flex max-w-xl flex-col items-start gap-3">
+      <p className="text-[13.5px] leading-relaxed text-ink-2">No agents were found for {who} on BNB Chain or BNB Testnet. An agent registered to this wallet is required before you can publish a service.</p>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button size="s" intent="secondary" icon={<Icon.Refresh size={14} />} busy={owned.isFetching} onClick={() => void owned.refetch()}>Check wallet again</Button>
+        <LinkButton href="/build/new" size="s" icon={<Icon.Plus size={14} />}>Create an agent</LinkButton>
+      </div>
+      <p className="text-[12.5px] leading-relaxed text-ink-3">Already registered one? <Link href="/build/import" className="font-medium text-ink underline underline-offset-2">Import by ID</Link> or connect its owner wallet.</p>
+    </div>;
   }
 
   /* A passkey account exists on chain only where it has acted, so ask about an agent on that network first. */
