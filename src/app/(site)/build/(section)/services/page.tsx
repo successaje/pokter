@@ -19,7 +19,7 @@ export default async function MyServicesPage() {
   const owner = await studioOwner();
   if (!owner) return <>
     <PageHeader title="My services" description="Publish a specific offer from an agent you own." />
-    <BuildingSignedOut what="your services" />
+    <BuildingSignedOut what="your services" serviceSetup />
   </>;
 
   const profile = getProfileStore().get(owner);

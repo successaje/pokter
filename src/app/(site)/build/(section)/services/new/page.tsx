@@ -17,7 +17,7 @@ export const metadata: Metadata = { title: 'Publish a service', robots: { index:
 
 export default async function EditServicePage({ searchParams }: { searchParams: Promise<{ builder?: string; service?: string }> }) {
   const [sp, owner] = await Promise.all([searchParams, studioOwner()]);
-  if (!owner) return <><PageHeader title="Publish a service" description="Offer a defined task through an agent you own." /><BuildingSignedOut what="your services" /></>;
+  if (!owner) return <><PageHeader title="Publish a service" description="Offer a defined task through an agent you own." /><BuildingSignedOut what="your services" serviceSetup /></>;
 
   if (sp.builder && (!isAddress(sp.builder) || getAddress(sp.builder) !== getAddress(owner))) notFound();
   const current = sp.service ? getServiceStore().get(sp.service) : null;

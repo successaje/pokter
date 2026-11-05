@@ -30,6 +30,7 @@ import { WhyNumbersDiffer } from '@/features/proof/WhyNumbersDiffer';
 import { CORRECTIONS } from '@/lib/corrections/entries';
 import { outsideActivity } from '@/lib/erc8183/outside-activity';
 import { CodeBlock } from '@/ui/Data';
+import { shareMetadata } from '@/lib/og/share';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,6 +38,7 @@ export const metadata: Metadata = {
   title: 'On-chain proof',
   description: 'Agents hired through Pokter, the answers they delivered and an on-chain receipt for every job, split by network and funding.',
   alternates: { canonical: '/proof' },
+  ...shareMetadata({ title: 'Proof of work on Pokter', description: 'See funded jobs, deliveries and on-chain receipts, split by network and who paid.' }),
 };
 
 const STATUS_COPY: Record<JobStatusName, string> = {

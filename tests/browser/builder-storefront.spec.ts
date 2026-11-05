@@ -120,11 +120,25 @@ test('Building leads to service publishing and old editor links keep their targe
   await page.getByRole('link', { name: 'Set up a service' }).click();
   await expect(page).toHaveURL(/\/build\/services$/);
   await expect(page.getByRole('heading', { name: 'My services' })).toBeVisible();
-  await expect(page.getByText('Verify your wallet to see your services')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Set up service publishing' })).toBeVisible();
 
   await page.goto(`/workspace/services/new?builder=${unclaimed}`);
   await expect(page).toHaveURL(new RegExp(`/build/services/new\\?builder=${unclaimed}`, 'i'));
   await expect(page.getByRole('heading', { name: 'Publish a service' })).toBeVisible();
+});
+
+test('a connected wallet without agents can start from My services', async ({ page }) => {
+  await installMockWallet(page, { address: unclaimed, chainId: 97 });
+  await page.goto('/build/services');
+  await expect(page.getByRole('heading', { name: 'Set up service publishing' })).toBeVisible();
+  await expect(page.getByText(/No agents were found for/)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Check wallet again' })).toBeVisible();
+  await page.getByRole('button', { name: 'Check wallet again' }).click();
+  await expect(page.getByRole('link', { name: 'Create an agent' })).toBeVisible();
+  await page.getByRole('link', { name: 'Create an agent' }).click();
+  await expect(page).toHaveURL(/\/build\/new$/);
+  await expect(page.getByRole('heading', { name: 'Choose how to create your agent' })).toBeVisible();
+  expect((await walletCalls(page)).filter((call) => SIGNING_METHODS.includes(call.method))).toEqual([]);
 });
 
 test('Requests & Services menu closes outside, on Escape and after navigation', async ({ page }) => {
