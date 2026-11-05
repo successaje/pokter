@@ -90,7 +90,7 @@ test('privacy and support say what the code does', () => {
   assert.match(privacy, /lasts seven days or until you sign out/);
   assert.match(privacy, /the brief you wrote/);
   assert.match(privacy, /receives your brief at its own endpoint/);
-  assert.match(privacy, /The agent&rsquo;s answer is shown there only if you publish it from your job page/);
+  assert.match(privacy, /The agent&rsquo;s answer is shown on Pokter only if you publish it from your job page/);
   assert.match(privacy, /the link to its answer is written there too, so anyone who looks it up can read the answer, whether or not Pokter shows it/);
   const support = said('app/(site)/support/page.tsx');
   assert.doesNotMatch(support, /nobody who compromised Pokter could take your funds|Job memory lives in the browser|Why is there no star rating/);
@@ -106,10 +106,10 @@ test('one name for the hiring pages, and a quoted curl', () => {
   assert.match(code('app/(site)/developers/page.tsx'), /curl 'https:\/\/pokter\.xyz\/api\/v1\/agents\?category=health-factor&q=has:price'/);
 });
 
-test('Proof counts delivered work under review apart from settled work, and every job links to its own page', () => {
+test('Proof distinguishes submissions from settlement and links each job to its evidence', () => {
   const proof = said('app/(site)/proof/page.tsx');
-  assert.match(proof, /label="Settled with an answer"/);
-  assert.match(proof, /label="Delivered, in review"/);
-  assert.match(proof, /href=\{jobEvidencePath\(job\)\}[^>]*>Job page</);
+  assert.match(proof, /submitted: 'With a submission', settled: 'Settled jobs'/);
+  assert.match(proof, /status === 'SUBMITTED' \? 'Submitted, in review'/);
+  assert.match(proof, /href=\{jobEvidencePath\(j\)\}[^>]*>Job evidence/);
   assert.match(code('lib/erc8183/production-proof.ts'), /inReview: byStatus\.SUBMITTED/);
 });

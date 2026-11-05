@@ -14,7 +14,8 @@ function evidence(): JobEvidence {
     deliveredAt: '2026-11-02T00:01:00.000Z', expiresAt: null, review: null,
     delivery: { state: 'matches', matchedBy: 'exact', url: null },
     brief: null, answer: null, checks: null, planProof: null, answerWithheld: true,
-    receipt: { href: 'https://testnet.bscscan.com/tx/0x123', hash: '0x123' }, fundingTx: null,
+    receipt: { href: 'https://testnet.bscscan.com/tx/0x123', hash: '0x123' }, fundingTx: null, fundingAt: null,
+    attribution: 'onchain-marker', attributionHash: null,
   };
 }
 

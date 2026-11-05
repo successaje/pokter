@@ -101,7 +101,8 @@ export default async function JobEvidencePage({ params }: { params: Promise<Para
       ),
     },
     { label: 'Funded by', value: FUNDER_LABEL[e.funder] },
-    { label: 'Funded', value: fundedWhen(e.hiredAt, e.deliveredAt) },
+    { label: 'Escrow provider', value: <a href={`${explorer}/address/${e.provider}`} className="link t-readout break-all" target="_blank" rel="noreferrer noopener">{e.provider}</a> },
+    { label: 'Funded', value: e.fundingAt ? `${utcWhen(e.fundingAt)} · funding transaction block` : fundedWhen(e.hiredAt, e.deliveredAt) },
     { label: 'Delivered', value: utcWhen(e.deliveredAt) ?? 'Not yet' },
     ...(e.review ? [{ label: 'Review window', value: e.review.open ? `Open until ${e.review.closes}. The buyer can dispute until then.` : `Closed ${e.review.closes}.` }] : []),
     { label: 'Deadline', value: utcWhen(e.expiresAt) ?? 'Not readable just now' },
@@ -119,6 +120,14 @@ export default async function JobEvidencePage({ params }: { params: Promise<Para
           ))}
         </dl>
       </section>
+
+      <DocSection id="attribution" title="Why this job is in Pokter’s index">
+        {e.attribution === 'onchain-marker' && <p>The on-chain description carries a valid <code>pokter-job</code> envelope whose provider matches this escrow job. That is a public attribution signal; the marker alone cannot prove which website the buyer used.</p>}
+        {e.attribution === 'recorded-quote' && <p>The on-chain job carries the seller’s signed quote without a Pokter envelope. Its negotiation hash <code className="break-all">{e.attributionHash}</code> matches a quote Pokter recorded for this provider and escrow network. The match depends on Pokter’s private quote-intent record, so a visitor cannot independently establish the interface origin from the chain alone.</p>}
+        {e.attribution === 'historical-index' && <p>Pokter historically indexed this job, but its on-chain description does not currently establish an envelope or a matching quote-intent record. Its marketplace origin is not independently verified here. The escrow facts below can still be checked.</p>}
+        {e.attribution === 'unread' && <p>The escrow description could not be read now. Pokter’s index attributes this job, but its on-chain origin is temporarily unverified.</p>}
+        <p className="mt-2 text-[13px] text-ink-3">A shared provider wallet is never enough to attribute another marketplace’s job to Pokter.</p>
+      </DocSection>
 
       <DocSection id="outcome-record" title="What this job proves">
         <p>One record for the task, the answer and what happened afterward. Each stage keeps its own evidence; settlement alone is not a verdict on the answer.</p>

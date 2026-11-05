@@ -10,6 +10,8 @@ import { enabledEscrowChains } from '@/lib/network/escrow';
 import { chainLabel, explorerBaseFor } from '@/lib/network/presentation';
 import { teamWalletList, teamWalletSet } from '@/lib/team/server';
 import { fundedByTeam } from '@/lib/team/wallets';
+import { isLifecycleDemo } from '@/lib/agent/credited-history';
+import { ledgerRows, summarizeLedger } from '@/lib/proof/ledger';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,9 +32,9 @@ export function OPTIONS() {
  * This returns the identifiers instead. Chain, escrow contract, job id,
  * status, amount: enough to call `getJob(jobId)` on the contract and get
  * the same answer without asking Pokter anything. Every job Pokter
- * brokers also carries a `pokter-job` envelope in its own on-chain
- * description, so the set is discoverable from the chain alone — this
- * endpoint is a convenience, not the source of truth, and it says so.
+ * brokers may carry an on-chain envelope or a signed quote matched to
+ * Pokter's recorded intent. Historical rows may have weaker attribution.
+ * The escrow proves job state, but cannot by itself prove interface origin.
  *
  * What is not returned: the buyer's address, the task text, and the
  * deliverable. The job id makes the first findable on chain by anyone
@@ -49,6 +51,8 @@ export function GET(request: Request) {
     .all()
     .slice()
     .sort((a, b) => Date.parse(b.hiredAt) - Date.parse(a.hiredAt));
+  const rows = ledgerRows(jobs, team, isLifecycleDemo);
+  const proofSummary = (chainId: number) => summarizeLedger(rows.filter((row) => row.job.chainId === chainId));
 
   const receipts = jobs.map((job) => {
     const explorer = explorerBaseFor(job.chainId);
@@ -83,6 +87,8 @@ export function GET(request: Request) {
       },
       hiredAt: job.hiredAt,
       statusCheckedAt: job.statusCheckedAt,
+      /* Attribution method requires the job's on-chain description and, for a quote match, Pokter's private intent. */
+      attribution: { source: 'pokter-index', explanation: 'Open the job page for its checked attribution method and limits.', page: `${origin}${jobEvidencePath(job)}#attribution` },
       /* Pokter's own test hires, marked rather than hidden. */
       fundedByPokter: fundedByTeam(job, team),
       /*
@@ -114,8 +120,9 @@ export function GET(request: Request) {
       fundedByPokter: receipts.filter((r) => r.fundedByPokter).length,
       selfHire: receipts.filter((r) => r.selfHire).length,
       /* Outside money, and not the operator paying their own agent. */
-      outsideDemand: receipts.filter((r) => !r.fundedByPokter && !r.selfHire).length,
+      outsideDemand: rows.filter((row) => row.funded && row.funder === 'outside' && !row.lifecycleDemo).length,
     },
+    proofSummary: { mainnet: proofSummary(56), testnet: proofSummary(97) },
     teamWallets: teamWalletList(),
     howToVerify: [
       /*
@@ -128,10 +135,10 @@ export function GET(request: Request) {
        * minutes on 16 October 2026. The sentence invited readers to skip
        * the one check that would have caught it.
        */
-      'Call getJob(jobId) on the escrow contract for that chain and compare. These rows are Pokter\'s own index, re-read from chain but capable of lagging it, so the contract is the authority and this is not.',
+      'Call getJob(jobId) on the escrow contract for that chain and compare. These rows come from Pokter\'s index and their last recorded status reads can lag the chain; the contract is the authority for current escrow state.',
       'Download /api/v1/receipts/verifier to check every row and recompute the totals without installing dependencies.',
-      'Every job Pokter brokers carries {"protocol":"pokter-job"} in its on-chain description, so the full set can be found by reading the escrow without using this endpoint at all.',
-      'Jobs funded by the wallets in teamWallets are Pokter\'s own tests. They are marked here and excluded from the buyer figures in /api/v1/activity.',
+      'Some jobs carry a pokter-job envelope on chain. Signed-quote jobs can omit it and match a quote intent Pokter recorded for the same provider and network. Older indexed jobs may have weaker attribution. The marker alone does not prove which interface the buyer used; this endpoint does not prove its own completeness.',
+      'Jobs funded by the wallets in teamWallets are Pokter team tests. Proof summaries exclude those, self-hires, known lifecycle demos and unfunded jobs from outside demand. /api/v1/activity retains its own historical summary contract.',
       'A job marked selfHire has the same wallet on both sides, so it is an operator funding their own agent rather than demand. Three such jobs were counted as outside demand until 14 October 2026; getJob returns both parties, so this is checkable rather than a promise.',
       'One row per job, now enforced by the index itself. Until 17 October 2026 a job could be recorded twice — two writers minted two different row ids — and 14 of 124 jobs were, so these counts were about 11% high and one delivery was credited to an agent that did not make it.',
     ],

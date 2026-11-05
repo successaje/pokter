@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { getErc8183Job } from '@altananetwork/sdk';
-import type { Hex } from 'viem';
+import { decodeEventLog, getAddress, type Hex } from 'viem';
 
 import { altanaNetworkFor } from '@/lib/altana/client';
 import { readDeliveredAnswer, type DeliveredAnswer } from '@/lib/delivery/answer';
@@ -9,7 +9,8 @@ import { checkDeliveredPlan, type PlanCheckReport } from '@/lib/delivery/plan-ch
 import { PLAN_PROOF_PREFIX, planProofCoverage, planProofSpec, type PlanProofSpec } from '@/lib/delivery/plan-proof';
 import { readDeliveryText } from '@/lib/delivery/read-delivery';
 import { correctedErc8183Addresses, escrowCommerceAddress } from '@/lib/erc8183/addresses';
-import { jobTaskFromDescription } from '@/lib/erc8183/job-envelope';
+import { historyClient } from '@/lib/erc8183/history-client';
+import { decodePokterJobEnvelope, decodeReferenceJobDescription, jobTaskFromDescription } from '@/lib/erc8183/job-envelope';
 import { disputeWindowSeconds } from '@/lib/erc8183/dispute-window';
 import { jobAmountLabel } from '@/lib/erc8183/job-amount';
 import { jobPaymentTokenOnChain } from '@/lib/erc8183/job-onchain';
@@ -85,6 +86,9 @@ export interface JobEvidence {
   answerWithheld: boolean;
   receipt: { href: string; hash: string | null };
   fundingTx: string | null;
+  fundingAt: string | null;
+  attribution: 'onchain-marker' | 'recorded-quote' | 'historical-index' | 'unread';
+  attributionHash: string | null;
 }
 
 const withTimeout = <T,>(promise: Promise<T>, ms: number): Promise<T | null> =>
@@ -99,6 +103,26 @@ export async function loadJobEvidence(chainId: 56 | 97, jobId: string, now = Dat
   if (!indexed) return null;
 
   const onchain = await withTimeout(getErc8183Job(altanaNetworkFor(chainId), BigInt(jobId)), 8_000);
+  const fundingAt = indexed.hireTxHash ? await withTimeout((async () => {
+    const client = historyClient(chainId);
+    const receipt = await client.getTransactionReceipt({ hash: indexed.hireTxHash! });
+    if (receipt.status !== 'success') return null;
+    const commerce = getAddress(correctedErc8183Addresses(chainId).commerce);
+    const fundedEvent = [{ type: 'event', name: 'JobFunded', inputs: [
+      { name: 'jobId', type: 'uint256', indexed: true },
+      { name: 'client', type: 'address', indexed: true },
+      { name: 'provider', type: 'address', indexed: true },
+      { name: 'amount', type: 'uint256', indexed: false },
+    ] }] as const;
+    const funded = receipt.logs.some((log) => {
+      if (getAddress(log.address) !== commerce) return false;
+      try { return decodeEventLog({ abi: fundedEvent, data: log.data, topics: log.topics }).args.jobId === BigInt(jobId); }
+      catch { return false; }
+    });
+    if (!funded) return null;
+    const block = await client.getBlock({ blockNumber: receipt.blockNumber });
+    return new Date(Number(block.timestamp) * 1000).toISOString();
+  })(), 5_000) : null;
   const chain = onchain && onchain.client && !/^0x0{40}$/i.test(onchain.client)
     ? { status: onchain.statusName, client: onchain.client, provider: onchain.provider, expiredAt: Number(onchain.expiredAt), submittedAt: Number(onchain.submittedAt), deliverable: onchain.deliverable as Hex }
     : null;
@@ -148,6 +172,15 @@ export async function loadJobEvidence(chainId: 56 | 97, jobId: string, now = Dat
   }
 
   const negotiationHash = onchain ? negotiationHashOnChain(onchain.description) : null;
+  const envelope = onchain ? decodePokterJobEnvelope(onchain.description) : null;
+  const reference = onchain && !envelope ? decodeReferenceJobDescription(onchain.description) : null;
+  const quoteIntent = reference ? getJobStore().quoteIntent(reference.quote.negotiationHash) : null;
+  const indexedAgentChainId = indexed.agentChainId ?? chainId;
+  const attribution = !onchain ? 'unread' : envelope && envelope.provider.toLowerCase() === onchain.provider.toLowerCase()
+    && envelope.identity.chainId === indexedAgentChainId && envelope.identity.tokenId === indexed.agentTokenId
+    ? 'onchain-marker' : quoteIntent && quoteIntent.escrowChainId === chainId && quoteIntent.provider.toLowerCase() === onchain.provider.toLowerCase()
+      && quoteIntent.agentChainId === indexedAgentChainId && quoteIntent.agentTokenId === indexed.agentTokenId
+      ? 'recorded-quote' : 'historical-index';
   const agreement = negotiationHash ? getJobStore().criteriaAgreement(negotiationHash) : null;
   const planSpec = agreement
     ? (['grid', 'yield', 'research', 'trading', 'content'] as const).map(planProofSpec).find((spec) => spec.specHash.toLowerCase() === agreement.specHash.toLowerCase()) ?? null
@@ -197,5 +230,8 @@ export async function loadJobEvidence(chainId: 56 | 97, jobId: string, now = Dat
     answerWithheld,
     receipt: jobReceipt({ ...indexed, status: status as HiredJob['status'] }, escrowCommerceAddress),
     fundingTx: indexed.hireTxHash,
+    fundingAt,
+    attribution,
+    attributionHash: attribution === 'recorded-quote' ? reference!.quote.negotiationHash : null,
   };
 }
