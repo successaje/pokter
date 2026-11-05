@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">Vice Watch</title>
+  <desc id="desc">An original neon horizon and watch signal mark</desc>
+  <defs>
+    <linearGradient id="night" x2="1" y2="1"><stop stop-color="#161326"/><stop offset="1" stop-color="#0b1025"/></linearGradient>
+    <linearGradient id="sun" x2="0" y2="1"><stop stop-color="#ffbf72"/><stop offset="1" stop-color="#fa5f9c"/></linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="54" fill="url(#night)"/>
+  <circle cx="128" cy="118" r="65" fill="url(#sun)"/>
+  <path d="M38 162h180M53 180h150M70 198h116" stroke="#90d8df" stroke-width="7" stroke-linecap="round" opacity=".8"/>
+  <path d="M66 96 128 169 190 96" fill="none" stroke="#fff9ed" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="128" cy="128" r="12" fill="#fff9ed"/>
+  <path d="M199 49v24m-12-12h24" stroke="#90d8df" stroke-width="6" stroke-linecap="round"/>
+</svg>

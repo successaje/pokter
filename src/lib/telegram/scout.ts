@@ -8,6 +8,7 @@ import { marketplaceBotReply, publicPage, scoutMenu, type BotButton, type BotRep
 import { forgetChat, readChat, saveChat } from './chat-store';
 import { generateScoutAnswer } from './scout-gemini';
 import { scoutKnowledgeFor } from './scout-knowledge';
+import { isMoreAgentsFollowUp, matchingNamedAgents, namedAgentQuery, shouldSearchAgents } from './scout-routing';
 
 const network = (chainId: number) => chainId === 97 ? 'BNB Testnet' : 'BNB Mainnet';
 const short = (text: string, max = 135) => text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text;
@@ -70,7 +71,24 @@ async function findAgents(query: string, category?: string, responsive = false):
     const outside = jobs.mainnet.funded + jobs.testnet.funded;
     return `${index + 1}. ${short(a.name, 65)} · ${network(a.chainId)} · ID ${a.chainId}:${a.tokenId}\n${responsive ? 'Answered a Pokter check in the last 24 hours · ' : ''}${evidence} · ${a.verdictLabel}${a.hirable ? ' · direct hire shown on Pokter' : ''}\n${outside} outside-buyer funded ${outside === 1 ? 'job' : 'jobs'} (${jobs.mainnet.funded} mainnet, ${jobs.testnet.funded} testnet)\n${agentPrice(a)}`;
   });
-  return reply(`Scout found ${data.total} matching ${responsive ? 'recently responsive ' : ''}${data.total === 1 ? 'agent' : 'agents'}${category ? ` in ${CATEGORIES.find((c) => c.id === category)?.label ?? category}` : ''}. Here are ${ranked.length}:\n\n${lines.join('\n\n')}\n\nChecks measure responses, not the quality of delivered work. A fresh quote and live hire check are still required.`, ranked.map((a) => [link(`Open ${short(a.name, 34)}`, publicPage(`/agents/${a.chainId}/${a.tokenId}`))]));
+  const browse = new URL(publicPage('/discover'));
+  if (query) browse.searchParams.set('q', query);
+  if (category) browse.searchParams.set('category', category);
+  return reply(`Scout found ${data.total} matching ${responsive ? 'recently responsive ' : ''}${data.total === 1 ? 'agent' : 'agents'}${category ? ` in ${CATEGORIES.find((c) => c.id === category)?.label ?? category}` : ''}. Here are ${ranked.length}:\n\n${lines.join('\n\n')}\n\nChecks measure responses, not the quality of delivered work. A fresh quote and live hire check are still required.`, [...ranked.map((a) => [link(`Open ${short(a.name, 34)}`, publicPage(`/agents/${a.chainId}/${a.tokenId}`))]), [link('See all matches', browse.toString())]]);
+}
+
+async function findNamedAgent(name: string): Promise<BotReply> {
+  const { GET: agentsApi } = await import('@/app/api/v1/agents/route');
+  const url = new URL('https://pokter.xyz/api/v1/agents');
+  url.searchParams.set('q', name);
+  url.searchParams.set('limit', '50');
+  const response = await agentsApi(new Request(url));
+  if (!response.ok) return reply('I couldn’t check the agent catalogue right now. Try its name on Discover.', [[link('Search Discover', publicPage(`/discover?q=${encodeURIComponent(name)}`))]]);
+  const data = await response.json() as { items: AgentSummary[] };
+  const matches = matchingNamedAgents(name, data.items);
+  if (!matches.length) return reply(`I couldn't verify an agent named “${short(name, 75)}” in Pokter's current catalogue. I won't substitute another listing.`, [[link('Search Discover', publicPage(`/discover?q=${encodeURIComponent(name)}`))]]);
+  const details = await Promise.all(matches.slice(0, 3).map((agent) => checkAgent({ chainId: String(agent.chainId) as '56' | '97', tokenId: agent.tokenId })));
+  return reply(`Yes — I found ${matches.length === 1 ? 'this agent' : `${matches.length} matching agents`} by name:\n\n${details.map((detail) => detail.text).join('\n\n')}`, details.flatMap((detail) => 'inline_keyboard' in detail.reply_markup ? detail.reply_markup.inline_keyboard : []));
 }
 
 type AgentDetail = {
@@ -206,7 +224,9 @@ async function chatWithScout(raw: string, chatId: number): Promise<BotReply> {
 
   const state = readChat(chatId);
   const direct = isGreeting(raw)
-    ? reply('I’m well, thanks. Tell me what you want an agent to do, or ask about Pokter.', [[link('Explore Pokter', publicPage('/discover'))]])
+    ? reply(/^how are you/i.test(raw) ? 'I’m well, thanks. Tell me what you want an agent to do, or ask about Pokter.' : 'Hi! I’m Scout. Yes, we can chat — ask me about Pokter, an agent, or a task you have in mind.', [[link('Explore Pokter', publicPage('/discover'))]])
+    : /\b(?:hold|have|keep|continue)\s+(?:a\s+)?conversation\b|\b(?:chat|talk)\s+with\s+you\b/i.test(raw)
+      ? reply('Yes. You can chat with me about Pokter, agents, and the work you want done. I’ll search listings when you ask me to, and I’ll say when I can’t verify something.', [[link('Explore Pokter', publicPage('/discover'))]])
     : isAccountQuestion(raw)
       ? reply('I can help plan an agent, explain public evidence and guide you through Pokter. I cannot see or monitor your private jobs, hires or agents in Telegram. Connect your wallet on Pokter to see them in your workspace. For building, use Build; for buyer jobs, use Your jobs. Scout alerts and wallet-linked tracking are not available yet.', [[link('Your jobs', publicPage('/workspace/jobs'))], [link('Build agents', publicPage('/build/agents'))], [link('Builder jobs', publicPage('/build/jobs'))]])
       : isPaymentQuestion(raw)
@@ -215,17 +235,40 @@ async function chatWithScout(raw: string, chatId: number): Promise<BotReply> {
         ? reply('On Pokter you can find and compare agents, check their evidence, browse builder-published services, post a request, hire with a fresh signed quote, and track jobs after connecting your wallet. Builders can publish agents and services and respond to requests. Scout can explain public listings, but cannot see your private workspace from Telegram.', [[link('Discover agents', publicPage('/discover'))], [link('Browse services', publicPage('/services'))], [link('Your workspace', publicPage('/workspace'))]])
         : null;
   if (direct) {
-    saveChat(chatId, { ...state, turns: [...state.turns, { role: 'user', content: raw }, { role: 'assistant', content: direct.text }], evidence: '', buttons: [], lastAgentCategory: null });
+    saveChat(chatId, { ...state, turns: [...state.turns, { role: 'user', content: raw }, { role: 'assistant', content: direct.text }] });
     return direct;
+  }
+  const previousUser = [...state.turns].reverse().find((turn) => turn.role === 'user')?.content;
+  const named = namedAgentQuery(raw) ?? (/\bdid you read my message\b/i.test(raw) && previousUser ? namedAgentQuery(previousUser) : null);
+  if (named) {
+    const found = await findNamedAgent(named);
+    const result = namedAgentQuery(raw) ? found : { ...found, text: `Sorry, I missed your question about ${named}.\n\n${found.text}` };
+    const buttons = 'inline_keyboard' in result.reply_markup ? result.reply_markup.inline_keyboard : [];
+    saveChat(chatId, { ...state, turns: [...state.turns, { role: 'user', content: raw }, { role: 'assistant', content: result.text }], evidence: result.text, buttons, lastAgentCategory: null });
+    return result;
+  }
+  if (isMoreAgentsFollowUp(raw)) {
+    const count = /Scout found (\d+) matching[\s\S]*?Here are (\d+):/.exec(state.evidence);
+    const browseButton = state.buttons.find((row) => row.some((button) => button.text === 'See all matches'));
+    const result = count && Number(count[1]) > Number(count[2])
+      ? reply(`Yes — I showed ${count[2]} of ${count[1]} matching agents. Open all matches to see the rest.`, browseButton ? [browseButton] : [[link('Browse Discover', publicPage('/discover'))]])
+      : reply(count ? 'Those were all the matches I found for that search. Try broader words or browse Discover.' : 'Which agents do you mean? Tell me the task or agent name and I’ll check.', [[link('Browse Discover', publicPage('/discover'))]]);
+    saveChat(chatId, { ...state, turns: [...state.turns, { role: 'user', content: raw }, { role: 'assistant', content: result.text }] });
+    return result;
+  }
+  if (/\bdid you read my message\b/i.test(raw)) {
+    const result = reply(previousUser ? `I read your previous message: “${short(previousUser, 180)}”. Sorry I missed the point. Tell me what you want me to check, and I’ll stay with it.` : 'Sorry — I missed your point. Please repeat what you want me to check.', []);
+    saveChat(chatId, { ...state, turns: [...state.turns, { role: 'user', content: raw }, { role: 'assistant', content: result.text }] });
+    return result;
   }
   const activeFollowUp = !!scoutActiveCategory(raw, state.lastAgentCategory);
   const usePrevious = !!state.evidence && isFollowUp(raw) && !activeFollowUp;
   const search = activeFollowUp
     ? await findAgents('', state.lastAgentCategory ?? undefined, true)
-    : !usePrevious ? await marketEvidence(raw) : null;
-  const evidence = search?.text ?? state.evidence;
+    : !usePrevious && shouldSearchAgents(raw) ? await marketEvidence(raw) : null;
+  const evidence = search?.text ?? (usePrevious ? state.evidence : '');
   const buttons = search && 'inline_keyboard' in search.reply_markup
-    ? search.reply_markup.inline_keyboard : state.buttons;
+    ? search.reply_markup.inline_keyboard : usePrevious ? state.buttons : [];
   if (search && (activeFollowUp || search.text.startsWith('I found no'))) {
     saveChat(chatId, { ...state, turns: [...state.turns, { role: 'user', content: raw }, { role: 'assistant', content: search.text }], evidence, buttons, lastAgentCategory: activeFollowUp ? state.lastAgentCategory : scoutCategoryFor(raw) ?? null });
     return search;
@@ -241,7 +284,7 @@ async function chatWithScout(raw: string, chatId: number): Promise<BotReply> {
     const responseButtons = [...buttons, ...knowledge.links.map((doc) => [link(doc.text, publicPage(doc.path))])].slice(0, 5);
     return reply(answer, responseButtons.length ? responseButtons : [[link('Explore Pokter', publicPage('/discover'))]]);
   } catch {
-    return search ?? reply('I couldn’t complete that answer right now. Try a new search or open the Pokter evidence directly.', buttons.length ? buttons : [[link('Open Discover', publicPage('/discover'))]]);
+    return search ?? reply('I couldn’t complete that answer right now. Ask me again in a moment, or browse Pokter directly.', buttons.length ? buttons : [[link('Open Discover', publicPage('/discover'))]]);
   }
 }
 

@@ -105,6 +105,14 @@ const TONE: Record<'ok' | 'watch' | 'bad', { mark: React.ReactNode; said: string
   bad: { mark: <Icon.Cross size={14} />, said: 'Problem', text: 'text-bad', wash: 'bg-bad-wash' },
 };
 
+function SourceLine({ text }: { text: string }) {
+  const match = text.match(/https:\/\/[^\s)<>]+/);
+  if (!match || match.index === undefined) return <>{text}</>;
+  let href: string;
+  try { href = new URL(match[0]).href; } catch { return <>{text}</>; }
+  return <>{text.slice(0, match.index)}<a href={href} target="_blank" rel="noopener noreferrer" className="underline decoration-rule-strong underline-offset-2 hover:text-ink">{match[0]}</a>{text.slice(match.index + match[0].length)}</>;
+}
+
 /*
  * The order a buyer reads in: the agent's judgement, why, and what it did
  * not check, then the data behind it. A token check used to open on
@@ -191,7 +199,7 @@ export function DeliveredAnswerView({ answer, chainId, when }: { answer: Deliver
         <div className="flex flex-col gap-1.5">
           <span className="t-label">Where it came from</span>
           <ul className="flex list-disc flex-col gap-1 pl-5 text-[13px] text-ink-2">
-            {answer.sources.slice(0, 8).map((s) => <li key={s} className="break-words">{s}</li>)}
+            {answer.sources.slice(0, 8).map((s) => <li key={s} className="break-words"><SourceLine text={s} /></li>)}
           </ul>
         </div>
       )}
