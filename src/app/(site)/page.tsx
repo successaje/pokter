@@ -235,6 +235,9 @@ export default async function HomePage() {
                 )}
               </p>
               <div className="flex shrink-0 flex-wrap items-center gap-x-5 gap-y-1.5 text-[13px] sm:flex-col sm:items-end">
+                <Link href="/in-action" className="inline-flex items-center gap-1.5 font-medium text-ink hover:underline">
+                  See Pokter in action <Icon.Arrow size={15} />
+                </Link>
                 <Link href="/build" className="inline-flex items-center gap-1.5 font-medium text-ink hover:underline">
                   Build an agent <Icon.Arrow size={15} />
                 </Link>
