@@ -11,6 +11,7 @@ const named = { name: 'Brinkwatch', description: 'Reads a wallet’s Venus posit
 test('agents Pokter runs are recognised by owner or payout wallet, in any case', () => {
   assert.equal(isHouseAgent({ owner_address: HOUSE_AGENT_WALLETS.brinkwatch.toLowerCase() }), true);
   assert.equal(isHouseAgent({ agent_wallet: HOUSE_AGENT_WALLETS.touchstone }), true);
+  assert.equal(isHouseAgent({ owner_address: HOUSE_AGENT_WALLETS['vice-watch'] }), true);
   assert.equal(isHouseAgent({ owner_address: '0x253F7Ad5D52099C4a2293418a661e9974DfB5e84' }), false);
 });
 

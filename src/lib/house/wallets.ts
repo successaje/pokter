@@ -13,6 +13,7 @@ export const HOUSE_AGENT_WALLETS: Readonly<Record<string, `0x${string}`>> = {
   centreline: '0x459C19060418e5FA1Afe3Ca093a644d8d72acD33',
   gridloom: '0x8272Ac23f4c14F578b0dd06E6754B0bc84D99c49',
   touchstone: '0x071044a5A92F6C90cf9D08D5059921da734D19e7',
+  'vice-watch': '0xAF70435642B34FC94600902Af78eCAC7602a908F',
 };
 
 const LOWER = new Set(Object.values(HOUSE_AGENT_WALLETS).map((address) => address.toLowerCase()));
