@@ -74,9 +74,9 @@ export function ActionExperience({ snapshot }: { snapshot: ViceSnapshot | null }
             <div className={styles.instrument}>
               <div className={styles.instrumentTop}><span>OFFICIAL-SOURCE READOUT</span><span className={snapshot ? styles.goodDot : styles.missingDot} aria-hidden /></div>
               {snapshot ? <>
-                <div className={styles.readoutRow}><span>Scheduled release</span><strong>{snapshot.release?.value.replace('Scheduled for ', '') ?? 'Not verified'}</strong></div>
-                <div className={styles.readoutRow}><span>Listed consoles</span><strong>{snapshot.platforms?.value ?? 'Not verified'}</strong></div>
-                <div className={styles.readoutRow}><span>Featured update</span><strong>{snapshot.updates[0]?.title ?? 'No readable featured post'}</strong></div>
+                <div className={styles.readoutRow}><span>Scheduled release</span>{snapshot.release ? <a href={snapshot.release.url} target="_blank" rel="noopener noreferrer">{snapshot.release.value.replace('Scheduled for ', '')} <span aria-hidden>↗</span></a> : <strong>Not verified</strong>}</div>
+                <div className={styles.readoutRow}><span>Listed consoles</span>{snapshot.platforms ? <a href={snapshot.platforms.url} target="_blank" rel="noopener noreferrer">{snapshot.platforms.value} <span aria-hidden>↗</span></a> : <strong>Not verified</strong>}</div>
+                <div className={styles.readoutRow}><span>Featured update</span>{snapshot.updates[0] ? <a href={snapshot.updates[0].url} target="_blank" rel="noopener noreferrer">{snapshot.updates[0].title} <span aria-hidden>↗</span></a> : <strong>No readable featured post</strong>}</div>
                 <p className={styles.timestamp}>Checked {checkedAt(snapshot.checkedAt)} UTC · {snapshot.sourceState === 'cached' ? 'Earlier cached snapshot' : 'Latest successful page read'}</p>
               </> : <div className={styles.unavailable}><span aria-hidden>—</span><p>Rockstar’s page could not be checked from Pokter right now. No current claim is shown.</p></div>}
             </div>

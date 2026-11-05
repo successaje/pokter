@@ -51,6 +51,10 @@
 .readoutRow { position: relative; display: grid; grid-template-columns: 120px 1fr; gap: 16px; align-items: start; border-bottom: 1px solid #ffffff22; padding: 23px 24px; }
 .readoutRow span { color: #bcb4b8; font: 500 12px/1.5 var(--font-readout); }
 .readoutRow strong { font-size: clamp(17px, 1.8vw, 25px); line-height: 1.2; font-weight: 600; letter-spacing: -.025em; }
+.readoutRow a { color: #fff8ec; font-size: clamp(17px, 1.8vw, 25px); line-height: 1.2; font-weight: 600; letter-spacing: -.025em; text-decoration: underline; text-decoration-color: #ffffff5c; text-underline-offset: 4px; }
+.readoutRow a:hover { text-decoration-color: #f0b90b; }
+.readoutRow a:focus-visible { outline: 2px solid #f0b90b; outline-offset: 3px; }
+.readoutRow a span { color: #f0b90b; font-size: .6em; }
 .timestamp { padding: 18px 24px; color: #bbb5b7; font: 500 11px/1.5 var(--font-readout); }
 .unavailable { display: flex; align-items: center; gap: 18px; min-height: 300px; padding: 24px; color: #ddd4d4; font-size: 16px; line-height: 1.55; }
 .unavailable span { font-size: 50px; color: #f0b90b; }
