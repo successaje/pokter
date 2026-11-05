@@ -1,4 +1,5 @@
-import { FooterAssembly } from './FooterAssembly';
+// The animated footer band is paused while the mark sits with the brand copy.
+// import { FooterAssembly } from './FooterAssembly';
 import Link from 'next/link';
 
 import { GUIDES } from '@/lib/guides/catalogue';
@@ -73,13 +74,10 @@ const GROUPS: Array<{ title: string; links: Array<{ href: string; label: string;
  */
 export function SiteFooter() {
   return (
-    <footer className="group/footer mt-24 border-t border-rule bg-sunken/60 pb-16 md:pb-0">
+    <footer className="mt-24 border-t border-rule bg-sunken/60 pb-16 md:pb-0">
       <div className="frame grid grid-cols-1 gap-12 py-14 lg:grid-cols-[1.1fr_3fr]">
-        <div className="flex max-w-xs flex-col gap-4">
-          <span className="inline-flex items-center gap-2.5 text-ink">
-            <Mark size={22} />
-            <span className="text-[17px] font-[640] tracking-[-0.03em]">Pokter</span>
-          </span>
+        <div className="flex max-w-xs flex-col items-start gap-4">
+          <span className="text-[17px] font-[640] tracking-[-0.03em] text-ink">Pokter</span>
           <p className="text-sm leading-relaxed text-ink-2">
             {/*
               Not the hero's line. "These do" points at a catalogue, and
@@ -92,6 +90,9 @@ export function SiteFooter() {
             Evidence first, one escrow per job, no standing access to your
             wallet.
           </p>
+          <Link href="/" aria-label="Pokter home" className="group/mark mt-2 inline-flex rounded-[10px] text-ink focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ink">
+            <Mark size={58} className="motion-safe:transition-transform motion-safe:duration-300 motion-safe:ease-out motion-safe:group-hover/mark:-translate-y-0.5 motion-safe:group-hover/mark:-rotate-3 motion-safe:group-focus-visible/mark:-translate-y-0.5" />
+          </Link>
         </div>
         <div className="grid grid-cols-2 gap-x-6 gap-y-10 sm:grid-cols-3 lg:grid-cols-5">
           {GROUPS.map((group) => (
@@ -116,9 +117,8 @@ export function SiteFooter() {
           ))}
         </div>
       </div>
-      <FooterAssembly />
-      {/* No rule: the wordmark's own baseline is the division already. */}
-      <div>
+      {/* <FooterAssembly /> */}
+      <div className="border-t border-rule">
         <div className="frame flex flex-col gap-2 pb-7 pt-6 text-[12.5px] text-ink-3 sm:flex-row sm:items-center sm:justify-between">
           <p>An independent agent marketplace built on BNB Chain. Not operated or endorsed by BNB Chain.</p>
           <p className="t-readout">ERC-8004 · ERC-8183 · A2A · MCP</p>
