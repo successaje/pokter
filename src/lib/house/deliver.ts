@@ -15,6 +15,7 @@ import { indexIfMissing } from '@/lib/erc8183/job-identity';
 import { siteOrigin } from '@/lib/evidence/origin';
 
 import { houseAccount } from './keys';
+import { deliveryRecovery } from './delivery-recovery';
 import { submitWindowProblem } from './window';
 import type { HouseAgentDefinition, HouseChainId } from './types';
 
@@ -22,6 +23,8 @@ export type HouseDeliveryOutcome =
   | { status: 'delivered'; jobId: string; transactionHash: Hex; deliverableUrl: string }
   | { status: 'already-delivered'; jobId: string; deliverableUrl: string }
   | { status: 'refused'; jobId: string; reason: string };
+
+const inFlight = new Map<string, Promise<HouseDeliveryOutcome>>();
 
 /** Where the stored manifest is served; `?chain=` for anything but testnet, as the route reads it. */
 function deliveryUrl(chainId: HouseChainId, jobId: string, hash: Hex): string {
@@ -41,23 +44,37 @@ function deliveryUrl(chainId: HouseChainId, jobId: string, hash: Hex): string {
  * with the reason reaches the buyer as one (see seller-notice), and the
  * escrow stays theirs to reclaim.
  */
-export async function deliverHouseJob(definition: HouseAgentDefinition, chainId: HouseChainId, jobId: string): Promise<HouseDeliveryOutcome> {
+export function deliverHouseJob(definition: HouseAgentDefinition, chainId: HouseChainId, jobId: string): Promise<HouseDeliveryOutcome> {
+  const key = `${definition.slug}:${chainId}:${jobId}`;
+  const pending = inFlight.get(key);
+  if (pending) return pending;
+  const work = deliverHouseJobOnce(definition, chainId, jobId).finally(() => inFlight.delete(key));
+  inFlight.set(key, work);
+  return work;
+}
+
+async function deliverHouseJobOnce(definition: HouseAgentDefinition, chainId: HouseChainId, jobId: string): Promise<HouseDeliveryOutcome> {
   if (!/^\d+$/.test(jobId)) return { status: 'refused', jobId, reason: 'A numeric job id is required.' };
   const key = deliverableKey(chainId, jobId);
   const existing = readDeliverable(key);
-  if (existing?.submitTxHash) {
-    return { status: 'already-delivered', jobId, deliverableUrl: deliveryUrl(chainId, jobId, erc8183ManifestHash(JSON.parse(existing.manifestText))) };
-  }
-
   const account = houseAccount(definition);
   const network = altanaNetworkFor(chainId);
   const job = await getErc8183Job(network, BigInt(jobId));
-  if (job.statusName !== 'FUNDED') {
-    return { status: 'refused', jobId, reason: `The job is ${job.statusName.toLowerCase()}; only a funded job can be delivered.` };
-  }
   if (getAddress(job.provider) !== account.address) {
     return { status: 'refused', jobId, reason: `This job does not name ${definition.name} as its provider.` };
   }
+  let existingHash: Hex | null = null;
+  try { if (existing) existingHash = erc8183ManifestHash(JSON.parse(existing.manifestText)); }
+  catch { return { status: 'refused', jobId, reason: 'The stored deliverable is unreadable; an operator must repair it.' }; }
+  const recovery = deliveryRecovery({ status: job.statusName, storedHash: existingHash, chainHash: job.deliverable, submittedTx: existing?.submitTxHash ?? null });
+  if (recovery === 'already-delivered' && existingHash) return { status: 'already-delivered', jobId, deliverableUrl: deliveryUrl(chainId, jobId, existingHash) };
+  if (recovery === 'mismatch') {
+    return { status: 'refused', jobId, reason: 'The chain records a different or unavailable deliverable; no second submission will be sent.' };
+  }
+  if (recovery === 'not-funded') {
+    return { status: 'refused', jobId, reason: `The job is ${job.statusName.toLowerCase()}; only a funded job can be delivered.` };
+  }
+  if (recovery === 'pending') return { status: 'refused', jobId, reason: 'The previous submission transaction is still pending or the index is behind; retry after chain confirmation.' };
   const windowProblem = submitWindowProblem({
     expiredAt: Number(job.expiredAt),
     now: Math.floor(Date.now() / 1000),
@@ -70,13 +87,19 @@ export async function deliverHouseJob(definition: HouseAgentDefinition, chainId:
   const problem = definition.check(brief);
   if (problem) return { status: 'refused', jobId, reason: `${problem.error}. ${problem.need}` };
 
-  const result = await definition.run(brief, { chainId, now: new Date() });
-  if (!result.ok) {
-    return { status: 'refused', jobId, reason: `${result.error}${result.need ? `. ${result.need}` : ''}. Nothing was submitted; the escrow stays reclaimable.` };
-  }
-
   const addresses = correctedErc8183Addresses(chainId);
-  const manifest: Erc8183DeliverableManifest = {
+  let manifest: Erc8183DeliverableManifest;
+  if (existing) {
+    manifest = JSON.parse(existing.manifestText) as Erc8183DeliverableManifest;
+    if (manifest.job_id !== Number(jobId) || manifest.chain_id !== chainId || manifest.metadata?.producer !== definition.name) {
+      return { status: 'refused', jobId, reason: 'The stored deliverable belongs to another job or agent.' };
+    }
+  } else {
+    const result = await definition.run(brief, { chainId, now: new Date() });
+    if (!result.ok) {
+      return { status: 'refused', jobId, reason: `${result.error}${result.need ? `. ${result.need}` : ''}. Nothing was submitted; the escrow stays reclaimable.` };
+    }
+    manifest = {
     version: 1,
     job_id: Number(jobId),
     chain_id: chainId,
@@ -89,12 +112,13 @@ export async function deliverHouseJob(definition: HouseAgentDefinition, chainId:
       version: definition.version,
       generated_at: new Date().toISOString(),
     },
-  };
+    };
+  }
   const manifestText = encodeErc8183Manifest(manifest);
   const hash = erc8183ManifestHash(manifest);
   const createdAt = new Date().toISOString();
   // Retrievable before the URL is published on chain.
-  writeDeliverable({ jobId: key, manifestText, submitTxHash: null, createdAt });
+  if (!existing) writeDeliverable({ jobId: key, manifestText, submitTxHash: null, createdAt });
 
   const call = buildSubmitCall({
     addresses,
@@ -106,11 +130,13 @@ export async function deliverHouseJob(definition: HouseAgentDefinition, chainId:
   const wallet = createWalletClient({ account, chain, transport: sendingTransport(chainId) });
   const read = createPublicClient({ chain, transport: sendingTransport(chainId) });
   const transactionHash = await wallet.sendTransaction({ to: call.to as Address, data: call.data as Hex });
+  // Persist the hash before waiting so a restart does not send the same job again.
+  writeDeliverable({ jobId: key, manifestText, submitTxHash: transactionHash, createdAt: existing?.createdAt ?? createdAt });
   const receipt = await read.waitForTransactionReceipt({ hash: transactionHash });
   if (receipt.status !== 'success') {
+    writeDeliverable({ jobId: key, manifestText, submitTxHash: null, createdAt: existing?.createdAt ?? createdAt });
     return { status: 'refused', jobId, reason: 'The submission transaction reverted; nothing was delivered.' };
   }
-  writeDeliverable({ jobId: key, manifestText, submitTxHash: transactionHash, createdAt });
 
   /*
    * Record the job Pokter just delivered for.

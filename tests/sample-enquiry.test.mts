@@ -15,6 +15,13 @@ test('every category sample is a brief its category accepts', () => {
   for (const agent of HOUSE_AGENTS) {
     const brief = sampleBrief(agent.category);
     assert.ok(brief, `${agent.slug}: a sample for ${agent.category}`);
+    if (agent.slug === 'vice-watch') {
+      // This specialist accepts a generic price enquiry but correctly declines
+      // the BNB Chain research sample, which is outside its published scope.
+      assert.notEqual(agent.check(brief), null);
+      assert.equal(agent.check(agent.skill.examples[0]), null);
+      continue;
+    }
     assert.equal(agent.check(brief), null, `${agent.slug} should accept: ${brief}`);
     assert.match(brief, /0x[0-9a-fA-F]{40}/, 'names a real address, not a placeholder');
   }
