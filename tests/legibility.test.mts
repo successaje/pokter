@@ -37,15 +37,15 @@ test('a card shows where its money settles as a coloured pill on its own line un
   assert.match(card, /<PriceText row=\{row\} className="text-\[1\.45rem\][^"]*" \/>\n[^\n]*per job[^\n]*\n\s*<\/span>\n\s*<NetworkTag chainId=\{row\.hireChainId\} alsoHireOn=\{hireChainIds\} className="mt-2 self-start" \/>/);
 });
 
-test('Proof leads with testnet and shows outside-buyer results on both networks', () => {
+test('Proof gives mainnet and testnet equal footing and names its evidence limits', () => {
   const proof = code('app/(site)/proof/page.tsx');
-  assert.match(proof, /settled with the agent&rsquo;s answer for buyers outside Pokter&rsquo;s team/);
-  assert.match(proof, /agentKey && counts\.testnet === 0 && counts\.mainnet > 0 \? 'mainnet' : 'testnet'/);
-  assert.match(proof, /\(\['testnet', 'mainnet'\] as const\)/);
-  assert.match(proof, /outside\.answered - outside\.answeredMainnet\} were on BNB Testnet and \{outside\.answeredMainnet\} on BNB Chain mainnet/);
-  assert.match(proof, /counts eligible hires on both networks\. Testnet payments use test tokens with no monetary value/);
-  assert.ok(proof.indexOf('Check every receipt against the chain') < proof.indexOf('aria-label="Filters"'), 'the verifier is above the filters');
-  assert.match(proof, /\{CORRECTIONS\.length\} corrections, dated/);
+  assert.match(proof, /grid gap-4 xl:grid-cols-2/);
+  assert.match(proof, /NetworkSummary network="mainnet"/);
+  assert.match(proof, /NetworkSummary network="testnet"/);
+  assert.match(proof, /Testnet tokens have no monetary value/);
+  assert.match(proof, /does not establish an independent person or an unsubsidised purchase/);
+  assert.match(proof, /independent verifier/i);
+  assert.match(proof, /Newest status read/);
   const activity = code('lib/erc8183/outside-activity.ts');
   assert.match(activity, /const answeredMainnet = answeredAtAll\.filter\(\(job\) => job\.chainId === 56 && !paidToCourier\(job\)\)\.length;/);
   assert.match(activity, /const bought = buyerJobs\.filter\(\(job\) => !isSelfHire\(job\) && !isLifecycleDemo\(job\) && fundingEvidence\(job\) === 'funded'\);/);

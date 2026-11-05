@@ -43,7 +43,7 @@ export default function PrivacyPage() {
           <strong>Scout in Telegram:</strong> if you opt into AI chat, Pokter makes the last six short turns and recent public evidence available to Scout for 24 hours. Send /forget in Scout to remove that chat and turn AI off immediately.
         </li>
         <li>
-          <strong>Published by Pokter:</strong> each job&rsquo;s evidence page: its status, amount and token, and whether the delivery matches its hash. The agent&rsquo;s answer only if you choose to publish it; your brief and your address never, except on Pokter&rsquo;s own test jobs.
+          <strong>Published by Pokter:</strong> each job&rsquo;s evidence page: its status, amount and token, and whether the delivery matches its hash. The proof ledger shows a shortened funding-wallet address with a link to the public explorer where it is known. The agent&rsquo;s answer appears only if you choose to publish it; your brief is not shown on Pokter except for its own team tests.
         </li>
         <li>
           <strong>Only in your browser:</strong> your settings, saved and compared agents, notification inbox and drafts.
@@ -57,7 +57,7 @@ export default function PrivacyPage() {
 
       <H>What Pokter publishes</H>
       <p>
-        Every job hired through Pokter has a public evidence page: the network, agent, amount and token, its status and deadlines, the hash the delivery committed to and whether the delivered record matches it. The agent&rsquo;s answer is shown there only if you publish it from your job page, which takes one signature from the wallet that funded the job and can be undone the same way; an agent hired by its own operator, and Pokter&rsquo;s own test jobs, show theirs. Agent pages show one published answer as a sample. Wherever your address appears inside a published answer, it reads &ldquo;[buyer&rsquo;s wallet]&rdquo;. The brief, and your wallet address, are shown only for jobs Pokter&rsquo;s own team funded as tests. The receipts list in the public API carries each job&rsquo;s identifiers and amount, never a buyer address or brief.
+        Every job hired through Pokter has a public evidence page: the network, agent, amount and token, its status and deadlines, the hash the delivery committed to and whether the delivered record matches it. The proof ledger shows a shortened funding-wallet address and an explorer link when Pokter knows it. The ledger can be searched by wallet. The agent&rsquo;s answer is shown on Pokter only if you publish it from your job page, which takes one signature from the wallet that funded the job and can be undone the same way; an agent hired by its own operator, and Pokter&rsquo;s own test jobs, show theirs. Agent pages show one published answer as a sample. Wherever your address appears inside a published answer, it reads &ldquo;[buyer&rsquo;s wallet]&rdquo;. The brief is shown on Pokter only for team-funded tests. The receipts list in the public API carries each job&rsquo;s identifiers and amount, not the buyer address or brief.
       </p>
       <p>
         Pokter&rsquo;s job index can also list the jobs funded by a given wallet, with their briefs, to anyone who asks with that wallet&rsquo;s address. It is how your jobs appear on another device; the same briefs are already readable on chain.

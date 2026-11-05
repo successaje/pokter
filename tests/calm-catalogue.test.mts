@@ -99,7 +99,8 @@ test('rankings and proof say what each of the three boards counts, and rankings 
   /* "Test money included" beside "does not pretend test tokens are money" read as a contradiction; both now say jobs are counted and amounts are not. */
   for (const path of ['app/(site)/rankings/page.tsx', 'features/proof/WhyNumbersDiffer.tsx']) assert.doesNotMatch(code(path), /test money included/, path);
   assert.match(code('app/(site)/rankings/page.tsx'), /The ranking counts jobs and never amounts/);
-  assert.match(code('app/(site)/proof/page.tsx'), /<WhyNumbersDiffer current="proof" \/>/);
+  assert.match(code('app/(site)/proof/page.tsx'), /NetworkSummary network="mainnet"/);
+  assert.match(code('app/(site)/proof/page.tsx'), /NetworkSummary network="testnet"/);
   /* What the leaderboard line claims about networks, from the code it describes. */
   assert.match(code('lib/leaderboard/network.ts'), /return value === 'testnet' \? 'testnet' : 'mainnet';/);
 });

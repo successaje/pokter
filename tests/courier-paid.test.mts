@@ -47,7 +47,7 @@ test('a registry that does not answer in time leaves the job the courier’s', a
 });
 
 test('the proof page, Discover and the home page all count couriers by this rule', () => {
-  assert.match(code('app/(site)/proof/page.tsx'), /const paidToCourier = await courierPaidTest\(jobs, team, registeredWalletRead\);/);
+  assert.match(code('app/(site)/proof/page.tsx'), /const courier = await courierPaidTest\(visible\.map\(\(row\) => row\.job\), team, registeredWalletRead\);/);
   assert.match(code('lib/erc8183/outside-activity.ts'), /const paidToCourier = await courierPaidTest\(answeredAtAll, team, registeredWalletRead\);/);
   assert.match(code('features/home/data.ts'), /const paidToCourier = await courierPaidTest\(carried, team, registeredWalletRead\);/);
   assert.match(code('app/(site)/discover/page.tsx'), /const activity = await outsideActivity\(\);/);

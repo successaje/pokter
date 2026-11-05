@@ -20,11 +20,12 @@ import { enabledEscrowChains, type EscrowChainId } from '@/lib/network/escrow';
  * public API reported no mainnet jobs at all. A tab closed at the wrong
  * moment does the same thing.
  *
- * The chain already knows. Every job Pokter brokers carries a
- * `pokter-job` envelope in its own on-chain description, so the set is
- * recoverable from the escrow with no cooperation from any browser. That
- * is also what makes Pokter's published counts checkable by a stranger,
- * which is the point of keeping them.
+ * An on-chain `pokter-job` envelope identifies one path. A seller's signed
+ * quote can deliberately omit it; those jobs are recovered only when their
+ * negotiation hash matches a quote intent Pokter recorded for the same
+ * provider and network. Older jobs may predate either signal. Thus this
+ * bounded scan recovers attributable recent jobs; it is not an exhaustive
+ * chain-wide proof of every Pokter-origin hire.
  *
  * Bounded on purpose. Mainnet's counter is past 56,000 and walking all of
  * it on a schedule would be a denial-of-service against a public node for
@@ -39,7 +40,7 @@ export interface ReconcileOutcome {
   chainId: number;
   /** Jobs read from the escrow this pass. */
   scanned: number;
-  /** Jobs that carried a Pokter envelope and were not already indexed. */
+  /** Jobs with an envelope or matching recorded quote intent, not already indexed. */
   recovered: number;
   /** Job ids recovered, so a run says what it did rather than only how much. */
   recoveredIds: string[];
