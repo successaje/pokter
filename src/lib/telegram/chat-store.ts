@@ -34,7 +34,7 @@ export function readChat(chatId: number, now = Date.now()): ChatState {
   try {
     const state = JSON.parse(row.state_json) as ChatState;
     if (!Array.isArray(state.turns) || typeof state.evidence !== 'string' || !Array.isArray(state.buttons)) throw new Error('Invalid chat state');
-    return { turns: state.turns.slice(-MAX_TURNS), evidence: state.evidence.slice(0, 3500), buttons: state.buttons.slice(0, 3), aiEnabled: state.aiEnabled === true, lastAgentCategory: typeof state.lastAgentCategory === 'string' ? state.lastAgentCategory : null };
+    return { turns: state.turns.slice(-MAX_TURNS), evidence: state.evidence.slice(0, 3500), buttons: state.buttons.slice(0, 5), aiEnabled: state.aiEnabled === true, lastAgentCategory: typeof state.lastAgentCategory === 'string' ? state.lastAgentCategory : null };
   } catch {
     return { turns: [], evidence: '', buttons: [], aiEnabled: false };
   }
@@ -44,7 +44,7 @@ export function saveChat(chatId: number, state: ChatState, now = Date.now()): vo
   const bounded: ChatState = {
     turns: state.turns.slice(-MAX_TURNS).map((turn) => ({ role: turn.role, content: turn.content.slice(0, 1200) })),
     evidence: state.evidence.slice(0, 3500),
-    buttons: state.buttons.slice(0, 3),
+    buttons: state.buttons.slice(0, 5),
     aiEnabled: state.aiEnabled === true,
     lastAgentCategory: state.lastAgentCategory ?? null,
   };

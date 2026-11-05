@@ -9,6 +9,7 @@ process.env.SCOUT_DB_PATH = join(mkdtempSync(join(tmpdir(), 'pokter-scout-store-
 const { forgetChat, readChat, saveChat } = await import('../../src/lib/telegram/chat-store');
 const { generateScoutAnswer } = await import('../../src/lib/telegram/scout-gemini');
 const { scoutKnowledgeFor } = await import('../../src/lib/telegram/scout-knowledge');
+const { scoutReply } = await import('../../src/lib/telegram/scout');
 
 test('Scout selects Pokter documentation for the question and links to real guides', () => {
   const request = scoutKnowledgeFor('How do buyers post a request and builders propose?');
@@ -44,5 +45,35 @@ test('Scout refuses model-written links and keeps API storage disabled', async (
     assert.equal(sentDocs, 'Official Pokter guide facts');
   } finally {
     globalThis.fetch = originalFetch;
+  }
+});
+
+test('Scout answers conversation requests without searching agents', async () => {
+  const previousKey = process.env.SCOUT_GEMINI_API_KEY;
+  process.env.SCOUT_GEMINI_API_KEY = 'local-test-key';
+  saveChat(202, { turns: [], evidence: '', buttons: [], aiEnabled: true });
+  try {
+    const answer = await scoutReply('Can I hold a conversation with you?', true, 202);
+    assert.match(answer?.text ?? '', /Yes\. You can chat with me/);
+    assert.doesNotMatch(answer?.text ?? '', /matching agents|NFTDegen/);
+    assert.equal(readChat(202).turns.length, 2);
+  } finally {
+    if (previousKey === undefined) delete process.env.SCOUT_GEMINI_API_KEY;
+    else process.env.SCOUT_GEMINI_API_KEY = previousKey;
+  }
+});
+
+test('Scout explains omitted matches and links to the full search', async () => {
+  const previousKey = process.env.SCOUT_GEMINI_API_KEY;
+  process.env.SCOUT_GEMINI_API_KEY = 'local-test-key';
+  saveChat(203, { turns: [], evidence: 'Scout found 4 matching agents. Here are 3:', buttons: [[{ text: 'See all matches', url: 'https://pokter.xyz/discover?q=research' }]], aiEnabled: true });
+  try {
+    const answer = await scoutReply("Aren't there others?", true, 203);
+    assert.match(answer?.text ?? '', /showed 3 of 4/);
+    const button = answer?.reply_markup && 'inline_keyboard' in answer.reply_markup ? answer.reply_markup.inline_keyboard[0][0] : null;
+    assert.equal(button && 'url' in button ? button.url : '', 'https://pokter.xyz/discover?q=research');
+  } finally {
+    if (previousKey === undefined) delete process.env.SCOUT_GEMINI_API_KEY;
+    else process.env.SCOUT_GEMINI_API_KEY = previousKey;
   }
 });
