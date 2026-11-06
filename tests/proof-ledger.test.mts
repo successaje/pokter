@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { filterLedger, ledgerRows, matchesAudience, summarizeLedger, type LedgerFilters } from '../src/lib/proof/ledger';
+import { filterLedger, ledgerRows, matchesAudience, receiptSpotlights, summarizeLedger, type LedgerFilters } from '../src/lib/proof/ledger';
 import type { HiredJob } from '../src/lib/erc8183/types';
 
 const team = '0x0000000000000000000000000000000000000001';
@@ -69,4 +69,26 @@ test('audience summaries and ledger rows share one scope across networks', () =>
   assert.equal(summarizeLedger(outsideRows.filter((row) => row.job.chainId === 97)).funded, 1);
   assert.equal(filterLedger(outsideRows, { ...all, metric: 'funded' }).length, summarizeLedger(outsideRows).funded);
   assert.equal(filterLedger(teamRows, { ...all, metric: 'settled' }).length, summarizeLedger(teamRows).settled);
+});
+
+test('receipt spotlights prefer outside work and never promote a known demo', () => {
+  const rows = ledgerRows([
+    job(56, '1', 'COMPLETED', outside, '100', 'Mainnet agent'),
+    job(97, '2', 'COMPLETED', team, '100', 'Team agent'),
+    job(97, '3', 'COMPLETED', outside, '100', 'Demo agent'),
+  ], new Set([team]), (j) => j.jobId === '3');
+  assert.deepEqual(receiptSpotlights(rows, 'all').map((row) => row.job.jobId), ['1', '2']);
+  assert.deepEqual(receiptSpotlights(rows, 'outside').map((row) => row.job.jobId), ['1']);
+  assert.deepEqual(receiptSpotlights(rows, 'team').map((row) => row.job.jobId), ['2']);
+});
+
+test('receipt spotlights show both networks when eligible outside jobs exist on each', () => {
+  const rows = ledgerRows([
+    job(56, '1', 'COMPLETED', outside, '100', 'Mainnet agent'),
+    job(97, '2', 'COMPLETED', outside, '100', 'Testnet agent'),
+    job(97, '3', 'COMPLETED', outside, '100', 'Another testnet agent'),
+  ], new Set([team]), () => false);
+  rows[1].job.hiredAt = '2026-11-04T00:00:00Z';
+  rows[2].job.hiredAt = '2026-11-05T00:00:00Z';
+  assert.deepEqual(receiptSpotlights(rows, 'outside', 2).map((row) => row.job.chainId), [56, 97]);
 });
