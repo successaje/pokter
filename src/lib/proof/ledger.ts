@@ -6,6 +6,7 @@ import { jobFunder, type JobFunder } from '@/lib/jobs/evidence-view';
 export type LedgerMetric = 'funded' | 'submitted' | 'settled' | 'outside-wallets' | 'team' | 'self' | 'demo';
 export type LedgerStatus = 'all' | JobStatusName;
 export type LedgerFunder = 'all' | JobFunder;
+export type ProofAudience = 'all' | 'outside' | 'team';
 
 export interface LedgerFilters {
   network: 'all' | 'mainnet' | 'testnet';
@@ -23,6 +24,12 @@ export interface LedgerRow {
   lifecycleDemo: boolean;
   submitted: boolean;
   settled: boolean;
+}
+
+export function matchesAudience(row: LedgerRow, audience: ProofAudience): boolean {
+  if (audience === 'outside') return row.funder === 'outside' && !row.lifecycleDemo;
+  if (audience === 'team') return row.funder === 'team';
+  return true;
 }
 
 export function ledgerRows(jobs: readonly HiredJob[], team: ReadonlySet<string>, isLifecycleDemo: (job: HiredJob) => boolean): LedgerRow[] {

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { filterLedger, ledgerRows, summarizeLedger, type LedgerFilters } from '../src/lib/proof/ledger';
+import { filterLedger, ledgerRows, matchesAudience, summarizeLedger, type LedgerFilters } from '../src/lib/proof/ledger';
 import type { HiredJob } from '../src/lib/erc8183/types';
 
 const team = '0x0000000000000000000000000000000000000001';
@@ -50,4 +50,23 @@ test('wallet search, job ID search and network filters use the same records', ()
   assert.equal(filterLedger(rows, { ...all, network: 'mainnet', q: '42' }).length, 1);
   assert.equal(filterLedger(rows, { ...all, q: outside.toUpperCase() }).length, 1);
   assert.equal(filterLedger(rows, { ...all, funder: 'team' }).length, 1);
+});
+
+test('audience summaries and ledger rows share one scope across networks', () => {
+  const jobs = [
+    job(56, '1', 'COMPLETED', outside),
+    job(97, '2', 'COMPLETED', outside),
+    job(97, '3', 'COMPLETED', team),
+    job(97, '4', 'COMPLETED', outside),
+    job(97, '5', 'EXPIRED', provider),
+  ];
+  const rows = ledgerRows(jobs, new Set([team]), (j) => j.jobId === '4');
+  const outsideRows = rows.filter((row) => matchesAudience(row, 'outside'));
+  const teamRows = rows.filter((row) => matchesAudience(row, 'team'));
+  assert.equal(outsideRows.length, 2);
+  assert.equal(teamRows.length, 1);
+  assert.equal(summarizeLedger(outsideRows.filter((row) => row.job.chainId === 56)).funded, 1);
+  assert.equal(summarizeLedger(outsideRows.filter((row) => row.job.chainId === 97)).funded, 1);
+  assert.equal(filterLedger(outsideRows, { ...all, metric: 'funded' }).length, summarizeLedger(outsideRows).funded);
+  assert.equal(filterLedger(teamRows, { ...all, metric: 'settled' }).length, summarizeLedger(teamRows).settled);
 });
