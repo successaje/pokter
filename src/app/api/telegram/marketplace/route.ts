@@ -50,11 +50,16 @@ export async function POST(request: Request): Promise<Response> {
   }
   const callback = update?.callback_query;
   const chat = callback ? callback.message?.chat : update?.message?.chat;
-  const message = callback?.data === 'scout:enable_ai' ? 'Enable AI chat' : update?.message?.text;
+  const callbackMessage: Record<string, string> = {
+    'scout:enable_ai': 'Enable AI chat',
+    'scout:alerts:on': '/alerts on',
+    'scout:alerts:off': '/alerts off',
+  };
+  const message = callback ? callbackMessage[String(callback.data)] : update?.message?.text;
   if (!chat || !Number.isSafeInteger(chat.id) || typeof message !== 'string' || message.length > 4096) {
     return Response.json({ ok: true });
   }
-  if (callback && (callback.data !== 'scout:enable_ai' || typeof callback.id !== 'string'
+  if (callback && (!(String(callback.data) in callbackMessage) || typeof callback.id !== 'string'
     || !Number.isSafeInteger(callback.from?.id) || callback.from?.id !== chat.id || chat.type !== 'private')) {
     return Response.json({ ok: true });
   }

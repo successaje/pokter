@@ -7,6 +7,7 @@ export const MARKETPLACE_BOT_COMMANDS = [
   { command: 'check', description: 'Check an agent by link or ID' },
   { command: 'services', description: 'Explore published services' },
   { command: 'requests', description: 'Browse open requests' },
+  { command: 'alerts', description: 'New public request alerts' },
   { command: 'discord', description: 'Join the Pokter Discord' },
   { command: 'ai', description: 'Choose AI chat with Scout' },
   { command: 'forget', description: 'Clear recent Scout chat' },
@@ -44,7 +45,8 @@ export function scoutMenu(): BotReply {
         [{ text: 'Find an agent' }, { text: 'Check an agent' }],
         [{ text: 'Explore services' }, { text: 'Open requests' }],
         ...(process.env.SCOUT_GEMINI_API_KEY ? [[{ text: 'Chat with Scout' }]] : []),
-        [{ text: 'Help' }, { text: 'Discord' }],
+        [{ text: 'Alerts' }, { text: 'Help' }],
+        [{ text: 'Discord' }],
       ],
       resize_keyboard: true,
       is_persistent: true,
@@ -61,7 +63,7 @@ export function marketplaceBotReply(message: string, isPrivate: boolean): BotRep
   const command = match?.[1].toLowerCase() ?? '';
   if (command === 'start' || message.trim() === 'Back to menu') return scoutMenu();
   if (command === 'help' || message.trim() === 'Help') return {
-    text: 'I’m Scout, Pokter’s guide. Send a task to search agents. Use /find <task>, /check <Pokter agent link or 56:ID or 97:ID>, /services, or /requests. Use /ai to choose AI chat and /forget to clear recent chat.\n\nPrices I show are previous signed quotes, never a price for your task. Hire and wallet approval happen on Pokter. Never send a seed phrase or private key.',
+    text: 'I’m Scout, Pokter’s guide. Send a task to search agents. Use /find <task>, /check <Pokter agent link or 56:ID or 97:ID>, /services, or /requests. Use /alerts for optional new public request alerts, /ai to choose AI chat, and /forget to clear recent chat.\n\nPrices I show are previous signed quotes, never a price for your task. Hire and wallet approval happen on Pokter. Never send a seed phrase or private key.',
     reply_markup: { inline_keyboard: [[{ text: 'How Pokter works', url: siteUrl('/how-it-works') }, { text: 'Proof', url: siteUrl('/proof') }]] },
   };
   if (command === 'discord' || message.trim() === 'Discord') return {
