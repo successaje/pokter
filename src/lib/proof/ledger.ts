@@ -32,6 +32,28 @@ export function matchesAudience(row: LedgerRow, audience: ProofAudience): boolea
   return true;
 }
 
+/** A few actual submitted escrow jobs, with outside-team work leading the All view. */
+export function receiptSpotlights(rows: readonly LedgerRow[], audience: ProofAudience, limit = 3): LedgerRow[] {
+  const candidates = rows
+    .filter((row) => matchesAudience(row, audience) && row.funded && row.submitted && !row.lifecycleDemo)
+    .sort((a, b) => b.job.hiredAt.localeCompare(a.job.hiredAt));
+  const ordered = audience === 'all'
+    ? [...candidates.filter((row) => row.funder === 'outside'), ...candidates.filter((row) => row.funder !== 'outside')]
+    : candidates;
+  const preferred = audience === 'all' ? ordered.filter((row) => row.funder === 'outside') : ordered;
+  const networkLeaders = [56, 97].map((chainId) => preferred.find((row) => row.job.chainId === chainId)).filter((row): row is LedgerRow => Boolean(row));
+  const selected: LedgerRow[] = [];
+  const seenAgents = new Set<string>();
+  for (const row of [...networkLeaders, ...ordered]) {
+    const agent = `${row.job.agentChainId ?? row.job.chainId}:${row.job.agentTokenId}`;
+    if (seenAgents.has(agent)) continue;
+    selected.push(row);
+    seenAgents.add(agent);
+    if (selected.length === limit) break;
+  }
+  return selected;
+}
+
 export function ledgerRows(jobs: readonly HiredJob[], team: ReadonlySet<string>, isLifecycleDemo: (job: HiredJob) => boolean): LedgerRow[] {
   return jobs.map((job) => {
     const lifecycleDemo = isLifecycleDemo(job);
