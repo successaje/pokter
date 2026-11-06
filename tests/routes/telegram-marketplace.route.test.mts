@@ -15,6 +15,9 @@ const message = (text: string, type = 'private') => JSON.stringify({ update_id: 
 const callback = (fromId = 42) => JSON.stringify({ update_id: 2, callback_query: {
   id: 'local-callback', data: 'scout:enable_ai', from: { id: fromId }, message: { chat: { id: 42, type: 'private' } },
 } });
+const alertCallback = (data: string, fromId = 42) => JSON.stringify({ update_id: 3, callback_query: {
+  id: 'local-alert-callback', data, from: { id: fromId }, message: { chat: { id: 42, type: 'private' } },
+} });
 const request = (body: string, secret?: string) => new Request(url, {
   method: 'POST',
   headers: secret ? { 'x-telegram-bot-api-secret-token': secret } : {},
@@ -57,6 +60,28 @@ test('webhook rejects malformed and oversized updates', async () => {
   const secret = process.env.POKTER_TELEGRAM_WEBHOOK_SECRET;
   assert.equal((await POST(request('{', secret))).status, 400);
   assert.equal((await POST(request('a'.repeat(16_385), secret))).status, 413);
+});
+
+test('public request alerts need a private opt-in and can be turned off', async () => {
+  const secret = process.env.POKTER_TELEGRAM_WEBHOOK_SECRET;
+  const { queuePublicRequestAlert, requestAlertsOn } = await import('../../src/lib/telegram/request-alerts');
+  const before = await POST(request(message('/alerts'), secret));
+  assert.match((await before.json() as { text: string }).text, /alerts are off/);
+  assert.deepEqual(await (await POST(request(alertCallback('scout:alerts:on', 99), secret))).json(), { ok: true });
+  assert.equal(requestAlertsOn(42), false);
+  const on = await POST(request(alertCallback('scout:alerts:on'), secret));
+  assert.match((await on.json() as { text: string }).text, /alerts are on/);
+  assert.equal(requestAlertsOn(42), true);
+  const future = new Date(Date.now() + 86400000).toISOString();
+  const open = { id: 'new-request', title: 'Research a pool', chainId: 97, state: 'open', closesAt: future, targetBuilder: null } as Parameters<typeof queuePublicRequestAlert>[0];
+  assert.equal(queuePublicRequestAlert(open), 1);
+  assert.equal(queuePublicRequestAlert(open), 0);
+  assert.equal(queuePublicRequestAlert({ ...open, id: 'directed', targetBuilder: '0x0000000000000000000000000000000000000001' }), 0);
+  assert.equal(queuePublicRequestAlert({ ...open, id: 'expired', closesAt: '2020-01-01T00:00:00Z' }), 0);
+  const off = await POST(request(alertCallback('scout:alerts:off'), secret));
+  assert.match((await off.json() as { text: string }).text, /alerts are off/);
+  assert.equal(requestAlertsOn(42), false);
+  assert.equal(queuePublicRequestAlert({ ...open, id: 'after-opt-out' }), 0);
 });
 
 test('private Scout chat requires opt-in, remembers a follow-up, and forgets it', async () => {

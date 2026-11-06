@@ -1,0 +1,88 @@
+.experience { color: var(--ink); }
+.poster, .film { position: relative; isolation: isolate; overflow: hidden; color: #fff8ef; background: #0a0e16; }
+.poster { min-height: min(790px, calc(100svh - 145px)); }
+.posterImage, .filmImage { position: absolute; z-index: -3; inset: -18px; background-image: url('/in-action/coast-at-night.webp'); background-size: cover; background-position: center; transform: translate(var(--look-x,0), var(--look-y,0)) scale(1.025); transition: transform .8s ease-out; }
+.poster::after, .filmShade { content: ''; position: absolute; z-index: -2; inset: 0; background: linear-gradient(90deg, #070b13ed 0%, #090e17bd 36%, #0b0e1552 70%, #090b12a8 100%), linear-gradient(0deg, #070a11a8, transparent 30%, transparent 75%, #06091096); pointer-events: none; }
+.filmGrain { position: absolute; z-index: 5; inset: 0; opacity: .19; pointer-events: none; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 160 160' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.38'/%3E%3C/svg%3E"); }
+.posterInner { display: flex; flex-direction: column; justify-content: space-between; min-height: inherit; width: min(1400px, calc(100% - 72px)); margin: auto; }
+.posterTop, .posterBottom, .filmTop, .sceneIndex, .eyebrow, .factLabel, .mono, .inspectorTime { font-family: var(--font-readout), monospace; font-size: 11px; font-weight: 600; line-height: 1.5; letter-spacing: .15em; text-transform: uppercase; }
+.posterTop, .posterBottom { display: flex; justify-content: space-between; gap: 20px; padding: 30px 0; color: #d7d8d6; }
+.posterBottom { color: #b8bcb9; }
+.posterCopy { max-width: 780px; padding: 80px 0 100px; }
+.eyebrow, .sceneIndex { color: #ffd56a; }
+.poster h1, .filmScene h2 { margin: 20px 0 0; font-size: clamp(70px, 9vw, 150px); font-weight: 570; line-height: .87; letter-spacing: -.075em; text-wrap: balance; }
+.poster h1 em, .filmScene h2 em { font-family: Georgia, serif; font-weight: 400; color: #ffcb87; }
+.posterCopy p { max-width: 560px; margin: 30px 0; color: #e3ded7; font-size: clamp(17px, 1.55vw, 22px); line-height: 1.5; }
+.playButton, .finalPrimary { display: inline-flex; align-items: center; gap: 18px; min-height: 66px; padding: 0 23px; border: 1px solid #ffd485; border-radius: 4px; color: #17140d; background: #f8c75c; font-size: 16px; font-weight: 700; cursor: pointer; transition: transform .25s, background .25s, box-shadow .25s; }
+.playButton:hover, .finalPrimary:hover { transform: translateY(-3px); background: #ffda86; box-shadow: 0 14px 35px #0006; }
+.playButton > span { display: grid; place-items: center; width: 31px; height: 31px; border: 1px solid #17140d; border-radius: 50%; font-size: 11px; }
+.playButton small { margin-left: 30px; font-family: var(--font-readout), monospace; font-size: 11px; font-weight: 600; opacity: .65; }
+.film { position: fixed; z-index: 9999; inset: 0; display: flex; flex-direction: column; outline: none; }
+.film::before { content: ''; position: absolute; z-index: 4; top: 0; bottom: 0; width: 100%; border-top: clamp(9px, 2.1vh, 28px) solid #07080b; border-bottom: clamp(9px, 2.1vh, 28px) solid #07080b; pointer-events: none; }
+.filmImage { z-index: -3; inset: -8%; transition: none; animation: cameraMove 12s ease-out both; }
+.imageAct1 { background-position: 63% center; animation-name: cameraMoveTwo; }
+.imageAct2 { background-position: 82% center; animation-name: cameraMoveThree; }
+.imageAct3 { background-position: center; animation-name: cameraMoveFour; }
+.filmShade { z-index: -2; background: linear-gradient(90deg, #070b12f7 0%, #070b12c7 45%, #070b1252 100%), linear-gradient(0deg, #070a11df, transparent 28%, transparent 78%, #060910ac); }
+.filmTop { position: relative; z-index: 6; display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: clamp(27px, 4vh, 48px) clamp(25px, 5vw, 85px); color: #ddd9d3; }
+.filmTop button { border: 1px solid #ffffff70; border-radius: 50px; padding: 8px 15px; color: #fff; background: #1117229c; cursor: pointer; white-space: nowrap; }
+.filmTop button span { margin-left: 8px; font-size: 17px; }
+.filmScene { position: relative; z-index: 2; display: flex; flex: 1; align-items: center; width: min(1600px, calc(100% - 10vw)); min-height: 0; margin: auto; animation: sceneReveal .8s cubic-bezier(.22,1,.36,1) both; }
+.filmScene h2 { font-size: clamp(65px, 8vw, 135px); }
+.filmScene p { color: #e8e2db; font-size: clamp(17px, 1.5vw, 23px); line-height: 1.5; }
+.sceneOne p { margin-top: 38px; }
+.sceneWhisper { margin-top: 8vh; color: #f9ca79; font-family: Georgia, serif; font-size: clamp(24px, 2.3vw, 36px); font-style: italic; }
+.sceneTwo { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) minmax(310px, .7fr); align-items: center; gap: 5vw; }
+.sceneCopy p { max-width: 490px; margin-top: 30px; }
+.inspectButton, .finalSecondary, .recordButton { display: inline-flex; align-items: center; gap: 24px; border: 0; border-bottom: 1px solid #ffcb78; padding: 10px 0; color: #ffce87; background: transparent; font-size: 15px; font-weight: 600; cursor: pointer; }
+.inspectButton:hover, .finalSecondary:hover, .recordButton:hover { color: #fff; }
+.factFrame { position: relative; padding: 30px 0 26px 27px; border-left: 2px solid #efbc66; background: linear-gradient(90deg, #0d111abf, transparent); }
+.factFrame > * { display: block; }
+.factLabel { color: #f3c773; }
+.factFrame strong { margin-top: 25px; font-size: clamp(28px, 3vw, 52px); font-weight: 600; line-height: 1.1; letter-spacing: -.05em; }
+.factFrame > span:not(.factLabel) { margin-top: 14px; color: #e7e1d9; font-size: 15px; line-height: 1.4; }
+.factRule { height: 1px; margin: 25px 0; background: #ffffff50; }
+.sceneThree { width: min(1100px, 100%); }
+.sceneThree h2 { font-size: clamp(59px, 7vw, 112px); }
+.limitFilm { margin: 4vh 0 20px; }
+.limitFilm p { display: flex; align-items: baseline; gap: 18px; max-width: 890px; margin: 0; border-top: 1px solid #ffffff50; padding: 13px 0; font-size: clamp(14px, 1.4vw, 19px); animation: sceneReveal .7s both; }
+.limitFilm p span { color: #ffcd77; font-family: var(--font-readout), monospace; font-size: 11px; }
+.sceneFour { display: flex; align-items: center; gap: clamp(30px, 6vw, 110px); }
+.finalMark { flex: none; display: grid; place-items: center; width: clamp(130px, 18vw, 290px); aspect-ratio: 1; border: 1px solid #ffc8758c; border-radius: 22%; background: #101720b0; box-shadow: 0 0 0 16px #ffffff0a, 0 0 90px #f2ac593b; transform: rotate(-6deg); }
+.finalMark img { width: 62%; height: auto; }
+.sceneFour p { max-width: 580px; margin: 28px 0; }
+.finalActions { display: flex; flex-wrap: wrap; align-items: center; gap: 26px; margin: 20px 0; }
+.sceneFour small { color: #c9c6c1; font-size: 12px; }
+.filmControls { position: relative; z-index: 6; display: flex; align-items: center; gap: 27px; padding: 22px clamp(25px, 5vw, 85px) clamp(34px, 5vh, 65px); background: linear-gradient(0deg, #05070ab8, transparent); }
+.pauseButton { flex: none; display: grid; place-items: center; width: 46px; height: 46px; border: 1px solid #ffffff83; border-radius: 50%; color: #fff; background: #111722a3; font-size: 20px; cursor: pointer; }
+.timeline { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); flex: 1; gap: 12px; }
+.timeline button { min-width: 0; border: 0; padding: 0; color: #ddd7cc; background: transparent; text-align: left; font-family: var(--font-readout), monospace; font-size: 10px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; cursor: pointer; }
+.timeline button[aria-current] { color: #fff; }
+.timelineTrack { display: block; height: 3px; margin-bottom: 10px; background: #ffffff58; }
+.timelineTrack span { display: block; height: 100%; background: #ffc264; }
+.recordButton { flex: none; font-size: 13px; }
+.inspector { position: absolute; z-index: 20; top: clamp(20px, 5vh, 55px); right: clamp(18px, 4vw, 70px); bottom: clamp(25px, 5vh, 65px); width: min(490px, calc(100% - 36px)); display: flex; flex-direction: column; border: 1px solid #ffffff55; border-radius: 8px; color: #f8f4ec; background: #10151d; box-shadow: 0 25px 90px #000b; }
+.inspectorHead { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; padding: 28px 30px 21px; border-bottom: 1px solid #ffffff35; }
+.inspectorHead .mono { color: #f6c579; }
+.inspectorHead h2 { margin-top: 10px; font-size: 29px; line-height: 1.1; letter-spacing: -.04em; }
+.inspectorHead button { width: 34px; height: 34px; border: 1px solid #ffffff66; border-radius: 50%; color: #fff; background: transparent; font-size: 23px; cursor: pointer; }
+.inspectorBody { overflow-y: auto; padding: 20px 30px 32px; }
+.inspectorTime { margin: 0 0 22px; color: #bcb9b4; font-size: 10px; }
+.sourceFact { display: grid; gap: 8px; padding: 15px 0; border-top: 1px solid #ffffff35; }
+.sourceFact span { color: #d5c8b7; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
+.sourceFact a, .sourceFact strong { color: #fff; font-size: 17px; font-weight: 600; line-height: 1.3; }
+.sourceFact a { text-decoration: underline; text-decoration-color: #f3c46c; text-underline-offset: 4px; }
+.inspectorBody h3 { margin: 24px 0 8px; font-size: 15px; }
+.inspectorBody ul { margin: 0 0 22px; padding-left: 20px; color: #e5dfd5; font-size: 14px; line-height: 1.5; }
+.inspectorBody li { margin: 7px 0; }
+.inspectorLink { display: block; margin-top: 12px; color: #ffcf84; font-size: 14px; text-decoration: underline; text-underline-offset: 4px; }
+.inspectorNote, .sourceUnavailable { margin-top: 25px; color: #bdb9b3; font-size: 12px; line-height: 1.5; }
+.experience button:focus-visible, .experience a:focus-visible { outline: 2px solid #ffd27b; outline-offset: 4px; }
+@keyframes sceneReveal { from { opacity: 0; transform: translateY(26px); filter: blur(7px); } to { opacity: 1; transform: translateY(0); filter: blur(0); } }
+@keyframes cameraMove { from { transform: scale(1.03) translateX(0); } to { transform: scale(1.15) translateX(-2%); } }
+@keyframes cameraMoveTwo { from { transform: scale(1.12) translateX(-3%); } to { transform: scale(1.2) translateX(1%); } }
+@keyframes cameraMoveThree { from { transform: scale(1.2) translateX(1%); } to { transform: scale(1.08) translateX(-3%); } }
+@keyframes cameraMoveFour { from { transform: scale(1.08); } to { transform: scale(1.17) translateX(-1%); } }
+@media (max-width: 800px) { .poster { min-height: calc(100svh - 108px); } .posterInner { width: calc(100% - 42px); } .posterTop, .posterBottom { font-size: 9px; } .posterTop span:last-child, .posterBottom span:last-child { display: none; } .posterCopy { padding: 90px 0; } .poster h1 { font-size: clamp(60px, 14vw, 100px); } .filmScene { width: calc(100% - 50px); } .filmScene h2 { font-size: clamp(56px, 11vw, 96px); } .sceneTwo { display: block; } .sceneTwo .factFrame { margin-top: 35px; padding-top: 18px; padding-bottom: 18px; } .factFrame strong { font-size: 31px; margin-top: 12px; } .factRule { margin: 14px 0; } .sceneFour { gap: 30px; } .finalMark { width: 120px; } .filmControls { gap: 16px; } .timeline button { font-size: 9px; } .recordButton { font-size: 11px; } }
+@media (max-width: 550px) { .filmTop { padding-top: 30px; } .filmTop .mono:nth-child(2) { display: none; } .filmScene { width: calc(100% - 44px); } .filmScene h2 { font-size: clamp(54px, 14vw, 76px); } .filmScene p { font-size: 15px; } .sceneWhisper { margin-top: 35px; font-size: 23px; } .sceneTwo .factFrame { margin-top: 24px; } .factFrame strong { font-size: 28px; } .sceneThree h2 { font-size: 53px; } .limitFilm { margin: 20px 0 8px; } .limitFilm p { padding: 9px 0; font-size: 13px; } .sceneFour { display: block; } .finalMark { width: 92px; margin-bottom: 20px; } .sceneFour h2 { font-size: 55px; } .sceneFour p { margin: 18px 0; } .finalPrimary { min-height: 48px; font-size: 13px; } .filmControls { padding-bottom: 32px; gap: 12px; } .pauseButton { width: 38px; height: 38px; } .timeline { gap: 5px; } .timeline button > span:last-child { display: none; } .recordButton { white-space: nowrap; } .inspector { top: 18px; right: 12px; bottom: 18px; width: calc(100% - 24px); } }
+@media (prefers-reduced-motion: reduce) { .posterImage { transition: none; } .filmImage, .filmScene, .limitFilm p { animation: none !important; } .playButton, .finalPrimary { transition: none; } }

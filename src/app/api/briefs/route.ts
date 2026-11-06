@@ -9,6 +9,7 @@ import { signedByWallet, walletCanBeChecked } from '@/lib/wallet/signed-by';
 import { getProfileStore } from '@/lib/profiles/store';
 import { notifyBuilderCustomRequest } from '@/lib/notifications/server';
 import { verifiedOwnedAgents } from '@/lib/profiles/owned-agents';
+import { queuePublicRequestAlert } from '@/lib/telegram/request-alerts';
 
 export const dynamic = 'force-dynamic';
 
@@ -96,5 +97,6 @@ export async function POST(request: Request): Promise<NextResponse> {
     throw error;
   }
   if (content.targetBuilder) await notifyBuilderCustomRequest({ owner: content.targetBuilder, requestId: brief.id, chainId: brief.chainId, title: brief.title }).catch(() => undefined);
+  else { try { queuePublicRequestAlert(brief); } catch { /* A bot alert cannot undo a signed request. */ } }
   return NextResponse.json({ brief }, { status: 201 });
 }

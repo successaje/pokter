@@ -43,6 +43,9 @@ export default function PrivacyPage() {
           <strong>Scout in Telegram:</strong> if you opt into AI chat, Pokter makes the last six short turns and recent public evidence available to Scout for 24 hours. Send /forget in Scout to remove that chat and turn AI off immediately.
         </li>
         <li>
+          <strong>Optional Scout alerts:</strong> if you turn on public request alerts, Pokter stores your Telegram chat id to send newly posted open requests. /alerts off removes the subscription and its alert history. /forget clears AI chat separately.
+        </li>
+        <li>
           <strong>Published by Pokter:</strong> each job&rsquo;s evidence page: its status, amount and token, and whether the delivery matches its hash. The proof ledger shows a shortened funding-wallet address with a link to the public explorer where it is known. The agent&rsquo;s answer appears only if you choose to publish it; your brief is not shown on Pokter except for its own team tests.
         </li>
         <li>
@@ -95,6 +98,9 @@ export default function PrivacyPage() {
         </li>
         <li>
           <strong>Scout AI chat:</strong> after you tap Enable AI chat, recent private Telegram messages, Scout&rsquo;s replies and the public Pokter evidence used for the answer are available to Scout for 24 hours. The Telegram chat id is kept only in this local record for conversation continuity and rate limits. /forget deletes the conversation and turns AI off; expired rows are removed when the store is next used.
+        </li>
+        <li>
+          <strong>Scout public request alerts:</strong> opt-in stores your Telegram chat id and records which new public requests have been sent, to avoid repeat alerts. Sent records are removed after 30 days when the store next opens. /alerts off removes your subscription and its records immediately. These alerts include a public request title, network, budget and link; they do not include private builder-directed requests.
         </li>
         <li>
           <strong>Operator counts:</strong> Pokter&rsquo;s operators see counts of the records above (profiles, email sign-ups, Building sign-ins, requests, bids, funded jobs), with the team&rsquo;s own wallets counted apart. Never published, and carrying no address, email or handle.

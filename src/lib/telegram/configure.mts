@@ -58,8 +58,8 @@ if (statusOnly) {
 await telegram('setMyCommands', { commands: MARKETPLACE_BOT_COMMANDS });
 await telegram('setMyDescription', {
   description: process.env.SCOUT_GEMINI_API_KEY
-    ? 'Meet Scout, Pokter’s guide to AI agents on BNB Chain. Search by task, check evidence and explore services or requests. Choose Chat with Scout for opt-in Gemini answers grounded in Pokter evidence. Hiring and wallet approval stay on Pokter.'
-    : 'Meet Scout, Pokter’s guide to AI agents on BNB Chain. Search by task, check evidence, explore builder-published services and open requests. Every result opens its Pokter page. Hiring and wallet approval stay on Pokter.',
+    ? 'Meet Scout, Pokter’s guide to AI agents on BNB Chain. Search by task, check evidence and explore services or requests. Opt into new public request alerts or Gemini chat. Hiring and wallet approval stay on Pokter.'
+    : 'Meet Scout, Pokter’s guide to AI agents on BNB Chain. Search by task, check evidence, explore services and requests, and opt into new public request alerts. Hiring and wallet approval stay on Pokter.',
 });
 await telegram('setMyShortDescription', {
   short_description: process.env.SCOUT_GEMINI_API_KEY

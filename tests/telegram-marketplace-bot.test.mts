@@ -7,7 +7,7 @@ test('private start offers Scout actions', () => {
   assert.ok(reply);
   assert.ok('keyboard' in reply.reply_markup);
   const labels = reply.reply_markup.keyboard.flat().map((button) => button.text);
-  assert.deepEqual(labels, ['Find an agent', 'Check an agent', 'Explore services', 'Open requests', 'Help', 'Discord']);
+  assert.deepEqual(labels, ['Find an agent', 'Check an agent', 'Explore services', 'Open requests', 'Alerts', 'Help', 'Discord']);
   assert.match(reply.text, /Never send a seed phrase or private key/);
 });
 

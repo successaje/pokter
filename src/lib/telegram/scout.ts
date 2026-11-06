@@ -9,6 +9,7 @@ import { forgetChat, readChat, saveChat } from './chat-store';
 import { generateScoutAnswer } from './scout-gemini';
 import { scoutKnowledgeFor } from './scout-knowledge';
 import { isMoreAgentsFollowUp, matchingNamedAgents, namedAgentQuery, shouldSearchAgents } from './scout-routing';
+import { requestAlertsOn, setRequestAlerts } from './request-alerts';
 
 const network = (chainId: number) => chainId === 97 ? 'BNB Testnet' : 'BNB Mainnet';
 const short = (text: string, max = 135) => text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text;
@@ -315,6 +316,16 @@ export async function scoutReply(message: string, isPrivate: boolean, chatId?: n
     const state = readChat(chatId);
     saveChat(chatId, { ...state, aiEnabled: true });
     return reply('AI chat is on. Ask me about an agent or describe a task. I’ll use Pokter evidence and link you to the source. Send /forget to clear this chat.', [[link('Browse agents', publicPage('/discover'))]]);
+  }
+  if (isPrivate && (raw === 'Alerts' || /^\/alerts(?:\s+(?:on|off))?$/i.test(raw))) {
+    if (chatId === undefined) return null;
+    if (/^\/alerts\s+on$/i.test(raw)) setRequestAlerts(chatId, true);
+    if (/^\/alerts\s+off$/i.test(raw)) setRequestAlerts(chatId, false);
+    const on = requestAlertsOn(chatId);
+    return reply(on
+      ? 'New public request alerts are on. Scout will message you when a new open request is posted. Alerts may arrive after the next Pokter check. Builder-directed requests and older requests are excluded. Turn them off anytime with /alerts off. /forget clears AI chat separately.'
+      : 'New public request alerts are off. Turn them on to hear about newly posted open requests. Scout never sends builder-directed briefs or old requests as alerts.',
+    [[{ text: on ? 'Turn off alerts' : 'Turn on alerts', callback_data: on ? 'scout:alerts:off' : 'scout:alerts:on' }], [link('Browse open requests', publicPage('/requests'))]]);
   }
   if (raw === 'Find an agent' || raw === '/find' || raw === '/discover') return categoryKeyboard(false);
   if (raw === 'All categories' || raw === '/categories') return categoryKeyboard(true);

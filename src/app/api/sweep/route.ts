@@ -56,6 +56,7 @@ import { persistStageOutcomes } from '@/lib/history/stage-outcomes';
 import { CRITICAL_LOOP_SLACK_MS, RECONCILE_DEADLINE_SLACK_MS, afterAttempt, classifyAttempt, dueForReconcile } from '@/lib/history/reconcile-schedule';
 import { disputeWindowSeconds } from '@/lib/erc8183/dispute-window';
 import { releaseReminderDue } from '@/lib/jobs/release-reminder';
+import { sendPendingRequestAlerts } from '@/lib/telegram/request-alerts';
 
 export const dynamic = 'force-dynamic';
 /** The platform's ceiling. The run's own budget is below it, deliberately. */
@@ -499,6 +500,9 @@ export async function POST(request: Request): Promise<NextResponse> {
         : Promise.resolve({ checked: 0, sent: 0 }),
     );
 
+    /* Only opted-in private chats; queued on new public requests, retried on the sweep. */
+    const scoutRequestAlerts = await budget.step('scoutRequestAlerts', () => sendPendingRequestAlerts(3), { maxMs: 14_000 });
+
     /*
      * Followed agents: what each looks like now, compared with what its
      * followers last heard. Only read when someone follows something.
@@ -776,6 +780,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       reconciled,
       sealed,
       followerAlerts,
+      scoutRequestAlerts,
       agentWallets,
       testnetSweep,
       builderNotifications: reconcileResults.length,
