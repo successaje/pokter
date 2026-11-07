@@ -22,3 +22,17 @@ export function sendingTransport(chainId: number) {
   const archive = nodeRealUrl(chainId);
   return fallback([...(URLS[chainId] ?? []).map((url) => http(url)), ...(archive ? [http(archive)] : [])]);
 }
+
+/**
+ * The same nodes, for reads of the present (`eth_call` at the head, a
+ * nonce, code), with an operator's own node first when one is configured.
+ * One node alone is not enough: on 1 November bsc-rpc.publicnode.com
+ * timed out a mainnet job read and failed a release's checks. Not for old
+ * logs: the dataseeds refuse log ranges, which is what `historyTransport`
+ * is for.
+ */
+export function publicReadUrls(chainId: number, override?: string): string[] {
+  const listed = URLS[chainId] ?? [];
+  const own = override?.trim();
+  return own ? [own, ...listed.filter((url) => url !== own)] : [...listed];
+}
