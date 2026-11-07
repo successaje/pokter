@@ -32,7 +32,7 @@ test('a number offers both the agent and the job it could be, and "job" puts the
   const bare = headerSuggestions(parseHeaderQuery('57012'), agents, jobs);
   assert.deepEqual(bare.map((s) => s.kind), ['agent', 'job']);
   assert.equal(bare[1].href, '/workspace/jobs/57012?chain=56');
-  assert.match(bare[1].detail, /BNB Chain · submitted · Halong Yield/);
+  assert.match(bare[1].detail, /Mainnet · submitted · Halong Yield/);
   assert.deepEqual(headerSuggestions(parseHeaderQuery('job 57012'), agents, jobs).map((s) => s.kind), ['job', 'agent']);
   assert.deepEqual(headerSuggestions(parseHeaderQuery('424242'), agents, jobs), [], 'nothing is invented');
 });

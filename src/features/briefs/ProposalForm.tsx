@@ -8,6 +8,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { amountToRaw, bidMessage, requestAmountLabel, requestTokenOf, requestUnit, type BidContent } from '@/lib/briefs/model';
 import { aboveBudget, proposalPriceFlexible, proposalQuoteFresh, typedPriceProblem, type ProposalQuote } from '@/lib/briefs/proposal-price';
 import { amountWithinLimits } from '@/lib/hire/budget-limits';
+import { shortNetworkLabel } from '@/lib/network/presentation';
 import { formatAmount } from '@/lib/network/tokens';
 import { DELIVERY_OPTIONS, type ProposalPrefill } from '@/lib/briefs/public-view';
 import { cn } from '@/lib/ui/cn';
@@ -384,7 +385,7 @@ function SelectedAgent({ agent, verified }: { agent: Agent; verified: boolean })
       <span className="flex min-w-0 flex-col">
         <span className="truncate text-[14.5px] font-medium">{agent.name}</span>
         <span className="truncate text-[12px] text-ink-3">
-          #{agent.tokenId} · {agent.chainId === 56 ? 'BNB Chain' : 'BNB Testnet'}
+          #{agent.tokenId} · {shortNetworkLabel(agent.chainId)}
           {agent.category ? ` · ${agent.category}` : ''}
         </span>
         {verified ? (
@@ -500,7 +501,7 @@ function AgentPicker({ selected, onPick }: { selected: Agent | null; onPick: (ag
                   <span className="flex min-w-0 flex-1 flex-col">
                     <span className="truncate text-[14px] font-medium">{a.name}</span>
                     <span className="truncate text-[12px] text-ink-3">
-                      {a.category ?? 'No category'} · {a.chainId === 56 ? 'BNB Chain' : 'Testnet'} #{a.tokenId}
+                      {a.category ?? 'No category'} · {shortNetworkLabel(a.chainId)} #{a.tokenId}
                     </span>
                   </span>
                   <span className={cn('grid size-5 shrink-0 place-items-center rounded-full border', on ? 'border-ok bg-ok text-paper' : 'border-rule-strong')}>
@@ -554,7 +555,7 @@ function AddById({ onFound }: { onFound: (agent: Agent) => void }) {
 
   return (
     <div className="flex flex-col gap-2.5">
-      <Segmented label="Network" size="s" value={chain} onChange={setChain} options={[{ value: '56', label: 'BNB Chain' }, { value: '97', label: 'Testnet' }]} />
+      <Segmented label="Network" size="s" value={chain} onChange={setChain} options={[{ value: '56', label: 'Mainnet' }, { value: '97', label: 'Testnet' }]} />
       <div className="flex gap-2">
         <input
           value={tokenId}

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useMemo, useState } from 'react';
 
 import { REQUEST_CATEGORIES, requestCategoryOf, requestTokenOf, type RequestCategory } from '@/lib/briefs/model';
+import { shortNetworkLabel } from '@/lib/network/presentation';
 import { displaySymbol } from '@/lib/network/tokens';
 import { cn } from '@/lib/ui/cn';
 import { Button } from '@/ui/Button';
@@ -127,7 +128,7 @@ export function RequestsBoard({ requests, now, networks }: { requests: Array<Req
             {networks.length > 1 && (
               <Select aria-label="Network" value={network} onChange={(e) => setNetwork(e.target.value)} className="sm:w-44">
                 <option value="all">All networks</option>
-                {networks.map((id) => <option key={id} value={id}>{id === 56 ? 'BNB Chain' : 'BNB Testnet'}</option>)}
+                {networks.map((id) => <option key={id} value={id}>{shortNetworkLabel(id)}</option>)}
               </Select>
             )}
             <div className={cn(networks.length <= 1 && 'col-span-2 sm:col-span-1')}>

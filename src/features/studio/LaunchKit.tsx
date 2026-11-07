@@ -4,6 +4,7 @@ import { useState } from 'react';
 
 import type { BuilderGrowthSnapshot } from '@/lib/builders/growth';
 import { buyerPostText, evidenceShareText, launchPostText } from '@/lib/builders/growth';
+import { shortNetworkLabel } from '@/lib/network/presentation';
 import { Button, LinkButton } from '@/ui/Button';
 import { Icon } from '@/ui/icons';
 import { Sheet } from '@/ui/Sheet';
@@ -61,7 +62,7 @@ export function LaunchKit({
                 <div>
                   <p className="t-label">SHARED-LINK CARD</p>
                   <h3 className="mt-2 t-h3">{name}</h3>
-                  <p className="mt-1 text-[13px] text-ink-3">{growth.categoryLabel} · {growth.hireNetworks.length ? growth.hireNetworks.map((network) => network.label).join(' + ') : 'Hire route not verified'}</p>
+                  <p className="mt-1 text-[13px] text-ink-3">{growth.categoryLabel} · {growth.hireNetworks.length ? growth.hireNetworks.map((network) => shortNetworkLabel(network.chainId)).join(' + ') : 'Hire route not verified'}</p>
                 </div>
                 <span className={growth.check?.status === 'passed' ? 'rounded-full bg-ok/10 px-2.5 py-1 text-[12px] font-medium text-ok' : 'rounded-full bg-sunken px-2.5 py-1 text-[12px] font-medium text-ink-3'}>
                   {growth.check?.status === 'passed' ? 'Category check passed' : 'Evidence building'}

@@ -60,7 +60,7 @@ import {
   type ResponsivenessRow,
 } from '@/lib/leaderboard/responsiveness';
 import { loadOutcomeBoard, loadResponsivenessBoard, loadScoreBoard, type ScoreRow } from '@/lib/leaderboard/server';
-import { chainLabel } from '@/lib/network/presentation';
+import { chainLabel, shortNetworkLabel } from '@/lib/network/presentation';
 import { shareMetadata } from '@/lib/og/share';
 import { cn } from '@/lib/ui/cn';
 import { formatCount, formatPercent } from '@/lib/ui/format';
@@ -206,9 +206,7 @@ function NetworkToggle({ value, href }: { value: BoardNetwork; href: (network: B
             network === value ? 'bg-raised text-ink shadow-sm' : 'text-ink-3 hover:text-ink',
           )}
         >
-          {/* Shorter on a phone, so the toggle stays on the title's line. */}
-          <span className="sm:hidden">{network === 'testnet' ? 'Testnet' : 'Mainnet'}</span>
-          <span className="hidden sm:inline">{chainLabel(escrowChainOf(network))}</span>
+          {shortNetworkLabel(escrowChainOf(network))}
         </Link>
       ))}
     </nav>
@@ -498,7 +496,7 @@ function ScoreTable({ rows, merged }: { rows: ReadonlyArray<{ row: ScoreRow; ran
                     beside its category; inside one category, where it is
                     registered. */}
                 <span className="mt-0.5 block truncate text-[13px] text-ink-3">
-                  {merged ? categoryLabel(row.agent.category) : chainLabel(row.agent.chainId)}
+                  {merged ? categoryLabel(row.agent.category) : shortNetworkLabel(row.agent.chainId)}
                 </span>
               </span>
             </span>
@@ -602,7 +600,7 @@ function OutcomeLine({
             )}
           >
             {summaryOf(rowDisclosures(row), rowReceipts(row)) ??
-              (row.listed ? chainLabel(row.agent.chainId) : 'Not in Pokter’s current listing')}
+              (row.listed ? shortNetworkLabel(row.agent.chainId) : 'Not in Pokter’s current listing')}
           </span>
         </span>
       </span>

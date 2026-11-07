@@ -9,7 +9,7 @@ import { jobAmountLabel } from '@/lib/erc8183/job-amount';
 import { paymentCopy } from '@/lib/hire/payment-copy';
 import { displaySymbol, formatAmount, hireTokenAt, requestToken, tokenIdentity, tokenName } from '@/lib/network/tokens';
 import { currencyChoices, type CurrencyChoices, type CurrencyEvidence } from '@/lib/hire/currency-choice';
-import { FAUCETS, chainLabel, explorerBaseFor } from '@/lib/network/presentation';
+import { FAUCETS, chainLabel, explorerBaseFor, shortNetworkLabel } from '@/lib/network/presentation';
 import { jobHref } from '@/lib/jobs/href';
 import { useGasSponsorship } from '@/lib/wallet/sponsor-client';
 import { WALLET_NETWORK } from '@/lib/wallet/passkey';
@@ -670,14 +670,14 @@ export function HireFlow(props: HireFlowProps) {
                     >
                       {switching ? (
                         <span className="inline-flex items-center gap-1.5"><Spinner size={12} />Switching…</span>
-                      ) : option.chainId === 56 ? 'BNB Chain' : 'Testnet'}
+                      ) : shortNetworkLabel(option.chainId)}
                     </button>
                   );
                 })}
               </div>
             )}
             <p className="text-[13px] text-ink-2">
-              {network.options.length <= 1 && <>{networkLabel} · </>}
+              {network.options.length <= 1 && <>{shortNetworkLabel(escrowChainId)} · </>}
               {testnet ? 'Test tokens' : `Real ${priceSymbol}`} · {deliveredByAgent ? `Delivered by ${props.agent.name}` : relayBlocked ? 'No one can deliver here' : 'Delivery relayed by Pokter'}
             </p>
             {/*

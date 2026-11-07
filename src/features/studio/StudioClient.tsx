@@ -17,6 +17,7 @@ import { summarizeQuality } from '@/lib/builder/quality';
 import { connectIdentityWallet, hasIdentityWallet, signIdentityMessage } from '@/lib/registry/wallet';
 import { useActiveWallet } from '@/lib/wallet/active';
 import { usePasskeyWallet } from '@/lib/wallet/PasskeyProvider';
+import { shortNetworkLabel } from '@/lib/network/presentation';
 import { cn } from '@/lib/ui/cn';
 import { shortAddress } from '@/lib/ui/format';
 import { signPasskeyMessage } from '@/lib/wallet/passkey-message';
@@ -205,7 +206,7 @@ export function OwnedAgents({ boxed = false }: { boxed?: boolean }) {
             <span className="flex min-w-0 flex-1 flex-col">
               <span className="truncate text-sm font-medium">{a.name}</span>
               <span className="text-[12px] text-ink-3">
-                #{a.tokenId} · {a.chainId === 56 ? 'BNB Chain' : 'testnet'} · {a.category ?? GENERAL_CATEGORY_LABEL}
+                #{a.tokenId} · {shortNetworkLabel(a.chainId)} · {a.category ?? GENERAL_CATEGORY_LABEL}
               </span>
             </span>
             {!a.declaresProtocol && <span className="text-[11.5px] text-watch">No endpoint</span>}
@@ -369,7 +370,7 @@ export function ImportAgent({ initial }: { initial?: { chainId: '56' | '97'; tok
       <form onSubmit={diagnose} className="flex flex-col gap-4 rounded-[14px] border border-rule bg-raised p-5 sm:flex-row sm:items-end">
         <div className="flex flex-col gap-1.5">
           <span className="text-sm font-medium">Network</span>
-          <Segmented label="Network" value={chainId} onChange={setChainId} options={[{ value: '97', label: 'Testnet' }, { value: '56', label: 'BNB Chain' }]} />
+          <Segmented label="Network" value={chainId} onChange={setChainId} options={[{ value: '97', label: 'Testnet' }, { value: '56', label: 'Mainnet' }]} />
         </div>
         <Field label="ERC-8004 agent ID" className="flex-1">
           {(p) => <Input {...p} inputMode="numeric" value={tokenId} onChange={(e) => setTokenId(e.target.value.replace(/[^\d]/g, ''))} placeholder="e.g. 2554" className="t-readout" />}

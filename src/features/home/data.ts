@@ -10,7 +10,7 @@ import { findRows, type FindRow } from '@/lib/find/rows';
 import { getEcosystemStats, listSearchableWithStatus, type EcosystemStats } from '@/lib/marketplace';
 import { outcomeShortlist } from '@/lib/home/outcome-shortlist';
 import { hireChainIdsOf } from '@/lib/network/hire-networks';
-import { chainLabel } from '@/lib/network/presentation';
+import { shortNetworkLabel } from '@/lib/network/presentation';
 import { letsJobsLapse, type SearchableAgent } from '@/lib/search/match';
 import { catalogueCounts } from '@/lib/agents/catalogue-counts';
 import { registeredWalletRead } from '@/lib/registry/live-agent';
@@ -60,7 +60,7 @@ function specimenFor(entry: SearchableAgent, row: FindRow, role: string): Specim
     {
       id: 'identity',
       label: 'Registered identity',
-      result: `ERC-8004 #${row.tokenId} · ${chainLabel(row.chainId)}`,
+      result: `ERC-8004 #${row.tokenId} · ${shortNetworkLabel(row.chainId)}`,
       tone: 'ok',
     },
     {

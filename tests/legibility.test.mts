@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
+import { chainLabel, shortNetworkLabel } from '../src/lib/network/presentation';
+
 
 const code = (path: string) => readFileSync(new URL(`../src/${path}`, import.meta.url), 'utf8');
 
@@ -35,6 +37,40 @@ test('a card shows where its money settles as a coloured pill on its own line un
   }
   // The price line holds the price and "per job" only; the tag follows it, one tag or two, never beside it.
   assert.match(card, /<PriceText row=\{row\} className="text-\[1\.45rem\][^"]*" \/>\n[^\n]*per job[^\n]*\n\s*<\/span>\n\s*<NetworkTag chainId=\{row\.hireChainId\} alsoHireOn=\{hireChainIds\} className="mt-2 self-start" \/>/);
+});
+
+test('an agent’s or a job’s number, and every network switch, say Mainnet or Testnet', () => {
+  assert.equal(shortNetworkLabel(56), 'Mainnet');
+  assert.equal(shortNetworkLabel(97), 'Testnet');
+  assert.equal(shortNetworkLabel(1), 'chain 1', 'an unknown chain is named, never guessed to be either');
+  // Sentences, payment steps and wallet prompts keep the chain's own name: it is what a wallet shows.
+  assert.equal(chainLabel(56), 'BNB Chain');
+  for (const file of [
+    'features/hire/HireFlow.tsx',
+    'features/briefs/ProposalForm.tsx',
+    'features/briefs/ProposalList.tsx',
+    'features/briefs/RequestForm.tsx',
+    'features/briefs/RequestsBoard.tsx',
+    'features/studio/CreateAgent.tsx',
+    'features/studio/StudioClient.tsx',
+    'features/profile/ProfileEditor.tsx',
+    'app/(site)/builders/[address]/page.tsx',
+    'lib/search/header-query.ts',
+    'features/agents/AgentCard.tsx',
+    'features/discover/FilterBar.tsx',
+    'features/discover/HirePulse.tsx',
+    'features/home/data.ts',
+    'features/compare/CompareView.tsx',
+    'features/workspace/JobDetail.tsx',
+    'features/studio/LaunchKit.tsx',
+  ]) {
+    assert.doesNotMatch(code(file), /'BNB Chain'|'BNB Testnet'|'BNB testnet'/, `${file} labels a number or a switch with the chain's name`);
+  }
+  // The hire page's switch, and the deploy check that finds it after a release.
+  assert.match(code('features/hire/HireFlow.tsx'), /\) : shortNetworkLabel\(option\.chainId\)\}/);
+  const deploy = readFileSync(new URL('../.github/workflows/deploy.yml', import.meta.url), 'utf8');
+  assert.match(deploy, /grep -qE 'role="radio"\[\^>\]\*>Mainnet<'/);
+  assert.match(deploy, /grep -qE 'role="radio"\[\^>\]\*>Testnet<'/);
 });
 
 test('Proof gives mainnet and testnet equal footing and names its evidence limits', () => {

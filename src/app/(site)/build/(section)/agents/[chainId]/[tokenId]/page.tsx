@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation';
 import { Suspense } from 'react';
 
 import { isCampaignLive } from '@/lib/campaign/window';
-import { chainLabel } from '@/lib/network/presentation';
+import { shortNetworkLabel } from '@/lib/network/presentation';
 import { loadAgentOps, loadFleet, studioOwner } from '@/features/studio/data';
 import type { TotalLine } from '@/features/workspace/totals';
 import { LatencyTrend, ProbeLog, WeeklyJobs } from '@/features/studio/OpsCharts';
@@ -142,7 +142,7 @@ export default async function ManageAgent({ params }: { params: Promise<{ chainI
           <div>
             <h1 className="t-h2">{agent.name}</h1>
             <p className="text-[13px] text-ink-3">
-              ERC-8004 <span className="t-readout">#{agent.tokenId}</span> · {chainLabel(agent.chainId)}
+              ERC-8004 <span className="t-readout">#{agent.tokenId}</span> · {shortNetworkLabel(agent.chainId)}
             </p>
             <MaturityLabel maturity={agent.maturity} className="mt-2" />
           </div>

@@ -12,7 +12,7 @@ import { WalletRoles } from './WalletRoles';
 import { BuildStyleSwitch } from '@/features/build/BuildStyleSwitch';
 import { ConceptPicker } from '@/features/build/ConceptPicker';
 import { PlanSummary } from '@/features/build/PlanSummary';
-import { NATIVE_SYMBOL } from '@/lib/network/presentation';
+import { NATIVE_SYMBOL, shortNetworkLabel } from '@/lib/network/presentation';
 import { avatarUrl } from '@/lib/ui/avatar-art';
 import { cn } from '@/lib/ui/cn';
 import { shortAddress } from '@/lib/ui/format';
@@ -492,7 +492,7 @@ function StepPublish({ d }: { d: AgentDraft }) {
               {d.published.name || d.draft.name || 'Your agent'} is registered
             </h2>
             <p className="text-sm text-ink-2">
-              ERC-8004 identity <span className="t-readout">#{d.published.tokenId}</span> on {d.published.chainId === 56 ? 'BNB Chain' : 'BNB testnet'}.
+              ERC-8004 identity <span className="t-readout">#{d.published.tokenId}</span> on {shortNetworkLabel(d.published.chainId).toLowerCase()}.
             </p>
           </div>
         </div>
@@ -567,7 +567,7 @@ function StepPublish({ d }: { d: AgentDraft }) {
 
       <div className="flex flex-col gap-3">
         <span className="text-sm font-medium">Register on</span>
-        <Segmented label="Network" value={String(d.network) as '97' | '56'} onChange={(v) => d.setNetwork(Number(v) as 56 | 97)} options={[{ value: '97', label: 'BNB testnet' }, { value: '56', label: 'BNB Chain' }]} />
+        <Segmented label="Network" value={String(d.network) as '97' | '56'} onChange={(v) => d.setNetwork(Number(v) as 56 | 97)} options={[{ value: '97', label: 'Testnet' }, { value: '56', label: 'Mainnet' }]} />
         {d.network === 56 && (
           <Checkbox
             checked={d.mainnetConsent}

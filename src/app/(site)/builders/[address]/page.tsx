@@ -8,7 +8,7 @@ import { CATEGORY_BY_ID, GENERAL_CATEGORY_LABEL, classify } from '@/lib/agents/c
 import { getBriefStore } from '@/lib/briefs/store';
 import { quotePriceLabel } from '@/lib/find/price';
 import { getProbeStore, type QuoteRecord } from '@/lib/history/store';
-import { chainLabel, explorerBaseFor } from '@/lib/network/presentation';
+import { explorerBaseFor, shortNetworkLabel } from '@/lib/network/presentation';
 import { settlementChainOf } from '@/lib/network/tokens';
 import { agentJobs, agentRecord, eligibleReviews, hirerRecord, JOB_STATE_LABEL, operatorRecord, type NetworkRecord } from '@/lib/profiles/evidence';
 import { avatarSrc, linkLabel, profileContentOf, profilePath, USAGES, type Profile } from '@/lib/profiles/model';
@@ -424,7 +424,7 @@ function AgentCard({ agent, wallet, quote, now, compact = false }: { agent: Show
       <div className="flex flex-col gap-0.5 border-t border-rule pt-3">
         <span className="t-label">{quote ? 'Last signed quote' : 'Price'}</span>
         {quote ? (
-          <><span className="t-readout text-[17px]">{quotePriceLabel(quote)}</span><span className="text-[11.5px] text-ink-3">{settlementChainOf(quote.currency) ? chainLabel(settlementChainOf(quote.currency)!) : 'Currency not supported'} · quoted {day(quote.quotedAt)}{quote.expiresAt && Date.parse(quote.expiresAt) <= now ? ' · expired' : ''}. A fresh price is checked for your brief.</span></>
+          <><span className="t-readout text-[17px]">{quotePriceLabel(quote)}</span><span className="text-[11.5px] text-ink-3">{settlementChainOf(quote.currency) ? shortNetworkLabel(settlementChainOf(quote.currency)!) : 'Currency not supported'} · quoted {day(quote.quotedAt)}{quote.expiresAt && Date.parse(quote.expiresAt) <= now ? ' · expired' : ''}. A fresh price is checked for your brief.</span></>
         ) : <span className="text-[12.5px] text-ink-3">No signed price observed yet.</span>}
       </div>
       <span className={cn('inline-flex items-center gap-1 text-[12.5px] font-medium', agent.status === 'owned' ? 'text-ok' : 'text-watch')}>
@@ -496,7 +496,7 @@ function BuildingOverview({
             const jobs = check.chainId === 56 ? operator.mainnet : operator.testnet;
             const evidenceNote = check.total === 0 && jobs.funded === 0 ? 'Not enough evidence yet.' : jobs.funded === 0 ? 'No outside-buyer paid work yet.' : check.total < 10 ? 'Limited recent checks.' : null;
             return <div key={check.chainId} className="rounded-[12px] border border-rule bg-raised p-4">
-              <p className="text-[13px] font-semibold">{chainLabel(check.chainId)}</p>
+              <p className="text-[13px] font-semibold">{shortNetworkLabel(check.chainId)}</p>
               <dl className="mt-3 grid grid-cols-3 gap-2">
                 <div><dt className="text-[11px] text-ink-3">Answered checks</dt><dd className="t-readout text-[16px]">{check.answered}/{check.total}</dd></div>
                 <div><dt className="text-[11px] text-ink-3">Outside jobs</dt><dd className="t-readout text-[16px]">{jobs.funded}</dd></div>
@@ -602,7 +602,7 @@ function WorkTab({ agents, wallet, takenOn }: { agents: ShownAgent[]; wallet: st
                 <span className="font-medium">
                   {agent.name}{' '}
                   <span className="font-normal text-ink-3">
-                    · job #{job.jobId} · {chainLabel(job.chainId)}
+                    · job #{job.jobId} · {shortNetworkLabel(job.chainId)}
                   </span>
                 </span>
                 <span className="text-[12.5px] text-ink-3">
@@ -638,7 +638,7 @@ function ReviewList({ reviews }: { reviews: ReturnType<typeof eligibleReviews>['
             <Link href={`/agents/${r.agentChainId}/${r.agentTokenId}`} className="underline underline-offset-2 hover:text-ink">
               {r.agentName}
             </Link>{' '}
-            · job #{r.jobId} on {chainLabel(r.chainId)} · by its buyer, {short(r.buyer)}
+            · job #{r.jobId} on {shortNetworkLabel(r.chainId).toLowerCase()} · by its buyer, {short(r.buyer)}
             {r.onchainTx && (
               <>
                 {' · '}
@@ -735,7 +735,7 @@ function RequestsTab({ requests }: { requests: ReturnType<ReturnType<typeof getB
             <span className="flex min-w-0 flex-col">
               <span className="truncate text-[14.5px] font-medium">{r.title}</span>
               <span className="text-[12.5px] text-ink-3">
-                {chainLabel(r.chainId)} · posted {new Date(r.postedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                {shortNetworkLabel(r.chainId)} · posted {new Date(r.postedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
               </span>
             </span>
             <span className={cn('shrink-0 text-[12.5px] font-medium', r.state === 'open' ? 'text-ok' : 'text-ink-3')}>{r.state === 'open' ? 'Taking proposals' : r.state === 'awarded' ? 'Agent chosen' : 'Withdrawn'}</span>

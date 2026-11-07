@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
+import { shortNetworkLabel } from '@/lib/network/presentation';
+
 export interface HireMark {
   chainId: number;
   jobId: string;
@@ -132,7 +134,7 @@ export function HirePulse({ initial, initialAsOf }: { initial: HireMark[]; initi
               <span className="hire-scan pointer-events-none absolute inset-y-0 z-10 w-px bg-ok/50 motion-reduce:hidden" aria-hidden />
               {([56, 97] as const).map((chainId) => (
                 <div key={chainId} className="grid grid-cols-[82px_minmax(0,1fr)] border-b border-rule/70">
-                  <span className="pt-3 text-[11px] font-medium text-ink-2">{chainId === 56 ? 'BNB Chain' : 'Testnet'}</span>
+                  <span className="pt-3 text-[11px] font-medium text-ink-2">{shortNetworkLabel(chainId)}</span>
                   <div className="grid grid-cols-[repeat(30,minmax(0,1fr))]">
                     {days.map((day, index) => (
                       <div key={day} data-latest-hire-day={chainId === 56 && latest && day === dayKey(latest) ? '' : undefined} className="flex min-h-20 flex-wrap content-start gap-1 border-l border-rule/50 px-1 py-3">
@@ -142,7 +144,7 @@ export function HirePulse({ initial, initialAsOf }: { initial: HireMark[]; initi
                             href={`/jobs/${mark.chainId}/${mark.jobId}`}
                             prefetch={false}
                             title={`${mark.agentName} · ${mark.status.toLowerCase()} · ${dateLabel(mark.hiredAt)} · ${mark.funder === 'outside' ? 'outside buyer' : mark.funder === 'team' ? 'Pokter team' : 'self hire'}`}
-                            aria-label={`Job ${mark.jobId}: ${mark.agentName}, ${mark.status.toLowerCase()} on ${chainId === 56 ? 'BNB Chain' : 'BNB Testnet'}, ${dateLabel(mark.hiredAt)}. ${mark.funder === 'outside' ? 'Outside buyer' : mark.funder === 'team' ? 'Pokter team' : 'Self hire'}.`}
+                            aria-label={`Job ${mark.jobId}: ${mark.agentName}, ${mark.status.toLowerCase()} on ${shortNetworkLabel(chainId).toLowerCase()}, ${dateLabel(mark.hiredAt)}. ${mark.funder === 'outside' ? 'Outside buyer' : mark.funder === 'team' ? 'Pokter team' : 'Self hire'}.`}
                             style={{ animationDelay: `${index * 0.6}s` }}
                             className={`hire-chip size-2 shrink-0 rounded-[2px] transition-transform hover:animate-none hover:scale-150 focus-visible:animate-none focus-visible:scale-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink motion-reduce:animate-none ${mark.funder === 'outside' ? 'bg-ok' : 'border border-ink-3 bg-transparent'}`}
                           />

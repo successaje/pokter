@@ -7,7 +7,7 @@ import { useAccount } from 'wagmi';
 
 import { CATEGORIES, type Category } from '@/lib/agents/categories';
 import { isEscrowChain } from '@/lib/network/escrow';
-import { CHAIN_ID } from '@/lib/network/presentation';
+import { CHAIN_ID, shortNetworkLabel } from '@/lib/network/presentation';
 import {
   avatarSrc,
   handleProblem,
@@ -377,7 +377,7 @@ export function ProfileEditor({
                         <span className="flex min-w-0 flex-1 flex-col">
                           <span className="truncate text-[14px] font-medium">{a.name}</span>
                           <span className="truncate text-[12px] text-ink-3">
-                            #{a.tokenId} · {a.chainId === 56 ? 'BNB Chain' : 'Testnet'}
+                            #{a.tokenId} · {shortNetworkLabel(a.chainId)}
                             {a.category ? ` · ${a.category}` : ''}
                           </span>
                         </span>

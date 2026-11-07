@@ -12,7 +12,7 @@ import { lastSeen, tokenState } from '@/lib/builders/automation-token';
 import { providerOnboardingPrompt } from '@/lib/builders/automation-prompt';
 import { earningsByChain, providerWorkload, reconcileStagedWork } from '@/lib/builders/provider-work-view';
 import { deliveryBlocked } from '@/lib/assistant/provider-work';
-import { chainLabel } from '@/lib/network/presentation';
+import { chainLabel, shortNetworkLabel } from '@/lib/network/presentation';
 import { siteUrl } from '@/lib/site';
 import { LinkButton } from '@/ui/Button';
 import { CodeBlock } from '@/ui/Data';
@@ -198,7 +198,7 @@ export default async function AutomationPage() {
               {earnings.map((line) => (
                 <div key={`${line.chainId}:${line.token ?? 'unknown'}`} className="flex flex-col gap-2">
                   <p className="text-[12.5px] text-ink-3">
-                    {chainLabel(line.chainId)} ·{' '}
+                    {shortNetworkLabel(line.chainId)} ·{' '}
                     <span className={line.realMoney ? 'font-medium text-ink-2' : undefined}>
                       {/* The line's own money; an unknown token is said, not called $U. */}
                       {line.symbol
@@ -264,7 +264,7 @@ export default async function AutomationPage() {
               {unsubmittedDeliveries.map((staged) => (
                 <li key={staged.key} className="flex flex-wrap items-baseline justify-between gap-3 py-3 text-[13px]">
                   <span>
-                    Job <span className="t-readout">#{staged.jobId}</span> on {chainLabel(staged.chainId)}
+                    Job <span className="t-readout">#{staged.jobId}</span> on {shortNetworkLabel(staged.chainId).toLowerCase()}
                     {staged.job ? <span className="text-ink-3"> · {staged.job.agentName}</span> : null}
                   </span>
                   <span className="text-ink-3">
