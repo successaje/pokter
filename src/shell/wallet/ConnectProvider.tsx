@@ -202,7 +202,7 @@ function ConnectSheet({ open, reason, passkeyUnavailable, onClose, onReopen }: {
 const PASSKEY_NETWORK_ONLY = enabledEscrowChains().some((chainId) => chainId !== WALLET_NETWORK.chainId);
 const BROWSER_WALLET_REACH = PASSKEY_NETWORK_ONLY
   ? `Needed for hires on ${chainLabel(enabledEscrowChains().find((chainId) => chainId !== WALLET_NETWORK.chainId) ?? 56)}, which use real funds, and for any token other than $U. It is the same address you use everywhere else.`
-  : 'It is the same address you use everywhere else, including for Set and Earn.';
+  : 'It is the same address you use everywhere else.';
 
 function Option({
   icon,

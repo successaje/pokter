@@ -149,7 +149,7 @@ export default async function QuestPage({ searchParams }: { searchParams: Promis
         </span>
         <h1 className="t-h1">Your hires, across marketplaces</h1>
         <p className="t-lede">
-          The hire track needs three different agents across at least two marketplaces. Pokter reads the hires made through BNB Chain&rsquo;s ERC-8183 escrow contracts, on mainnet and testnet, whichever marketplace made them. Marketplaces that settle through contracts of their own are not visible here, so a hire made that way will not appear.
+          The hire track {live ? 'needs' : 'needed'} three different agents across at least two marketplaces. Pokter reads the hires made through BNB Chain&rsquo;s ERC-8183 escrow contracts, on mainnet and testnet, whichever marketplace made them. Marketplaces that settle through contracts of their own are not visible here, so a hire made that way will not appear.
         </p>
         {/*
          * The lookup stays up after the deadline: people check what they did.
@@ -195,7 +195,7 @@ export default async function QuestPage({ searchParams }: { searchParams: Promis
             <Result data={data} />
           </>
         )}
-        {!address && (
+        {!address && live && (
           <p className="text-[14px] text-ink-2">
             Building an agent too? The build track is tracked in{' '}
             <Link href="/build" className="link">
@@ -204,6 +204,19 @@ export default async function QuestPage({ searchParams }: { searchParams: Promis
             , and the steps are in the{' '}
             <Link href="/set-and-earn" className="link">
               Set and Earn guide
+            </Link>
+            .
+          </p>
+        )}
+        {!address && !live && (
+          <p className="text-[14px] text-ink-2">
+            Built an agent too? Its hirers, on-chain actions and active days are under Adoption, on its page in{' '}
+            <Link href="/build" className="link">
+              Builder Studio
+            </Link>
+            . What BNB Chain checks is on the{' '}
+            <Link href="/set-and-earn" className="link">
+              Set and Earn page
             </Link>
             .
           </p>

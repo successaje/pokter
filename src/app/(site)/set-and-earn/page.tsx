@@ -19,15 +19,28 @@ import { Icon } from '@/ui/icons';
 
 export const dynamic = 'force-dynamic';
 
-export const metadata: Metadata = {
-  title: 'Set and Earn: track your progress',
-  description: 'See where your wallet stands on BNB Chain Set and Earn, read from the chain, and get reminders before entries close. The steps and the traps, in order.',
-  alternates: { canonical: '/set-and-earn' },
-  ...shareMetadata({
-    title: 'How to complete BNB Chain Set and Earn',
-    description: 'Register, hire three agents across two marketplaces, and build one of your own. The steps and the traps, in order.',
-  }),
-};
+export function generateMetadata(): Metadata {
+  if (!isCampaignLive()) {
+    return {
+      title: 'Set and Earn has closed',
+      description: `BNB Chain Set and Earn closed on ${CAMPAIGN_DEADLINE}. What it asked for, who decides, and where to check a wallet’s hires.`,
+      alternates: { canonical: '/set-and-earn' },
+      ...shareMetadata({
+        title: 'BNB Chain Set and Earn has closed',
+        description: `Entries closed on ${CAMPAIGN_DEADLINE}. BNB Chain announces winners after ${CAMPAIGN_RESULTS_AFTER}.`,
+      }),
+    };
+  }
+  return {
+    title: 'Set and Earn: track your progress',
+    description: 'See where your wallet stands on BNB Chain Set and Earn, read from the chain, and get reminders before entries close. The steps and the traps, in order.',
+    alternates: { canonical: '/set-and-earn' },
+    ...shareMetadata({
+      title: 'How to complete BNB Chain Set and Earn',
+      description: 'Register, hire three agents across two marketplaces, and build one of your own. The steps and the traps, in order.',
+    }),
+  };
+}
 
 /** One step of the guide, folded: the page leads with progress, and the detail is one click away. */
 function Step({ n, title, lead, children, open = false }: { n: number; title: string; lead: string; children: React.ReactNode; open?: boolean }) {
@@ -71,6 +84,7 @@ async function shortlist() {
 
 export default async function SetAndEarn() {
   const live = isCampaignLive();
+  if (!live) return <ClosedRecord />;
   const bot = FAUCETS?.paymentTokenBot ?? null;
   const { rows: picks, free: freePicks } = await shortlist();
 
@@ -263,16 +277,110 @@ export default async function SetAndEarn() {
       </div>
 
       <div className="mt-10 max-w-3xl">
-        <section aria-labelledby="eligibility" className="border-t border-rule py-10 text-[14px] leading-relaxed text-ink-2">
-          <h2 id="eligibility" className="t-h3 mb-2 text-ink">
-            Eligibility
-          </h2>
-          <p>
-            You must be 18 or over, outside sanctioned or restricted jurisdictions, and use one wallet. Employees and contractors of BNB Chain and members of shortlisted marketplace teams are not eligible, which includes everyone who works on Pokter: no hire Pokter makes counts toward anything. BNB Chain does not operate Pokter or the agents on it, has not audited them and guarantees no outcome; its decision on qualification is final.
-          </p>
-        </section>
+        <Eligibility />
       </div>
     </div>
+  );
+}
+
+/**
+ * The page once entries have closed: what the campaign asked for, as a
+ * record, until BNB Chain names the winners.
+ *
+ * The guide stayed up whole after the deadline, its steps still in the
+ * imperative ("Register before you do anything else", "Get testnet
+ * funds") beside three agents to hire "so they count as three". None of
+ * that can count any more. What an entrant can still use is what BNB Chain
+ * checks, who decides, and where to look a wallet up.
+ */
+function ClosedRecord() {
+  const rows: Array<[string, React.ReactNode]> = [
+    ['Registration', 'Only a wallet registered with BNB Chain counted, and only for what it did after registering. One wallet per person: operating several is grounds for disqualification.'],
+    ['Hires', 'Three different agents, on at least two different shortlisted marketplaces, hired from the registered wallet. A hire counted from the moment its hire event was emitted on chain; a token approval with no hire did not. Testnet and mainnet hires both counted.'],
+    [
+      'A build',
+      'One agent of your own, registered on ERC-8004 after the Phase 2 announcement and owned by the registered wallet, with a resolvable agent card stating its category, a public repository and an endpoint that answers when probed.',
+    ],
+    [
+      'The build in use',
+      'Three distinct external wallets hiring it, not funded by yours, and at least five on-chain actions from the agent’s own wallet over three separate days, matching its category. A written deliverable is not an on-chain action.',
+    ],
+    ['Not counted', 'Agents registered before the Phase 2 announcement, cosmetic clones of listed agents, the same agent under several IDs, and wallets that share a funding source or hire each other in circles.'],
+    [
+      'Where to look',
+      <>
+        A wallet&rsquo;s hires:{' '}
+        <Link href="/quest" className="link">
+          the tracker
+        </Link>
+        . An agent&rsquo;s hirers, on-chain actions and active days: Adoption, on the agent&rsquo;s page in{' '}
+        <Link href="/build" className="link">
+          Builder Studio
+        </Link>
+        .
+      </>,
+    ],
+  ];
+  return (
+    <div className="frame max-w-3xl pb-24 pt-10 sm:pt-14">
+      <header className="flex flex-col gap-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <span className="t-label flex items-center gap-2">
+            <span className="tile" aria-hidden /> BNB Chain · Set and Earn
+          </span>
+          <ClosedChip />
+        </div>
+        <div className="flex flex-col gap-3">
+          <h1 className="t-h1">How Set and Earn worked</h1>
+          <p className="t-lede">
+            It had two goals: <strong className="text-ink">hiring three different agents on at least two marketplaces</strong>, and{' '}
+            <strong className="text-ink">building an agent of your own that others hire</strong>. The rules stay here until BNB Chain names the winners.
+          </p>
+        </div>
+      </header>
+
+      <div className="mt-8">
+        <ClosedNotice />
+      </div>
+
+      <section aria-labelledby="checks-title" className="mt-14">
+        <h2 id="checks-title" className="t-h3">
+          What BNB Chain checks
+        </h2>
+        <p className="mt-1 text-[14px] text-ink-2">
+          These are BNB Chain&rsquo;s rules, not Pokter&rsquo;s.{' '}
+          <a href={CAMPAIGN_RULES_URL} className="link" target="_blank" rel="noreferrer noopener">
+            Read them in full
+          </a>
+          . Pokter is shortlisted, not affiliated with or endorsed by BNB Chain.
+        </p>
+        <dl className="ruled mt-4 border-y border-rule text-[14.5px] leading-relaxed text-ink-2">
+          {rows.map(([label, value]) => (
+            <div key={label} className="grid gap-1 py-3 sm:grid-cols-[160px_minmax(0,1fr)]">
+              <dt className="font-medium text-ink">{label}</dt>
+              <dd>{value}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>
+
+      <div className="mt-10">
+        <Eligibility />
+      </div>
+    </div>
+  );
+}
+
+function Eligibility() {
+  return (
+    <section aria-labelledby="eligibility" className="border-t border-rule py-10 text-[14px] leading-relaxed text-ink-2">
+      <h2 id="eligibility" className="t-h3 mb-2 text-ink">
+        Eligibility
+      </h2>
+      <p>
+        You must be 18 or over, outside sanctioned or restricted jurisdictions, and use one wallet. Employees and contractors of BNB Chain and members of shortlisted marketplace teams are not eligible, which includes everyone who works on Pokter: no hire Pokter makes counts toward anything. BNB Chain does not operate Pokter or the agents on it, has not audited them and guarantees no outcome; its decision on qualification is final.
+      </p>
+    </section>
   );
 }
 

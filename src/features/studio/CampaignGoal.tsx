@@ -3,7 +3,7 @@ import {
   CAMPAIGN_IS_SEPARATE,
   type QualificationVisibility,
 } from '@/lib/campaign/build-qualification';
-import { CAMPAIGN_RULES_URL } from '@/lib/campaign/window';
+import { CAMPAIGN_RULES_URL, isCampaignLive } from '@/lib/campaign/window';
 import { cn } from '@/lib/ui/cn';
 import { Details } from '@/ui/Data';
 import { Notice } from '@/ui/Feedback';
@@ -28,8 +28,12 @@ const SOURCE: Record<QualificationVisibility, { label: string; tone: string }> =
  * hired and be paid, and will never satisfy the campaign's on-chain
  * execution requirements. Telling such a builder to add trading so they
  * can enter would be Pokter selling them a risk it does not carry.
+ *
+ * Only while entries are open: after the deadline it offered to enter a
+ * campaign nobody could enter any more, on every agent check in Studio.
  */
 export function CampaignGoal({ summary = 'I also want to enter Set and Earn' }: { summary?: string }) {
+  if (!isCampaignLive()) return null;
   return (
     <Details summary={summary}>
       <div className="flex flex-col gap-4">

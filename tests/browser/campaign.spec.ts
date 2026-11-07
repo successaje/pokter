@@ -149,6 +149,14 @@ test.describe('@after-deadline once the server is past the deadline', () => {
     await expect(notice).toContainText('announces winners after 13 November');
     await expect(page.getByText('get a reminder before time runs out')).toHaveCount(0);
     await expect(page.getByText('Closed', { exact: true })).toBeVisible();
+    // A record of what BNB Chain checks, not steps to take or agents to hire for it.
+    await expect(page.getByRole('heading', { level: 1, name: 'How Set and Earn worked' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'What BNB Chain checks' })).toBeVisible();
+    for (const offer of ['Three agents to start with', 'Get testnet funds', 'Register before you do anything else']) {
+      await expect(page.getByText(offer)).toHaveCount(0);
+    }
+    await expect(page.locator('main a[href^="/hire/"]')).toHaveCount(0);
+    await expect(page.locator('footer a[href="/set-and-earn"]')).toHaveCount(0);
     await notice.getByRole('link', { name: 'Check a wallet’s hires' }).click();
     await expect(page).toHaveURL(/\/quest$/);
   });

@@ -50,18 +50,25 @@ function moneyTotal(lines: TotalLine[]) {
   );
 }
 
-function Progress({ label, value, target, met, note }: { label: string; value: number; target: number; met: boolean; note?: string }) {
+/**
+ * One adoption count, with a bar toward its target while there is one.
+ * The targets were Set and Earn's: once entries closed, "1/3" read as a
+ * goal of Pokter's, so the count stands alone (`target` null).
+ */
+function Progress({ label, value, target, met, note }: { label: string; value: number; target: number | null; met: boolean; note?: string }) {
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-baseline justify-between">
         <span className="text-[13px] font-medium">{label}</span>
         <span className="t-readout text-[13px]">
-          {value}/{target}
+          {target === null ? value : `${value}/${target}`}
         </span>
       </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-sunken">
-        <div className={`h-full rounded-full ${met ? 'bg-ok' : 'bg-ink'}`} style={{ width: `${Math.min(100, (value / target) * 100)}%` }} />
-      </div>
+      {target !== null && (
+        <div className="h-1.5 overflow-hidden rounded-full bg-sunken">
+          <div className={`h-full rounded-full ${met ? 'bg-ok' : 'bg-ink'}`} style={{ width: `${Math.min(100, (value / target) * 100)}%` }} />
+        </div>
+      )}
       {note && <span className="text-[12px] text-ink-3">{note}</span>}
     </div>
   );
@@ -124,6 +131,7 @@ export default async function ManageAgent({ params }: { params: Promise<{ chainI
   }
   const mine = jobs.filter((j) => `${j.agentChainId ?? 56}:${j.agentTokenId}` === agent.key);
   const ad = agent.adoption;
+  const campaign = isCampaignLive();
   const ops = loadAgentOps(agent.chainId, agent.tokenId, mine);
   const proofPath = `/proof?funder=outside-team&agent=${encodeURIComponent(agent.key)}`;
   const listingPath = `/agents/${agent.chainId}/${agent.tokenId}`;
@@ -225,15 +233,20 @@ export default async function ManageAgent({ params }: { params: Promise<{ chainI
                 <h2 id="adoption-title" className="t-h3">
                   Adoption
                 </h2>
-                <p className="text-[12.5px] text-ink-3">{isCampaignLive() ? 'Measured against the Set and Earn build targets.' : 'Read from the escrow contract.'}</p>
+                <p className="text-[12.5px] text-ink-3">{campaign ? 'Measured against the Set and Earn build targets.' : 'Read from the escrow contract.'}</p>
               </div>
-              <Progress label="Hires by independent wallets" value={ad.independentWallets} target={ad.independentTarget} met={ad.hiresMet} note={ad.selfFunded ? `${ad.selfFunded} self-funded hire${ad.selfFunded === 1 ? '' : 's'} not counted` : undefined} />
-              <Progress label="On-chain actions by the agent" value={ad.actions} target={ad.actionsTarget} met={ad.actionsMet} note={ad.actionsBlockedReason ?? undefined} />
-              <Progress label="Separate active days" value={ad.activeDays} target={ad.daysTarget} met={ad.daysMet} />
+              <Progress label={campaign ? 'Hires by independent wallets' : 'Wallets that hired it, other than yours'} value={ad.independentWallets} target={campaign ? ad.independentTarget : null} met={ad.hiresMet} note={ad.selfFunded ? `${ad.selfFunded} self-funded hire${ad.selfFunded === 1 ? '' : 's'} not counted` : undefined} />
+              <Progress label="On-chain actions by the agent" value={ad.actions} target={campaign ? ad.actionsTarget : null} met={ad.actionsMet} note={ad.actionsBlockedReason ?? undefined} />
+              <Progress label="Separate active days" value={ad.activeDays} target={campaign ? ad.daysTarget : null} met={ad.daysMet} />
               {/* A count reaching its target is not the campaign agreeing: the meaning of these numbers is BNB Chain's to judge. */}
-              {isCampaignLive() && (
+              {campaign ? (
                 <p className="text-[12px] leading-relaxed text-ink-3">
                   These are counts. Pokter does not check whether the actions fit the agent&rsquo;s category or whether the hirers are independent; BNB Chain decides both.
+                </p>
+              ) : (
+                /* `summariseAdoption` leaves out the owner's own wallets and nothing else. */
+                <p className="text-[12px] leading-relaxed text-ink-3">
+                  Pokter does not trace where a hirer&rsquo;s funds came from, so a wallet you funded still counts here.
                 </p>
               )}
             </section>
