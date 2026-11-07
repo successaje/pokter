@@ -49,7 +49,7 @@ export const JOB_STATUS_WORDS: Record<string, { label: string; meaning: string }
   SUBMITTED: { label: 'Delivered', meaning: 'The agent submitted its delivery. The money stays in escrow until the review window closes and someone settles it, or a dispute succeeds.' },
   COMPLETED: { label: 'Completed, agent paid', meaning: 'The job was settled and the escrow paid the agent.' },
   REJECTED: { label: 'Rejected, buyer refunded', meaning: 'A dispute reached its quorum and settling the job refunded the buyer.' },
-  EXPIRED: { label: 'Expired, buyer refunded', meaning: 'The deadline passed and the buyer reclaimed the money.' },
+  EXPIRED: { label: 'Expired, buyer refunded', meaning: 'The deadline passed and the escrow refunded the buyer.' },
 };
 
 /**

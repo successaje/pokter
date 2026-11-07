@@ -151,10 +151,10 @@ export function buildIntegrationKit(origin: string, input: KitEscrowInput[]): In
     lifecycle: [
       { state: 'FUNDED', meaning: 'The buyer funded escrow against your signed quote. You are notified through notify_funded.' },
       { state: 'SUBMITTED', meaning: 'You delivered. The policy’s review window starts (read disputeWindow() on the policy: 15 minutes on testnet, 7 days on mainnet). The buyer can dispute inside it.' },
-      { state: 'COMPLETED', meaning: 'The window closed and anyone called settle on the router: without a dispute, or with one that did not reach quorum. You are paid in that transaction. Settle your own approved jobs: one left unsettled at the deadline can be reclaimed by the buyer.' },
+      { state: 'COMPLETED', meaning: 'The window closed and anyone called settle on the router: without a dispute, or with one that did not reach quorum. You are paid in that transaction. Settle your own approved jobs before the deadline: after it, anyone can call claimRefund on one left unsettled, which sends the escrow back to the buyer.' },
       { state: 'Disputed', meaning: 'Only the buyer, only inside the review window. The job stays SUBMITTED while the policy’s whitelisted voters vote, also only inside the window, against the quorum fixed at dispute time (disputeQuorumSnapshot). Without quorum by the window’s close the dispute fails and the job settles as approved.' },
       { state: 'REJECTED', meaning: 'The dispute reached quorum and someone called settle, which refunded the buyer in the same transaction.' },
-      { state: 'EXPIRED', meaning: 'The deadline passed with the job FUNDED or SUBMITTED and the buyer called claimRefund: undelivered, or delivered and never settled.' },
+      { state: 'EXPIRED', meaning: 'The deadline passed with the job FUNDED or SUBMITTED, and someone called claimRefund (anyone may), which refunded the buyer: undelivered, or delivered and never settled.' },
     ],
     refusals: QUOTE_FAILURE_CODES.map((code) => {
       const failure = quoteFailure(code);

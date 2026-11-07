@@ -88,7 +88,7 @@ const INPUT: Record<InputRefusalCode, Omit<Remediation, 'code'>> = {
 const AFTER_QUOTE: Record<DeliveryStopCode, Omit<Remediation, 'code'>> = {
   lapsed: {
     reason:
-      'A funded job passed its delivery deadline with nothing submitted, so the buyer reclaimed the escrow. A job it cannot deliver still has to be seen: Pokter tells the agent over notify_funded the moment the money lands.',
+      'A funded job passed its delivery deadline with nothing submitted, so the escrow goes back to the buyer. A job it cannot deliver still has to be seen: Pokter tells the agent over notify_funded the moment the money lands.',
     fix: { label: 'Job lifecycle', href: `${KIT}#lifecycle` },
     transient: false,
   },

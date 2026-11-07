@@ -176,7 +176,7 @@ test('a funded job inside its deadline is the only deliverable one', () => {
     ['SUBMITTED', /already been delivered/],
     ['COMPLETED', /settled and paid/],
     ['REJECTED', /disputed/],
-    ['EXPIRED', /reclaimed/],
+    ['EXPIRED', /refunded the buyer/],
     ['OPEN', /not FUNDED/],
   ] as const) {
     const blocked = deliveryBlocked({ status, expiredAt: AHEAD });

@@ -24,7 +24,7 @@ test('it never fires where the escrow would refuse the release', () => {
    * was jobs 1202 and 1217 reverting `0x32d53d69`, which is the router's
    * PolicyNotSet and not an expiry at all. The deployed kernel's `complete`
    * has no deadline check, so a delivered job still SUBMITTED can be
-   * settled however late, until the buyer reclaims it.
+   * settled however late, until someone reclaims it.
    */
   assert.equal(releaseAvailable({ ...base, now: base.expiredAt + 1 }), true, 'still releasable past the deadline');
   // A dispute is its own path, with its own actors and deadlines.

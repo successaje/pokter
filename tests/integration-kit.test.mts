@@ -45,6 +45,18 @@ test('the kit does not claim the escrow blocks a self-hire', () => {
 });
 
 /*
+ * `claimRefund` has no sender check: past the deadline any wallet may send
+ * it, and it always pays the buyer. Saying the buyer reclaims told a seller
+ * the risk to an unsettled delivery was the buyer's choice alone.
+ */
+test('the kit says anyone can send the refund on an expired job', () => {
+  const lifecycle = new Map(integrationKit('https://pokter.xyz').lifecycle.map((step) => [step.state, step.meaning]));
+  assert.match(lifecycle.get('COMPLETED') ?? '', /before the deadline: after it, anyone can call claimRefund/);
+  assert.match(lifecycle.get('EXPIRED') ?? '', /someone called claimRefund \(anyone may\), which refunded the buyer/);
+  assert.doesNotMatch([...lifecycle.values()].join('\n'), /reclaimed by the buyer|the buyer called claimRefund/);
+});
+
+/*
  * Categories come from `CATEGORIES`, not a second hand-kept list. Every
  * copy of this list had drifted to four while the form offered five plus
  * "none of these fits".

@@ -69,5 +69,5 @@ export const JOB_STAGE_COPY: Record<JobStatusName, string> = {
   SUBMITTED: 'Provider delivered. Dispute window open before escrow releases.',
   COMPLETED: 'Escrow released to the provider.',
   REJECTED: 'The buyer disputed the delivery, the policy’s voters rejected it, and settling refunded the buyer. The provider was not paid.',
-  EXPIRED: 'The deadline passed with the job unsettled and the buyer reclaimed the escrow: nothing was delivered, or a delivery was never settled.',
+  EXPIRED: 'The deadline passed with the job unsettled and the escrow refunded the buyer: nothing was delivered, or a delivery was never settled.',
 };

@@ -438,7 +438,7 @@ Deadlines, read and not assumed
 
 Settlement, and confirming the agent was actually paid
 - Delivering is not being paid. A submitted job enters the policy's review window, and payment happens when \`settle\` is called on the router after that window closes — in that transaction, not before.
-- Track your own jobs through to settlement and call \`settle\` on your own approved jobs. A delivered job left unsettled past the deadline can be reclaimed by the buyer, which means the work was done, accepted, and not paid for.
+- Track your own jobs through to settlement and call \`settle\` on your own approved jobs. Once the deadline passes, anyone can refund a delivered job that is still unsettled, and the escrow goes back to the buyer: the work was done, accepted, and not paid for.
 - Confirm payment by checking the agent wallet's balance moved, or the settle transaction's receipt, and surface the job's state. Treat a job as earning only once that confirmation exists; do not report a delivery as revenue.
 
 WHERE YOU HOST IT, AND FOR HOW LONG

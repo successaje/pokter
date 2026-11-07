@@ -184,7 +184,7 @@ export function deliveryBlocked(job: { status: string; expiredAt: string }, now:
   }
   if (job.status === 'COMPLETED') return 'This job is settled and paid. There is nothing left to deliver.';
   if (job.status === 'REJECTED') return 'This delivery was disputed and the voters rejected it. The escrow refunded the buyer and will not take another submission.';
-  if (job.status === 'EXPIRED') return 'This job expired and the buyer reclaimed the escrow. Nothing delivered now would be paid.';
+  if (job.status === 'EXPIRED') return 'This job expired and the escrow refunded the buyer. Nothing delivered now would be paid.';
   if (job.status !== 'FUNDED') return `This job is ${job.status}, not FUNDED, so no delivery can be submitted for it.`;
   const deadline = Date.parse(job.expiredAt);
   if (Number.isFinite(deadline) && deadline <= now) {

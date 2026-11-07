@@ -276,7 +276,7 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
 
       {!owned && (
         <Notice tone="neutral" title={connected ? 'This job was funded by a different wallet' : 'Read-only'}>
-          You can see its public record. Only the wallet that funded it can release, dispute or reclaim the escrow. To share it, send its{' '}
+          You can see its public record. The release, dispute and reclaim controls here are for the wallet that funded it. To share it, send its{' '}
           <Link href={jobEvidencePath(job)} className="underline underline-offset-2">
             evidence page
           </Link>
