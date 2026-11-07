@@ -5,11 +5,11 @@ import { getAddress, isAddress, parseUnits } from 'viem';
 import {
   buildClaimRefundCall,
   getErc8183DeliverableUrl,
-  getErc8183Job,
   settleErc8183Job,
 } from '@altananetwork/sdk';
 
 import { NATIVE_SYMBOL } from '@/lib/network/presentation';
+import { getErc8183Job } from '@/lib/erc8183/job-read-browser';
 import { assertRefundEligible } from '@/lib/erc8183/reclaim-check';
 import type { HiredJob } from '@/lib/erc8183/types';
 import { usePasskeySigner, usePasskeyWallet } from '@/lib/wallet/PasskeyProvider';

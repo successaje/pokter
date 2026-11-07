@@ -6,7 +6,8 @@ import { budgetDefault } from '@/lib/hire/budget-default';
 import { createPublicClient, fallback, http } from 'viem';
 import { bsc, bscTestnet } from 'viem/chains';
 import { formatEther, formatUnits, parseUnits } from 'viem';
-import { hireErc8183Agent } from '@altananetwork/sdk';
+import { getErc8183DeliverableUrl, hireErc8183Agent } from '@altananetwork/sdk';
+import { getErc8183Job } from '@/lib/erc8183/job-read-browser';
 import { ensureGas, SponsorshipRefused } from '@/lib/wallet/sponsor-client';
 
 import { FAUCETS, NATIVE_SYMBOL } from '@/lib/network/presentation';
@@ -920,7 +921,6 @@ export function useHire({
         setNotification('accepted');
         setNotificationDetail('The seller verified the funded job and accepted the delivery request.');
         try {
-          const { getErc8183Job, getErc8183DeliverableUrl } = await import('@altananetwork/sdk');
           const current = await getErc8183Job(network, BigInt(hired.jobId));
           const deliverableUrl =
             payload.deliverableUrl ??
@@ -1948,7 +1948,6 @@ export function useHire({
     if (!job) return;
     setRefreshing(true);
     try {
-      const { getErc8183Job, getErc8183DeliverableUrl } = await import('@altananetwork/sdk');
       const current = await getErc8183Job(network, BigInt(job.jobId));
       const deliverableUrl =
         job.deliverableUrl ??

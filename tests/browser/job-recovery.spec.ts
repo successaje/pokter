@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { resolve } from 'node:path';
 
 import { expect, test } from '@playwright/test';
+import { encodeFunctionData, parseAbi } from 'viem';
 
 import { alignBrowserClock } from './support/clock';
 import { mockChain } from './support/mock-chain';
@@ -26,7 +27,7 @@ test('jobs on both escrows return after the buyer clears browser storage and rec
   await alignBrowserClock(page);
   await installMockWallet(page, { address: BUYER, chainId: 97 });
   await page.route((url) => url.hostname !== 'localhost' && url.hostname !== '127.0.0.1', (route) => route.abort('blockedbyclient'));
-  await mockChain(page, {
+  const chain = await mockChain(page, {
     chainId: 56,
     now: Date.parse('2026-11-01T12:00:00.000Z') / 1000,
     jobs: {
@@ -48,9 +49,17 @@ test('jobs on both escrows return after the buyer clears browser storage and rec
   }
   expect((await walletCalls(page)).filter((call) => SIGNING_METHODS.includes(call.method))).toEqual([]);
 
+  const beforeJobPage = chain.requests().length;
   await page.getByRole('link', { name: /Recovered mainnet job/ }).click();
   await expect(page.getByText('Expired · refunded', { exact: true }).first()).toBeVisible();
   await expect(page.getByRole('button', { name: /Reclaim/ })).toHaveCount(0);
+
+  /* The page reads the job itself from the hire's nodes, the chain's own first, and never from the SDK's one, which throttles a browser. */
+  const getJob = encodeFunctionData({ abi: parseAbi(['function getJob(uint256)']), functionName: 'getJob', args: [990056n] });
+  const reads = chain.requests().slice(beforeJobPage).filter((request) => request.data === getJob);
+  expect(reads.length).toBeGreaterThan(0);
+  expect(reads[0].host).toBe('bsc-dataseed.bnbchain.org');
+  expect(reads.filter((request) => request.host === 'bsc-rpc.publicnode.com')).toEqual([]);
 });
 
 test('recover by number searches mainnet even when the connected wallet is on testnet', async ({ page }) => {

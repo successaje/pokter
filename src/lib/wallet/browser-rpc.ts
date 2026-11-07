@@ -22,6 +22,10 @@
  * SDK's endpoint stays last rather than being dropped — it works, until
  * it is asked too often.
  *
+ * The browser's job reads ask this list too (`erc8183/job-read-browser.ts`).
+ * On 7 November every node here, on both chains, answered a CORS preflight
+ * and a `getJob` call from a browser origin.
+ *
  * Server-side callers are not polling from a residential IP and have never
  * hit this. Their job reads have a list of their own, for a different
  * failure: one node timing out (`erc8183/job-read.ts`).

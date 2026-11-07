@@ -7,10 +7,10 @@ import {
   buildClaimRefundCall,
   buildHireCalls,
   buildSubmitCall,
-  getErc8183Job,
 } from '@altananetwork/sdk';
 
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
+import { getErc8183Job } from '@/lib/erc8183/job-read-browser';
 import { assertRefundEligible } from '@/lib/erc8183/reclaim-check';
 import { jobLifetimeSeconds } from '@/lib/erc8183/deadline';
 import { canSettleAs, settleCallerAllowed, type SettleCaller } from '@/lib/erc8183/settle-window';
