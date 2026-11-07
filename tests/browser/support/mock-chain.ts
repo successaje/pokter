@@ -75,10 +75,19 @@ export interface MockChainState {
   disputeQuorum?: number;
 }
 
+/** One request the page made, and which node it asked. */
+export interface AskedRequest {
+  host: string;
+  method: string;
+  /** An `eth_call`'s calldata. */
+  data?: Hex;
+}
+
 class NotModelled extends Error {}
 
 export async function mockChain(page: Page, chain: MockChainState) {
   const asked: string[] = [];
+  const requests: AskedRequest[] = [];
   const tokens = new Map(Object.entries(chain.tokens ?? {}).map(([address, token]) => [address.toLowerCase(), token]));
 
   /** One contract call's return data. Throws `NotModelled` for anything this chain does not know. */
@@ -183,9 +192,12 @@ export async function mockChain(page: Page, chain: MockChainState) {
     throw new NotModelled();
   };
   await page.route(NODES, async (route) => {
+    const host = new URL(route.request().url()).host;
     const body = route.request().postDataJSON() as { id: number; method: string; params?: unknown[] } | Array<{ id: number; method: string; params?: unknown[] }>;
     const one = (r: { id: number; method: string; params?: unknown[] }) => {
       asked.push(r.method);
+      const tx = r.method === 'eth_call' ? (r.params?.[0] as { data?: Hex; input?: Hex } | undefined) : undefined;
+      requests.push({ host, method: r.method, data: tx?.data ?? tx?.input });
       try {
         return { jsonrpc: '2.0', id: r.id, result: answer(r.method, r.params ?? []) };
       } catch {
@@ -194,5 +206,5 @@ export async function mockChain(page: Page, chain: MockChainState) {
     };
     await route.fulfill({ contentType: 'application/json', body: JSON.stringify(Array.isArray(body) ? body.map(one) : one(body)) });
   });
-  return { asked: () => asked.slice() };
+  return { asked: () => asked.slice(), requests: () => requests.slice() };
 }

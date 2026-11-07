@@ -1,12 +1,12 @@
 import 'server-only';
 
-import { JOB_STATUS, type Erc8183Job, type JobStatusName, type NetworkConfig } from '@altananetwork/sdk';
+import type { Erc8183Job, NetworkConfig } from '@altananetwork/sdk';
 import { createPublicClient, getAddress, type Address } from 'viem';
 
 import { readTransport } from '@/lib/chain/rpc';
 import { readUrlsKeeping } from '@/lib/chain/transport';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
-import { GET_JOB_ABI } from '@/lib/erc8183/job-onchain';
+import { readErc8183Job } from '@/lib/erc8183/get-job';
 
 /**
  * The SDK's `getErc8183Job`, read through several nodes instead of one.
@@ -18,9 +18,9 @@ import { GET_JOB_ABI } from '@/lib/erc8183/job-onchain';
  * itself was fine.
  *
  * Same arguments, same answer, `statusName` included, so a server call
- * site changes only where it imports from. The browser keeps the SDK's:
- * NodeReal's key never reaches it, and its hire reads have their own list
- * (`wallet/browser-rpc.ts`).
+ * site changes only where it imports from. The browser has its own
+ * (`job-read-browser.ts`): NodeReal's key never reaches it, and it asks the
+ * nodes its hires already use.
  */
 type JobClient = ReturnType<typeof createPublicClient>;
 const clients = new Map<number, JobClient>();
@@ -36,12 +36,5 @@ function jobClient(network: NetworkConfig): JobClient {
 }
 
 export async function getErc8183Job(network: NetworkConfig, jobId: bigint): Promise<Erc8183Job> {
-  const job = await jobClient(network).readContract({
-    address: getAddress(correctedErc8183Addresses(network.chainId).commerce) as Address,
-    abi: GET_JOB_ABI,
-    functionName: 'getJob',
-    args: [jobId],
-  });
-  /* As the SDK does: a status the kernel adds later reads UNKNOWN rather than throwing. */
-  return { ...job, statusName: (JOB_STATUS[job.status] ?? 'UNKNOWN') as JobStatusName };
+  return readErc8183Job(jobClient(network), getAddress(correctedErc8183Addresses(network.chainId).commerce) as Address, jobId);
 }

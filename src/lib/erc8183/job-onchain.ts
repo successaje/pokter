@@ -3,12 +3,8 @@ import 'server-only';
 import { getAddress, type Address } from 'viem';
 
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
+import { GET_JOB_ABI, JOB_STATUS_NAMES as STATUS } from '@/lib/erc8183/get-job';
 import { historyClient } from '@/lib/erc8183/history-client';
-
-export const GET_JOB_ABI = [{ name: 'getJob', type: 'function', stateMutability: 'view', inputs: [{ name: 'jobId', type: 'uint256' }], outputs: [{ type: 'tuple', components: [
-  { name: 'id', type: 'uint256' }, { name: 'client', type: 'address' }, { name: 'provider', type: 'address' }, { name: 'evaluator', type: 'address' }, { name: 'description', type: 'string' }, { name: 'budget', type: 'uint256' }, { name: 'expiredAt', type: 'uint256' }, { name: 'status', type: 'uint8' }, { name: 'hook', type: 'address' }, { name: 'submittedAt', type: 'uint256' }, { name: 'deliverable', type: 'bytes32' }] }] }] as const;
-
-const STATUS = ['OPEN', 'FUNDED', 'SUBMITTED', 'COMPLETED', 'REJECTED', 'EXPIRED'] as const;
 
 /**
  * A job's status and committed deliverable read from the escrow itself,
