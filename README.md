@@ -402,7 +402,7 @@ All optional for local browsing. Server-only unless marked public.
 | `SCAN_BASE_URL` | Overrides the 8004scan API base |
 | `NEXT_PUBLIC_ALTANA_NETWORK` | Public. Must agree with `ALTANA_NETWORK`; the server refuses to start otherwise |
 | `NEXT_PUBLIC_PASSKEY_RP_ID` | Public. The passkey relying-party id; a build arg |
-| `BSC_MAINNET_RPC_URL` | Overrides the public node used for Venus and escrow reads |
+| `BSC_MAINNET_RPC_URL` | Your own mainnet node. It replaces publicnode for the assay's Venus and PancakeSwap v3 reads, trading, registry, x402 and escrow history reads. The escrow index asks it first, with BNB Chain's public nodes behind it |
 | `NEXT_PUBLIC_ESCROW_CHAINS` | Which escrows hires may be funded on, e.g. `97,56`. Unset means testnet only. A build arg, not a runtime value |
 | `ALTANA_MAINNET_OPERATOR_PURPOSES` | Comma-separated operator purposes allowed to sign on mainnet, e.g. `evidence-agent`. Nothing signs on mainnet without it |
 | `*_DB_PATH` | SQLite locations: `PROBE`, `SESSION`, `JOB`, `DELIVERABLE`, `RATE_LIMIT`, `NOTIFICATION`, `REVIEW`, `BUILDER`, `FUNDER`, `ASSAY`, `QUEST`, `CONVERSION`, `SEAL`, `WALLET_ACTIVITY`, `CAPABILITY`, `FEEDBACK`, `BRIEF`, `PROFILE`, `SCOUT`, `MAINTENANCE`, `SATURATION`. Default `./data/`. A new store is registered in `src/lib/health/stores.ts`, the Dockerfile and `fly.toml` together |
