@@ -1,9 +1,8 @@
 import 'server-only';
 
-import { getErc8183Job } from '@altananetwork/sdk';
-
 import { altanaNetworkFor } from '@/lib/altana/client';
 import { indexIfMissing, jobIdentity } from '@/lib/erc8183/job-identity';
+import { getErc8183Job } from '@/lib/erc8183/job-read';
 import { nextPending, parsePending, REVISIT_PER_RUN } from '@/lib/erc8183/reconcile-pending';
 import { getJobStore } from '@/lib/erc8183/store';
 import { scanRange } from '@/lib/erc8183/reconcile-window';

@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import { isHex } from 'viem';
-import { getErc8183Job, verifyErc8183ManifestText } from '@altananetwork/sdk';
+import { verifyErc8183ManifestText } from '@altananetwork/sdk';
 
 import { altanaNetworkFor } from '@/lib/altana/client';
 import { deliverableGate } from '@/lib/erc8183/deliverable-gate';
 import { deliverableKey, readDeliverable } from '@/lib/erc8183/deliverables';
+import { getErc8183Job } from '@/lib/erc8183/job-read';
 import { jobChainParam } from '@/lib/jobs/href';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 

@@ -1,10 +1,9 @@
 import 'server-only';
 import { mayStartSideEffect } from '@/lib/history/budget';
 
-import { getErc8183Job } from '@altananetwork/sdk';
-
 import { altanaNetworkFor } from '@/lib/altana/client';
 import { isEscrowChain } from '@/lib/network/escrow';
+import { getErc8183Job } from '@/lib/erc8183/job-read';
 import { getJobStore } from '@/lib/erc8183/store';
 import { estimatedFundedAt } from '@/lib/erc8183/dispute-window';
 import { sendOperatorAlert } from '@/lib/alerts/operator';

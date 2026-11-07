@@ -4,7 +4,6 @@ import {
   buildSubmitCall,
   encodeErc8183Manifest,
   erc8183ManifestHash,
-  getErc8183Job,
   type Erc8183DeliverableManifest,
 } from '@altananetwork/sdk';
 import {
@@ -22,6 +21,7 @@ import { altanaNetworkFor } from '@/lib/altana/client';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { readDeliverable, writeDeliverable } from '@/lib/erc8183/deliverables';
 import { jobTaskFromDescription } from '@/lib/erc8183/job-envelope';
+import { getErc8183Job } from '@/lib/erc8183/job-read';
 import { evidenceAgentWallet } from '@/lib/evidence/negotiate';
 import { siteOrigin } from '@/lib/evidence/origin';
 import { evidenceFor, parseAgentRef } from '@/lib/evidence/report';

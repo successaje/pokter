@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getErc8183Job } from '@altananetwork/sdk';
 
 import { altanaNetworkFor } from '@/lib/altana/client';
 import { BUILDER_SESSION_COOKIE, builderSessionOwner } from '@/lib/builders/store';
+import { getErc8183Job } from '@/lib/erc8183/job-read';
 import { getJobStore } from '@/lib/erc8183/store';
 import { builderNotifications, markBuilderNotificationsRead, recordBuilderJobEvent } from '@/lib/notifications/server';
 import { listAgents } from '@/lib/scan/client';

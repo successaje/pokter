@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 
 import { jobPaymentTokenOnChain } from '@/lib/erc8183/job-onchain';
-import { getErc8183Job } from '@altananetwork/sdk';
 import {
   createPublicClient,
   decodeEventLog,
@@ -17,6 +16,7 @@ import { isEscrowChain } from '@/lib/network/escrow';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { jobIdentity } from '@/lib/erc8183/job-identity';
 import { attributeJob } from '@/lib/erc8183/attribute-owners';
+import { getErc8183Job } from '@/lib/erc8183/job-read';
 import { getJobStore } from '@/lib/erc8183/store';
 import type { HiredJob } from '@/lib/erc8183/types';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';

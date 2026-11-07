@@ -2,10 +2,9 @@ import 'server-only';
 import { mayStartSideEffect } from '@/lib/history/budget';
 import { deliveryDiagnosticLine, type DeliveryPhase } from '@/lib/erc8183/delivery-diagnostics';
 
-import { getErc8183Job } from '@altananetwork/sdk';
-
 import { ALTANA_NETWORK } from '@/lib/altana/client';
 import { isDemoSeller, submitDemoDeliverable } from '@/lib/erc8183/demo-seller';
+import { getErc8183Job } from '@/lib/erc8183/job-read';
 import { getJobStore } from '@/lib/erc8183/store';
 import { shouldRetryDelivery } from '@/lib/erc8183/delivery-eligibility';
 

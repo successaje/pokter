@@ -3,7 +3,6 @@ import {
   buildSubmitCall,
   encodeErc8183Manifest,
   erc8183ManifestHash,
-  getErc8183Job,
   verifyErc8183ManifestText,
   type Erc8183DeliverableManifest,
 } from '@altananetwork/sdk';
@@ -21,6 +20,7 @@ import {
   readDeliveryChallenge,
   writeDeliverable,
 } from '@/lib/erc8183/deliverables';
+import { getErc8183Job } from '@/lib/erc8183/job-read';
 import { getJobStore } from '@/lib/erc8183/store';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 import { registryOwner } from '@/lib/registry/onchain';

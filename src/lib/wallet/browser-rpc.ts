@@ -22,8 +22,9 @@
  * SDK's endpoint stays last rather than being dropped — it works, until
  * it is asked too often.
  *
- * Server-side callers keep using `publicRpcUrl` directly. They are not
- * polling from a residential IP and have never hit this.
+ * Server-side callers are not polling from a residential IP and have never
+ * hit this. Their job reads have a list of their own, for a different
+ * failure: one node timing out (`erc8183/job-read.ts`).
  */
 
 const BROWSER_RPC: Record<number, readonly string[]> = {

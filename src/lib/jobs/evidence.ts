@@ -1,6 +1,5 @@
 import 'server-only';
 
-import { getErc8183Job } from '@altananetwork/sdk';
 import { decodeEventLog, getAddress, type Hex } from 'viem';
 
 import { altanaNetworkFor } from '@/lib/altana/client';
@@ -14,6 +13,7 @@ import { decodePokterJobEnvelope, decodeReferenceJobDescription, jobTaskFromDesc
 import { disputeWindowSeconds } from '@/lib/erc8183/dispute-window';
 import { jobAmountLabel } from '@/lib/erc8183/job-amount';
 import { jobPaymentTokenOnChain } from '@/lib/erc8183/job-onchain';
+import { getErc8183Job } from '@/lib/erc8183/job-read';
 import { manifestMatch } from '@/lib/erc8183/manifest-match';
 import { reviewWindowSummary } from '@/lib/erc8183/settle-window';
 import { getJobStore } from '@/lib/erc8183/store';

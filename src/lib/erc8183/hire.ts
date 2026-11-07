@@ -4,7 +4,6 @@ import { amountWithinLimits } from '@/lib/hire/budget-limits';
 import { randomUUID } from 'node:crypto';
 import {
   settleErc8183Job,
-  getErc8183Job,
   getErc8183DeliverableUrl,
   buildClaimRefundCall,
   buildHireCalls,
@@ -18,6 +17,7 @@ import { assertRefundEligible } from './reclaim-check';
 import { DELIVERY_WINDOW_SECONDS, jobLifetimeSeconds } from './deadline';
 import { requireDecimals } from '@/lib/network/tokens';
 import { jobAmountLabel } from '@/lib/erc8183/job-amount';
+import { getErc8183Job } from '@/lib/erc8183/job-read';
 import { assertEscrowSupportsToken, buildTokenHireCalls, nonDefaultHireToken, readJobPaymentToken } from './hire-calls';
 import { ALTANA_NETWORK, IS_TESTNET, adminSigner, altanaClient } from '@/lib/altana/client';
 import { attributeJob } from './attribute-owners';

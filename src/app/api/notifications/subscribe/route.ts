@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
-import { getErc8183Job } from '@altananetwork/sdk';
 
 import { ALTANA_NETWORK, altanaNetworkFor } from '@/lib/altana/client';
+import { getErc8183Job } from '@/lib/erc8183/job-read';
 import { jobChainParam } from '@/lib/jobs/href';
 import { createSubscription } from '@/lib/notifications/server';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';

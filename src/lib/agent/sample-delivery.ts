@@ -11,7 +11,7 @@ import { briefIsPublic, jobFunder, publishableAnswerText, type JobFunder } from 
 import { altanaNetworkFor } from '@/lib/altana/client';
 import { readDeliveryText } from '@/lib/delivery/read-delivery';
 import { manifestMatch } from '@/lib/erc8183/manifest-match';
-import { getErc8183Job } from '@altananetwork/sdk';
+import { getErc8183Job } from '@/lib/erc8183/job-read';
 import { teamWalletSet } from '@/lib/team/server';
 import { answerIsPublic } from '@/lib/jobs/answer-publication';
 import { deliveryKind, type DeliveryKind } from './delivery-kind';

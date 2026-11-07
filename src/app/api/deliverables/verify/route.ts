@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
 import {
   getErc8183DeliverableUrl,
-  getErc8183Job,
 } from '@altananetwork/sdk';
 
 import { ALTANA_NETWORK, altanaNetworkFor } from '@/lib/altana/client';
 import { jobChainParam } from '@/lib/jobs/href';
+import { getErc8183Job } from '@/lib/erc8183/job-read';
 import { getJobStore } from '@/lib/erc8183/store';
 import { deliverableKey, readDeliverable } from '@/lib/erc8183/deliverables';
 import { erc8183ManifestHash } from '@altananetwork/sdk';

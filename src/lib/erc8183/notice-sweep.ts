@@ -1,10 +1,9 @@
 import 'server-only';
 import { mayStartSideEffect } from '@/lib/history/budget';
 
-import { getErc8183Job } from '@altananetwork/sdk';
-
 import { altanaNetworkFor } from '@/lib/altana/client';
 import { isDemoSeller } from '@/lib/erc8183/demo-seller';
+import { getErc8183Job } from '@/lib/erc8183/job-read';
 import { noticeDue } from '@/lib/erc8183/notice-due';
 import { noticeSeller } from '@/lib/erc8183/seller-notice';
 import { getJobStore } from '@/lib/erc8183/store';

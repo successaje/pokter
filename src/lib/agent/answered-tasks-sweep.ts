@@ -1,11 +1,12 @@
 import 'server-only';
 
-import { getErc8183DeliverableUrl, getErc8183Job } from '@altananetwork/sdk';
+import { getErc8183DeliverableUrl } from '@altananetwork/sdk';
 import { createPublicClient, decodeFunctionData, getAddress, http, type Address } from 'viem';
 
 import { altanaNetworkFor } from '@/lib/altana/client';
 import { deliveryAnswered, pickAnsweredTasks, type AnsweredTask, type AnswerVerdict } from '@/lib/agent/answered-tasks';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
+import { getErc8183Job } from '@/lib/erc8183/job-read';
 import { withPublicEndpoint } from '@/lib/proof/prober';
 import { getQuestStore } from '@/lib/quest/store';
 

@@ -36,3 +36,14 @@ export function publicReadUrls(chainId: number, override?: string): string[] {
   const own = override?.trim();
   return own ? [own, ...listed.filter((url) => url !== own)] : [...listed];
 }
+
+/**
+ * `publicReadUrls` for a client that already had one node, the SDK's
+ * `publicRpcUrl`. That node is never lost: it stays in the list, last when
+ * the list does not have it, and is all an unlisted chain reads from, as
+ * before.
+ */
+export function readUrlsKeeping(chainId: number, existing: string, override?: string): string[] {
+  const urls = publicReadUrls(chainId, override);
+  return urls.includes(existing) ? urls : [...urls, existing];
+}

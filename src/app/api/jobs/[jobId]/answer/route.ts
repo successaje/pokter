@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { getErc8183Job } from '@altananetwork/sdk';
 import { keccak256, stringToBytes } from 'viem';
 
 import { altanaNetworkFor } from '@/lib/altana/client';
@@ -8,6 +7,7 @@ import { readDeliveredAnswer } from '@/lib/delivery/answer';
 import { readDeliveryText } from '@/lib/delivery/read-delivery';
 import { jobChainParam } from '@/lib/jobs/href';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
+import { getErc8183Job } from '@/lib/erc8183/job-read';
 import { manifestMatch } from '@/lib/erc8183/manifest-match';
 import { getJobStore } from '@/lib/erc8183/store';
 import { answerIsPublic } from '@/lib/jobs/answer-publication';

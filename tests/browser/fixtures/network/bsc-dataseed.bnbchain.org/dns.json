@@ -1,0 +1,15 @@
+{
+  "kind": "dns",
+  "hostname": "bsc-dataseed.bnbchain.org",
+  "addresses": [
+    {
+      "address": "75.2.12.153",
+      "family": 4
+    },
+    {
+      "address": "99.83.157.69",
+      "family": 4
+    }
+  ],
+  "recordedAt": "2026-11-07T08:08:13.381Z"
+}

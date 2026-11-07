@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
-import { getErc8183DeliverableUrl, getErc8183Job } from '@altananetwork/sdk';
+import { getErc8183DeliverableUrl } from '@altananetwork/sdk';
 import { createPublicClient, getAddress, http, isHash, pad, toHex, type Hex } from 'viem';
 
 import { ALTANA_NETWORK, altanaNetworkFor } from '@/lib/altana/client';
 import { jobChainParam } from '@/lib/jobs/href';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
+import { getErc8183Job } from '@/lib/erc8183/job-read';
 import { getJobStore } from '@/lib/erc8183/store';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 import { logAndPublic } from '@/lib/api/public-error';
