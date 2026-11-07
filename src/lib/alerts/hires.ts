@@ -2,12 +2,12 @@ import 'server-only';
 import { mayStartSideEffect } from '@/lib/history/budget';
 import { mayAdvanceHireCursor } from '@/lib/alerts/hire-cursor';
 
-import { getErc8183Job } from '@altananetwork/sdk';
 import { createPublicClient, http, type Address } from 'viem';
 import { explorerBaseFor } from '@/lib/network/presentation';
 
 import { ALTANA_NETWORK } from '@/lib/altana/client';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
+import { getErc8183Job } from '@/lib/erc8183/job-read';
 import { getJobStore } from '@/lib/erc8183/store';
 import { decodePokterJobEnvelope } from '@/lib/erc8183/job-envelope';
 import { alertChannels, sendOperatorAlert } from '@/lib/alerts/operator';

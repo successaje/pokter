@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { buildSubmitCall, encodeErc8183Manifest, erc8183ManifestHash, getErc8183Job, type Erc8183DeliverableManifest } from '@altananetwork/sdk';
+import { buildSubmitCall, encodeErc8183Manifest, erc8183ManifestHash, type Erc8183DeliverableManifest } from '@altananetwork/sdk';
 import { createPublicClient, createWalletClient, getAddress, stringToHex, type Address, type Hex } from 'viem';
 import { bsc, bscTestnet } from 'viem/chains';
 
@@ -12,6 +12,7 @@ import { deliverableKey, readDeliverable, writeDeliverable } from '@/lib/erc8183
 import { disputeWindowSeconds } from '@/lib/erc8183/dispute-window';
 import { jobTaskFromDescription } from '@/lib/erc8183/job-envelope';
 import { indexIfMissing } from '@/lib/erc8183/job-identity';
+import { getErc8183Job } from '@/lib/erc8183/job-read';
 import { siteOrigin } from '@/lib/evidence/origin';
 
 import { houseAccount } from './keys';

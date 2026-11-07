@@ -1,8 +1,7 @@
 import 'server-only';
 
-import { getErc8183Job } from '@altananetwork/sdk';
-
 import { ALTANA_NETWORK } from '@/lib/altana/client';
+import { getErc8183Job } from '@/lib/erc8183/job-read';
 import { getJobStore } from '@/lib/erc8183/store';
 import { isDemoSeller } from '@/lib/erc8183/demo-seller';
 import { summariseAdoption, type AdoptionProgress } from './adoption';

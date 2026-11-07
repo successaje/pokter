@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
-import { getErc8183Job } from '@altananetwork/sdk';
 import { getAddress, isAddress, isHex, type Address, type Hex } from 'viem';
 
 import { altanaNetworkFor } from '@/lib/altana/client';
+import { getErc8183Job } from '@/lib/erc8183/job-read';
 import { maskEmail } from '@/lib/notifications/identity';
 import { jobUpdateOffer } from '@/lib/notifications/job-updates';
 import {

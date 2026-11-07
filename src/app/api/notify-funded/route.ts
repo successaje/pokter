@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { getJobStore } from '@/lib/erc8183/store';
-import { getErc8183Job } from '@altananetwork/sdk';
+import { getErc8183Job } from '@/lib/erc8183/job-read';
 
 import { ALTANA_NETWORK, altanaNetworkFor } from '@/lib/altana/client';
 import { isEscrowChain } from '@/lib/network/escrow';

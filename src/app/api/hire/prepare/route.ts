@@ -3,7 +3,6 @@ import { NextResponse } from 'next/server';
 import { defaultHireToken, escrowMoney, paymentTokenAt } from '@/lib/network/tokens';
 import { nonDefaultHireToken } from '@/lib/erc8183/hire-token';
 import { parseUnits } from 'viem';
-import { getErc8183Job } from '@altananetwork/sdk';
 
 import { POST as compileBriefRoute } from '@/app/api/hire/compile/route';
 import { POST as quoteForBriefRoute } from '@/app/api/hire/quote/route';
@@ -16,6 +15,7 @@ import { displayName } from '@/lib/assistant/mandate';
 import { reconcileUncertainHire } from '@/lib/assistant/reconcile-hire';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { jobTaskFromDescription } from '@/lib/erc8183/job-envelope';
+import { getErc8183Job } from '@/lib/erc8183/job-read';
 import { briefRefusalBody } from '@/lib/erc8183/skill-request';
 import { getJobStore } from '@/lib/erc8183/store';
 import { BUDGET_MAX, BUDGET_MIN } from '@/lib/hire/budget-limits';

@@ -201,10 +201,11 @@ test('the prepare route calls no spending function, and imports no binding that 
 
   /*
    * And the bindings it does take from spend-capable modules. `altana/client`
-   * exports `adminSigner` beside `altanaNetworkFor`, and the SDK exports
-   * `buildHireCalls` beside `getErc8183Job`, so "imports no spending
-   * module" is not the available property — "imports no spending binding"
-   * is, and an added import shows up here rather than in a review.
+   * exports `adminSigner` beside `altanaNetworkFor` (and the SDK, which the
+   * route once read jobs from, exports `buildHireCalls` beside
+   * `getErc8183Job`), so "imports no spending module" is not the available
+   * property — "imports no spending binding" is, and an added import shows
+   * up here rather than in a review.
    */
   const imported = new Map<string, string[]>();
   /* `import type { … }` too, so the module set below is every module the
@@ -215,9 +216,10 @@ test('the prepare route calls no spending function, and imports no binding that 
     imported.set(from, names.split(',').map((name) => name.replace(/\s+as\s+\w+/, '').replace('type ', '').trim()));
   }
   const allowed: Record<string, string[]> = {
-    '@altananetwork/sdk': ['getErc8183Job'],
     '@/lib/altana/client': ['altanaNetworkFor'],
     '@/lib/erc8183/addresses': ['correctedErc8183Addresses'],
+    /* The SDK's job read through several nodes: a public client, no signer. Walked when added (7 modules, none spend-capable). */
+    '@/lib/erc8183/job-read': ['getErc8183Job'],
     /* A decision over `network/tokens`, which encodes and sends nothing; walked when added. */
     '@/lib/erc8183/hire-token': ['nonDefaultHireToken'],
     '@/lib/erc8183/store': ['getJobStore'],
@@ -240,7 +242,6 @@ test('the prepare route calls no spending function, and imports no binding that 
   const KNOWN_SOURCES = [
     'next/server',
     'viem',
-    '@altananetwork/sdk',
     '@/app/api/hire/compile/route',
     '@/app/api/hire/quote/route',
     '@/lib/agents/categories',
@@ -253,6 +254,7 @@ test('the prepare route calls no spending function, and imports no binding that 
     '@/lib/erc8183/addresses',
     '@/lib/erc8183/hire-token',
     '@/lib/erc8183/job-envelope',
+    '@/lib/erc8183/job-read',
     '@/lib/erc8183/skill-request',
     '@/lib/erc8183/store',
     '@/lib/hire/budget-limits',

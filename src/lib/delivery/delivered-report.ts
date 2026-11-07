@@ -1,7 +1,5 @@
 import 'server-only';
 
-import { getErc8183Job } from '@altananetwork/sdk';
-
 import { altanaNetworkFor } from '@/lib/altana/client';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { storedDeliveryText } from '@/lib/erc8183/deliverable-gate';
@@ -10,6 +8,7 @@ import { findDeliverableUrl } from '@/lib/erc8183/deliverable-url';
 import { fetchDeliverableText } from '@/lib/erc8183/fetch-deliverable';
 import { historyClient } from '@/lib/erc8183/history-client';
 import { decodePokterJobEnvelope, jobTaskFromDescription } from '@/lib/erc8183/job-envelope';
+import { getErc8183Job } from '@/lib/erc8183/job-read';
 import { getJobStore } from '@/lib/erc8183/store';
 import { VENUS_COMPTROLLER } from '@/lib/assay/venus';
 import { venusAcceptanceSpec } from '@/lib/proofrun/acceptance';

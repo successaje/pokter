@@ -3,7 +3,6 @@ import 'server-only';
 import {
   encodeErc8183Manifest,
   erc8183ManifestHash,
-  getErc8183Job,
   submitErc8183Deliverable,
   type Erc8183DeliverableManifest,
 } from '@altananetwork/sdk';
@@ -14,6 +13,7 @@ import { decodePokterJobEnvelope } from './job-envelope';
 import { askAgentByIdentity } from './courier';
 import { verifyReferenceDelivery } from './reference-delivery';
 import { jobPaymentTokenOnChain } from './job-onchain';
+import { getErc8183Job } from '@/lib/erc8183/job-read';
 import { getJobStore } from '@/lib/erc8183/store';
 import { getAgent } from '@/lib/scan/client';
 import { classify } from '@/lib/agents/categories';

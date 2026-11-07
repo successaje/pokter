@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { getErc8183Job } from '@altananetwork/sdk';
 import { getAddress, isAddress, isHex, type Hex } from 'viem';
 
 import { signedByWallet, walletCanBeChecked } from '@/lib/wallet/signed-by';
@@ -8,6 +7,7 @@ import { jobChainParam } from '@/lib/jobs/href';
 import { decodePokterJobEnvelope } from '@/lib/erc8183/job-envelope';
 import { reviewMessage, validReviewContent, type VerifiedReview } from '@/lib/reviews/model';
 import { getReviewStore } from '@/lib/reviews/store';
+import { getErc8183Job } from '@/lib/erc8183/job-read';
 import { getJobStore } from '@/lib/erc8183/store';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 import { logAndPublic } from '@/lib/api/public-error';

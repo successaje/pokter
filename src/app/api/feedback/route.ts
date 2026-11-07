@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-import { getErc8183Job } from '@altananetwork/sdk';
 import { getAddress, isAddress, isHex, type Hex } from 'viem';
 
 import { signedByWallet, walletCanBeChecked } from '@/lib/wallet/signed-by';
 import { ALTANA_NETWORK, altanaNetworkFor } from '@/lib/altana/client';
 import { logAndPublic } from '@/lib/api/public-error';
 import { decodePokterJobEnvelope } from '@/lib/erc8183/job-envelope';
+import { getErc8183Job } from '@/lib/erc8183/job-read';
 import { getJobStore } from '@/lib/erc8183/store';
 import { feedbackMessage, normaliseFeedback, validFeedbackContent } from '@/lib/feedback/model';
 import { getFeedbackStore } from '@/lib/feedback/store';

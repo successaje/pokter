@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
-import { getErc8183DeliverableUrl, getErc8183Job } from '@altananetwork/sdk';
+import { getErc8183DeliverableUrl } from '@altananetwork/sdk';
 
 import { ALTANA_NETWORK, altanaNetworkFor } from '@/lib/altana/client';
 import { jobChainParam, missingJobMessage, otherJobChain } from '@/lib/jobs/href';
 import { decodePokterJobEnvelope, decodeReferenceJobDescription } from '@/lib/erc8183/job-envelope';
 import { jobIdentity } from '@/lib/erc8183/job-identity';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
+import { getErc8183Job } from '@/lib/erc8183/job-read';
 import type { HiredJob } from '@/lib/erc8183/types';
 import { getJobStore } from '@/lib/erc8183/store';
 import { jobAmountLabel } from '@/lib/erc8183/job-amount';

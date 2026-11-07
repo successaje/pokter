@@ -1,8 +1,7 @@
 import 'server-only';
 
-import { getErc8183Job } from '@altananetwork/sdk';
-
 import { altanaNetworkFor } from '@/lib/altana/client';
+import { getErc8183Job } from '@/lib/erc8183/job-read';
 import { getJobStore } from '@/lib/erc8183/store';
 import { mapWithConcurrency } from '@/lib/concurrency';
 import { withTimeout } from '@/lib/net/bounded';

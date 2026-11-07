@@ -19,7 +19,7 @@ import { relayStatus } from '@/lib/erc8183/relay-refusal';
 import { CAMPAIGN_ENDS_AT, isCampaignLive } from '@/lib/campaign/window';
 import { campaignHires } from '@/lib/campaign/progress-server';
 import { POKTER_MARKETPLACE } from '@/lib/quest/progress';
-import { getErc8183Job } from '@altananetwork/sdk';
+import { getErc8183Job } from '@/lib/erc8183/job-read';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { deliverableUrlForIndex, findDeliverableUrl } from '@/lib/erc8183/deliverable-url';
 import { historyClient } from '@/lib/erc8183/history-client';
