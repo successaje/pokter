@@ -132,16 +132,20 @@ this server costs an agent wallet rather than a copied avatar.
 
 ## 4. Channels
 
-Six. A new server with twenty channels reads as abandoned.
+The server already has six. Keep them — a new server with twenty channels reads
+as abandoned. Two changes and one addition:
 
-| Channel | Access |
-|---|---|
-| `#start-here` | Read-only. Rules and the notice below, pinned. |
-| `#announcements` | Read-only. Moderators post. |
-| `#general` | Everyone reads and writes |
-| `#builders` | Everyone reads, `@Builder` and `@Moderator` write |
-| `#receipts` | Read-only bot feed (phase 2) |
-| `#mod-alerts` | Moderators only. AutoMod alert target. |
+| Channel | Access | Change |
+|---|---|---|
+| `#start-here` | Read-only | **Move to the top.** New joins currently land in `#general` and never see the rules. |
+| `#announcements` | Read-only, moderators post | — |
+| `#general` | Everyone reads and writes | — |
+| `#agent-showcase` | Everyone reads, `@Builder` and `@Moderator` post | Showcase posts are listings. Gate posting so the channel cannot be used to advertise an agent that does not exist. |
+| `#help-and-feedback` | Everyone | Pin: nobody from Pokter will DM you from here. |
+| `#builder-support` | Everyone | Same pin. Support channels are where support scams start. |
+| `#mod-alerts` | **Create this.** Moderators only. | AutoMod alert target. Nothing works without somewhere for the alerts to land. |
+
+`#receipts`, the read-only bot feed, comes with phase 2.
 
 ## 5. The pinned notice
 
