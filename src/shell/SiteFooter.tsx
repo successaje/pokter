@@ -44,7 +44,6 @@ const GROUPS: Array<{ title: string; links: Array<{ href: string; label: string;
       { href: '/corrections', label: 'Where we were wrong' },
       { href: '/agent-advantage', label: 'Agent vs by hand' },
       { href: '/support', label: 'Help and support' },
-      { href: '/set-and-earn', label: 'Set and Earn campaign' },
     ],
   },
   {

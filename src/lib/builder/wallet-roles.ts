@@ -121,7 +121,7 @@ export function walletRoleConflicts(assignment: WalletRoleAssignment): WalletCon
       roles: ['identity-owner', 'test-buyer'],
       severity: 'advised',
       consequence:
-        'The hire is the owner paying their own agent. It proves the delivery path and is not demand: Pokter shows it separately, and Set and Earn requires hirers independent of the owner.',
+        'The hire is the owner paying their own agent. It proves the delivery path and is not demand: Pokter shows it apart from hires by independent wallets.',
       fix: 'Keep it if you only want the end-to-end test. Use a third wallet if the hire needs to count as independent.',
     });
   }

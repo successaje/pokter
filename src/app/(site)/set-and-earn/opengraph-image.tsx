@@ -1,9 +1,9 @@
 import { ImageResponse } from 'next/og';
 
 import { Card, contentType, size } from '@/lib/og/card';
-import { CAMPAIGN_ENDS_AT } from '@/lib/campaign/window';
+import { CAMPAIGN_ENDS_AT, CAMPAIGN_RESULTS_AFTER, isCampaignLive } from '@/lib/campaign/window';
 
-export const alt = 'How to complete BNB Chain Set and Earn, and the deadline';
+export const alt = isCampaignLive() ? 'How to complete BNB Chain Set and Earn, and the deadline' : 'BNB Chain Set and Earn has closed, and when its winners are named';
 export { contentType, size };
 
 /**
@@ -19,6 +19,24 @@ export { contentType, size };
  */
 export default function SetAndEarnCard() {
   const ends = `${CAMPAIGN_ENDS_AT.toISOString().slice(11, 16)} UTC, 2026`;
+  /* After the deadline a shared link still unfurls, and "ENTRIES CLOSE" beside a past date read as a campaign still on. */
+  if (!isCampaignLive()) {
+    return new ImageResponse(
+      (
+        <Card
+          context="BNB Chain · Set and Earn"
+          title="Set and Earn has closed."
+          lede={`BNB Chain decides who qualified from its own data and announces winners after ${CAMPAIGN_RESULTS_AFTER}.`}
+          facts={[
+            { label: 'ENTRIES CLOSED', value: '5 Nov', note: ends },
+            { label: 'WINNERS', value: `After ${CAMPAIGN_RESULTS_AFTER.replace('November', 'Nov')}`, note: 'Named by BNB Chain' },
+            { label: 'HIRES', value: 'On chain', note: 'Check any wallet on Pokter' },
+          ]}
+        />
+      ),
+      size,
+    );
+  }
   return new ImageResponse(
     (
       <Card
