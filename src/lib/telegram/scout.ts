@@ -4,8 +4,9 @@ import { CATEGORIES } from '@/lib/agents/categories';
 import type { AgentSummary } from '@/lib/api/v1';
 import type { Service } from '@/lib/services/model';
 import { consumeRateLimit } from '@/lib/security/rate-limit';
+import { POKTER_SOCIAL_LINKS } from '@/lib/social/links';
 import { marketplaceBotReply, publicPage, scoutMenu, type BotButton, type BotReply } from './marketplace-bot';
-import { forgetChat, readChat, saveChat } from './chat-store';
+import { forgetChat, readChat, saveChat, type ChatKey } from './chat-store';
 import { generateScoutAnswer } from './scout-gemini';
 import { scoutKnowledgeFor } from './scout-knowledge';
 import { isMoreAgentsFollowUp, matchingNamedAgents, namedAgentQuery, shouldSearchAgents } from './scout-routing';
@@ -215,7 +216,7 @@ async function marketEvidence(text: string): Promise<BotReply> {
   return findAgents(terms.slice(0, 2).join(' ') || text);
 }
 
-async function chatWithScout(raw: string, chatId: number): Promise<BotReply> {
+async function chatWithScout(raw: string, chatId: ChatKey): Promise<BotReply> {
   if (/\b(seed phrase|recovery phrase|private key)\b/i.test(raw) || /\b0x[a-fA-F0-9]{64}\b/.test(raw)) {
     return reply('Please keep wallet secrets out of chat. I can help you compare public Pokter evidence instead.', [[link('Open Pokter', publicPage('/discover'))]]);
   }
@@ -289,7 +290,16 @@ async function chatWithScout(raw: string, chatId: number): Promise<BotReply> {
   }
 }
 
-export async function scoutReply(message: string, isPrivate: boolean, chatId?: number): Promise<BotReply | null> {
+/**
+ * What a transport lets Scout offer. Telegram allows both. Discord asks for
+ * neither: a bot that opens direct messages is the shape of the scam the server
+ * warns about, and AI chat belongs where only the asker reads the answer.
+ */
+export type ScoutOptions = { ai?: boolean; alerts?: boolean };
+
+const AI_ELSEWHERE = 'AI chat with Scout is not available here. Message Scout directly and ask again, or tell me a task and I’ll search the catalogue.';
+
+export async function scoutReply(message: string, isPrivate: boolean, chatId?: ChatKey, options: ScoutOptions = {}): Promise<BotReply | null> {
   const raw = message.trim();
   if (!isPrivate && /^\/(?:start|help)(?:@[a-z0-9_]+)?$/i.test(raw)) {
     const username = process.env.POKTER_TELEGRAM_BOT_USERNAME?.replace(/^@/, '');
@@ -305,6 +315,7 @@ export async function scoutReply(message: string, isPrivate: boolean, chatId?: n
     return reply('I’ve cleared your recent Scout conversation from Pokter.', [[link('Open Discover', publicPage('/discover'))]]);
   }
   if (isPrivate && (raw === '/ai' || raw === 'Chat with Scout')) {
+    if (options.ai === false) return reply(AI_ELSEWHERE, [[link('Open Discover', publicPage('/discover'))]]);
     if (!process.env.SCOUT_GEMINI_API_KEY) return reply('AI chat is not available yet. You can still search agents and check evidence here.', [[link('Open Discover', publicPage('/discover'))]]);
     return reply(
       'AI chat uses Gemini’s free tier. Google may use submitted content to improve its products. Your messages and recent Scout context go to Gemini; never send private keys, passwords or confidential briefs. Pokter keeps recent chat available for 24 hours, and /forget clears it.\n\nTap Enable AI chat if you agree.',
@@ -312,6 +323,7 @@ export async function scoutReply(message: string, isPrivate: boolean, chatId?: n
     );
   }
   if (isPrivate && raw === 'Enable AI chat') {
+    if (options.ai === false) return reply(AI_ELSEWHERE, [[link('Open Discover', publicPage('/discover'))]]);
     if (!process.env.SCOUT_GEMINI_API_KEY || chatId === undefined) return reply('AI chat is not available yet. You can still search agents here.', [[link('Open Discover', publicPage('/discover'))]]);
     const state = readChat(chatId);
     saveChat(chatId, { ...state, aiEnabled: true });
@@ -319,6 +331,7 @@ export async function scoutReply(message: string, isPrivate: boolean, chatId?: n
   }
   if (isPrivate && (raw === 'Alerts' || /^\/alerts(?:\s+(?:on|off))?$/i.test(raw))) {
     if (chatId === undefined) return null;
+    if (options.alerts === false) return reply('Request alerts are only available in Scout on Telegram for now. Everything else works the same here.', [[link('Open Scout on Telegram', POKTER_SOCIAL_LINKS.telegram)]]);
     if (/^\/alerts\s+on$/i.test(raw)) setRequestAlerts(chatId, true);
     if (/^\/alerts\s+off$/i.test(raw)) setRequestAlerts(chatId, false);
     const on = requestAlertsOn(chatId);
@@ -342,5 +355,5 @@ export async function scoutReply(message: string, isPrivate: boolean, chatId?: n
   if (category) return findAgents('', category.id);
   if (raw.startsWith('/')) return isPrivate ? scoutMenu() : null;
   if (!isPrivate) return null;
-  return process.env.SCOUT_GEMINI_API_KEY && chatId !== undefined && readChat(chatId).aiEnabled ? chatWithScout(raw, chatId) : findAgents(raw);
+  return process.env.SCOUT_GEMINI_API_KEY && options.ai !== false && chatId !== undefined && readChat(chatId).aiEnabled ? chatWithScout(raw, chatId) : findAgents(raw);
 }

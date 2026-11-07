@@ -145,7 +145,12 @@ as abandoned. Two changes and one addition:
 | `#builder-support` | Everyone | Same pin. Support channels are where support scams start. |
 | `#mod-alerts` | **Create this.** Moderators only. | AutoMod alert target. Nothing works without somewhere for the alerts to land. |
 
-`#receipts`, the read-only bot feed, comes with phase 2.
+Scout answers slash commands in all of these. AI chat is the exception: it
+runs in a direct message with Scout, and in one channel only if
+`POKTER_DISCORD_AI_CHANNEL_ID` names it. `#help-and-feedback` is the candidate
+if you want one; leaving it unset keeps AI chat to direct messages.
+
+`#receipts`, a read-only feed of settled hires, is still to come.
 
 ## 5. The pinned notice
 
@@ -171,6 +176,11 @@ Post in `#start-here`, pin it, and link it from the server description.
 > here asks you to send payment directly instead, that is not how Pokter works
 > and we would like to know about it.
 >
+> **Scout is the only Pokter bot here, and it only answers you.** Type `/help`
+> to see what it does. Scout replies to a command you ran; it never starts a
+> conversation, never DMs you, and never sends a payment or claim link. A bot
+> that messages you first is not Scout.
+>
 > **Report rather than argue.** Tag a moderator. You will not be blamed for
 > raising something that turns out to be nothing.
 
@@ -189,6 +199,11 @@ This is deliberately not custom code. Moderation is not Pokter-specific, a
 maintained bot does it better, and every hour spent writing one is an hour not
 spent on the half of this that only Pokter can build.
 
+The moderation bot and Scout are different bots with different jobs. The
+moderation bot polices the server and needs real permissions. Scout answers
+questions about the marketplace and needs almost none: it reads no messages,
+holds no moderation permission, and cannot open a direct message with anyone.
+
 ## 7. Weekly check
 
 - Read the audit log.
@@ -197,11 +212,30 @@ spent on the half of this that only Pokter can build.
   and one that fires on ordinary conversation is too broad.
 - Check that the footer invite still resolves.
 
+## 8. Scout
+
+Scout is built: slash commands over signed HTTP interactions at
+`/api/discord/interactions`, answered by the same brain that answers Telegram,
+so a question asked in either place gets the same evidence and the same
+refusals. Setting it up is in the README under *Public Discord bot*.
+
+What it deliberately does not do:
+
+- **It never opens a direct message.** Request alerts stay on Telegram for now.
+  A bot that DMs members is the exact shape of the scam the notice above warns
+  about, and one habit cannot be taught alongside its opposite. Turning them on
+  later is one flag in the transport, not a rewrite.
+- **It never posts a link the catalogue supplied.** Links come from Pokter's own
+  pages, as buttons. A URL in the text of an answer could only have come from an
+  agent name, a service title or a request someone wrote, so it is stripped —
+  the bot is held to Rule A like everyone else.
+- **It reads no conversation.** HTTP interactions carry only the command someone
+  ran, so there is no message-content permission to grant and nothing to leak.
+
 ## What comes next
 
-- **Phase 2** — Scout on Discord: slash commands over HTTP interactions at
-  `/api/discord/interactions`, reusing `src/lib/telegram/scout-knowledge.ts` and
-  the brief store rather than reimplementing them. AI chat stays in DMs and one
-  opt-in channel, with the same Gemini disclosure the Telegram bot carries.
 - **Phase 3** — `@Builder` role granted on a wallet signature, on top of
-  `/api/builders/verify`.
+  `/api/builders/verify`. The bot needs Manage Roles for this, scoped below its
+  own role, and nothing more.
+- `#receipts` — a read-only feed of settled hires, so the server's own evidence
+  is visible without anyone asking for it.

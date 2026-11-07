@@ -48,6 +48,7 @@ ENV NEXT_PUBLIC_HIRE_TOKENS=$NEXT_PUBLIC_HIRE_TOKENS
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 RUN ./node_modules/.bin/esbuild src/lib/telegram/configure.mts --bundle --platform=node --format=esm --outfile=telegram-marketplace-configure.mjs
+RUN ./node_modules/.bin/esbuild src/lib/discord/configure.mts --bundle --platform=node --format=esm --outfile=discord-scout-configure.mjs
 
 FROM node:24-slim AS runner
 WORKDIR /app
@@ -92,6 +93,7 @@ COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/telegram-marketplace-configure.mjs ./telegram-marketplace-configure.mjs
+COPY --from=builder --chown=nextjs:nodejs /app/discord-scout-configure.mjs ./discord-scout-configure.mjs
 
 # The volume is mounted here at runtime; creating it now means the first boot
 # does not race the mount.

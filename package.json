@@ -15,6 +15,7 @@
     "audit:receipts": "tsx scripts/receipt-audit.mts",
     "audit:proof-coverage": "tsx scripts/audit-proof-coverage.mts",
     "telegram:configure": "tsx --env-file-if-exists=.env.local src/lib/telegram/configure.mts",
+    "discord:configure": "tsx --env-file-if-exists=.env.local src/lib/discord/configure.mts",
     "sweep": "tsx --env-file-if-exists=.env.local --conditions=react-server scripts/sweep.ts",
     "figures": "tsx scripts/figures.mts",
     "smoke": "tsx scripts/smoke-routes.mts",

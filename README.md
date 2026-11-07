@@ -396,6 +396,9 @@ All optional for local browsing. Server-only unless marked public.
 | `SCOUT_GEMINI_API_KEY` | Optional server-only Google AI Studio API key. Enables opt-in grounded private chat; without it Scout keeps its existing catalogue search |
 | `SCOUT_GEMINI_MODEL` | Optional server-only model override; defaults to `gemini-3.5-flash-lite` |
 | `POKTER_TELEGRAM_BOT_USERNAME` | Public username, set to `PokterScoutBot` in `fly.toml`; used for commands addressed to Scout in groups |
+| `POKTER_DISCORD_PUBLIC_KEY`, `POKTER_DISCORD_APPLICATION_ID` | The Discord application's public key and id. Both are public values, and the interactions route refuses every interaction without them |
+| `POKTER_DISCORD_BOT_TOKEN` | A secret. Registers Scout's Discord commands; the route never uses it, so it is not needed at runtime |
+| `POKTER_DISCORD_AI_CHANNEL_ID` | Optional. The one server channel where Scout's AI chat may run, besides a direct message with Scout. Unset keeps AI chat to direct messages |
 | `SEAL_ANCHOR_CHAIN` | Chain the daily seal is anchored on; default `56` |
 | `POKTER_TRUSTED_CLIENT_IP_HEADER` | The proxy header rate limits trust for the client address |
 | `BSC_RPC_URL` | Node for PancakeSwap pool reads |
@@ -419,6 +422,22 @@ With `SCOUT_GEMINI_API_KEY` set, a private user can choose `Chat with Scout` or 
 4. Run `fly ssh console -a pokter -C 'node /app/telegram-marketplace-configure.mjs --status'` to read back the configured commands and webhook URL without printing the token. Open `https://t.me/<actual username>` and test `/start`, `/find grid trading`, `/check 56:372022` and `/discord`. In a group, leave BotFather privacy mode on; the bot only answers commands and does not read ordinary conversation.
 
 The webhook rejects requests without Telegram's secret header and ignores non-message updates. If the secret or token is absent, it fails closed. Telegram can retry failed webhook requests; the command responses contain only static navigation links, so a retry cannot create a request or trigger a payment.
+
+### Public Discord bot
+
+Discord is a second transport for the same Scout, not a second bot. `/api/discord/interactions` receives signed Discord interactions and answers them with `src/lib/telegram/scout.ts`, so a question asked in Discord and in Telegram gets the same evidence, the same prior-quote wording and the same refusals. `src/lib/discord/scout-bot.ts` only reshapes a reply: Telegram's keyboard becomes buttons, and a reply keeps the links Pokter built as buttons rather than text.
+
+Scout registers `/scout`, `/find`, `/check`, `/services`, `/requests`, `/ai`, `/forget` and `/help`, usable in server channels and in a direct message with Scout. `/scout`, `/ai` and `/forget` answer only the person who ran them; `/find`, `/check`, `/services`, `/requests` and `/help` answer the channel. AI chat runs in a direct message, and in `POKTER_DISCORD_AI_CHANNEL_ID` if that channel is set; anywhere else `/scout` searches the catalogue deterministically and `/ai` says so. Request alerts are Telegram only: Scout does not open a direct message with anyone, because a bot that DMs members is the shape of the scam `docs/discord-safety.md` tells them to distrust. A command that mentions them says that plainly rather than recording a subscription nothing would deliver.
+
+Every interaction is verified against the application's Ed25519 public key over the raw body and timestamp, and an interaction older than five minutes is refused. A missing key, a malformed header or a bad signature returns 401, which is also how Discord validates the endpoint. Answers are written after the acknowledgement, because a catalogue search can outlast Discord's three-second limit; nothing in the route can pay, hire or sign, so a repeated interaction cannot repeat anything that costs. Anything link-shaped in an answer's text is removed and Discord formatting is escaped: that text can contain an agent name, a service title or a request a stranger wrote, and the bot is held to the server's own link rule.
+
+1. In the [Discord developer portal](https://discord.com/developers/applications), create an application named `Scout by Pokter`, then add a bot to it. Copy the application id and public key from General Information, and the bot token from Bot. Keep the token in a secret store; a token pasted into chat or a terminal log should be reset in the portal before production.
+2. Set `POKTER_DISCORD_APPLICATION_ID`, `POKTER_DISCORD_PUBLIC_KEY` and `POKTER_DISCORD_BOT_TOKEN` in the deployment, with `NEXT_PUBLIC_APP_URL` already on the deployed HTTPS origin. Deploy before registering anything: Discord pings the endpoint before it will accept it.
+3. Register the commands with `npm run discord:configure -- --token-stdin`, then entering the token on stdin. The script checks that the token's application matches `POKTER_DISCORD_APPLICATION_ID` and that `POKTER_DISCORD_PUBLIC_KEY` is that application's own key, so a wrong key is caught before it refuses every interaction in production. After deploying, the image carries the same script: `fly ssh console -a pokter -C 'node /app/discord-scout-configure.mjs'`.
+4. Point the application at the route. Either paste `https://pokter.xyz/api/discord/interactions` into Interactions Endpoint URL in the portal, or run `fly ssh console -a pokter -C 'node /app/discord-scout-configure.mjs --set-endpoint'`. Discord sends a signed ping and a deliberately broken request, and accepts the endpoint only if the broken one is refused.
+5. Invite the bot with the `applications.commands` and `bot` scopes and no permissions beyond reading and sending messages in the channels it should answer in. Never grant it Administrator. Then run `fly ssh console -a pokter -C 'node /app/discord-scout-configure.mjs --status'` to read back the registered commands, whether the public key matches and the endpoint Discord holds, and test `/help`, `/find grid trading` and `/check 56:372022` in the server.
+
+Scout needs no message-content permission, because HTTP interactions carry only the command someone ran. It reads no conversation, holds no moderation permission and cannot open a direct message. Server safety is the moderation bot's job and is set up separately in `docs/discord-safety.md`.
 
 ## Public endpoints
 

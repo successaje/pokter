@@ -9,6 +9,8 @@ const DB_PATH = process.env.SCOUT_DB_PATH ?? './data/scout.db';
 const RETENTION_MS = 24 * 60 * 60 * 1000;
 const MAX_TURNS = 6;
 
+/** A chat is keyed per transport, so a Discord user and a Telegram chat never share a row. */
+export type ChatKey = string | number;
 export type ChatTurn = { role: 'user' | 'assistant'; content: string };
 export type ChatState = { turns: ChatTurn[]; evidence: string; buttons: BotButton[][]; aiEnabled: boolean; lastAgentCategory?: string | null };
 
@@ -26,7 +28,7 @@ function db(): DatabaseSync {
   return database;
 }
 
-export function readChat(chatId: number, now = Date.now()): ChatState {
+export function readChat(chatId: ChatKey, now = Date.now()): ChatState {
   const handle = db();
   handle.prepare('DELETE FROM scout_chats WHERE updated_at < ?').run(now - RETENTION_MS);
   const row = handle.prepare('SELECT state_json, updated_at FROM scout_chats WHERE chat_id = ?').get(String(chatId)) as { state_json: string; updated_at: number } | undefined;
@@ -40,7 +42,7 @@ export function readChat(chatId: number, now = Date.now()): ChatState {
   }
 }
 
-export function saveChat(chatId: number, state: ChatState, now = Date.now()): void {
+export function saveChat(chatId: ChatKey, state: ChatState, now = Date.now()): void {
   const bounded: ChatState = {
     turns: state.turns.slice(-MAX_TURNS).map((turn) => ({ role: turn.role, content: turn.content.slice(0, 1200) })),
     evidence: state.evidence.slice(0, 3500),
@@ -55,6 +57,6 @@ export function saveChat(chatId: number, state: ChatState, now = Date.now()): vo
   handle.prepare('DELETE FROM scout_chats WHERE updated_at < ?').run(now - RETENTION_MS);
 }
 
-export function forgetChat(chatId: number): void {
+export function forgetChat(chatId: ChatKey): void {
   db().prepare('DELETE FROM scout_chats WHERE chat_id = ?').run(String(chatId));
 }
