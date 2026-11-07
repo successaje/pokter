@@ -15,7 +15,10 @@ const quote = {
 const TOKEN = '0xc70b8741b8b07a6d61e54fd4b20f22fa648e5565' as const;
 const ME = '0x3fb8779f4f42e1800f27aaec9564530bcaa852bf' as const;
 
-test('the refund rides in the same transaction as the swap', () => {
+test('the refund rides in the same transaction as the swap', (t) => {
+  // Each build stamps its own deadline from the clock, so hold the clock
+  // still: a second boundary between the two builds changes the deadline.
+  t.mock.timers.enable({ apis: ['Date'], now: quote.quotedAt });
   const calls = buildSwapCalls(quote, TOKEN, ME);
   const tx = buildSwapTransaction(quote, TOKEN, ME);
 
