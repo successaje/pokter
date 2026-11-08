@@ -20,9 +20,11 @@ import { describeSeconds } from './deadline';
  * Expiry is the other edge, and it is not a deadline on payment. The
  * deployed kernel's `complete` carries no deadline check, so a delivered
  * job still SUBMITTED past `expiredAt` settles as the policy decided —
- * until the buyer reclaims it, from which moment the two are racing. That
- * is the `racing` state `sellerReleaseSummary` reports, rather than
- * telling a seller their money is gone.
+ * until someone reclaims it. `claimRefund` is open to any wallet from the
+ * deadline and always refunds the buyer (simulated from an unrelated
+ * wallet on mainnet jobs 57137 and 57146, 7 Nov 2026), so from that moment
+ * the two are racing. That is the `racing` state `sellerReleaseSummary`
+ * reports, rather than telling a seller their money is gone.
  *
  * This file used to refuse any settle past the deadline, on the evidence
  * of jobs 1202 and 1217. They revert `PolicyNotSet`: created without a
@@ -100,8 +102,8 @@ export function canSettle(action: SettleAction, timing: SettleTiming): SettleVer
    * evidence of jobs 1202 and 1217, which in fact revert PolicyNotSet: they
    * have no policy and could never settle. The deployed kernel's complete
    * has no deadline check, so a delivered job still SUBMITTED after its
-   * deadline settles as the policy decided, unless the buyer has reclaimed
-   * it first.
+   * deadline settles as the policy decided, unless someone has reclaimed
+   * it first: any wallet may, and the refund goes to the buyer.
    */
   if (timing.submittedAt > 0 && timing.now < opensAt) {
     const opensInSeconds = opensAt - timing.now;
@@ -272,9 +274,10 @@ export function sellerReleaseSummary(timing: SettleTiming): {
    *
    * The kernel's `complete` has no deadline check, so a delivered job
    * still SUBMITTED settles as the policy decided however late it is —
-   * unless the buyer reclaims first, which they can do from the same
-   * moment. So it is a race, not an expiry, and a seller told their money
-   * was gone would leave money they could still have taken.
+   * unless someone reclaims first: any wallet may send the refund from the
+   * same moment, and it goes to the buyer. So it is a race, not an expiry,
+   * and a seller told their money was gone would leave money they could
+   * still have taken.
    */
   if (timing.now >= timing.expiredAt && timing.now >= opensAt) {
     return {
@@ -282,7 +285,7 @@ export function sellerReleaseSummary(timing: SettleTiming): {
       opensAt,
       opens,
       label: 'Collect now',
-      text: `The review window closed ${opens} and this job is now past its deadline, so the buyer can reclaim the budget at any moment. The escrow will still pay you until they do — collect it now.`,
+      text: `The review window closed ${opens} and this job is now past its deadline, so anyone can refund the budget to the buyer at any moment. The escrow will still pay you until someone does — collect it now.`,
     };
   }
   if (timing.now < opensAt) {

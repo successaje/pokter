@@ -245,6 +245,8 @@ test('it closes the protocol gaps a paid job actually runs through', () => {
   // Settlement, and payment actually arriving.
   assert.match(prompt, /Delivering is not being paid/);
   assert.match(prompt, /call `settle` on your own approved jobs/);
+  // The escrow's refund is open to any wallet past the deadline, not the buyer's alone.
+  assert.match(prompt, /anyone can refund a delivered job that is still unsettled/);
   assert.match(prompt, /do not report a delivery as revenue/);
 });
 

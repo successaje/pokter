@@ -90,7 +90,7 @@ export function jobTimeline(job: HiredJob): JobTimelineStep[] {
       state: 'terminal',
       source: 'onchain',
       detail: job.status === 'EXPIRED'
-        ? 'The deadline passed with the job unsettled, and the buyer reclaimed the escrow: nothing was delivered, or a delivery was never settled. Expiry is not a completed job.'
+        ? 'The deadline passed with the job unsettled, and the escrow refunded the buyer: nothing was delivered, or a delivery was never settled. Expiry is not a completed job.'
         : 'The buyer disputed the delivery, the policy’s voters rejected it, and settling refunded the buyer. It is not counted as successful work.',
       transactionHash: job.disputeTxHash ?? null,
     },

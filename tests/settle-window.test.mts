@@ -46,7 +46,8 @@ test('a delivered job can still be settled after its deadline', () => {
    * and 1217. Those revert PolicyNotSet: they were never registered with a
    * policy. The deployed kernel's complete has no deadline check, so a job
    * still SUBMITTED past its deadline settles as the policy decided, unless
-   * the buyer reclaims it first.
+   * someone reclaims it first: any wallet may, and the refund goes to the
+   * buyer.
    */
   assert.deepEqual(canSettle('approve', timing(EXPIRES + 1)), { allowed: true });
 });
@@ -180,15 +181,15 @@ test('the seller sees the same window from the other side', () => {
 test('past the deadline a seller is told to collect, not that it is gone', () => {
   /*
    * The kernel's `complete` has no deadline check, so a delivered job still
-   * SUBMITTED settles as the policy decided however late it is — unless the
-   * buyer reclaims first. It is a race, not an expiry, and a seller told
+   * SUBMITTED settles as the policy decided however late it is — unless
+   * someone reclaims first, which any wallet may. It is a race, not an expiry, and a seller told
    * their money was gone would leave money they could still have taken.
    */
   const late = sellerReleaseSummary(timing(EXPIRES + 1));
   assert.equal(late.state, 'racing');
   assert.equal(late.label, 'Collect now');
-  assert.match(late.text, /buyer can reclaim the budget at any moment/);
-  assert.match(late.text, /will still pay you until they do/);
+  assert.match(late.text, /anyone can refund the budget to the buyer at any moment/, 'the refund is not the buyer’s alone to send');
+  assert.match(late.text, /will still pay you until someone does/);
 
   // And the escrow agrees it is allowed, so the button is not a lie.
   assert.equal(canSettleAs('approve', 'seller', timing(EXPIRES + 1)).allowed, true);

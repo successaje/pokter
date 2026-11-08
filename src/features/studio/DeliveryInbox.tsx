@@ -332,7 +332,7 @@ function Collect({ job, account }: { job: HiredJob; account: `0x${string}` }) {
       <p className="text-[13px] text-ink-2">{summary.text}</p>
       {/*
         * Offered while racing too. Past the deadline the escrow still pays
-        * the seller until the buyer reclaims, so that is the moment the
+        * the seller until someone reclaims, so that is the moment the
         * button matters most — gating on `ready` alone would hide it
         * exactly when the money is about to go.
         */}

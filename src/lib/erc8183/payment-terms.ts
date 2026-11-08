@@ -22,10 +22,11 @@
  *    disputed (OptimisticPolicy.check, the audited version deployed on both
  *    chains: an earlier one left such a job pending until it expired, which
  *    is what this file used to say).
- *  - Nothing moves until someone sends settle, and anyone may. A job still
- *    unsettled at its deadline can be reclaimed by the buyer instead.
- *  - Nothing delivered by the deadline: the buyer reclaims the full amount,
- *    only to the wallet that funded it.
+ *  - Nothing moves until someone sends settle, and anyone may. Past its
+ *    deadline a job still unsettled can be refunded instead, also by
+ *    anyone, and always to the buyer.
+ *  - Nothing delivered by the deadline: anyone may then send the refund,
+ *    and the full amount goes only to the wallet that funded it.
  */
 export const PAYMENT_TERMS = {
   /** One line for panels and cards. */

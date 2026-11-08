@@ -215,7 +215,7 @@ function builderJobEvents(input: {
   if (status === 'SUBMITTED') events.push({ event: 'SUBMITTED', title: 'Delivery awaiting review', body: `Job #${input.jobId} was submitted and is waiting for the buyer.` });
   if (status === 'REJECTED') events.push({ event: 'REJECTED', title: 'Delivery rejected', body: `The buyer disputed job #${input.jobId}, the escrow policy’s voters rejected the delivery, and the buyer was refunded. Review the job evidence.` });
   if (status === 'COMPLETED') events.push({ event: 'COMPLETED', title: 'Escrow released', body: `Job #${input.jobId} completed and its escrow was released.` });
-  if (status === 'EXPIRED') events.push({ event: 'EXPIRED', title: 'Job expired unpaid', body: `Job #${input.jobId} passed its deadline unsettled and the buyer reclaimed it: no delivery, or a delivery nobody settled. Settle approved jobs promptly; anyone can.` });
+  if (status === 'EXPIRED') events.push({ event: 'EXPIRED', title: 'Job expired unpaid', body: `Job #${input.jobId} passed its deadline unsettled and the escrow refunded the buyer: no delivery, or a delivery nobody settled. Settle approved jobs promptly; anyone can.` });
   const secondsLeft = input.expiredAt ? Number(input.expiredAt - BigInt(Math.floor(Date.now() / 1000))) : null;
   if (status === 'FUNDED' && secondsLeft !== null && secondsLeft > 0 && secondsLeft <= 86_400) {
     events.push({ event: 'DEADLINE_24H', title: 'Delivery due within 24 hours', body: `Job #${input.jobId} is still funded and approaching its deadline.` });
