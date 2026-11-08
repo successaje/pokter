@@ -457,6 +457,84 @@ main:has(> [data-flush-footer]:last-child) + footer {
 }
 
 /*
+ * The edges of a coloured block, drawn as a ruler: ticks in the block's
+ * colour rising from its top into the paper, and hanging from its foot. The
+ * footer's are yellow; a chapter sets `--ruler` to its own fill. A small
+ * mark every 8px, a half mark every 40 and a full one every 80. It measures
+ * nothing and is not a reading of anything; it is the brand's instrument,
+ * not one of its figures.
+ *
+ * The full marks are counted from the frame's own left edge, so the first
+ * one stands over the first column rather than wherever the window happens
+ * to start. The ticks are painted on a layer three windows
+ * wide pulled one window left, with the pattern pushed back by the same
+ * window: the two cancel, which pins it to the frame without having to know
+ * the scrollbar's width.
+ */
+.ruler {
+  overflow: hidden;
+}
+.ruler > .frame {
+  position: relative;
+  height: 22px;
+  /* `.frame`'s own inline padding, at its breakpoints. */
+  --frame-pad: 16px;
+}
+@media (min-width: 640px) { .ruler > .frame { --frame-pad: 28px; } }
+@media (min-width: 1024px) { .ruler > .frame { --frame-pad: 40px; } }
+.ruler > .frame::before {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  left: -100vw;
+  width: 300vw;
+  background-image:
+    linear-gradient(to right, var(--ruler, var(--signal)) 2px, transparent 2px),
+    linear-gradient(to right, var(--ruler, var(--signal)) 2px, transparent 2px),
+    linear-gradient(to right, var(--ruler, var(--signal)) 2px, transparent 2px);
+  background-size: 80px 22px, 40px 13px, 8px 7px;
+  background-repeat: repeat-x;
+  background-position: calc(100vw + var(--frame-pad)) 100%;
+}
+.ruler-foot > .frame::before {
+  background-position: calc(100vw + var(--frame-pad)) 0;
+}
+
+/*
+ * A link in the closing block. On hover a tick slides in ahead of it: the
+ * ruler's mark, set against the line being pointed at.
+ */
+.footer-link {
+  position: relative;
+  color: color-mix(in oklab, currentColor 80%, transparent);
+  transition: color 160ms var(--ease-out);
+}
+.footer-link::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: -14px;
+  width: 8px;
+  height: 2px;
+  margin-top: -1px;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 220ms var(--ease-out);
+}
+.footer-link:hover,
+.footer-link:focus-visible {
+  color: inherit;
+}
+.footer-link:hover::before,
+.footer-link:focus-visible::before {
+  transform: scaleX(1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .footer-link::before { transition: none; }
+}
+
+/*
  * The footer wordmark, and the highlight that crosses it.
  *
  * `background-clip: text` rather than a colour transition, so the light
