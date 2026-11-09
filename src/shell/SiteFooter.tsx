@@ -67,61 +67,87 @@ const GROUPS: Array<{ title: string; links: Array<{ href: string; label: string;
 ];
 
 /**
- * A ledger, not a second hero: five columns under a single rule, closed by
- * a line that states the relationship to BNB Chain exactly as far as it
- * goes and no further.
+ * A ledger, not a second hero: five columns, closed by a line that states
+ * the relationship to BNB Chain exactly as far as it goes and no further.
+ *
+ * The page closes on one block of brand colour, the index and the name,
+ * drawn as a ruler with ticks along its top and its foot. The yellow is the
+ * footer's alone: the ask above it stays on paper with the evidence. It does
+ * not change with the theme, so neither does this.
  */
 export function SiteFooter() {
   return (
-    <footer className="mt-24 border-t border-rule bg-sunken/60 pb-16 md:pb-0">
-      <div className="frame grid grid-cols-1 gap-12 py-14 lg:grid-cols-[1.1fr_3fr]">
-        <div className="flex max-w-xs flex-col items-start gap-4">
-          <span className="text-[17px] font-[640] tracking-[-0.03em] text-ink">Pokter</span>
-          <p className="text-sm leading-relaxed text-ink-2">
-            {/*
-              Not the hero's line. "These do" points at a catalogue, and
-              there is no catalogue under a footer — the sentence needs to
-              stand on its own here, so it states the work rather than the
-              finding.
-            */}
-            We call the BNB Chain agents working in the categories we judge,
-            and publish what came back — including the ones that never answer.
-            Evidence first, one escrow per job, no standing access to your
-            wallet.
-          </p>
-          <Link href="/" aria-label="Pokter home" className="group/mark mt-2 inline-flex rounded-[10px] text-ink focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ink">
-            <Mark size={58} className="motion-safe:transition-transform motion-safe:duration-300 motion-safe:ease-out motion-safe:group-hover/mark:-translate-y-0.5 motion-safe:group-hover/mark:-rotate-3 motion-safe:group-focus-visible/mark:-translate-y-0.5" />
-          </Link>
-        </div>
-        <div className="grid grid-cols-2 gap-x-6 gap-y-10 sm:grid-cols-3 lg:grid-cols-5">
-          {GROUPS.map((group) => (
-            <div key={group.title} className="flex flex-col gap-3">
-              <h2 className="t-label">{group.title}</h2>
-              <ul className="flex flex-col gap-2 text-sm">
-                {group.links.map((link) => (
-                  <li key={link.href}>
-                    {link.external ? (
-                      <a href={link.href} className="text-ink-2 hover:text-ink" target={link.href.startsWith('http') ? '_blank' : undefined} rel="noreferrer noopener">
-                        {link.label}
-                      </a>
-                    ) : (
-                      <Link href={link.href} className="text-ink-2 hover:text-ink">
-                        {link.label}
-                      </Link>
-                    )}
-                  </li>
-                ))}
-              </ul>
+    <footer className="pb-16 md:pb-0">
+      <div aria-hidden className="ruler">
+        <div className="frame" />
+      </div>
+      <div className="bg-[var(--signal)] text-[var(--signal-ink)]">
+        <div className="frame">
+          {/*
+            The index at a size meant to be read from, under labels set small:
+            the links are what somebody scrolled this far for, and the labels
+            only sort them.
+          */}
+          <div className="grid grid-cols-2 gap-x-6 gap-y-12 pt-20 sm:grid-cols-3 sm:pt-24 lg:grid-cols-5">
+            {GROUPS.map((group) => (
+              <div key={group.title} className="flex flex-col gap-5">
+                <h2 className="font-mono text-[11px] font-medium uppercase tracking-[0.16em] text-[var(--signal-ink)]/60">{group.title}</h2>
+                <ul className="flex flex-col gap-3 text-[16px] leading-snug sm:text-[17px]">
+                  {group.links.map((link) => (
+                    <li key={link.href}>
+                      {link.external ? (
+                        <a href={link.href} className="footer-link" target={link.href.startsWith('http') ? '_blank' : undefined} rel="noreferrer noopener">
+                          {link.label}
+                        </a>
+                      ) : (
+                        <Link href={link.href} className="footer-link">
+                          {link.label}
+                        </Link>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+          {/*
+            The close, corner to corner with the ask: what Pokter is and who
+            does not operate it on the left, small, and the name on the right,
+            large, where the page runs out.
+          */}
+          <div className="mt-20 grid gap-12 pb-14 lg:mt-28 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end lg:gap-16">
+            <div className="flex max-w-md flex-col gap-4 text-[13px] leading-relaxed text-[var(--signal-ink)]/72">
+              <p>
+                {/*
+                  Not the hero's line. "These do" points at a catalogue, and
+                  there is no catalogue under a footer — the sentence needs to
+                  stand on its own here, so it states the work rather than the
+                  finding.
+                */}
+                We call the BNB Chain agents working in the categories we judge,
+                and publish what came back — including the ones that never answer.
+                Evidence first, one escrow per job, no standing access to your
+                wallet.
+              </p>
+              <p>An independent agent marketplace built on BNB Chain. Not operated or endorsed by BNB Chain.</p>
             </div>
-          ))}
+            <div className="flex flex-col items-start gap-6 lg:items-end">
+              <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-[var(--signal-ink)]/60">ERC-8004 · ERC-8183 · A2A · MCP</p>
+              <Link
+                href="/"
+                aria-label="Pokter home"
+                className="t-display-mark inline-flex items-center gap-[0.14em] rounded-[10px] text-[clamp(3.25rem,1.75rem+4.6vw,6.75rem)] leading-[0.82] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-current"
+              >
+                <Mark size={96} className="h-[0.8em] w-[0.77em]" />
+                <span>Pokter</span>
+              </Link>
+            </div>
+          </div>
         </div>
       </div>
       {/* <FooterAssembly /> */}
-      <div className="border-t border-rule">
-        <div className="frame flex flex-col gap-2 pb-7 pt-6 text-[12.5px] text-ink-3 sm:flex-row sm:items-center sm:justify-between">
-          <p>An independent agent marketplace built on BNB Chain. Not operated or endorsed by BNB Chain.</p>
-          <p className="t-readout">ERC-8004 · ERC-8183 · A2A · MCP</p>
-        </div>
+      <div aria-hidden className="ruler ruler-foot">
+        <div className="frame" />
       </div>
     </footer>
   );

@@ -13,11 +13,15 @@ import { OUTCOMES } from '@/features/home/outcomes';
 import { FeaturedAgent } from '@/features/agents/AgentCard';
 import { AgentAvatar } from '@/ui/Agent';
 import { LinkButton } from '@/ui/Button';
+import { VERDICT_LABEL } from '@/lib/proof/engine';
 import { Icon } from '@/ui/icons';
 import { Reveal } from '@/ui/Reveal';
 import { StepRail } from '@/features/home/StepRail';
-import { LogoAssembly } from '@/features/home/LogoAssembly';
-import { Mark } from '@/shell/Logo';
+import { RecordSlides } from '@/features/home/RecordSlides';
+import { SlideRail } from '@/features/home/SlideRail';
+// Paused while the page closes on the footer's still lockup.
+// import { LogoAssembly } from '@/features/home/LogoAssembly';
+// import { Mark } from '@/shell/Logo';
 import { lastCheckAt } from '@/lib/history/last-check';
 import { Ago } from '@/ui/Ago';
 
@@ -54,18 +58,21 @@ export default async function HomePage() {
    */
   const record: Array<{
     scope: string;
+    short: string;
     unit: string;
     rows: Array<{ label: string; value: number | null }>;
     note: string;
   }> = [
     {
       scope: 'The registry',
+      short: 'Registry',
       unit: 'identities · counted by 8004scan',
       rows: [{ label: 'Registered on BNB Chain', value: home.stats?.registered ?? null }],
       note: 'Every ERC-8004 identity on mainnet. A third party\u2019s count, not one of Pokter\u2019s measurements.',
     },
     {
       scope: 'Agents Pokter has called',
+      short: 'Called',
       unit: 'agents · Pokter\u2019s own probes, BNB Chain',
       rows: [
         { label: 'Monitored', value: home.measured.monitored },
@@ -75,6 +82,7 @@ export default async function HomePage() {
     },
     {
       scope: 'In the catalogue now',
+      short: 'Catalogue',
       unit: 'agents · counted once each, both chains',
       rows: [
         { label: 'Hireable via escrow', value: home.catalogue.hireable },
@@ -85,6 +93,7 @@ export default async function HomePage() {
     },
     {
       scope: 'Paid work',
+      short: 'Paid work',
       unit: 'jobs · settled through Pokter escrow',
       rows: [{ label: 'Paid jobs answered', value: home.activity.answeredJobs }],
       note: `Settled with the agent\u2019s answer and paid to the agent, from wallets outside Pokter\u2019s declared team${
@@ -101,6 +110,51 @@ export default async function HomePage() {
     },
   ];
 
+
+  /* One list for the standards card and the table under it, so the two never disagree. */
+  const standards: Array<[string, string, string, string]> = [
+    ['ERC-8004 identity', 'Who an agent is, who owns it, where it answers', 'Live', 'BNB Chain and testnet'],
+    ['ERC-8183 escrow', 'Funding, delivery, settlement and refunds per job', 'Live', ESCROW_NETWORKS_LABEL],
+    ['A2A agent cards', 'Probing, signed quotes and delivery requests', 'Live', ''],
+    /*
+      "Partial · Preflight only" was true when the only MCP
+      Pokter did was check that a builder's endpoint answered.
+      It is wrong on both counts now, and in both directions.
+
+      Pokter serves MCP: `/api/mcp` answers `tools/list` with
+      search_agents, get_agent, get_quote, hire_link and
+      integration_kit, so the marketplace is usable from a
+      client rather than only from this site. And it reads it:
+      `listMcpTools` calls an agent's own `tools/list` and
+      `mcpCapabilities` turns the result into the capabilities
+      on its page, which is well past a preflight.
+
+      The note still says what it does not do. An MCP-only
+      agent cannot be hired — that runs through A2A and the
+      escrow — and a row claiming "Live" without saying so
+      would be read as more than it is.
+    */
+    ['MCP', 'Pokter inside an MCP client, and reading what an agent exposes', 'Live', 'Five tools at /api/mcp; an agent\u2019s own tools/list read and shown as its capabilities. Hiring still runs through A2A and escrow.'],
+    ['BNB Agent Studio', 'Agents it registers appear automatically; connect one by ID', 'Live', 'Via ERC-8004'],
+    /*
+      Says what was found, not only what is built.
+      "Planned · Not integrated" described Pokter's roadmap and
+      left the reader to assume the standard works and Pokter
+      has not caught up. Measuring it says otherwise: the
+      registration schema carries `x402Support` as a boolean
+      with no field for where to pay, and of 47 declaring
+      agents whose endpoints Pokter called, none answered the
+      402 the protocol requires.
+
+      That finding is about Pokter's own probe, which calls an
+      agent card and not a paid route, and it was being read as
+      "nobody is paid over x402". Other marketplaces do pay
+      agents in this index that way, so the row says what
+      Pokter does and does not do instead.
+    */
+    ['x402 / B402', 'Per-call payments', 'Not used here', 'Pokter hires through ERC-8183 escrow and does not pay or read x402 payments; some agents in the index are paid that way elsewhere'],
+    ['ERC-8004 validation registry', 'Third-party validation', 'Unavailable', 'Not deployed on BSC'],
+  ];
 
   return (
     <>
@@ -367,299 +421,348 @@ export default async function HomePage() {
       </section>
 
       {/* ───────────── The record ───────────── */}
-      <section className="frame py-14 sm:py-28" aria-labelledby="why-title">
-        <div className="grid grid-cols-1 gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] lg:gap-20">
-          <Reveal className="flex flex-col gap-5">
-            <span className="t-label">The record</span>
-            <h2 id="why-title" className="t-h1">A registration is not a track record.</h2>
-            <div className="t-body flex max-w-prose flex-col gap-4 text-ink-2">
-              <p>
-                Anyone can register an agent and describe it well. A polished description, a working-looking endpoint and a high reputation number can all belong to an agent that has never answered a request.
-              </p>
-              <p>
-                Pokter asks every listed agent, on a schedule, and keeps what comes back. It separates what an agent says from what has been observed, and when something has not been measured it says so instead of filling the gap.
-              </p>
-            </div>
-            <div className="mt-2 flex flex-wrap gap-x-6 gap-y-2 text-sm">
-              <Link href="/proof" className="inline-flex items-center gap-1.5 font-medium hover:underline">
-                Every job, with receipts <Icon.Arrow size={15} />
-              </Link>
-              <Link href="/methodology" className="inline-flex items-center gap-1.5 text-ink-2 hover:text-ink hover:underline">
-                How it is measured <Icon.Arrow size={15} />
-              </Link>
-            </div>
-          </Reveal>
-          <Reveal delay={100}>
-            <figure className="rounded-[18px] border border-rule bg-raised p-6 sm:p-8">
-              <figcaption className="mb-6 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                <span className="t-label">From registered to proven useful</span>
-                <span className="text-[11px] text-ink-3">Four counts, four scopes, not one funnel</span>
-              </figcaption>
-              <ol className="ruled flex flex-col">
-                {record.map((group) => (
-                  <li key={group.scope} className="flex flex-col gap-2 py-4 first:pt-0 last:pb-0">
-                    <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5">
-                      <span className="text-[13px] font-semibold">{group.scope}</span>
-                      {/* What it counts, and who counted it, beside every number it applies to. */}
-                      <span className="t-label text-ink-3">{group.unit}</span>
-                    </div>
-                    <dl className="flex flex-wrap gap-x-8 gap-y-1">
-                      {group.rows.map((row) => (
-                        <div key={row.label} className="flex items-baseline gap-2">
-                          <dd className="t-readout text-[19px] font-medium tracking-[-0.02em] text-ink">{count(row.value)}</dd>
-                          <dt className="text-[13px] text-ink-2">{row.label}</dt>
-                        </div>
-                      ))}
-                    </dl>
-                    <p className="text-[12px] leading-relaxed text-ink-3">{group.note}</p>
-                  </li>
-                ))}
-              </ol>
-            </figure>
-          </Reveal>
+      {/*
+        A chapter of its own colour. The page is paper from the hero down,
+        and this is the argument the rest of it rests on, so it is the one
+        stretch where the ground changes: indigo, the rail's fifth step, with
+        the claim's second half in the signal yellow. Ruled at both edges,
+        as the footer is, so the page is measured into it and out again.
+      */}
+      <section aria-labelledby="why-title" className="overflow-x-clip">
+        <div aria-hidden className="ruler" style={{ ['--ruler' as string]: 'var(--step-5)' }}>
+          <div className="frame" />
         </div>
-        {/*
-          The four rules, kept as a row under the record they produce. They
-          were a dark section of their own, the one place the page changed
-          palette, which made them read as a separate product.
-        */}
-        <ul className="-mr-4 mt-10 flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 [scrollbar-width:none] sm:mr-0 sm:mt-14 sm:grid sm:grid-cols-2 sm:gap-4 sm:overflow-x-visible sm:pb-0 lg:grid-cols-4 [&::-webkit-scrollbar]:hidden">
-          {[
-              {
-                icon: Icon.Eye,
-                title: 'Observed beats claimed',
-                body: 'Every figure carries its source: measured by Pokter, attested on chain, or declared by the operator. Missing data never counts as a pass.',
-                readout: ['Every figure', 'tagged with its source'],
-              },
-              {
-                icon: Icon.Key,
-                title: 'Prices are signed, not listed',
-                body: 'An agent\u2019s price exists only in a quote it signs. Pokter checks the signature against its registered wallet and discards anything else.',
-                readout: ['Every price', 'signature checked'],
-              },
-              {
-                icon: Icon.Lock,
-                title: 'One escrow, no standing access',
-                body: 'A hire funds one job in an ERC-8183 escrow. Nothing is granted over your wallet, so there is nothing to revoke afterwards.',
-                readout: ['Standing permissions', 'none, by design'],
-              },
-              {
-                icon: Icon.Shield,
-                title: 'Delivery you can verify',
-                body: 'The agent commits a hash of its deliverable on chain. Pokter checks the file against it while you can still dispute, and you reclaim if nothing arrives.',
-                readout: ['Every delivery', 'hash checked first'],
-              },
-          ].map((item, i) => (
-            <Reveal as="li" key={item.title} delay={i * 70} className="group flex h-full w-[78vw] max-w-[320px] shrink-0 snap-start flex-col rounded-[16px] border border-rule bg-raised p-5 transition-[border-color,box-shadow] hover:border-rule-strong hover:shadow-lift sm:w-auto sm:max-w-none">
-              {/*
-                The rule on top, the thing it guarantees at the bottom, and
-                the guarantee set in the readout face — it is the part a
-                sceptical reader checks, and it was the smallest line here.
-              */}
-              <span className="grid size-9 place-items-center rounded-[10px] bg-sunken text-ink-2 transition-colors group-hover:text-ink">
-                <item.icon size={17} />
-              </span>
-              <h3 className="mt-4 text-[15.5px] font-semibold tracking-[-0.015em]">{item.title}</h3>
-              <p className="mt-2 text-[13px] leading-relaxed text-ink-2">{item.body}</p>
-              <span className="mt-5 flex flex-col gap-1 border-t border-rule pt-3.5">
-                <span className="t-label text-ink-3">{item.readout[0]}</span>
-                <span className="t-readout flex items-center gap-1.5 text-[13px] text-ink">
-                  <span className="size-1.5 shrink-0 rounded-full bg-signal" aria-hidden />
-                  {item.readout[1]}
-                </span>
-              </span>
+        <div className="bg-[var(--step-5)] text-[var(--step-5-ink)]">
+          <div className="frame py-16 sm:py-24">
+            <Reveal className="flex flex-col gap-5">
+              <span className="t-label !text-[var(--step-5-ink)]/65">The record</span>
+              <h2 id="why-title" className="t-h1 max-w-4xl">
+                A registration is not a track record.{' '}
+                <span className="text-signal">Pokter asks every listed agent, on a schedule, and keeps what comes back.</span>
+              </h2>
             </Reveal>
-          ))}
-        </ul>
-        {/*
-          The second half of one argument, not a section of its own. This
-          said "here is why the numbers can be trusted" a few screens after
-          the funnel above had said it, with two unrelated sections in
-          between — the same case made twice in different clothes. Made
-          once now: the record, then where to go and check it.
-        */}
-        <Reveal className="mb-8 mt-14 flex max-w-2xl flex-col gap-3 sm:mb-10 sm:mt-24">
-          <span className="t-label">Check our work</span>
-          <h3 id="trust-title" className="t-h2">Everything Pokter says can be traced.</h3>
-        </Reveal>
-        {/*
-          Three cards rather than three cells of a table. This is the one
-          section asking a reader to go and check a claim, and a row of
-          ruled rows is what people skim past — the colour is the whole
-          point of it. Fills are the rail's own tokens, so the page has one
-          palette used twice rather than two that nearly match.
-        */}
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className="mt-12 grid grid-cols-1 gap-14 sm:mt-16 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.25fr)] lg:gap-16">
+              <Reveal className="flex flex-col gap-10">
+                <div className="flex flex-col gap-4 text-[15px] leading-relaxed text-[var(--step-5-ink)]/80">
+                  <p>
+                    Anyone can register an agent and describe it well. A polished description, a working-looking endpoint and a high reputation number can all belong to an agent that has never answered a request.
+                  </p>
+                  <p>
+                    Pokter separates what an agent says from what has been observed, and when something has not been measured it says so instead of filling the gap.
+                  </p>
+                </div>
+                {/*
+                  The four rules that produce the record, as a list beside it:
+                  the rule, why it holds, and the guarantee in the readout
+                  face, the part a sceptical reader checks.
+                */}
+                <ul className="flex flex-col gap-7">
           {[
-            { href: '/methodology', fill: 3, icon: Icon.Flask, title: 'Methodology', body: 'How every verdict is computed, and the thresholds behind it, imported from the code that applies them.', cta: 'Read the method' },
-            { href: '/risk', fill: 4, icon: Icon.Shield, title: 'Risks and limits', body: 'What the escrow protects, what it does not, and which parts are still testnet. Written to be uncomfortable.', cta: 'See the limits' },
-            { href: '/proof', fill: 5, icon: Icon.Doc, title: 'Production proof', body: 'Every escrow job, the misses included, with a verifier you can run against the chain yourself.', cta: 'Check the record' },
-          ].map((card, i) => (
-            <Reveal key={card.href} delay={i * 70}>
-              {/* The fill lives on the card, not the Reveal, which owns its own style for the delay offset. */}
-              <div
-                className="card-scan relative isolate flex h-full flex-col overflow-hidden rounded-[20px] bg-[var(--fill)] p-6 text-[var(--on-fill)] sm:min-h-[310px] sm:p-7"
-                style={{ ['--fill' as string]: `var(--step-${card.fill})`, ['--on-fill' as string]: `var(--step-${card.fill}-ink)` }}
-              >
-              <span className="relative grid size-10 place-items-center rounded-[11px] bg-[var(--on-fill)]/12">
-                <card.icon size={19} />
-              </span>
-              <h3 className="relative mt-5 text-[21px] font-semibold leading-tight tracking-[-0.02em]">{card.title}</h3>
-              <p className="relative mt-2.5 text-[14px] leading-relaxed opacity-80">{card.body}</p>
-              <Link
-                href={card.href}
-                className="relative mt-6 inline-flex h-11 w-fit items-center gap-2 rounded-full bg-[var(--on-fill)] px-5 text-[14.5px] font-semibold text-[var(--fill)] transition-transform hover:-translate-y-px sm:mt-auto"
-              >
-                {card.cta} <Icon.ArrowUpRight size={15} />
+                      {
+                        icon: Icon.Eye,
+                        title: 'Observed beats claimed',
+                        body: 'Every figure carries its source: measured by Pokter, attested on chain, or declared by the operator. Missing data never counts as a pass.',
+                        readout: ['Every figure', 'tagged with its source'],
+                      },
+                      {
+                        icon: Icon.Key,
+                        title: 'Prices are signed, not listed',
+                        body: 'An agent\u2019s price exists only in a quote it signs. Pokter checks the signature against its registered wallet and discards anything else.',
+                        readout: ['Every price', 'signature checked'],
+                      },
+                      {
+                        icon: Icon.Lock,
+                        title: 'One escrow, no standing access',
+                        body: 'A hire funds one job in an ERC-8183 escrow. Nothing is granted over your wallet, so there is nothing to revoke afterwards.',
+                        readout: ['Standing permissions', 'none, by design'],
+                      },
+                      {
+                        icon: Icon.Shield,
+                        title: 'Delivery you can verify',
+                        body: 'The agent commits a hash of its deliverable on chain. Pokter checks the file against it while you can still dispute, and you reclaim if nothing arrives.',
+                        readout: ['Every delivery', 'hash checked first'],
+                      },
+                  ].map((item) => (
+                    <li key={item.title} className="flex gap-4">
+                      <span className="grid size-9 shrink-0 place-items-center rounded-full border border-[var(--step-5-ink)]/25">
+                        <item.icon size={16} aria-hidden />
+                      </span>
+                      <div className="flex flex-col gap-1.5">
+                        <h3 className="text-[15.5px] font-semibold tracking-[-0.01em]">{item.title}</h3>
+                        <p className="text-[13.5px] leading-relaxed text-[var(--step-5-ink)]/72">{item.body}</p>
+                        <span className="t-readout mt-1 flex items-center gap-1.5 text-[12px]">
+                          <span className="size-1.5 shrink-0 rounded-full bg-signal" aria-hidden />
+                          <span className="text-[var(--step-5-ink)]/60">{item.readout[0]}</span>
+                          {item.readout[1]}
+                        </span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+                <div className="flex flex-wrap gap-2">
+                  <Link href="/proof" className="inline-flex h-9 items-center gap-1.5 rounded-full bg-[var(--step-5-ink)]/12 px-4 text-[13.5px] font-medium transition-colors hover:bg-[var(--step-5-ink)]/20">
+                    Every job, with receipts <Icon.ArrowUpRight size={14} />
+                  </Link>
+                  <Link href="/methodology" className="inline-flex h-9 items-center gap-1.5 rounded-full bg-[var(--step-5-ink)]/12 px-4 text-[13.5px] font-medium transition-colors hover:bg-[var(--step-5-ink)]/20">
+                    How it is measured <Icon.ArrowUpRight size={14} />
+                  </Link>
+                </div>
+              </Reveal>
+              {/*
+                The four counts as slides, one scope at a time. Never drawn on
+                a shared scale and never as bars: they count different things
+                over different scopes, so each slide carries its own unit and
+                source, and the contrast between the first and the last is
+                left to the numbers.
+              */}
+              <Reveal delay={80} className="lg:sticky lg:top-24 lg:self-start">
+                <figure className="flex flex-col gap-4">
+                  <figcaption className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+                    <span className="t-label !text-[var(--step-5-ink)]">From registered to proven useful</span>
+                    <span className="t-label !text-[var(--step-5-ink)]/60">Four counts, four scopes, not one funnel</span>
+                  </figcaption>
+                  <RecordSlides
+                    slides={record.map((group) => ({ ...group, rows: group.rows.map((row) => ({ label: row.label, value: count(row.value) })) }))}
+                  />
+                </figure>
+              </Reveal>
+            </div>
+          </div>
+        </div>
+        <div aria-hidden className="ruler ruler-foot" style={{ ['--ruler' as string]: 'var(--step-5)' }}>
+          <div className="frame" />
+        </div>
+        <div className="frame pb-14 sm:pb-28">
+          {/*
+            The second half of one argument, not a section of its own. This
+            said "here is why the numbers can be trusted" a few screens after
+            the funnel above had said it, with two unrelated sections in
+            between — the same case made twice in different clothes. Made
+            once now: the record, then where to go and check it.
+          */}
+          <Reveal className="mt-14 sm:mt-24">
+            {/*
+              A rail of four, each a coloured panel over plain type, the way
+              the record above is a deck: one place to check per card, and
+              the card at the window's edge, cut off, says there is more. The
+              panels hold what the page behind them holds, in small: the
+              verdicts the method computes, the three things the risk page
+              answers, the life of a job the proof page lists, and the
+              standards the table below spells out.
+            */}
+            <SlideRail
+              label="Where to check Pokter’s work"
+              heading={
+                <div className="flex max-w-3xl flex-col gap-3">
+                  <span className="t-label">Check our work</span>
+                  <h3 id="trust-title" className="t-h2">
+                    Everything Pokter says can be traced.{' '}
+                    <span className="text-[var(--step-3)]">Four places to check it yourself.</span>
+                  </h3>
+                </div>
+              }
+            >
+              {[
+                {
+                  href: '/methodology',
+                  fill: 3,
+                  icon: Icon.Flask,
+                  title: 'Methodology',
+                  body: 'How every verdict is computed, and the thresholds behind it, imported from the code that applies them.',
+                  cta: 'Read the method',
+                  panel: <PanelChips items={Object.values(VERDICT_LABEL).map((label) => ({ label }))} />,
+                },
+                {
+                  href: '/risk',
+                  fill: 4,
+                  icon: Icon.Shield,
+                  title: 'Risks and limits',
+                  body: 'What the escrow protects, what it does not, and which parts are still testnet. Written to be uncomfortable.',
+                  cta: 'See the limits',
+                  panel: (
+                    <PanelRows
+                      rows={[
+                        { mark: 'yes', text: 'What the escrow protects' },
+                        { mark: 'no', text: 'What it does not' },
+                        { mark: 'part', text: 'Which parts are still testnet' },
+                      ]}
+                    />
+                  ),
+                },
+                {
+                  href: '/proof',
+                  fill: 5,
+                  icon: Icon.Doc,
+                  title: 'Production proof',
+                  body: 'Every escrow job, the misses included, with a verifier you can run against the chain yourself.',
+                  cta: 'Check the record',
+                  panel: (
+                    <PanelRows
+                      rows={[
+                        { mark: 'step', text: 'Funded in escrow' },
+                        { mark: 'step', text: 'Delivered with a hash on chain' },
+                        { mark: 'step', text: 'Checked against the file' },
+                        { mark: 'step', text: 'Paid, refunded, or missed' },
+                      ]}
+                    />
+                  ),
+                },
+                {
+                  href: '/developers#protocols',
+                  fill: 2,
+                  icon: Icon.Layers,
+                  title: 'Standards',
+                  body: 'What Pokter supports today, and what it does not yet: the standards live here, the one it does not use, and the one not deployed on BSC.',
+                  cta: 'See the protocols',
+                  panel: <PanelChips items={standards.map(([name, , status]) => ({ label: name, live: status === 'Live' }))} />,
+                },
+              ].map((card) => (
+                <li key={card.href} className="flex w-[82vw] max-w-[400px] shrink-0 snap-start flex-col sm:w-[400px]">
+                  <div
+                    className="relative flex aspect-[5/4] flex-col justify-end gap-4 overflow-hidden rounded-[20px] bg-[var(--fill)] p-5 text-[var(--on-fill)] sm:p-6"
+                    style={{ ['--fill' as string]: `var(--step-${card.fill})`, ['--on-fill' as string]: `var(--step-${card.fill}-ink)` }}
+                  >
+                    <card.icon size={20} className="absolute left-5 top-5 opacity-80 sm:left-6 sm:top-6" aria-hidden />
+                    {card.panel}
+                  </div>
+                  <h4 className="mt-5 text-[18px] font-semibold tracking-[-0.015em]">{card.title}</h4>
+                  <p className="mt-1.5 text-[14px] leading-relaxed text-ink-2">{card.body}</p>
+                  <Link
+                    href={card.href}
+                    className="mt-4 inline-flex h-9 w-fit items-center gap-1.5 rounded-full bg-sunken px-4 text-[13.5px] font-medium text-ink transition-colors hover:bg-[color-mix(in_oklab,var(--sunken)_84%,var(--ink))]"
+                  >
+                    {card.cta} <Icon.ArrowUpRight size={14} />
+                  </Link>
+                </li>
+              ))}
+            </SlideRail>
+          </Reveal>
+          <details className="group mt-10">
+            <summary className="flex cursor-pointer list-none items-center gap-1.5 text-sm font-medium text-ink-2 hover:text-ink [&::-webkit-details-marker]:hidden">
+              <Icon.ChevronRight size={15} className="transition-transform duration-200 group-open:rotate-90" />
+              What Pokter supports today, and what it does not yet
+            </summary>
+            <div className="pt-4">
+            <div className="overflow-hidden rounded-[16px] border border-rule">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-sunken/70">
+                  <tr>
+                    <th scope="col" className="t-label px-5 py-3 font-medium">Standard</th>
+                    <th scope="col" className="t-label hidden px-5 py-3 font-medium sm:table-cell">Used for</th>
+                    <th scope="col" className="t-label px-5 py-3 font-medium">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-rule bg-raised">
+                  {standards.map(([name, use, status, note]) => (
+                    <tr key={name}>
+                      <th scope="row" className="px-5 py-4 font-medium">
+                        {name}
+                        <span className="mt-0.5 block text-[12.5px] font-normal text-ink-3 sm:hidden">{use}</span>
+                      </th>
+                      <td className="hidden px-5 py-4 text-ink-2 sm:table-cell">{use}</td>
+                      <td className="px-5 py-4">
+                        <span className="flex flex-col gap-0.5">
+                          <span
+                            className={`inline-flex w-fit items-center gap-1.5 text-[13px] font-medium ${status === 'Live' ? 'text-ok' : status === 'Partial' ? 'text-watch' : 'text-ink-3'}`}
+                          >
+                            <span className={`size-1.5 rounded-full ${status === 'Live' ? 'bg-ok' : status === 'Partial' ? 'bg-watch' : 'bg-rule-strong'}`} aria-hidden />
+                            {status}
+                          </span>
+                          {note && <span className="text-[12px] text-ink-3">{note}</span>}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            </div>
+          </details>
+        </div>
+      </section>
+      {/* ───────────── For builders ───────────── */}
+      {/*
+        The second chapter of colour: teal, the rail's third step, for the
+        page's other reader. Somebody building an agent has a different job
+        here from somebody hiring one, and a ground of their own says so
+        before a word does. Ruled at both edges, like the record.
+      */}
+      <section aria-labelledby="builders-title">
+        <div aria-hidden className="ruler" style={{ ['--ruler' as string]: 'var(--step-3)' }}>
+          <div className="frame" />
+        </div>
+        <div className="bg-[var(--step-3)] text-[var(--step-3-ink)]">
+          <div className="frame grid grid-cols-1 gap-12 py-16 sm:py-24 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:items-center lg:gap-20">
+            <Reveal className="flex flex-col gap-5">
+              <span className="t-label !text-[var(--step-3-ink)]/65">For builders</span>
+              <h2 id="builders-title" className="t-h1">
+                From an idea, or an endpoint you already run, <span className="text-signal">to a listing people can hire.</span>
+              </h2>
+              <p className="max-w-prose text-[15px] leading-relaxed text-[var(--step-3-ink)]/80">
+                Builder Studio checks your endpoint the way a buyer&rsquo;s hire will, registers your ERC-8004 identity, and shows what stands between you and your first paid job. Agents deployed with BNB Agent Studio can be connected by their registry ID.
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <Link
+                  href="/build"
+                  className="inline-flex h-11 items-center gap-2 rounded-full bg-[var(--step-3-ink)] px-5 text-[14.5px] font-semibold text-[var(--step-3)] transition-transform hover:-translate-y-px"
+                >
+                  Open Builder Studio <Icon.Arrow size={16} />
+                </Link>
+                <Link
+                  href="/build"
+                  className="inline-flex h-11 items-center rounded-full bg-[var(--step-3-ink)]/12 px-5 text-[14.5px] font-semibold transition-colors hover:bg-[var(--step-3-ink)]/20"
+                >
+                  How building works
                 </Link>
               </div>
             </Reveal>
-          ))}
-        </div>
-        <details className="group mt-6">
-          <summary className="flex cursor-pointer list-none items-center gap-1.5 text-sm font-medium text-ink-2 hover:text-ink [&::-webkit-details-marker]:hidden">
-            <Icon.ChevronRight size={15} className="transition-transform duration-200 group-open:rotate-90" />
-            What Pokter supports today, and what it does not yet
-          </summary>
-          <div className="pt-4">
-          <div className="overflow-hidden rounded-[16px] border border-rule">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-sunken/70">
-                <tr>
-                  <th scope="col" className="t-label px-5 py-3 font-medium">Standard</th>
-                  <th scope="col" className="t-label hidden px-5 py-3 font-medium sm:table-cell">Used for</th>
-                  <th scope="col" className="t-label px-5 py-3 font-medium">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-rule bg-raised">
-                {[
-                  ['ERC-8004 identity', 'Who an agent is, who owns it, where it answers', 'Live', 'BNB Chain and testnet'],
-                  ['ERC-8183 escrow', 'Funding, delivery, settlement and refunds per job', 'Live', ESCROW_NETWORKS_LABEL],
-                  ['A2A agent cards', 'Probing, signed quotes and delivery requests', 'Live', ''],
-                  /*
-                    "Partial · Preflight only" was true when the only MCP
-                    Pokter did was check that a builder's endpoint answered.
-                    It is wrong on both counts now, and in both directions.
-
-                    Pokter serves MCP: `/api/mcp` answers `tools/list` with
-                    search_agents, get_agent, get_quote, hire_link and
-                    integration_kit, so the marketplace is usable from a
-                    client rather than only from this site. And it reads it:
-                    `listMcpTools` calls an agent's own `tools/list` and
-                    `mcpCapabilities` turns the result into the capabilities
-                    on its page, which is well past a preflight.
-
-                    The note still says what it does not do. An MCP-only
-                    agent cannot be hired — that runs through A2A and the
-                    escrow — and a row claiming "Live" without saying so
-                    would be read as more than it is.
-                  */
-                  ['MCP', 'Pokter inside an MCP client, and reading what an agent exposes', 'Live', 'Five tools at /api/mcp; an agent\u2019s own tools/list read and shown as its capabilities. Hiring still runs through A2A and escrow.'],
-                  ['BNB Agent Studio', 'Agents it registers appear automatically; connect one by ID', 'Live', 'Via ERC-8004'],
-                  /*
-                    Says what was found, not only what is built.
-                    "Planned · Not integrated" described Pokter's roadmap and
-                    left the reader to assume the standard works and Pokter
-                    has not caught up. Measuring it says otherwise: the
-                    registration schema carries `x402Support` as a boolean
-                    with no field for where to pay, and of 47 declaring
-                    agents whose endpoints Pokter called, none answered the
-                    402 the protocol requires.
-
-                    That finding is about Pokter's own probe, which calls an
-                    agent card and not a paid route, and it was being read as
-                    "nobody is paid over x402". Other marketplaces do pay
-                    agents in this index that way, so the row says what
-                    Pokter does and does not do instead.
-                  */
-                  ['x402 / B402', 'Per-call payments', 'Not used here', 'Pokter hires through ERC-8183 escrow and does not pay or read x402 payments; some agents in the index are paid that way elsewhere'],
-                  ['ERC-8004 validation registry', 'Third-party validation', 'Unavailable', 'Not deployed on BSC'],
-                ].map(([name, use, status, note]) => (
-                  <tr key={name}>
-                    <th scope="row" className="px-5 py-4 font-medium">
-                      {name}
-                      <span className="mt-0.5 block text-[12.5px] font-normal text-ink-3 sm:hidden">{use}</span>
-                    </th>
-                    <td className="hidden px-5 py-4 text-ink-2 sm:table-cell">{use}</td>
-                    <td className="px-5 py-4">
-                      <span className="flex flex-col gap-0.5">
-                        <span
-                          className={`inline-flex w-fit items-center gap-1.5 text-[13px] font-medium ${status === 'Live' ? 'text-ok' : status === 'Partial' ? 'text-watch' : 'text-ink-3'}`}
-                        >
-                          <span className={`size-1.5 rounded-full ${status === 'Live' ? 'bg-ok' : status === 'Partial' ? 'bg-watch' : 'bg-rule-strong'}`} aria-hidden />
-                          {status}
+            <Reveal delay={100}>
+              {/* Set into the chapter, a step darker, rather than a paper card laid on top of it. */}
+              <div className="overflow-hidden rounded-[22px] bg-[color-mix(in_oklab,var(--step-3)_72%,black)]">
+                <div className="flex items-center justify-between border-b border-[var(--step-3-ink)]/12 px-6 py-4">
+                  <span className="t-label !text-[var(--step-3-ink)]">Publishing checklist</span>
+                  <span className="t-readout text-[11px] text-[var(--step-3-ink)]/60">5 checks</span>
+                </div>
+                {/*
+                  A rail rather than five ruled rows. These are stages of one
+                  thing — an agent is not hireable until the last — and rows
+                  of equal weight said five unrelated requirements.
+                */}
+                <ol className="relative flex flex-col gap-0 px-6 py-4">
+                  <span className="absolute left-[calc(1.5rem+13px)] top-9 bottom-9 w-px bg-[var(--step-3-ink)]/20" aria-hidden />
+                  {[
+                    [Icon.Key, 'ERC-8004 identity', 'Registered, and owned by your wallet'],
+                    [Icon.Doc, 'Agent card', 'Resolvable, with a category and skills'],
+                    [Icon.Plug, 'Endpoint', 'Answers an A2A or MCP handshake'],
+                    [Icon.Spark, 'Signed quote', 'Price signed by the agent\u2019s wallet'],
+                    [Icon.Send, 'Delivery', 'Commits a hash for each funded job'],
+                  ].map(([Glyph, title, detail], i) => {
+                    const Node = Glyph as typeof Icon.Key;
+                    return (
+                      <li key={title as string} className="group relative flex items-start gap-4 py-3">
+                        <span className="relative z-10 grid size-[27px] shrink-0 place-items-center rounded-full border border-[var(--step-3-ink)]/30 bg-[color-mix(in_oklab,var(--step-3)_72%,black)] text-[var(--step-3-ink)]/80 transition-colors group-hover:border-signal group-hover:text-signal">
+                          <Node size={13} />
                         </span>
-                        {note && <span className="text-[12px] text-ink-3">{note}</span>}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          </div>
-        </details>
-      </section>
-      {/* ───────────── For builders ───────────── */}
-      <section className="border-y border-rule bg-raised/50 py-14 sm:py-28" aria-labelledby="builders-title">
-        <div className="frame grid grid-cols-1 gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:items-center lg:gap-20">
-          <Reveal className="flex flex-col gap-5">
-            <span className="t-label">For builders</span>
-            <h2 id="builders-title" className="t-h1">From an idea, or an endpoint you already run, to a listing people can hire.</h2>
-            <p className="t-body max-w-prose text-ink-2">
-              Builder Studio checks your endpoint the way a buyer&rsquo;s hire will, registers your ERC-8004 identity, and shows what stands between you and your first paid job. Agents deployed with BNB Agent Studio can be connected by their registry ID.
-            </p>
-            <div className="mt-2 flex flex-wrap gap-3">
-              <LinkButton href="/build" intent="primary" trailing={<Icon.Arrow size={16} />}>
-                Open Builder Studio
-              </LinkButton>
-              <LinkButton href="/build" intent="secondary">
-                How building works
-              </LinkButton>
-            </div>
-          </Reveal>
-          <Reveal delay={100}>
-            <div className="overflow-hidden rounded-[18px] border border-rule bg-paper shadow-lift">
-              <div className="flex items-center justify-between border-b border-rule bg-sunken/50 px-5 py-3.5">
-                <span className="t-label">Publishing checklist</span>
-                <span className="t-readout text-[11px] text-ink-3">5 checks</span>
+                        <span className="flex min-w-0 flex-col gap-0.5 pt-0.5">
+                          <span className="flex items-baseline gap-2 text-sm font-medium">
+                            {title as string}
+                            <span className="t-readout text-[10.5px] text-[var(--step-3-ink)]/55">{String(i + 1).padStart(2, '0')}</span>
+                          </span>
+                          <span className="text-[12.5px] leading-snug text-[var(--step-3-ink)]/68">{detail as string}</span>
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ol>
+                <p className="border-t border-[var(--step-3-ink)]/12 px-6 py-4 text-[12px] leading-relaxed text-[var(--step-3-ink)]/65">
+                  Studio runs all five against your endpoint before you register, and again on every sweep after.
+                </p>
               </div>
-              {/*
-                A rail rather than five ruled rows. These are stages of one
-                thing — an agent is not hireable until the last — and rows
-                of equal weight said five unrelated requirements.
-              */}
-              <ol className="relative flex flex-col gap-0 px-5 py-4">
-                <span className="absolute left-[calc(1.25rem+13px)] top-9 bottom-9 w-px bg-rule" aria-hidden />
-                {[
-                  [Icon.Key, 'ERC-8004 identity', 'Registered, and owned by your wallet'],
-                  [Icon.Doc, 'Agent card', 'Resolvable, with a category and skills'],
-                  [Icon.Plug, 'Endpoint', 'Answers an A2A or MCP handshake'],
-                  [Icon.Spark, 'Signed quote', 'Price signed by the agent\u2019s wallet'],
-                  [Icon.Send, 'Delivery', 'Commits a hash for each funded job'],
-                ].map(([Glyph, title, detail], i) => {
-                  const Node = Glyph as typeof Icon.Key;
-                  return (
-                    <li key={title as string} className="group relative flex items-start gap-4 py-3">
-                      <span className="relative z-10 grid size-[27px] shrink-0 place-items-center rounded-full border border-rule-strong bg-paper text-ink-3 transition-colors group-hover:border-ink group-hover:text-ink">
-                        <Node size={13} />
-                      </span>
-                      <span className="flex min-w-0 flex-col gap-0.5 pt-0.5">
-                        <span className="flex items-baseline gap-2 text-sm font-medium">
-                          {title as string}
-                          <span className="t-readout text-[10.5px] text-ink-3">{String(i + 1).padStart(2, '0')}</span>
-                        </span>
-                        <span className="text-[12.5px] leading-snug text-ink-3">{detail as string}</span>
-                      </span>
-                    </li>
-                  );
-                })}
-              </ol>
-              <p className="border-t border-rule px-5 py-3 text-[12px] leading-relaxed text-ink-3">
-                Studio runs all five against your endpoint before you register, and again on every sweep after.
-              </p>
-            </div>
-          </Reveal>
+            </Reveal>
+          </div>
+        </div>
+        <div aria-hidden className="ruler ruler-foot" style={{ ['--ruler' as string]: 'var(--step-3)' }}>
+          <div className="frame" />
         </div>
       </section>
 
@@ -707,49 +810,70 @@ export default async function HomePage() {
 
       {/* ───────────── Final CTA ───────────── */}
       {/*
-        Full bleed, and the one place on the page that is brand colour
-        edge to edge. Everything above it is evidence on paper; this is
-        the ask, and it should not look like another card.
+        The ask, on paper, as the last thing the page says before the
+        footer. The yellow belongs to the footer alone, one block that
+        closes the page; the ask stays with the evidence it follows rather
+        than inside the index.
       */}
-      <section
-        data-flush-footer
-        className="relative isolate mt-8 overflow-hidden bg-[var(--signal)] text-[var(--signal-ink)]"
-        aria-labelledby="cta-title"
-      >
-        {/*
-          The right half only, and never behind the copy: the artwork has
-          to be ignorable, and a reader should not be deciding which of
-          two things to look at while reading a sentence.
-        */}
-        <LogoAssembly className="pointer-events-none absolute inset-y-10 right-[4%] hidden w-[34%] max-w-[330px] sm:block" />
-        <div className="frame relative py-20 sm:py-24">
-          <Reveal className="flex max-w-xl flex-col items-start gap-5">
-            <h2 id="cta-title" className="t-h1">Tell Pokter what you need done.</h2>
-            <p className="t-body max-w-md opacity-75">
-              Describe the task and see which agents have been measured doing it. Nothing to connect until you decide to hire.
-            </p>
-            <div className="mt-3 flex flex-wrap gap-3">
-              <Link
-                href="/discover"
-                className="inline-flex h-12 items-center gap-2 rounded-full bg-[var(--signal-ink)] px-6 text-[15px] font-semibold text-[var(--signal)] transition-transform hover:-translate-y-px"
-              >
-                Find an agent <Icon.Arrow size={17} />
-              </Link>
-              <Link
-                href="/build"
-                className="inline-flex h-12 items-center rounded-full bg-[var(--signal-ink)]/10 px-6 text-[15px] font-semibold transition-colors hover:bg-[var(--signal-ink)]/18"
-              >
-                Build an agent
-              </Link>
-            </div>
-            {/*
-              On a phone the artwork would be behind the copy or nowhere,
-              so it is neither: the mark itself, still, under the buttons.
-            */}
-            <Mark size={76} className="mt-10 text-[var(--signal-ink)]/80 sm:hidden" />
-          </Reveal>
-        </div>
+      <section className="frame py-24 sm:py-32" aria-labelledby="cta-title">
+        {/* The tiles are paused while the page closes on the footer's still lockup. */}
+        {/* <LogoAssembly className="pointer-events-none absolute inset-y-10 right-[4%] hidden w-[34%] max-w-[330px] sm:block" /> */}
+        <Reveal className="flex max-w-xl flex-col items-start gap-5">
+          <h2 id="cta-title" className="t-h1">Tell Pokter what you need done.</h2>
+          <p className="t-body max-w-md text-ink-2">
+            Describe the task and see which agents have been measured doing it. Nothing to connect until you decide to hire.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-3">
+            <LinkButton href="/discover" intent="primary" size="l" trailing={<Icon.Arrow size={17} />}>
+              Find an agent
+            </LinkButton>
+            <LinkButton href="/build" intent="secondary" size="l">
+              Build an agent
+            </LinkButton>
+          </div>
+        </Reveal>
       </section>
     </>
+  );
+}
+
+/*
+ * The small things inside the check-our-work panels. They sit on a step fill,
+ * so every colour is the fill's own ink at a strength, never a paper token.
+ */
+function PanelChips({ items }: { items: Array<{ label: string; live?: boolean }> }) {
+  return (
+    <ul className="flex flex-wrap gap-1.5">
+      {items.map((item) => (
+        <li key={item.label} className="inline-flex h-7 items-center gap-1.5 rounded-full bg-[var(--on-fill)]/12 px-3 text-[12px] font-medium">
+          {item.live !== undefined && (
+            <span className={`size-1.5 shrink-0 rounded-full ${item.live ? 'bg-[var(--on-fill)]' : 'border border-[var(--on-fill)]/60'}`} aria-hidden />
+          )}
+          {item.label}
+          {item.live === false && <span className="sr-only"> (not live)</span>}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function PanelRows({ rows }: { rows: Array<{ mark: 'yes' | 'no' | 'part' | 'step'; text: string }> }) {
+  const Mark = { yes: Icon.Check, no: Icon.Cross, part: Icon.Dash, step: null };
+  return (
+    <ul className="flex flex-col divide-y divide-[var(--on-fill)]/12 rounded-[14px] bg-[var(--on-fill)]/10 px-4 text-[13px]">
+      {rows.map((row, i) => {
+        const Glyph = Mark[row.mark];
+        return (
+          <li key={row.text} className="flex items-center gap-2.5 py-2.5">
+            {Glyph ? (
+              <Glyph size={14} className="shrink-0 opacity-80" aria-hidden />
+            ) : (
+              <span className="t-readout w-3.5 shrink-0 text-[11px] opacity-60">{i + 1}</span>
+            )}
+            {row.text}
+          </li>
+        );
+      })}
+    </ul>
   );
 }
