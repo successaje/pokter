@@ -100,6 +100,26 @@ export function classifyStageResult(label: string, value: unknown): StageOutcome
     const outsiders = typeof watch.outsiders === 'number' ? watch.outsiders : 0;
     if (outsiders > 0 && watch.alerted !== true && watch.channels?.any === true) return 'failed';
   }
+  if (label === 'keeper' && typeof value === 'object' && value !== null && 'mode' in value) {
+    /*
+     * The keeper returns normally whatever its sends did, by design, so the
+     * result decides. Switched on with a key it cannot use, a chain it could
+     * not read, a send that failed or a wallet with no gas while jobs are
+     * owed: each is the stage not doing its work. Off is a deployment
+     * state, not a failure.
+     */
+    const run = value as { mode?: unknown; error?: unknown; chains?: Array<{ error?: unknown; due?: unknown; stopped?: unknown; outcomes?: Array<{ result?: unknown }> }> };
+    if (run.mode === 'off') return null;
+    if (run.mode === 'on' && typeof run.error === 'string') return 'failed';
+    const chains = Array.isArray(run.chains) ? run.chains : [];
+    const results = chains.flatMap((chain) => (Array.isArray(chain.outcomes) ? chain.outcomes : []).map((outcome) => outcome.result));
+    const lost =
+      results.filter((result) => result === 'failed' || result === 'reverted').length +
+      chains.filter((chain) => typeof chain.error === 'string' || (chain.stopped === 'gas' && typeof chain.due === 'number' && chain.due > 0)).length;
+    if (lost === 0) return null;
+    const landed = results.filter((result) => result === 'confirmed' || result === 'sent' || result === 'would-send').length;
+    return landed > 0 ? 'partial' : 'failed';
+  }
   return null;
 }
 

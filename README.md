@@ -405,6 +405,9 @@ All optional for local browsing. Server-only unless marked public.
 | `BSC_MAINNET_RPC_URL` | Your own mainnet node. It replaces publicnode for the assay's Venus and PancakeSwap v3 reads, trading, registry, x402 and escrow history reads. The escrow index and the server's job reads ask it first, with BNB Chain's public nodes behind it |
 | `NEXT_PUBLIC_ESCROW_CHAINS` | Which escrows hires may be funded on, e.g. `97,56`. Unset means testnet only. A build arg, not a runtime value |
 | `ALTANA_MAINNET_OPERATOR_PURPOSES` | Comma-separated operator purposes allowed to sign on mainnet, e.g. `evidence-agent`. Nothing signs on mainnet without it |
+| `KEEPER` | The keeper, which settles Pokter's delivered jobs once their review window closes and refunds undelivered ones once their deadline passes. `dry` reads and simulates and sends nothing; `on` sends. Anything else, including unset, is off |
+| `KEEPER_CHAINS` | Escrow chains the keeper acts on, e.g. `97,56`. Unset means testnet only, so mainnet is opened by naming it |
+| `KEEPER_KEY` | The keeper's signer: a wallet of its own holding only BNB for gas, never `ALTANA_ADMIN_KEY` (the keeper refuses it). The escrow pays settlements to the agent and refunds to the buyer whoever sends them, so this key only pays gas |
 | `*_DB_PATH` | SQLite locations: `PROBE`, `SESSION`, `JOB`, `DELIVERABLE`, `RATE_LIMIT`, `NOTIFICATION`, `REVIEW`, `BUILDER`, `FUNDER`, `ASSAY`, `QUEST`, `CONVERSION`, `SEAL`, `WALLET_ACTIVITY`, `CAPABILITY`, `FEEDBACK`, `BRIEF`, `PROFILE`, `SCOUT`, `MAINTENANCE`, `SATURATION`. Default `./data/`. A new store is registered in `src/lib/health/stores.ts`, the Dockerfile and `fly.toml` together |
 
 ### Public Telegram bot
@@ -435,7 +438,7 @@ The webhook rejects requests without Telegram's secret header and ignores non-me
 | `GET /api/v1/seals`, `/api/v1/seals/{hash}`, `/api/v1/seals/verifier` | The daily seals of Pokter's claims, and a script that checks one against its on-chain anchor |
 | `GET /api/v1/integration` | The integration kit, machine-readable |
 | `POST /api/mcp` | The MCP server: `search_agents`, `get_agent`, `get_quote`, `hire_link`, `prepare_brief`, `prepare_hire`, `job_status`, `check_delivery`, `integration_kit` |
-| `GET /api/health` | Store durability, scheduler state, and whether the server is saturated |
+| `GET /api/health` | Store durability, scheduler and keeper state, and whether the server is saturated |
 | `GET /llms.txt` | What an AI crawler should read first, with the provenance rules |
 | `GET /api/jobs?client=0x…` | The jobs one wallet funded through Pokter |
 | `GET /api/jobs/{id}` | One job, read from chain |
@@ -458,12 +461,13 @@ must point at the volume (`/data/…`, set in `fly.toml` and the Dockerfile).
 The sweep runs inside the server about every ten minutes (`SWEEP_SCHEDULER=on`);
 a scheduled GitHub workflow is the backup. Each run probes a batch of agents and
 asks for quotes, then reconciles the job index, watches for new hires, retries
-stuck deliveries, notices sellers and stuck jobs, sends job, builder, follower
-and liquidation-alert emails, runs due correctness checks, grades paid
-deliveries, indexes escrow jobs, seals the day's claims, and tests relays. The
-whole run shares a 240-second budget with 40 seconds held for the critical
-steps; each step reports its duration and outcome, so a slow or failing one is
-named in the log rather than silently costing the steps after it.
+stuck deliveries, notices sellers and stuck jobs, settles and refunds what the
+escrow owes (when `KEEPER` is on), sends job, builder, follower and
+liquidation-alert emails, runs due correctness checks, grades paid deliveries,
+indexes escrow jobs, seals the day's claims, and tests relays. The whole run
+shares a 250-second budget with 50 seconds held for the five critical steps;
+each step reports its duration and outcome, so a slow or failing one is named
+in the log rather than silently costing the steps after it.
 
 Guarded operator endpoints use the bearer `SWEEP_SECRET`: `POST /api/jobs/backfill`
 re-reads jobs from chain (a dry run unless `"write": true`), and
