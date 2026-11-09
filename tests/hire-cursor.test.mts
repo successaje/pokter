@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { mayAdvanceHireCursor } from '../src/lib/alerts/hire-cursor';
 import { classifyStageResult } from '../src/lib/history/stage-classify';
 import { runBudget } from '../src/lib/history/budget';
-import { SWEEP_CRITICAL_RESERVE_MS, SWEEP_CRITICAL_STEP_MS } from '../src/lib/history/schedule';
+import { CRITICAL_STAGES, SWEEP_CRITICAL_RESERVE_MS, SWEEP_CRITICAL_STEP_MS } from '../src/lib/history/schedule';
 
 const CHANNELS = { telegram: true, email: true, any: true };
 
@@ -66,13 +66,13 @@ test('an unconfigured channel is not a failed hire alert', () => {
 
 test('a zero reserve skips every critical stage, so it is not a rollback', async () => {
   /*
-   * Recorded so nobody reaches for it. `SWEEP_CRITICAL_STEP_MS` is a quarter
+   * Recorded so nobody reaches for it. `SWEEP_CRITICAL_STEP_MS` is a share
    * of the reserve, so a reserve of zero gives each critical step a cap of
    * zero, and `step` skips at a cap of zero. That does not restore the
    * previous behaviour — it disables hire detection, delivery retries,
-   * seller notices and stuck-job alerts outright.
+   * seller notices, stuck-job alerts and the keeper outright.
    */
-  assert.equal(SWEEP_CRITICAL_RESERVE_MS / 4, SWEEP_CRITICAL_STEP_MS, 'the cap is derived from the reserve');
+  assert.equal(SWEEP_CRITICAL_RESERVE_MS / CRITICAL_STAGES.length, SWEEP_CRITICAL_STEP_MS, 'the cap is derived from the reserve');
 
   const zeroBudget = runBudget(240_000, () => 0, 0);
   const ran: string[] = [];

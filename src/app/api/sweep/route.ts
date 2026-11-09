@@ -13,6 +13,7 @@ import { retryStuckDeliveries } from '@/lib/erc8183/delivery-retry';
 import { noticeUnansweredJobs } from '@/lib/erc8183/notice-sweep';
 import { checkAnsweredTasks } from '@/lib/agent/answered-tasks-sweep';
 import { alertStuckJobs } from '@/lib/erc8183/stuck-alert';
+import { runKeeper } from '@/lib/erc8183/keeper';
 import { attributeRecentJobs } from '@/lib/erc8183/attribute-owners';
 import { probeUnknownRelays } from '@/lib/erc8183/relay-probe';
 import { relayStatus } from '@/lib/erc8183/relay-refusal';
@@ -447,6 +448,14 @@ export async function POST(request: Request): Promise<NextResponse> {
     const stuckJobs = await budget.step('stuckJobs', () => alertStuckJobs({ deadlineAt: Date.now() + SWEEP_CRITICAL_STEP_MS - CRITICAL_LOOP_SLACK_MS }), { critical: true, maxMs: SWEEP_CRITICAL_STEP_MS });
 
     /*
+     * Settle what the escrow owes and refund what was never delivered, once
+     * each is due (lib/erc8183/keeper.ts). After the reconciliation, so it
+     * starts from statuses this run refreshed, though it reads every job
+     * from chain again before acting on it. Off unless KEEPER says so.
+     */
+    const keeper = await budget.step('keeper', () => runKeeper({ deadlineAt: Date.now() + SWEEP_CRITICAL_STEP_MS - CRITICAL_LOOP_SLACK_MS }), { critical: true, maxMs: SWEEP_CRITICAL_STEP_MS });
+
+    /*
      * Who owned each newly funded job's agent, read while the funding is
      * still recent enough to say. A job this misses stays unattributed;
      * a later run never fills it in with whoever owns the agent by then.
@@ -752,12 +761,13 @@ export async function POST(request: Request): Promise<NextResponse> {
        * failed returns normally, and recording that as a success would be
        * the same false green one level down.
        */
-      budget: persistStageOutcomes(budget.report(), { deliveryRetries, hireWatch, sellerNotices, stuckJobs }),
+      budget: persistStageOutcomes(budget.report(), { deliveryRetries, hireWatch, sellerNotices, stuckJobs, keeper }),
       notifications, notificationFailures,
       hireWatch,
       deliveryRetries,
       sellerNotices,
       stuckJobs,
+      keeper,
       jobOwners,
       campaignReminders,
       loanWatches,

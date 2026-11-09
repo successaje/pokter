@@ -90,8 +90,12 @@ export const RECENT_SWEEP_MS = 6 * 60 * 1000;
  * steps already appear: the measurements first, the slow optional lookups
  * last. The run reports what it shed, so a tail that is squeezed every time
  * is visible rather than silently never happening.
+ *
+ * 250s since the keeper became a critical step: its ten seconds were added
+ * on top, so the ordinary steps kept the 200s they had, and the run still
+ * sits 50s under the platform's limit.
  */
-export const SWEEP_RUN_BUDGET_MS = 240_000;
+export const SWEEP_RUN_BUDGET_MS = 250_000;
 
 /**
  * Held back from the run for the steps that must not be skipped.
@@ -105,25 +109,16 @@ export const SWEEP_RUN_BUDGET_MS = 240_000;
  * The budget sheds work from the bottom, and its own note argues that is
  * right because the route puts optional work last. That was true when
  * written and stopped being true as maintenance accumulated below the cut
- * line. Those four steps have consequences outside this process; none is
- * sheddable.
+ * line. Those steps have consequences outside this process; none is
+ * sheddable. The keeper joined them in November: a delivery it does not
+ * settle before the deadline can be refunded away from the agent.
  *
- * 40s of 240s, leaving 200s for everything ordinary. Runs were finishing in
- * 185–193s, so the reservation costs nothing in the normal case and bites
- * only when a run is already overrunning — which is when the critical steps
- * were being lost.
+ * 50s of 250s, ten for each critical step, leaving 200s for everything
+ * ordinary. Runs were finishing in 185–193s, so the reservation costs
+ * nothing in the normal case and bites only when a run is already
+ * overrunning — which is when the critical steps were being lost.
  */
-export const SWEEP_CRITICAL_RESERVE_MS = 40_000;
-
-/**
- * The most any one critical step may spend.
- *
- * The reservation is shared, so without a cap the first critical step to
- * hang consumes all 40s and starves the other three — the same fault with
- * the victims narrowed from eighteen to three. A quarter each, so one
- * hanging step costs its own turn and nobody else's.
- */
-export const SWEEP_CRITICAL_STEP_MS = SWEEP_CRITICAL_RESERVE_MS / 4;
+export const SWEEP_CRITICAL_RESERVE_MS = 50_000;
 
 /**
  * The steps whose loss means the run did not do its job.
@@ -133,7 +128,17 @@ export const SWEEP_CRITICAL_STEP_MS = SWEEP_CRITICAL_RESERVE_MS / 4;
  * a stage quietly stopping being critical is exactly the failure this whole
  * change is about.
  */
-export const CRITICAL_STAGES = ['hireWatch', 'deliveryRetries', 'sellerNotices', 'stuckJobs'] as const;
+export const CRITICAL_STAGES = ['hireWatch', 'deliveryRetries', 'sellerNotices', 'stuckJobs', 'keeper'] as const;
+
+/**
+ * The most any one critical step may spend.
+ *
+ * The reservation is shared, so without a cap the first critical step to
+ * hang consumes all of it and starves the others — the same fault with the
+ * victims narrowed from eighteen to four. An equal share each, so one
+ * hanging step costs its own turn and nobody else's.
+ */
+export const SWEEP_CRITICAL_STEP_MS = SWEEP_CRITICAL_RESERVE_MS / CRITICAL_STAGES.length;
 
 /*
  * What bounds a single sweep. Here rather than beside `runSweep` because

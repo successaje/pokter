@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { accessSync, constants } from 'node:fs';
 import { dirname } from 'node:path';
 
+import { keeperConfig } from '@/lib/erc8183/keeper-plan';
 import { readVitals } from '@/lib/health/vitals';
 import { lastSaturation, recordSaturation } from '@/lib/health/saturation-store';
 import { STORES, isDurable, storePath } from '@/lib/health/stores';
@@ -134,6 +135,12 @@ export function GET(): NextResponse {
          * both fail on "off" now.
          */
         scheduler: schedulerState(),
+        /*
+         * Whether the keeper sends, simulates or is off, and on which escrow
+         * chains, so switching it on can be checked from outside without
+         * reading logs. From the environment too; it never says which wallet.
+         */
+        keeper: keeperConfig(process.env),
         lastStartedAt: vitals.lastRunStartedAt,
         lastFinishedAt: vitals.lastSweepFinishedAt,
         gates: false,

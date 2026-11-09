@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { runBudget } from '../src/lib/history/budget';
-import { SWEEP_CRITICAL_RESERVE_MS, SWEEP_CRITICAL_STEP_MS, SWEEP_RUN_BUDGET_MS } from '../src/lib/history/schedule';
+import { CRITICAL_STAGES, SWEEP_CRITICAL_RESERVE_MS, SWEEP_CRITICAL_STEP_MS, SWEEP_RUN_BUDGET_MS } from '../src/lib/history/schedule';
 
 function fakeClock(start = 0) {
   let now = start;
@@ -23,12 +23,12 @@ test('a slow ordinary step cannot starve a critical one', async () => {
   await budget.step('reconcileJobs', () => { clock.advance(200_000); return 'spent it all'; });
 
   const ran: string[] = [];
-  for (const label of ['hireWatch', 'deliveryRetries', 'sellerNotices', 'stuckJobs']) {
+  for (const label of CRITICAL_STAGES) {
     const result = await budget.step(label, () => { clock.advance(1_000); ran.push(label); return label; }, CRITICAL);
     assert.equal(result, label, `${label} must still run`);
   }
 
-  assert.deepEqual(ran, ['hireWatch', 'deliveryRetries', 'sellerNotices', 'stuckJobs']);
+  assert.deepEqual(ran, [...CRITICAL_STAGES]);
   assert.deepEqual(budget.report().criticalMissed, []);
 });
 
@@ -52,11 +52,11 @@ test('one hanging critical step does not starve the other critical steps', async
   assert.equal(hung, null, 'the hanging step is given up on');
 
   const survived: string[] = [];
-  for (const label of ['deliveryRetries', 'sellerNotices', 'stuckJobs']) {
+  for (const label of CRITICAL_STAGES.filter((stage) => stage !== 'hireWatch')) {
     const result = await budget.step(label, () => { clock.advance(500); survived.push(label); return label; }, CRITICAL);
     assert.equal(result, label, `${label} must survive a hanging hireWatch`);
   }
-  assert.deepEqual(survived, ['deliveryRetries', 'sellerNotices', 'stuckJobs']);
+  assert.deepEqual(survived, CRITICAL_STAGES.filter((stage) => stage !== 'hireWatch'));
 
   const report = budget.report();
   assert.deepEqual(report.timedOut, ['hireWatch']);
@@ -130,7 +130,8 @@ test('the reservation leaves a healthy run untouched', () => {
   // case would trade a rare failure for a constant one.
   assert.equal(SWEEP_RUN_BUDGET_MS - SWEEP_CRITICAL_RESERVE_MS, 200_000);
   assert.ok(200_000 > 193_000, 'the slowest observed healthy run still fits');
-  assert.equal(SWEEP_CRITICAL_STEP_MS, 10_000, 'a quarter of the reservation each');
+  assert.equal(SWEEP_CRITICAL_STEP_MS, 10_000, 'an equal share of the reservation each');
+  assert.equal(SWEEP_CRITICAL_STEP_MS * CRITICAL_STAGES.length, SWEEP_CRITICAL_RESERVE_MS, 'and the shares add up to the reservation');
 });
 
 test('the tail is still shed from the bottom', async () => {
