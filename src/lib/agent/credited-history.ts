@@ -1,9 +1,12 @@
 import 'server-only';
 
+import { courierPaidTest } from '@/lib/erc8183/courier-paid';
 import { deliverableKey, readDeliverable } from '@/lib/erc8183/deliverables';
 import { summariseEconomicHistory, type AgentEconomicHistory } from '@/lib/erc8183/economic-history';
 import { getJobStore } from '@/lib/erc8183/store';
 import type { HiredJob } from '@/lib/erc8183/types';
+import { registeredWalletRead } from '@/lib/registry/live-agent';
+import { teamAddressSet } from '@/lib/team/wallets';
 import { carriesRelayedAnswerFor, readDeliveredManifest, type DeliveredManifest } from './delivery-kind';
 
 /*
@@ -68,4 +71,34 @@ export function agentHistory(jobs: HiredJob[], now = Date.now()): AgentEconomicH
     isRelayedDelivery,
     refusedAtNotice: (job) => store.noticeFor(job.chainId, job.jobId)?.status === 'rejected',
   });
+}
+
+export interface PaidWork {
+  /** `agentHistory` over the jobs that paid, or would pay, the agent. */
+  history: AgentEconomicHistory;
+  /** Funded jobs the escrow paid to Pokter's courier instead, as `chainId:jobId`: in no figure of `history`. */
+  courierJobs: string[];
+}
+
+/**
+ * The record behind every figure that calls itself the agent's paid work.
+ *
+ * Pokter's courier carries a brief to an agent that has signed no price
+ * and submits the agent's answer, and the escrow pays the courier. The
+ * agent answered and was not paid, so it is not the agent's paid work: a
+ * mainnet profile counted a free testnet trial as one of its three paid
+ * jobs while its hire page, counting one chain, said two. Which jobs those
+ * are is the test /proof, the home page and the job page use
+ * (`courierPaidTest`): a Pokter wallet as provider is the courier's unless
+ * the registry names it as the agent's own.
+ *
+ * `agentHistory` keeps them, as deliveries Pokter made, because the ladder
+ * and the readiness line say what a relayed delivery was.
+ */
+export async function agentPaidWork(jobs: HiredJob[], now = Date.now()): Promise<PaidWork> {
+  const courierPaid = await courierPaidTest(jobs, teamAddressSet(), registeredWalletRead);
+  return {
+    history: agentHistory(jobs.filter((job) => !courierPaid(job)), now),
+    courierJobs: jobs.filter((job) => job.status !== 'OPEN' && courierPaid(job) && !isLifecycleDemo(job)).map((job) => `${job.chainId}:${job.jobId}`),
+  };
 }

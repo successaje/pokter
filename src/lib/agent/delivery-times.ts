@@ -1,8 +1,11 @@
 import 'server-only';
 
 import { altanaNetworkFor } from '@/lib/altana/client';
+import { courierPaidTest } from '@/lib/erc8183/courier-paid';
 import { getErc8183Job } from '@/lib/erc8183/job-read';
 import { getJobStore } from '@/lib/erc8183/store';
+import { registeredWalletRead } from '@/lib/registry/live-agent';
+import { teamAddressSet } from '@/lib/team/wallets';
 import { mapWithConcurrency } from '@/lib/concurrency';
 import { withTimeout } from '@/lib/net/bounded';
 
@@ -61,10 +64,15 @@ export async function deliveryTimes(chainId: number, tokenId: string): Promise<D
    * Every funded job, not only those the index last read as delivered: the
    * stored status is a snapshot from the buyer's last refresh and lags the
    * chain, which is where `submittedAt` is read from anyway.
+   *
+   * Not a job the escrow paid Pokter's courier for: the courier submitted
+   * it, so its time is Pokter's, and the profile beside this figure does not
+   * count it as the agent's paid work either (`agentPaidWork`).
    */
-  const delivered = getJobStore()
-    .byAgent(chainId, tokenId)
-    .filter((job) => job.status !== 'OPEN')
+  const jobs = getJobStore().byAgent(chainId, tokenId);
+  const courierPaid = await courierPaidTest(jobs, teamAddressSet(), registeredWalletRead);
+  const delivered = jobs
+    .filter((job) => job.status !== 'OPEN' && !courierPaid(job))
     .sort((a, b) => b.hiredAt.localeCompare(a.hiredAt))
     .slice(0, SAMPLE);
 

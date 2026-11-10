@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import { courierPaidTest } from '../src/lib/erc8183/courier-paid';
+import { summariseEconomicHistory } from '../src/lib/erc8183/economic-history';
 import type { HiredJob } from '../src/lib/erc8183/types';
 
 /*
@@ -54,4 +55,46 @@ test('the proof page, Discover and the home page all count couriers by this rule
   for (const path of ['app/(site)/proof/page.tsx', 'lib/erc8183/outside-activity.ts', 'features/home/data.ts']) {
     assert.doesNotMatch(code(path), /team\.has\(job\.provider\.toLowerCase\(\)\)/, `${path} no longer counts every Pokter-paid job as the courier's`);
   }
+});
+
+test('a mainnet agent’s paid work leaves out the testnet trial its escrow paid to the courier', async () => {
+  /*
+   * A mainnet agent with two mainnet jobs paid to its own registered
+   * wallet, and a free testnet trial the courier carried for it and was
+   * paid for. Its profile said three paid jobs; its hire page, counting one
+   * chain, said two.
+   */
+  const OWN = '0x00000000000000000000000000000000000000d4' as const;
+  const mainnet = (id: string): HiredJob => ({ ...job(id, '5001', OWN), chainId: 56, isTestnet: false, agentChainId: 56 });
+  const trial: HiredJob = { ...job('3', '5001', POKTER), agentChainId: 56 };
+  const jobs = [mainnet('1'), mainnet('2'), trial];
+  const reads: string[] = [];
+  const courierPaid = await courierPaidTest(jobs, team, async (chainId, tokenId) => {
+    reads.push(`${chainId}:${tokenId}`);
+    return { answered: true, wallet: OWN };
+  });
+  assert.deepEqual(reads, ['56:5001'], 'the agent’s own registry, not the escrow chain’s');
+  assert.deepEqual(jobs.map(courierPaid), [false, false, true]);
+  const paid = summariseEconomicHistory(jobs.filter((j) => !courierPaid(j)));
+  assert.equal(paid.jobs, 2);
+  assert.equal(paid.delivered, 2);
+  assert.equal(paid.completed, 2);
+});
+
+test('the profile, its score, Compare and delivery times read paid work by this rule', () => {
+  const credited = code('lib/agent/credited-history.ts');
+  assert.match(credited, /const courierPaid = await courierPaidTest\(jobs, teamAddressSet\(\), registeredWalletRead\);\s*return \{\s*history: agentHistory\(jobs\.filter\(\(job\) => !courierPaid\(job\)\), now\),/);
+  const marketplace = code('lib/marketplace.ts');
+  assert.match(marketplace, /score: computeScore\(\{ agent, category, proof, attestations, record, live, history: paidWork\.history \}\),/);
+  assert.match(marketplace, /const \{ history: economicHistory \} = await agentPaidWork\(getJobStore\(\)\.byAgent\(chainId, tokenId\)\);/);
+  assert.match(code('lib/agent/delivery-times.ts'), /\.filter\(\(job\) => job\.status !== 'OPEN' && !courierPaid\(job\)\)/);
+  const profile = code('app/(site)/agents/[chainId]/[tokenId]/page.tsx');
+  assert.match(profile, /label: 'Paid jobs',\s*value: String\(p\.paidWork\.jobs\),/);
+  assert.match(profile, /label="Jobs funded"\s*value=\{p\.paidWork\.jobs\}/);
+  assert.match(profile, /\$\{p\.paidWork\.delivered\} of \$\{p\.paidWork\.jobs - p\.paidWork\.pending - p\.paidWork\.refused\}/);
+  assert.match(profile, /through Pokter’s courier, not counted/, 'left out, and said');
+  /* The full history only counts the rows listed, which include the courier's. */
+  assert.equal(profile.match(/p\.history\.jobs\b/g)?.length, 2);
+  assert.match(profile, /\{p\.jobHistory\.length === p\.history\.jobs \? 'All of them' : `Newest \$\{p\.jobHistory\.length\} of \$\{p\.history\.jobs\}`\}/);
+  assert.doesNotMatch(profile, /p\.history\.(delivered|completed|pending)\b/, 'no paid-work figure reads the full history');
 });

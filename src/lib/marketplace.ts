@@ -37,7 +37,7 @@ import { ScanError } from '@/lib/scan/client';
 import type { PokterScore } from '@/lib/score/types';
 import { getJobStore } from '@/lib/erc8183/store';
 import type { AgentEconomicHistory } from '@/lib/erc8183/economic-history';
-import { agentHistory } from '@/lib/agent/credited-history';
+import { agentHistory, agentPaidWork, type PaidWork } from '@/lib/agent/credited-history';
 import { getReviewStore } from '@/lib/reviews/store';
 import { isPromotableAgent } from '@/lib/agents/eligibility';
 import { capPerOwner, preferDistinctOwners } from '@/lib/agents/diversity';
@@ -433,6 +433,8 @@ export interface AgentDossier {
   latestCheck: ProbeRecord | null;
   /** The transparent evaluation shown on the detail page. */
   score: PokterScore;
+  /** Its paid work: its jobs without those the escrow paid to Pokter's courier (`agentPaidWork`). The score reads this. */
+  paidWork: PaidWork;
   /**
    * The last price this agent signed for itself, and whether it still
    * stands. The hire form needs it: without the agent's own price it fell
@@ -515,7 +517,7 @@ export async function getDossier(
 ): Promise<AgentDossier> {
   const agent = await getAgent(chainId, tokenId);
 
-  const [feedbackPage, live] = await Promise.all([
+  const [feedbackPage, live, paidWork] = await Promise.all([
     listFeedbacks({ chainId, agentId: agent.id, limit: 50 }).catch(() => ({
       items: [],
       total: 0,
@@ -526,6 +528,8 @@ export async function getDossier(
     // serial network round trips to every dossier. Scheduled sweeps remain the
     // source of repeated-sample reliability evidence.
     probeAgent(agent, { samples: 1 }),
+    // At most one registry read, for an agent with a job paid to a Pokter wallet.
+    agentPaidWork(getJobStore().byAgent(agent.chain_id, agent.token_id)),
   ]);
 
   const currentOwner = await registryOwner(chainId, tokenId).catch(() => null);
@@ -560,7 +564,8 @@ export async function getDossier(
     live,
     record,
     latestCheck,
-    score: computeScore({ agent, category, proof, attestations, record, live, history: agentHistory(getJobStore().byAgent(agent.chain_id, agent.token_id)) }),
+    score: computeScore({ agent, category, proof, attestations, record, live, history: paidWork.history }),
+    paidWork,
     quote,
     quoteCurrent: Boolean(
       quote && (!quote.expiresAt || Date.parse(quote.expiresAt) > Date.now()),
@@ -623,6 +628,7 @@ export interface Comparison {
   score: PokterScore;
   quote: QuoteRecord | null;
   quoteCurrent: boolean;
+  /** Its paid work, as on its profile: jobs the escrow paid to Pokter's courier are not in it (`agentPaidWork`). */
   economicHistory: AgentEconomicHistory;
   reviewCount: number;
   reviewAverage: number | null;
@@ -672,7 +678,7 @@ export async function getComparison(
     getProbeStore().quotesFor([{ chainId, tokenId }]).get(`${chainId}:${tokenId}`) ?? null,
     record.totalProbes,
   );
-  const economicHistory = agentHistory(getJobStore().byAgent(chainId, tokenId));
+  const { history: economicHistory } = await agentPaidWork(getJobStore().byAgent(chainId, tokenId));
   const reviews = getReviewStore().byAgent(chainId, tokenId);
 
   return {
