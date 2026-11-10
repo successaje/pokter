@@ -7,7 +7,7 @@ import { Doc, DocSection } from '@/features/content/Doc';
 import { DeliveredAnswerView } from '@/features/delivery/AnswerView';
 import { PlanChecks } from '@/features/delivery/PlanChecks';
 import { loadJobEvidence, type JobEvidence } from '@/lib/jobs/evidence';
-import { FUNDER_LABEL, fundedWhen, jobEvidencePath, jobStatusWords, utcWhen } from '@/lib/jobs/evidence-view';
+import { deliveryStanding, FUNDER_LABEL, fundedWhen, jobEvidencePath, jobStatusWords, utcWhen } from '@/lib/jobs/evidence-view';
 import { jobChainParam, jobHref } from '@/lib/jobs/href';
 import { outcomeRecord } from '@/lib/jobs/outcome-record';
 import { chainLabel, explorerBaseFor } from '@/lib/network/presentation';
@@ -29,8 +29,18 @@ const evidenceFor = cache(async (chainParam: string, jobId: string): Promise<Job
   return loadJobEvidence(chainId, jobId);
 });
 
+/* The headline and the status line both read the status here, so they never say two things. */
+const statusOf = (e: JobEvidence) => jobStatusWords(e.status, e.paidToCourier, deliveryStanding(e, e.statusReadAt) === 'overdue');
+
+/* What each line says while nothing is delivered, by where the job stands (`deliveryStanding`). */
+const UNDELIVERED = {
+  waiting: { fact: 'Not yet', stage: 'Awaiting delivery', step: 'Not yet.', hash: 'Nothing to check yet: the agent has not delivered.', answer: 'Nothing has been delivered yet.' },
+  overdue: { fact: 'Not by its deadline', stage: 'Missed its deadline', step: 'Not by its deadline. Anyone may now send the refund to the buyer.', hash: 'Nothing to check: nothing was delivered by the deadline.', answer: 'Nothing was delivered by the deadline.' },
+  never: { fact: 'Never', stage: 'Never delivered', step: 'Never. The deadline passed with nothing delivered, and the escrow refunded the buyer.', hash: 'Nothing to check: the agent never delivered.', answer: 'Nothing was delivered.' },
+} as const;
+
 function summary(e: JobEvidence): string {
-  const status = jobStatusWords(e.status, e.paidToCourier).label.toLowerCase();
+  const status = statusOf(e).label.toLowerCase();
   const check = e.delivery.state === 'matches' ? ', and its delivery matches the hash committed on chain' : e.delivery.state === 'mismatch' ? ', but its delivery does not match the hash committed on chain' : '';
   const funder = e.funder === 'team' ? ' Funded by Pokter’s team as a test.' : e.funder === 'outside' ? ' Funded by an outside buyer.' : e.funder === 'self' ? ' Funded by the agent’s own operator.' : '';
   return `A ${e.amount} escrow job for ${e.agent.name} on ${chainLabel(e.chainId)}: ${status}${check}.${funder}`;
@@ -63,9 +73,17 @@ export default async function JobEvidencePage({ params }: { params: Promise<Para
   if (!e) notFound();
 
   const explorer = explorerBaseFor(e.chainId);
-  const status = jobStatusWords(e.status, e.paidToCourier);
+  const status = statusOf(e);
   const record = outcomeRecord(e);
   const settled = e.status === 'COMPLETED' || e.status === 'REJECTED' || e.status === 'EXPIRED';
+  const undelivered = UNDELIVERED[deliveryStanding(e, e.statusReadAt) ?? 'waiting'];
+  /*
+   * The transaction that closed the job, when Pokter recorded one. The
+   * receipt falls back to the funding transaction, which is listed on its
+   * own, so a match is no closing transaction: a refunded job said "linked
+   * below" over a list holding only its funding.
+   */
+  const closingTx = settled && e.receipt.hash && e.receipt.hash !== e.fundingTx ? e.receipt.hash : null;
   const facts: Array<{ label: string; value: ReactNode }> = [
     { label: 'Network', value: `${chainLabel(e.chainId)} (${e.chainId})${e.chainId === 97 ? ', test tokens with no value' : ''}` },
     {
@@ -103,7 +121,7 @@ export default async function JobEvidencePage({ params }: { params: Promise<Para
     { label: 'Funded by', value: FUNDER_LABEL[e.funder] },
     { label: 'Escrow provider', value: <a href={`${explorer}/address/${e.provider}`} className="link t-readout break-all" target="_blank" rel="noreferrer noopener">{e.provider}</a> },
     { label: 'Funded', value: e.fundingAt ? `${utcWhen(e.fundingAt)} · funding transaction block` : fundedWhen(e.hiredAt, e.deliveredAt) },
-    { label: 'Delivered', value: utcWhen(e.deliveredAt) ?? 'Not yet' },
+    { label: 'Delivered', value: utcWhen(e.deliveredAt) ?? undelivered.fact },
     ...(e.review ? [{ label: 'Review window', value: e.review.open ? `Open until ${e.review.closes}. The buyer can dispute until then.` : `Closed ${e.review.closes}.` }] : []),
     { label: 'Deadline', value: utcWhen(e.expiresAt) ?? 'Not readable just now' },
   ];
@@ -134,7 +152,7 @@ export default async function JobEvidencePage({ params }: { params: Promise<Para
         <dl className="grid gap-px overflow-hidden rounded-[14px] border border-rule bg-rule sm:grid-cols-2 xl:grid-cols-5">
           {[
             { label: 'Task', value: record.task.brief === 'public-on-job-page' ? 'Brief visible below' : 'Buyer brief private', note: record.task.terms === 'signed-by-agent' ? 'Check terms signed by the agent' : record.task.terms === 'recorded-by-pokter' ? 'Check plan recorded by Pokter' : 'No check plan recorded' },
-            { label: 'Delivery', value: record.delivery.hashMatched === true ? 'Hash matches' : record.delivery.hashMatched === false ? 'Hash mismatch' : record.delivery.submittedAt ? 'Not verified' : 'Awaiting delivery', note: record.delivery.paidToCourier ? 'Carried and paid to Pokter’s courier' : 'Agent delivery path' },
+            { label: 'Delivery', value: record.delivery.hashMatched === true ? 'Hash matches' : record.delivery.hashMatched === false ? 'Hash mismatch' : record.delivery.submittedAt ? 'Not verified' : undelivered.stage, note: record.delivery.paidToCourier ? 'Carried and paid to Pokter’s courier' : 'Agent delivery path' },
             { label: 'Answer checks', value: record.answerChecks.state === 'published-and-checked' ? `${record.answerChecks.passed} passed · ${record.answerChecks.failed} failed` : record.answerChecks.state === 'answer-private' ? 'Buyer kept answer private' : 'No result available', note: record.answerChecks.state === 'published-and-checked' ? `${record.answerChecks.notVerified} not verified · ${record.answerChecks.agreedBeforeFunding ? 'signed plan' : 'no signed plan established'}` : 'No private answer is exposed here' },
             { label: 'Escrow', value: status.label, note: record.settlement.source === 'onchain' ? 'Status read from the chain' : 'Last status in Pokter’s index' },
             { label: 'Observed outcome', value: 'Not measured', note: 'No later execution, position or return linked to this job' },
@@ -182,7 +200,7 @@ export default async function JobEvidencePage({ params }: { params: Promise<Para
                 </span>
               )
             ) : (
-              <span>{e.chain ? 'Not yet.' : 'The escrow could not be read just now.'}</span>
+              <span>{e.chain ? undelivered.step : 'The escrow could not be read just now.'}</span>
             )}
           </li>
           <li className="flex flex-col gap-1 py-3">
@@ -194,7 +212,7 @@ export default async function JobEvidencePage({ params }: { params: Promise<Para
               {e.delivery.state === 'matches' && `Yes. Pokter read the delivered record and its hash matches the one on chain (${e.delivery.matchedBy}).`}
               {e.delivery.state === 'mismatch' && 'No. Pokter read a delivered record whose hash does not match the one on chain.'}
               {e.delivery.state === 'unread' && `Not checked: ${e.delivery.reason}`}
-              {e.delivery.state === 'not-delivered' && 'Nothing to check yet: the agent has not delivered.'}
+              {e.delivery.state === 'not-delivered' && undelivered.hash}
               {e.delivery.state === 'chain-unread' && 'Not checked: the escrow could not be read just now.'}
             </span>
             <span className="text-[13px] text-ink-3">A match says the record was not changed after delivery. It does not say the answer is right.</span>
@@ -205,7 +223,7 @@ export default async function JobEvidencePage({ params }: { params: Promise<Para
               <Source kind={e.chain ? 'onchain' : 'index'} />
             </span>
             <span>
-              {settled ? `${status.label}.` : 'Not yet.'} {settled && e.receipt.hash ? 'The transaction is linked below.' : settled ? 'Pokter did not send the settling transaction, so it has none to link; the escrow’s own state is the record.' : ''}
+              {settled ? `${status.label}.` : 'Not yet.'} {closingTx ? 'The transaction is linked below.' : settled ? 'Pokter has no record of the transaction that closed it, so none is linked; the escrow’s own state is the record.' : ''}
             </span>
           </li>
         </ol>
@@ -237,7 +255,7 @@ export default async function JobEvidencePage({ params }: { params: Promise<Para
           </p>
         ) : (
           <p className="text-ink-3">
-            {e.delivery.state === 'not-delivered' && 'Nothing has been delivered yet.'}
+            {e.delivery.state === 'not-delivered' && undelivered.answer}
             {e.delivery.state === 'chain-unread' && 'The delivery could not be read just now, because the escrow could not be read.'}
             {e.delivery.state === 'unread' && `The delivery could not be read: ${e.delivery.reason}`}
             {e.delivery.state === 'mismatch' && 'The delivered record does not match the hash the agent committed on chain, so it is not shown as its answer.'}
@@ -301,11 +319,12 @@ export default async function JobEvidencePage({ params }: { params: Promise<Para
               </a>
             </li>
           )}
-          {e.receipt.hash && e.receipt.hash !== e.fundingTx && (
+          {closingTx && (
             <li>
-              The latest transaction Pokter sent for it:{' '}
+              {/* Not "Pokter sent": a buyer releasing or a seller collecting from Pokter's pages is recorded here too. */}
+              {e.status === 'EXPIRED' ? 'The refund transaction' : 'The settling transaction'}:{' '}
               <a href={e.receipt.href} className="link t-readout break-all text-[13px]" target="_blank" rel="noreferrer noopener">
-                {e.receipt.hash}
+                {closingTx}
               </a>
             </li>
           )}

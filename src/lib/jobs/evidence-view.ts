@@ -55,13 +55,37 @@ export const JOB_STATUS_WORDS: Record<string, { label: string; meaning: string }
 /**
  * The status in words. `paidToCourier`: the escrow's provider is Pokter's
  * courier, not the agent, so a settled job paid Pokter and is never called
- * "agent paid".
+ * "agent paid". `overdue`: still funded after its deadline (`deliveryStanding`),
+ * which the escrow records as FUNDED until someone sends the refund.
  */
-export function jobStatusWords(status: string, paidToCourier = false): { label: string; meaning: string } {
+export function jobStatusWords(status: string, paidToCourier = false, overdue = false): { label: string; meaning: string } {
   if (paidToCourier && status === 'COMPLETED') {
     return { label: 'Completed, paid to Pokter’s courier', meaning: 'The job was settled and the escrow paid Pokter’s courier, which delivered the agent’s answer on its behalf. The agent was not paid by this escrow.' };
   }
+  if (overdue && status === 'FUNDED') {
+    return { label: 'Funded, deadline passed', meaning: 'Nothing was delivered by the deadline. Anyone may now send the refund, and the full amount goes back to the wallet that funded it.' };
+  }
   return JOB_STATUS_WORDS[status] ?? { label: status, meaning: 'A state Pokter does not describe.' };
+}
+
+/**
+ * Where a job with no delivery stands: `waiting` inside its deadline,
+ * `overdue` still funded after it, `never` refunded with nothing
+ * delivered. Null once the escrow records a delivery, and for a job that
+ * was never funded.
+ *
+ * The job page printed "Not yet" and "Awaiting delivery" for all three, so
+ * a job refunded days earlier still read as if its agent might deliver.
+ * `readAt` is when the status was read, so the deadline is judged against
+ * the same moment as the status beside it.
+ */
+export function deliveryStanding(job: { status: string; deliveredAt: string | null; expiresAt: string | null }, readAt: string | null): 'waiting' | 'overdue' | 'never' | null {
+  if (job.deliveredAt || wasDelivered(job.status)) return null;
+  if (job.status === 'EXPIRED') return 'never';
+  if (job.status !== 'FUNDED') return null;
+  const deadline = Date.parse(job.expiresAt ?? '');
+  const read = Date.parse(readAt ?? '');
+  return Number.isFinite(deadline) && Number.isFinite(read) && read > deadline ? 'overdue' : 'waiting';
 }
 
 /** The public evidence page for a job: one per escrow job, chain and id. */

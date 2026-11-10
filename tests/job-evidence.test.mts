@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-import { briefIsPublic, BUYER_WALLET, FUNDER_LABEL, fundedWhen, jobEvidencePath, jobFunder, jobStatusWords, publishableAnswerText, wasDelivered } from '../src/lib/jobs/evidence-view';
+import { briefIsPublic, BUYER_WALLET, deliveryStanding, FUNDER_LABEL, fundedWhen, jobEvidencePath, jobFunder, jobStatusWords, publishableAnswerText, wasDelivered } from '../src/lib/jobs/evidence-view';
 
 /*
  * One job as public evidence: what the escrow records and Pokter's check
@@ -102,7 +102,8 @@ test('a courier job says the escrow pays Pokter’s courier, and a Pokter-owned 
   const evidence = code('lib/jobs/evidence.ts');
   assert.match(evidence, /const paidToCourier = deliveredByPokter && !\(agentWallet\?\.answered && agentWallet\.wallet\?\.toLowerCase\(\) === provider\.toLowerCase\(\)\);/);
   const page = code('app/(site)/jobs/[chainId]/[jobId]/page.tsx');
-  assert.equal(page.match(/jobStatusWords\(e\.status, e\.paidToCourier\)/g)?.length, 2, 'the headline and the status say the same');
+  assert.equal(page.match(/jobStatusWords\(/g)?.length, 1, 'the status is put in words in one place');
+  assert.equal(page.match(/statusOf\(e\)/g)?.length, 2, 'the headline and the status say the same');
   assert.match(page, /payable to Pokter’s courier <Readout>\{e\.provider\}<\/Readout> only after it delivers\./);
   assert.match(page, /Pokter’s courier submitted the delivery/);
   assert.doesNotMatch(page, /not from the agent’s own wallet/, 'a Pokter-owned agent’s wallet is its own');
@@ -111,4 +112,33 @@ test('a courier job says the escrow pays Pokter’s courier, and a Pokter-owned 
   assert.match(proof, /Pokter courier was the paid provider/);
   assert.match(code('lib/erc8183/outside-activity.ts'), /answered: answeredAtAll\.length - viaCourier, viaCourier/);
   assert.match(code('features/home/data.ts'), /const answered = completedOutside\.length - demos - selfHires - courier;/);
+});
+
+test('a job with nothing delivered says whether it is waiting, past its deadline, or refunded', () => {
+  const job = (status: string, deliveredAt: string | null = null) => ({ status, deliveredAt, expiresAt: '2026-11-08T23:49:00Z' });
+  assert.equal(deliveryStanding(job('FUNDED'), '2026-11-08T12:00:00Z'), 'waiting');
+  assert.equal(deliveryStanding(job('FUNDED'), '2026-11-09T00:10:00Z'), 'overdue', 'still FUNDED on chain until someone sends the refund');
+  assert.equal(deliveryStanding(job('FUNDED'), null), 'waiting', 'no reading time, no claim the deadline passed');
+  /* A refunded job with nothing delivered read "Awaiting delivery". */
+  assert.equal(deliveryStanding(job('EXPIRED'), '2026-11-10T00:00:00Z'), 'never');
+  assert.equal(deliveryStanding(job('EXPIRED', '2026-11-08T20:00:00Z'), '2026-11-10T00:00:00Z'), null, 'delivered, then refunded: it was delivered');
+  assert.equal(deliveryStanding(job('COMPLETED'), '2026-11-10T00:00:00Z'), null);
+  assert.equal(deliveryStanding(job('OPEN'), '2026-11-10T00:00:00Z'), null);
+
+  assert.equal(jobStatusWords('FUNDED', false, true).label, 'Funded, deadline passed');
+  assert.match(jobStatusWords('FUNDED', false, true).meaning, /Anyone may now send the refund/);
+  assert.equal(jobStatusWords('EXPIRED', false, true).label, jobStatusWords('EXPIRED').label, 'only a funded job is overdue');
+  assert.equal(jobStatusWords('FUNDED').label, 'Funded, awaiting delivery');
+});
+
+test('the job page links a closing transaction only when it has one, and says so only then', () => {
+  const page = code('app/(site)/jobs/[chainId]/[jobId]/page.tsx');
+  /* A refunded job said "The transaction is linked below" above a list holding only its funding. */
+  assert.match(page, /const closingTx = settled && e\.receipt\.hash && e\.receipt\.hash !== e\.fundingTx \? e\.receipt\.hash : null;/);
+  assert.match(page, /\{closingTx \? 'The transaction is linked below\.' :/);
+  assert.match(page, /\{closingTx && \(/);
+  assert.doesNotMatch(page, /e\.receipt\.hash \?/, 'nothing else decides from the receipt alone, which falls back to the funding');
+  assert.doesNotMatch(page, /Pokter did not send the settling transaction/, 'Pokter does send some it never records, such as a refund sent from a script');
+  assert.equal(page.match(/'Awaiting delivery'/g)?.length, 1, 'said only in the table read by where the job stands');
+  assert.equal(page.match(/'Not yet'/g)?.length, 1, 'said only in the table read by where the job stands');
 });
