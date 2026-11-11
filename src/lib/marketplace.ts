@@ -38,6 +38,7 @@ import type { PokterScore } from '@/lib/score/types';
 import { getJobStore } from '@/lib/erc8183/store';
 import type { AgentEconomicHistory } from '@/lib/erc8183/economic-history';
 import { agentHistory, agentPaidWork, type PaidWork } from '@/lib/agent/credited-history';
+import { buyerCounts, type BuyerCounts } from '@/lib/agent/buyers';
 import { getReviewStore } from '@/lib/reviews/store';
 import { isPromotableAgent } from '@/lib/agents/eligibility';
 import { capPerOwner, preferDistinctOwners } from '@/lib/agents/diversity';
@@ -435,6 +436,8 @@ export interface AgentDossier {
   score: PokterScore;
   /** Its paid work: its jobs without those the escrow paid to Pokter's courier (`agentPaidWork`). The score reads this. */
   paidWork: PaidWork;
+  /** Who funded that paid work from outside Pokter, and how far they are from independent. */
+  buyers: BuyerCounts;
   /**
    * The last price this agent signed for itself, and whether it still
    * stands. The hire form needs it: without the agent's own price it fell
@@ -517,7 +520,7 @@ export async function getDossier(
 ): Promise<AgentDossier> {
   const agent = await getAgent(chainId, tokenId);
 
-  const [feedbackPage, live, paidWork] = await Promise.all([
+  const [feedbackPage, live, paidWork, listedOwners] = await Promise.all([
     listFeedbacks({ chainId, agentId: agent.id, limit: 50 }).catch(() => ({
       items: [],
       total: 0,
@@ -530,6 +533,8 @@ export async function getDossier(
     probeAgent(agent, { samples: 1 }),
     // At most one registry read, for an agent with a job paid to a Pokter wallet.
     agentPaidWork(getJobStore().byAgent(agent.chain_id, agent.token_id)),
+    // Cached; never more than `OWNERS_WAIT_MS` on a cold start.
+    listedOwnerSet(),
   ]);
 
   const currentOwner = await registryOwner(chainId, tokenId).catch(() => null);
@@ -566,6 +571,7 @@ export async function getDossier(
     latestCheck,
     score: computeScore({ agent, category, proof, attestations, record, live, history: paidWork.history }),
     paidWork,
+    buyers: buyerCounts(paidWork.outsideBuyers, { listedOwners, owner: currentOwner ?? agent.owner_address ?? null }),
     quote,
     quoteCurrent: Boolean(
       quote && (!quote.expiresAt || Date.parse(quote.expiresAt) > Date.now()),
@@ -870,6 +876,49 @@ export function listSearchableWithStatus(options: { chainId?: ChainId; limit?: n
     if (catalogueCache.get(key)?.value === value) catalogueCache.delete(key);
   });
   return value;
+}
+
+/*
+ * The owners of every listed agent, both registry chains, lower-cased: the
+ * set the leaderboard checks buyers against, for the same check on a
+ * profile. A buyer who runs a mainnet agent and buys on testnet is the case
+ * it is for, and a one-chain set would miss it.
+ *
+ * From the catalogue read Discover and the profile's benchmark already make,
+ * at most once per `OWNERS_FRESH_MS`, and served stale while it refreshes. A
+ * cold read longer than `OWNERS_WAIT_MS` returns null rather than holding the
+ * page, and the profile says the ownership was not read.
+ */
+const OWNERS_FRESH_MS = 10 * 60_000;
+const OWNERS_WAIT_MS = 4_000;
+let ownersCached: { at: number; value: ReadonlySet<string> } | null = null;
+let ownersInflight: Promise<ReadonlySet<string>> | null = null;
+
+async function buildListedOwners(): Promise<ReadonlySet<string>> {
+  const { entries, unreachable } = await listSearchableWithStatus({ limit: 400 });
+  /* A registry that did not answer is not a listing with no owners in it. */
+  if (unreachable) throw new Error('listing unreachable');
+  return new Set(
+    entries.flatMap(({ listing }) => (typeof listing.agent.owner_address === 'string' ? [listing.agent.owner_address.toLowerCase()] : [])),
+  );
+}
+
+export async function listedOwnerSet(): Promise<ReadonlySet<string> | null> {
+  if (ownersCached && Date.now() - ownersCached.at < OWNERS_FRESH_MS) return ownersCached.value;
+  if (!ownersInflight) {
+    ownersInflight = buildListedOwners()
+      .then((value) => {
+        ownersCached = { at: Date.now(), value };
+        return value;
+      })
+      .finally(() => {
+        ownersInflight = null;
+      });
+    /* Served stale below, so a failed refresh must not surface as an unhandled rejection. */
+    ownersInflight.catch(() => undefined);
+  }
+  if (ownersCached) return ownersCached.value;
+  return Promise.race([ownersInflight, new Promise<null>((resolve) => setTimeout(() => resolve(null), OWNERS_WAIT_MS))]).catch(() => null);
 }
 
 async function buildSearchableWithStatus(

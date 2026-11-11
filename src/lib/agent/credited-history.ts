@@ -2,7 +2,7 @@ import 'server-only';
 
 import { courierPaidTest } from '@/lib/erc8183/courier-paid';
 import { deliverableKey, readDeliverable } from '@/lib/erc8183/deliverables';
-import { summariseEconomicHistory, type AgentEconomicHistory } from '@/lib/erc8183/economic-history';
+import { outsideBuyerJobs, summariseEconomicHistory, type AgentEconomicHistory } from '@/lib/erc8183/economic-history';
 import { getJobStore } from '@/lib/erc8183/store';
 import type { HiredJob } from '@/lib/erc8183/types';
 import { registeredWalletRead } from '@/lib/registry/live-agent';
@@ -78,6 +78,8 @@ export interface PaidWork {
   history: AgentEconomicHistory;
   /** Funded jobs the escrow paid to Pokter's courier instead, as `chainId:jobId`: in no figure of `history`. */
   courierJobs: string[];
+  /** Jobs per outside buyer wallet, over the same jobs as `history` (`outsideBuyerJobs`). */
+  outsideBuyers: Map<string, number>;
 }
 
 /**
@@ -97,8 +99,10 @@ export interface PaidWork {
  */
 export async function agentPaidWork(jobs: HiredJob[], now = Date.now()): Promise<PaidWork> {
   const courierPaid = await courierPaidTest(jobs, teamAddressSet(), registeredWalletRead);
+  const paid = jobs.filter((job) => !courierPaid(job));
   return {
-    history: agentHistory(jobs.filter((job) => !courierPaid(job)), now),
+    history: agentHistory(paid, now),
     courierJobs: jobs.filter((job) => job.status !== 'OPEN' && courierPaid(job) && !isLifecycleDemo(job)).map((job) => `${job.chainId}:${job.jobId}`),
+    outsideBuyers: outsideBuyerJobs(paid, { isLifecycleDemo }),
   };
 }

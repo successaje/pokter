@@ -5,7 +5,7 @@ import { x402Enabled } from '@/lib/x402/flags';
 import Link from 'next/link';
 import { GENERAL_CATEGORY_LABEL } from '@/lib/agents/categories';
 import { notFound, redirect } from 'next/navigation';
-import { Suspense, type ReactNode } from 'react';
+import { Fragment, Suspense, type ReactNode } from 'react';
 import { getServiceStore } from '@/lib/services/store';
 
 import { CHAIN_ID, chainLabel, explorerBaseFor, shortNetworkLabel } from '@/lib/network/presentation';
@@ -22,6 +22,7 @@ import { clipAtWord } from '@/lib/ui/clip';
 import { FollowButton, SaveButton, ShareButton } from '@/features/agent/AgentActions';
 import { HirePanel, MobileHireBar } from '@/features/agent/HirePanel';
 import { loadProfile, type AgentProfile } from '@/features/agent/profile';
+import { buyerNote } from '@/lib/agent/buyers';
 import { TrialPanel } from '@/features/agent/TrialPanel';
 import { AgentTabBar, AgentTabHint, AgentTabPanel } from '@/features/agent/AgentTabs';
 import { ReportReview } from '@/features/agent/ReportReview';
@@ -1017,7 +1018,8 @@ export default async function AgentPage({ params, searchParams }: { params: Para
           <AgentTabPanel id="work">
           <Section id="work" label="Track record" title="Paid work and reviews">
             <div className="flex flex-col gap-8">
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+              {/* Six figures: two full rows at three columns and three at two, where five left one alone. */}
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
                 {/*
                   Paid work only. A job the escrow paid Pokter's courier for
                   is listed below and said here, not counted: the agent
@@ -1030,6 +1032,26 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                     p.paidWork.pending ? `${p.paidWork.pending} still inside the deadline` : null,
                     p.courierJobs ? `${p.courierJobs} through Pokter’s courier, not counted` : null,
                   ].filter(Boolean).join(' · ') || 'Through Pokter escrow'}
+                />
+                {/*
+                  Who paid, beside how much. Outside Pokter is not the same
+                  as independent, so the count carries whether its buyers
+                  came back and whether they run agents here themselves.
+                */}
+                <Readout
+                  label="Outside buyers"
+                  value={p.buyers.wallets}
+                  note={
+                    p.buyers.wallets === 0
+                      ? p.paidWork.jobs ? 'No outside wallet has funded it' : 'No jobs yet'
+                      : buyerNote(p.buyers).map((part, index) => (
+                          <Fragment key={part.text}>
+                            {index > 0 && ' · '}
+                            <span className={part.tone === 'watch' ? 'text-watch' : undefined} title={part.title}>{part.text}</span>
+                          </Fragment>
+                        ))
+                  }
+                  muted={!p.buyers.wallets}
                 />
                 <Readout
                   label="Delivered"
