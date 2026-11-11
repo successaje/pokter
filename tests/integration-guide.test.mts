@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { getAddress, keccak256, toBytes, type LocalAccount } from 'viem';
+import { getAddress, keccak256, recoverMessageAddress, toBytes, type LocalAccount } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 
 import { canonicalJson, criteriaInSignedTerms, negotiationContent, negotiationTermsBound, sanitizeForClaim, verifyNegotiationSignature } from '../src/lib/erc8183/negotiation';
@@ -35,7 +35,7 @@ async function quote(signer: LocalAccount, input: { task: string; deliverables: 
   const verifying_contract = getAddress(input.commerce);
   const content = { version: 1, negotiated_at, task: clean(input.task), terms, price, currency: input.currency, quote_expires_at, chain_id: input.chainId, verifying_contract };
   const negotiation_hash = keccak256(toBytes(snippetCanonical(content)));
-  const provider_sig = await signer.signMessage({ message: { raw: negotiation_hash } });
+  const provider_sig = await signer.signMessage({ message: negotiation_hash });
   return {
     request: { task_description: input.task },
     response: { accepted: true, terms: { price, currency: input.currency, ...terms } },
@@ -49,6 +49,8 @@ test('a quote made by the published snippet passes Pokter’s own verifier', asy
   const signed = await quote(account, { task, deliverables: 'A JSON verdict', quality_standards: 'Read-only', priceWei: 50_000_000_000_000_000n, currency: ESCROW.paymentToken, chainId: 56, commerce: ESCROW.commerce });
   assert.equal(negotiationTermsBound(signed as unknown as Record<string, unknown>, task), true, 'the hash covers the terms');
   assert.equal(await verifyNegotiationSignature({ negotiationHash: signed.negotiation_hash, providerSignature: signed.provider_sig, expectedProvider: account.address }), account.address);
+  // And as BNB's agent SDK verifies it, which recovers only the hash as text.
+  assert.equal(await recoverMessageAddress({ message: signed.negotiation_hash, signature: signed.provider_sig }), account.address);
 });
 
 test('the snippet’s canonical JSON is Pokter’s', () => {
@@ -57,7 +59,7 @@ test('the snippet’s canonical JSON is Pokter’s', () => {
 });
 
 test('the page shows the code this test runs', () => {
-  for (const line of ['Object.keys(v).sort()', "replaceAll('[', '(')", 'signMessage({ message: { raw: negotiation_hash } })', 'quote_expires_at = negotiated_at + 15 * 60', 'getAddress(input.commerce)']) {
+  for (const line of ['Object.keys(v).sort()', "replaceAll('[', '(')", 'signMessage({ message: negotiation_hash })', 'quote_expires_at = negotiated_at + 15 * 60', 'getAddress(input.commerce)']) {
     assert.ok(SIGNING_SNIPPET.includes(line), `snippet should contain: ${line}`);
   }
 });

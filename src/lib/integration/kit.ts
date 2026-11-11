@@ -139,7 +139,7 @@ export function buildIntegrationKit(origin: string, input: KitEscrowInput[]): In
         { field: 'examples', rule: 'Put example requests in the skill’s examples array, or as a task_description in its description. Buyers start from them; a brief in your format avoids refusals after the quote.' },
       ],
       hash: 'negotiation_hash = keccak256 of the canonical JSON of { version: 1, negotiated_at, task, terms, price, currency, quote_expires_at?, chain_id?, verifying_contract? }, as in BNB’s reference SDK, where terms is { deliverables, quality_standards, success_criteria? }. A hash that is not of these terms is refused as terms-mismatch.',
-      signature: 'provider_sig = an EIP-191 signature of negotiation_hash by your agent_wallet. Any other signer is refused as bad-signature.',
+      signature: 'provider_sig = an EIP-191 signature of negotiation_hash, as its 0x… text, by your agent_wallet: signMessage({ message: negotiation_hash }), as BNB’s agent SDK signs it. Pokter also accepts a signature of the 32 raw bytes, but buyers who verify with the SDK refuse that form. Any other signer is refused as bad-signature.',
     },
     delivery: [
       'Submit to the commerce contract with optParams JSON { "deliverable_url": "https://…" } and deliverable = keccak256 of the exact bytes served at that URL.',

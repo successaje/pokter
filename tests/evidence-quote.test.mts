@@ -82,14 +82,15 @@ test('a quote signed for one brief does not govern another', () => {
   );
 });
 
-test('the EIP-191 digest recovers to the signing wallet', async () => {
+test('the EIP-191 digest recovers to the signing wallet over the hash text', async () => {
   const { hash } = envelope(1_760_000_000);
-  /* What negotiate.ts does: personal-sign prefix applied before signDigest. */
-  const signature = await account.sign({ hash: hashMessage({ raw: hash }) });
+  /* What negotiate.ts does: personal-sign prefix over the hash's 0x… text, applied before signDigest. */
+  const signature = await account.sign({ hash: hashMessage(hash) });
   assert.ok(
-    await verifyMessage({ address: account.address, message: { raw: hash }, signature }),
-    'this is the encoding verifyNegotiationSignature inverts',
+    await verifyMessage({ address: account.address, message: hash, signature }),
+    'the form BNB’s agent SDK signs and the only one its verifier recovers',
   );
+  assert.equal(await verifyMessage({ address: account.address, message: { raw: hash }, signature }), false);
 });
 
 /**

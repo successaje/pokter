@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { keccak256, toBytes } from 'viem';
+import { keccak256, recoverMessageAddress, toBytes, type Hex } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 
 import { encodePokterJobEnvelope } from '../src/lib/erc8183/job-envelope';
@@ -38,6 +38,12 @@ test('a house quote passes Pokter’s signature and terms checks, brackets inclu
   const signer = await verifyNegotiationSignature({ negotiationHash: quote.negotiation_hash, providerSignature: quote.provider_sig, expectedProvider: account.address });
   assert.ok(signer);
   assert.equal(quote.response.terms.price, '50000000000000000');
+});
+
+test('a house quote verifies as BNB’s agent SDK checks it: EIP-191 over the hash as text', async () => {
+  /* `verifyQuoteSignature` in bnbagent-sdk recovers only `message: negotiationHash`; a signature over the raw bytes is refused there. */
+  const quote = await signHouseQuote({ definition: agent, account, chainId: 56, paymentToken: U, verifyingContract: COMMERCE, task: 'Where should 1000 USDT earn the most?' });
+  assert.equal(await recoverMessageAddress({ message: quote.negotiation_hash, signature: quote.provider_sig as Hex }), account.address);
 });
 
 test('a job written from a house quote passes a strict seller’s hash check', async () => {
