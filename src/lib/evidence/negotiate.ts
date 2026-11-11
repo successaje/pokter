@@ -155,15 +155,14 @@ export async function signEvidenceQuote(input: {
   const negotiationHash = keccak256(toBytes(canonicalJson(content)));
 
   /*
-   * EIP-191 over the 32 raw bytes, built by hand because the SDK's signer
-   * exposes `signDigest` and nothing else — it signs a digest, so the
-   * personal-sign prefix has to be applied before it rather than by it.
-   * `hashMessage({ raw })` is exactly what `recoverMessageAddress` inverts
-   * on the other side, which is the first of the two encodings the
-   * verifier accepts.
+   * EIP-191 over the hash as its 0x… text, built by hand because the SDK's
+   * signer exposes `signDigest` and nothing else — it signs a digest, so
+   * the personal-sign prefix has to be applied before it rather than by it.
+   * `hashMessage(text)` is the form BNB's agent SDK signs and the only one
+   * its verifier recovers; Pokter's verifier accepts it too.
    */
   const signature = await adminSigner(SIGNER_LABEL).signDigest(
-    hashMessage({ raw: negotiationHash }),
+    hashMessage(negotiationHash),
   );
 
   return {

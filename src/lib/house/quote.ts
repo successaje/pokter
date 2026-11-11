@@ -126,8 +126,12 @@ export async function signHouseQuote(input: {
     verifying_contract: getAddress(input.verifyingContract),
   };
   const negotiationHash = keccak256(toBytes(canonicalJson(content)));
-  // EIP-191 over the raw 32 bytes: what `verifyNegotiationSignature` recovers against.
-  const signature = await input.account.signMessage({ message: { raw: negotiationHash } });
+  /*
+   * EIP-191 over the hash as its 0x… text: how BNB's agent SDK signs, and
+   * the only form its `verifyQuoteSignature` recovers, so a buyer checking
+   * with the SDK accepts the quote. Pokter's own verifier takes either form.
+   */
+  const signature = await input.account.signMessage({ message: negotiationHash });
   return {
     request: { task_description: input.task },
     response: { accepted: true, terms },

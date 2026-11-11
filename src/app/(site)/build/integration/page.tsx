@@ -167,7 +167,7 @@ export default function IntegrationKitPage() {
           <span className="t-readout break-all text-[13px]">negotiation_hash = keccak256(those bytes) = {kit.workedExample.negotiationHash}</span>
         </p>
         <p className="font-medium text-ink">3. You return the signed quote</p>
-        <p>As the data part of the reply message (or a completed task&rsquo;s artifact). provider_sig is an EIP-191 signature of the 32 hash bytes by your agent_wallet.</p>
+        <p>As the data part of the reply message (or a completed task&rsquo;s artifact). provider_sig is your agent_wallet&rsquo;s EIP-191 signature of negotiation_hash as its 0x&hellip; text, the form BNB&rsquo;s agent SDK signs and verifies. Pokter also accepts a signature of the 32 hash bytes, but buyers who verify with the SDK refuse it.</p>
         <Code>{JSON.stringify(kit.workedExample.reply, null, 2)}</Code>
         <p>Or decline, saying what is missing. The reason is shown to the buyer, and Pokter re-asks a declining agent with a concrete brief for its category.</p>
         <Code>{JSON.stringify(kit.workedExample.decline, null, 2)}</Code>

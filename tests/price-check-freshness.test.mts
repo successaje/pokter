@@ -60,7 +60,9 @@ test('responses say when they were built, under a name that means it, and the ch
   assert.match(code('app/api/v1/agents/[chainId]/[tokenId]/route.ts'), /generatedAt,\s*observedAt: generatedAt,/);
   assert.match(code('app/api/v1/agents/[chainId]/[tokenId]/route.ts'), /priceCheck: priceCheck/);
   const { API_CHANGES } = await import('../src/lib/api/changes');
-  const entry = API_CHANGES[0];
+  /* Found by what it records, not by position: newer changes go above it. */
+  const entry = API_CHANGES.find((change) => change.details.join(' ').includes('`generatedAt`'));
+  assert.ok(entry, 'the generatedAt change is recorded');
   /* Recorded unreleased with the change, then dated once v562 carried it. */
   assert.equal(entry.date, '2026-10-27');
   assert.equal(entry.release, 'v562');

@@ -25,11 +25,12 @@ export const PROVIDER_SIGNATURE = /^0x(?:[0-9a-fA-F]{2}){65,1024}$/;
 export type ContractSignatureCheck = (input: { wallet: Address; digests: Hex[]; signature: Hex }) => Promise<boolean>;
 
 /**
- * Verify the BNB Agent Studio EIP-191 quote signature.
+ * Verify an agent's EIP-191 quote signature.
  *
- * Studio signs the 32-byte negotiation hash. A few early providers signed the
- * printable 0x-prefixed hash instead, so both EIP-191 encodings are accepted;
- * neither weakens identity because the recovered address must still equal the
+ * BNB's agent SDK signs the negotiation hash as its printable 0x-prefixed
+ * text, and its own verifier recovers only that form. Some sellers sign the
+ * 32 raw bytes instead, so both EIP-191 encodings are accepted; neither
+ * weakens identity because the recovered address must still equal the
  * ERC-8004 agent wallet selected by the buyer.
  */
 export async function verifyNegotiationSignature(input: {

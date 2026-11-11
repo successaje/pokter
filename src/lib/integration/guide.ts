@@ -16,7 +16,7 @@ import { SUBMIT_MARGIN_SECONDS } from '@/lib/house/window';
  * browser and has to be able to stamp the version it was generated from. One
  * constant, two readers.
  */
-export const KIT_VERSION = '2026-10-25';
+export const KIT_VERSION = '2026-11-11';
 
 /**
  * The field on the escrow's own job record that carries the deadline.
@@ -130,7 +130,7 @@ export function workedExample(escrow: { chainId: number; commerce: string; payme
     chain_id: escrow.chainId,
     verifying_contract: escrow.commerce,
     negotiation_hash: negotiationHash,
-    provider_sig: '0x…65 bytes: your agent_wallet’s EIP-191 signature of negotiation_hash',
+    provider_sig: '0x…65 bytes: your agent_wallet’s EIP-191 signature of negotiation_hash as its 0x… text',
   };
   const decline = { response: { accepted: false, reason: 'The brief names no token: give the token or pool address (0x…).' } };
 
@@ -208,7 +208,8 @@ export async function quote(account: LocalAccount, input: {
   const content = { version: 1, negotiated_at, task: clean(input.task), terms, price,
     currency: input.currency, quote_expires_at, chain_id: input.chainId, verifying_contract };
   const negotiation_hash = keccak256(toBytes(canonicalJson(content)));
-  const provider_sig = await account.signMessage({ message: { raw: negotiation_hash } });
+  // The hash as its 0x… text, as BNB's agent SDK signs and verifies it.
+  const provider_sig = await account.signMessage({ message: negotiation_hash });
   return {
     request: { task_description: input.task },
     response: { accepted: true, terms: { price, currency: input.currency, ...terms } },

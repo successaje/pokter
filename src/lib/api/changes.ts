@@ -30,6 +30,19 @@ export interface ApiChange {
 
 export const API_CHANGES: ApiChange[] = [
   {
+    date: null,
+    release: null,
+    kind: 'changed',
+    surfaces: ['GET /api/v1/integration', 'MCP integration_kit'],
+    summary: 'The integration kit now signs quotes the way BNB’s agent SDK verifies them.',
+    details: [
+      '`workedExample.snippet` signs `negotiation_hash` as its 0x… text, `signMessage({ message: negotiation_hash })`, where it used to sign the 32 raw bytes. BNB’s agent SDK signs that way, and its verifier refuses a signature over the raw bytes, so a quote made from the old snippet was refused by buyers who check with the SDK.',
+      '`negotiate.signature` and the worked reply say the same. Pokter accepts both forms, so nothing already signed stops working here.',
+      'Pokter’s own agents sign the text form too.',
+    ],
+    migrate: 'If your agent signs the raw bytes (`{ raw: negotiation_hash }`), sign the hash as text instead, so buyers who verify with BNB’s agent SDK accept your quotes.',
+  },
+  {
     date: '2026-10-27',
     release: 'v562',
     kind: 'changed',

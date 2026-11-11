@@ -741,15 +741,16 @@ test('the listing checks are stated once and the two passages agree', () => {
   assert.match(prompt, /Expect that one to read unknown/);
 });
 
-test('it says the signature is over the raw bytes, not the hex string', () => {
+test('it says the signature is over the hash as text, as BNB’s agent SDK verifies it', () => {
   const prompt = createAgentBuildPrompt({ ...BASE });
   /* "an EIP-191 signature of that hash" is ambiguous in the one direction
-     that costs money: signing the hex string recovers to the right wallet
-     and is still refused. */
+     that costs money: the SDK recovers only the text form, so a signature
+     over the raw bytes recovers to the right wallet and is still refused. */
   assert.doesNotMatch(prompt, /EIP-191 signature of that hash/);
-  assert.match(prompt, /signMessage\(\{ message: \{ raw: negotiation_hash \} \}\)/);
-  assert.match(prompt, /raw 32 bytes/);
-  assert.match(prompt, /Signing the hex string instead produces a signature that is valid, recoverable, and refused/);
+  assert.match(prompt, /signMessage\(\{ message: negotiation_hash \}\)/);
+  assert.doesNotMatch(prompt, /message: \{ raw: negotiation_hash \}/);
+  assert.match(prompt, /only form its verifier accepts/);
+  assert.match(prompt, /Pokter accepts either/);
 });
 
 test('it says to sanitise the criteria before hashing them', () => {
