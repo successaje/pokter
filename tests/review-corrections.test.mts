@@ -4,6 +4,7 @@ import test from 'node:test';
 import { checkExampleWallets } from '../src/lib/hire/example-wallet';
 import { materialQuoteChange } from '../src/lib/hire/quote-change';
 import { readDeliveredAnswer } from '../src/lib/delivery/answer';
+import { checkDeliveredPlan } from '../src/lib/delivery/plan-checks';
 
 const WALLET = '0x0aEe4f0C7D2C2a1B0d1E2F3a4B5c6D7e8F9a0aB7';
 const TOKEN = '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c';
@@ -139,4 +140,31 @@ test('unparseable content does not borrow the write time either', () => {
   assert.equal(answer.asOf, null);
   assert.equal(answer.generatedAt, '2026-10-18T12:00:00Z');
   assert.equal(answer.raw, 'not json at all');
+});
+
+test('a block named beside the figures dates the reading', () => {
+  /*
+   * An answer that returned its health factor with `blockNumber` and
+   * `blockTimestamp` at the top was failed on "Says when its figures were
+   * read", because only `as_of` was read.
+   */
+  const content = { healthFactor: 1.5, pool: 'Venus Core Pool', blockNumber: 130000000, blockTimestamp: 1793000000, status: 'watch' };
+  const answer = readDeliveredAnswer(manifest({ generated_at: '2026-10-26T07:34:00Z' }, content));
+  assert.deepEqual(answer.asOf, { time: '2026-10-26T07:33:20.000Z', block: '130000000' });
+  assert.deepEqual(answer.fields.map((field) => field.label), ['healthFactor', 'pool', 'status'], 'shown once, as the reading time, not again as fields');
+  assert.equal(checkDeliveredPlan(JSON.stringify(content))?.checks.find((row) => row.id === 'answer.dated')?.outcome, 'passed');
+});
+
+test('a block alone, in any of its spellings, is a reading point; a bare timestamp is not', () => {
+  const asOf = (content: Record<string, unknown>) => readDeliveredAnswer(manifest({}, content)).asOf;
+  assert.deepEqual(asOf({ block_number: '0x7d2b7c8' }), { time: null, block: '131250120' });
+  assert.deepEqual(asOf({ block_time: '2026-10-26T07:33:20Z' }), { time: '2026-10-26T07:33:20Z', block: null });
+  /* A `timestamp` with no block could be when the report was written: unknown stays unknown. */
+  assert.equal(asOf({ timestamp: 1793000000 }), null);
+  assert.equal(asOf({ blockNumber: 'latest', blockTimestamp: 1793000000000 }), null, 'not a block, and milliseconds are not read as seconds');
+  assert.deepEqual(
+    asOf({ as_of: { time: '2026-10-18T09:00:00Z' }, blockNumber: 5 }),
+    { time: '2026-10-18T09:00:00Z', block: null },
+    '`as_of` is what the agent said; it is not mixed with figures elsewhere',
+  );
 });

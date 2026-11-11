@@ -173,8 +173,12 @@ export function DeliveredAnswerView({ answer, chainId, when }: { answer: Deliver
             when its data was read, and printing the first under the
             second claimed a freshness nobody measured.
           */}
-          {answer.asOf?.time ? `Data read ${when(answer.asOf.time)}` : 'The agent did not say when it read the data'}
-          {answer.asOf?.block ? ` · block ${answer.asOf.block}` : ''}
+          {/* A block alone dates the reading too, so it is never printed after "did not say". */}
+          {answer.asOf?.time
+            ? `Data read ${when(answer.asOf.time)}${answer.asOf.block ? ` · block ${answer.asOf.block}` : ''}`
+            : answer.asOf?.block
+              ? `Data read at block ${answer.asOf.block}`
+              : 'The agent did not say when it read the data'}
           {answer.generatedAt ? ` · report generated ${when(answer.generatedAt)}` : ''}
           {` · paid on ${chainLabel(chainId)}`}
           {answer.producer ? ` · produced by ${answer.producer}` : ''}

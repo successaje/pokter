@@ -214,9 +214,9 @@ function HeadlineStats({ p }: { p: AgentProfile }) {
   const stats: Array<{ label: string; value: string; note: string; muted?: boolean; norm?: { text: string; title: string } }> = [
     {
       label: 'Paid jobs',
-      value: String(p.history.jobs),
-      note: p.history.jobs ? `${p.history.delivered} delivered` : 'None funded yet',
-      muted: !p.history.jobs,
+      value: String(p.paidWork.jobs),
+      note: p.paidWork.jobs ? `${p.paidWork.delivered} delivered` : p.courierJobs ? 'None paid to it yet' : 'None funded yet',
+      muted: !p.paidWork.jobs,
       norm: settled
         ? {
             text: bench?.own.settledRate != null ? `Settled ${whole(bench.own.settledRate)} · typical ${whole(settled.median)}` : `Typical agent settles ${whole(settled.median)}`,
@@ -1018,12 +1018,24 @@ export default async function AgentPage({ params, searchParams }: { params: Para
           <Section id="work" label="Track record" title="Paid work and reviews">
             <div className="flex flex-col gap-8">
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-                <Readout label="Jobs funded" value={p.history.jobs} note={p.history.pending ? `${p.history.pending} still inside the deadline` : 'Through Pokter escrow'} />
+                {/*
+                  Paid work only. A job the escrow paid Pokter's courier for
+                  is listed below and said here, not counted: the agent
+                  answered it and was not paid.
+                */}
+                <Readout
+                  label="Jobs funded"
+                  value={p.paidWork.jobs}
+                  note={[
+                    p.paidWork.pending ? `${p.paidWork.pending} still inside the deadline` : null,
+                    p.courierJobs ? `${p.courierJobs} through Pokter’s courier, not counted` : null,
+                  ].filter(Boolean).join(' · ') || 'Through Pokter escrow'}
+                />
                 <Readout
                   label="Delivered"
-                  value={p.history.jobs - p.history.pending - p.history.refused > 0 ? `${p.history.delivered} of ${p.history.jobs - p.history.pending - p.history.refused}` : '—'}
-                  note={p.history.completed ? `${p.history.completed} settled` : p.history.jobs ? 'None settled yet' : 'No jobs yet'}
-                  muted={!p.history.delivered}
+                  value={p.paidWork.jobs - p.paidWork.pending - p.paidWork.refused > 0 ? `${p.paidWork.delivered} of ${p.paidWork.jobs - p.paidWork.pending - p.paidWork.refused}` : '—'}
+                  note={p.paidWork.completed ? `${p.paidWork.completed} settled` : p.paidWork.jobs ? 'None settled yet' : 'No jobs yet'}
+                  muted={!p.paidWork.delivered}
                 />
                 <Readout
                   label="Missed deadline"
@@ -1071,9 +1083,9 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                             <Link href={jobEvidencePath(job)} className="t-readout text-[11.5px] text-ink-3 underline decoration-rule-strong underline-offset-2 hover:text-ink hover:decoration-ink" title={`Job #${job.jobId}: what the escrow records and Pokter's check of the delivery`}>
                               #{job.jobId}
                             </Link>
-                            {/* Said on the row, not inferred from a total: a job a
-                                Pokter wallet delivered is not the agent's work. */}
-                            {job.byOperator && <span className="text-[11.5px] text-watch">Pokter&rsquo;s wallet delivered this</span>}
+                            {/* Said on the row, not inferred from a total: a job the
+                                escrow paid Pokter's courier for is not the agent's paid work. */}
+                            {job.viaCourier && <span className="text-[11.5px] text-watch">Through Pokter&rsquo;s courier, not counted</span>}
                           </span>
                           <span className="text-[11.5px] text-ink-3">
                             {new Date(job.hiredAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })} · {shortNetworkLabel(job.chainId)}

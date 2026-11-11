@@ -126,6 +126,56 @@ function asOfFrom(value: unknown): DeliveredAnswer['asOf'] {
   return null;
 }
 
+/* Names agents give, beside their figures, the block they read at and that block's time. */
+const BLOCK_KEYS = ['block', 'block_number', 'blockNumber', 'block_height', 'blockHeight', 'at_block'];
+const BLOCK_TIME_KEYS = ['block_timestamp', 'blockTimestamp', 'block_time', 'blockTime'];
+
+/** A block number as decimal text, or null: a whole number, in digits or 0x hex. Never a date, "latest" or a fraction. */
+function blockNumberText(value: unknown): string | null {
+  if (typeof value === 'number') return Number.isSafeInteger(value) && value > 0 ? String(value) : null;
+  if (typeof value !== 'string') return null;
+  const v = value.trim();
+  if (/^[1-9]\d*$/.test(v)) return v;
+  if (/^0x[0-9a-f]+$/i.test(v) && BigInt(v) > 0n) return BigInt(v).toString();
+  return null;
+}
+
+/**
+ * A block's time as text a page can print: Unix seconds, as a number or in
+ * digits, or a date string. Seconds outside 2001 to 2286 are not a block
+ * time in seconds, and are left out rather than read as milliseconds.
+ */
+function blockTimeText(value: unknown): string | null {
+  const digits = typeof value === 'string' && /^\d+$/.test(value.trim()) ? Number(value.trim()) : null;
+  const seconds = typeof value === 'number' ? value : digits;
+  if (seconds !== null) return Number.isSafeInteger(seconds) && seconds >= 1e9 && seconds < 1e10 ? new Date(seconds * 1000).toISOString() : null;
+  const t = text(value);
+  return t && !Number.isNaN(Date.parse(t)) ? t : null;
+}
+
+/**
+ * The block an answer says it read at, named beside its figures rather
+ * than under `as_of`.
+ *
+ * A block number names the chain state the figures came from, and a
+ * block's timestamp is the chain's clock, not the agent's: either one
+ * dates the reading. An answer that returned `blockNumber` and
+ * `blockTimestamp` beside its figures was marked as not saying when it
+ * read its data. `generated_at` is still never read here: it dates the
+ * report.
+ *
+ * The keys it used are returned, so they are not repeated as fields.
+ */
+function blockReadPoint(object: Record<string, unknown>): { asOf: NonNullable<DeliveredAnswer['asOf']>; keys: string[] } | null {
+  const blockKey = BLOCK_KEYS.find((key) => blockNumberText(object[key]) !== null);
+  const timeKey = BLOCK_TIME_KEYS.find((key) => blockTimeText(object[key]) !== null);
+  if (!blockKey && !timeKey) return null;
+  return {
+    asOf: { time: timeKey ? blockTimeText(object[timeKey]) : null, block: blockKey ? blockNumberText(object[blockKey]) : null },
+    keys: [blockKey, timeKey].filter((key): key is string => Boolean(key)),
+  };
+}
+
 export function readDeliveredAnswer(manifestText: string): DeliveredAnswer {
   const empty: DeliveredAnswer = { asked: null, title: null, result: null, verdict: null, reasons: [], asOf: null, sources: [], limitations: [], fields: [], raw: null, producer: null, generatedAt: null };
   let manifest: { response?: { content?: unknown }; metadata?: Record<string, unknown> };
@@ -158,7 +208,9 @@ export function readDeliveredAnswer(manifestText: string): DeliveredAnswer {
   const reasonsKey = pick(REASONS);
   const sourceKey = pick(SOURCES);
   const limitKeys = LIMITS.filter((key) => object![key] !== undefined && object![key] !== null && object![key] !== '');
-  const used = new Set([askedKey, resultKey, verdictKey, reasonsKey, sourceKey, ...limitKeys].filter(Boolean) as string[]);
+  const stated = asOfFrom(object.as_of ?? object.asOf);
+  const atBlock = stated ? null : blockReadPoint(object);
+  const used = new Set([askedKey, resultKey, verdictKey, reasonsKey, sourceKey, ...limitKeys, ...(atBlock?.keys ?? [])].filter(Boolean) as string[]);
 
   return {
     asked: askedKey ? briefText(object[askedKey]) : null,
@@ -166,7 +218,7 @@ export function readDeliveredAnswer(manifestText: string): DeliveredAnswer {
     result: resultKey ? text(object[resultKey]) : null,
     verdict: verdictKey ? verdictFrom(object[verdictKey]) : null,
     reasons: reasonsKey ? reasonsFrom(object[reasonsKey]) : [],
-    asOf: asOfFrom(object.as_of ?? object.asOf),
+    asOf: stated ?? atBlock?.asOf ?? null,
     sources: sourceKey ? lines(object[sourceKey]) : [],
     limitations: limitKeys.flatMap((key) => lines(object![key])),
     fields: Object.entries(object)

@@ -36,7 +36,6 @@ import { endpointReading } from '@/lib/compare/rows';
 import { getJobStore } from '@/lib/erc8183/store';
 import { escrowCommerceAddress } from '@/lib/erc8183/addresses';
 import { jobReceipt } from '@/lib/jobs/receipt-link';
-import { teamAddressSet } from '@/lib/team/wallets';
 import { getReviewStore } from '@/lib/reviews/store';
 import type { VerifiedReview } from '@/lib/reviews/model';
 import type { ChainId } from '@/lib/scan/types';
@@ -149,6 +148,14 @@ export interface AgentProfile {
   escrowOptions: number[];
   history: AgentEconomicHistory;
   /**
+   * Its paid work: `history` without the jobs the escrow paid to Pokter's
+   * courier (`agentPaidWork`). Every figure the page calls paid work reads
+   * this; `history` still says what Pokter delivered on its behalf.
+   */
+  paidWork: AgentEconomicHistory;
+  /** Funded jobs paid to Pokter's courier, left out of `paidWork` and said beside it. */
+  courierJobs: number;
+  /**
    * The funded jobs behind the counts above, newest first.
    *
    * The tab reported five totals and showed none of the work they came
@@ -170,8 +177,8 @@ export interface AgentProfile {
     paymentToken: string | null;
     hiredAt: string;
     delivered: boolean;
-    /** A Pokter wallet was the provider: the work is Pokter's, not the agent's. */
-    byOperator: boolean;
+    /** The escrow paid Pokter's courier, not the agent: listed, and in no paid-work figure. */
+    viaCourier: boolean;
     /** Where this row can be checked on chain, and whether that is a transaction. */
     receipt: { href: string; hash: string | null };
   }>;
@@ -449,9 +456,11 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
     escrow: { chainId: escrowChain, paymentToken: addresses.paymentToken, commerce: addresses.commerce },
     escrowOptions,
     history,
+    paidWork: d.paidWork.history,
+    courierJobs: d.paidWork.courierJobs.length,
     /* Same source as the counts beside them: the store, read once. */
     jobHistory: (() => {
-      const team = teamAddressSet();
+      const courier = new Set(d.paidWork.courierJobs);
       return getJobStore()
         .byAgent(agent.chain_id, agent.token_id)
         .filter((job) => job.status !== 'OPEN')
@@ -467,13 +476,13 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
           paymentToken: job.paymentToken ?? null,
           hiredAt: job.hiredAt,
           delivered: job.status === 'SUBMITTED' || job.status === 'COMPLETED',
-          byOperator: Boolean(job.provider) && team.has(String(job.provider).toLowerCase()),
+          viaCourier: courier.has(`${job.chainId}:${job.jobId}`),
           receipt: jobReceipt(job, escrowCommerceAddress),
         }));
     })(),
     delivery,
     sample: await sampleDelivery(agent.chain_id, agent.token_id),
-    benchmark: platform ? { platform, own: agentReadings({ record, history }) } : null,
+    benchmark: platform ? { platform, own: agentReadings({ record, history: d.paidWork.history }) } : null,
     reviews: getReviewStore().byAgent(agent.chain_id, agent.token_id).filter((r) => r.visibility !== 'hidden'),
     categoryCheck,
     services,
