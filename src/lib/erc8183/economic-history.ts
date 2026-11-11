@@ -118,6 +118,39 @@ export interface AgentEconomicHistory {
   refused: number;
 }
 
+/** Funded jobs, apart from lifecycle demonstrations, which say nothing about the agent. */
+function fundedJobs(jobs: HiredJob[], isLifecycleDemo?: (job: HiredJob) => boolean): { demos: HiredJob[]; funded: HiredJob[] } {
+  const demos = isLifecycleDemo ? jobs.filter((job) => job.status !== 'OPEN' && isLifecycleDemo(job)) : [];
+  return { demos, funded: jobs.filter((job) => job.status !== 'OPEN' && !demos.includes(job)) };
+}
+
+const selfHire = (job: HiredJob) =>
+  Boolean(job.client) && job.client!.toLowerCase() === String(job.provider ?? '').toLowerCase();
+
+/** Outside demand: funded by a known wallet Pokter does not declare, and not by the seller itself. */
+function outsideDemand(funded: HiredJob[], team: Set<string>): HiredJob[] {
+  return funded.filter((job) => !fundedByTeam(job, team) && !selfHire(job));
+}
+
+/**
+ * Funded jobs per outside buyer wallet, lower-cased.
+ *
+ * The wallets behind `outsideTeam.uniqueBuyers`, by the same rules, so the
+ * buyer counts a profile shows beside that figure are over the same jobs.
+ */
+export function outsideBuyerJobs(
+  jobs: HiredJob[],
+  { isLifecycleDemo }: { isLifecycleDemo?: (job: HiredJob) => boolean } = {},
+): Map<string, number> {
+  const perWallet = new Map<string, number>();
+  for (const job of outsideDemand(fundedJobs(jobs, isLifecycleDemo).funded, teamAddressSet())) {
+    if (!job.client) continue;
+    const wallet = job.client.toLowerCase();
+    perWallet.set(wallet, (perWallet.get(wallet) ?? 0) + 1);
+  }
+  return perWallet;
+}
+
 /**
  * Summarise only jobs Pokter has indexed and attributed to an ERC-8004
  * identity. This is deliberately not described as chain-wide activity: the
@@ -140,8 +173,7 @@ export function summariseEconomicHistory(
   // Entry into this store is itself chain-verified. Some relayed/batched hires
   // do not expose a transaction hash to the SDK even though the kernel reads
   // FUNDED, so requiring a hash here would silently erase valid paid work.
-  const demos = isLifecycleDemo ? jobs.filter((job) => job.status !== 'OPEN' && isLifecycleDemo(job)) : [];
-  const funded = jobs.filter((job) => job.status !== 'OPEN' && !demos.includes(job));
+  const { demos, funded } = fundedJobs(jobs, isLifecycleDemo);
   /* $U only; other money is in `fundedByToken` and never added to it. */
   const total = funded.filter((job) => isDollarUJob(job)).reduce((sum, job) => sum + BigInt(job.budgetRaw), 0n);
   // Only an undelivered job can have been refused; a later delivery outranks the refusal.
@@ -149,9 +181,7 @@ export function summariseEconomicHistory(
     Boolean(refusedAtNotice) && ['FUNDED', 'EXPIRED'].includes(job.status) && refusedAtNotice!(job);
   const lapsed = (job: HiredJob) => job.status === 'FUNDED' && Date.parse(job.expiredAt) <= now && !refused(job);
   const team = teamAddressSet();
-  const selfHire = (job: HiredJob) =>
-    Boolean(job.client) && job.client!.toLowerCase() === String(job.provider ?? '').toLowerCase();
-  const outside = funded.filter((job) => !fundedByTeam(job, team) && !selfHire(job));
+  const outside = outsideDemand(funded, team);
   const outsideCompleted = outside.filter((job) => job.status === 'COMPLETED').length;
   const outsideTerminal = outside.filter((job) => ['COMPLETED', 'REJECTED', 'EXPIRED'].includes(job.status) && !refused(job)).length;
   const outsideBuyers = new Set(outside.flatMap((job) => job.client ? [job.client.toLowerCase()] : []));

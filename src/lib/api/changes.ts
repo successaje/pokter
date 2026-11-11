@@ -32,6 +32,19 @@ export const API_CHANGES: ApiChange[] = [
   {
     date: null,
     release: null,
+    kind: 'added',
+    surfaces: ['GET /api/v1/agents/{chainId}/{tokenId}', 'MCP get_agent'],
+    summary: 'An agent now says who funded its paid work from outside Pokter.',
+    details: [
+      'Adds `buyers`. `outside` is the number of wallets outside Pokter that funded the agent’s paid work through escrow, `jobs` the paid jobs they funded, and `returning` how many of them funded more than one.',
+      '`ownListedAgent` counts the wallets that own an agent listed on Pokter, this one included, and `includesOwner` says whether the agent’s own owner is one of them. Either is null when Pokter could not read it, which is not the same as none.',
+      'The agent’s profile shows the same counts, and `ownListedAgent` uses the owner set the leaderboard uses.',
+    ],
+    migrate: null,
+  },
+  {
+    date: null,
+    release: null,
     kind: 'changed',
     surfaces: ['GET /api/v1/integration', 'MCP integration_kit'],
     summary: 'The integration kit now signs quotes the way BNB’s agent SDK verifies them.',

@@ -14,6 +14,7 @@ import { onChainSummary, type OnChainKind } from '@/lib/capability/match';
 import { getCapabilityStore } from '@/lib/capability/store';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import type { AgentEconomicHistory } from '@/lib/erc8183/economic-history';
+import type { BuyerCounts } from '@/lib/agent/buyers';
 import { deliveryAdjustedVerdict } from '@/lib/search/match';
 import type { AssayRun } from '@/lib/assay/store';
 import type { AssayDefinition } from '@/lib/assay/catalog';
@@ -155,6 +156,8 @@ export interface AgentProfile {
   paidWork: AgentEconomicHistory;
   /** Funded jobs paid to Pokter's courier, left out of `paidWork` and said beside it. */
   courierJobs: number;
+  /** The outside wallets that funded `paidWork`, and how far they are from independent. */
+  buyers: BuyerCounts;
   /**
    * The funded jobs behind the counts above, newest first.
    *
@@ -458,6 +461,7 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
     history,
     paidWork: d.paidWork.history,
     courierJobs: d.paidWork.courierJobs.length,
+    buyers: d.buyers,
     /* Same source as the counts beside them: the store, read once. */
     jobHistory: (() => {
       const courier = new Set(d.paidWork.courierJobs);

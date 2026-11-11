@@ -83,7 +83,9 @@ test('a mainnet agent’s paid work leaves out the testnet trial its escrow paid
 
 test('the profile, its score, Compare and delivery times read paid work by this rule', () => {
   const credited = code('lib/agent/credited-history.ts');
-  assert.match(credited, /const courierPaid = await courierPaidTest\(jobs, teamAddressSet\(\), registeredWalletRead\);\s*return \{\s*history: agentHistory\(jobs\.filter\(\(job\) => !courierPaid\(job\)\), now\),/);
+  assert.match(credited, /const courierPaid = await courierPaidTest\(jobs, teamAddressSet\(\), registeredWalletRead\);\s*const paid = jobs\.filter\(\(job\) => !courierPaid\(job\)\);\s*return \{\s*history: agentHistory\(paid, now\),/);
+  /* Its buyers are counted over the same jobs as its paid work. */
+  assert.match(credited, /outsideBuyers: outsideBuyerJobs\(paid, \{ isLifecycleDemo \}\),/);
   const marketplace = code('lib/marketplace.ts');
   assert.match(marketplace, /score: computeScore\(\{ agent, category, proof, attestations, record, live, history: paidWork\.history \}\),/);
   assert.match(marketplace, /const \{ history: economicHistory \} = await agentPaidWork\(getJobStore\(\)\.byAgent\(chainId, tokenId\)\);/);

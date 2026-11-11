@@ -172,6 +172,22 @@ export async function GET(
     },
 
     /*
+     * Who funded its paid work from outside Pokter, as the profile shows it.
+     * Outside is not independent, so the count comes with the two facts that
+     * say how far it is. Null in `ownListedAgent` or `includesOwner` means
+     * not read, never none.
+     */
+    buyers: {
+      outside: dossier.buyers.wallets,
+      jobs: dossier.buyers.jobs,
+      returning: dossier.buyers.returning,
+      ownListedAgent: dossier.buyers.ownAgent,
+      includesOwner: dossier.buyers.ownerAmong,
+      provenance: 'calculated',
+      source: 'Wallets that funded this agent’s paid work through ERC-8183 escrow, from the jobs Pokter has indexed: not Pokter’s declared wallets, not the seller itself, and not jobs paid to Pokter’s courier. `ownListedAgent` counts those that own an agent listed on Pokter, this one included.',
+    },
+
+    /*
      * The most recent price check, apart from the price below, which is the
      * last one that succeeded. A buyer's failed request is not here: it can
      * be about that buyer's brief, and its details are the buyer's.
