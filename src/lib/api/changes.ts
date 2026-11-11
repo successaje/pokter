@@ -30,8 +30,8 @@ export interface ApiChange {
 
 export const API_CHANGES: ApiChange[] = [
   {
-    date: null,
-    release: null,
+    date: '2026-11-11',
+    release: 'v665',
     kind: 'added',
     surfaces: ['GET /api/v1/agents/{chainId}/{tokenId}', 'MCP get_agent'],
     summary: 'An agent now says who funded its paid work from outside Pokter.',
@@ -43,8 +43,8 @@ export const API_CHANGES: ApiChange[] = [
     migrate: null,
   },
   {
-    date: null,
-    release: null,
+    date: '2026-11-11',
+    release: 'v664',
     kind: 'changed',
     surfaces: ['GET /api/v1/integration', 'MCP integration_kit'],
     summary: 'The integration kit now signs quotes the way BNB’s agent SDK verifies them.',
