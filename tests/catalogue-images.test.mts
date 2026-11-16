@@ -44,6 +44,18 @@ test('one read per chain, one at a time, and none while fresh', async () => {
   assert.equal(calls.length, 4, 'stale, so read again');
 });
 
+test('a list with one new agent reads that agent, not the whole list again', async () => {
+  resetCatalogueImages();
+  const calls: string[] = [];
+  const read = reader({ '56:374107': brinkwatch }, calls);
+  catalogueImagesFor(agents, { read });
+  await catalogueImagesSettled();
+  /* Another caller's list: the same agents and one more. */
+  catalogueImagesFor([...agents, { chainId: 56, tokenId: '374115' }], { read });
+  await catalogueImagesSettled();
+  assert.deepEqual(calls, ['56:374107,1', '97:2618', '56:374115']);
+});
+
 test('a read that fails keeps what was known', async () => {
   resetCatalogueImages();
   catalogueImagesFor(agents, { read: reader({ '56:374107': brinkwatch }) });

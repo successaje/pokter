@@ -1,3 +1,4 @@
+import { mapWithConcurrency } from '@/lib/concurrency';
 import { REGISTRY_ABI, registryAddress, registryClient, registryTokenUri } from '@/lib/registry/onchain';
 
 /**
@@ -184,14 +185,10 @@ export async function readRegisteredImages(chainId: number, tokenIds: readonly s
       else found.set(ids[i], null);
     });
   }
-  /* Eight at a time: a slow publisher host holds up its own row, not the batch. */
-  for (let start = 0; start < hosted.length; start += 8) {
-    await Promise.all(
-      hosted.slice(start, start + 8).map(async ([id, uri]) => {
-        found.set(id, await hostedProfileImage(uri));
-      }),
-    );
-  }
+  /* Eight in flight, each starting as one finishes, so a slow publisher host holds up its own row and not seven others. */
+  await mapWithConcurrency(hosted, 8, async ([id, uri]) => {
+    found.set(id, await hostedProfileImage(uri));
+  });
   return found;
 }
 
@@ -215,20 +212,26 @@ export function catalogueImagesFor(
   { read = readRegisteredImages, now = Date.now() }: { read?: ImageReader; now?: number } = {},
 ): Map<string, string | null> {
   const known = new Map<string, string | null>();
-  let stale = false;
-  for (const { chainId, tokenId } of agents) {
-    const key = `${chainId}:${tokenId}`;
+  /*
+   * Only the agents that are due: never read, or read longer ago than
+   * `CATALOGUE_IMAGE_FRESH_MS`. Callers pass different lists (the pages and
+   * the sweep ask with different limits), and re-reading all of a list
+   * because one of its agents was new ran the whole pass twice.
+   */
+  const due: Array<{ chainId: number; tokenId: string }> = [];
+  for (const agent of agents) {
+    const key = `${agent.chainId}:${agent.tokenId}`;
     const hit = catalogueImages.get(key);
     if (hit) known.set(key, hit.image);
     const asked = attempted.get(key);
-    if (asked === undefined || now - asked > CATALOGUE_IMAGE_FRESH_MS) stale = true;
+    if (asked === undefined || now - asked > CATALOGUE_IMAGE_FRESH_MS) due.push(agent);
   }
-  if (stale && !refreshing) {
-    for (const { chainId, tokenId } of agents) attempted.set(`${chainId}:${tokenId}`, now);
+  if (due.length > 0 && !refreshing) {
+    for (const { chainId, tokenId } of due) attempted.set(`${chainId}:${tokenId}`, now);
     const started = Date.now();
-    refreshing = refreshCatalogueImages(agents, read)
+    refreshing = refreshCatalogueImages(due, read)
       .then(() => {
-        if (process.env.NODE_ENV !== 'test') console.info(`[timing] catalogue.images agents=${agents.length} elapsed=${Date.now() - started}ms`);
+        if (process.env.NODE_ENV !== 'test') console.info(`[timing] catalogue.images agents=${due.length} listed=${agents.length} elapsed=${Date.now() - started}ms`);
       })
       .finally(() => {
         refreshing = null;
