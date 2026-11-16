@@ -97,6 +97,12 @@ COPY --from=builder --chown=nextjs:nodejs /app/telegram-marketplace-configure.mj
 # does not race the mount.
 RUN mkdir -p /data && chown nextjs:nodejs /data
 
+# The commit this image was built from, which /api/health reports. The deploy
+# workflow passes it; a build without it reports null. Declared last, so a new
+# commit changes only this layer.
+ARG POKTER_COMMIT
+ENV POKTER_COMMIT=$POKTER_COMMIT
+
 USER nextjs
 EXPOSE 8080
 
