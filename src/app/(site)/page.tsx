@@ -4,11 +4,12 @@ import Link from 'next/link';
 import { CATEGORIES } from '@/lib/agents/categories';
 import { FLAGSHIP_CATEGORY_ORDER } from '@/lib/agents/flagship-playbooks';
 import { CAMPAIGN_END_LABEL, isCampaignLive } from '@/lib/campaign/window';
-import { ESCROW_NETWORKS_LABEL, escrowAvailabilityLine, IS_TESTNET, MAINNET_ESCROW } from '@/lib/network/presentation';
+import { CHAIN_ID, ESCROW_NETWORKS_LABEL, IS_TESTNET, MAINNET_ESCROW, escrowAvailabilityLine } from '@/lib/network/presentation';
 import { moneyWords } from '@/lib/integration/currencies';
 import { loadHome } from '@/features/home/data';
 import { walkthroughFor } from '@/features/home/walkthrough-data';
 import { HireWalkthrough } from '@/features/home/HireWalkthrough';
+import { HeroAgents } from '@/features/home/HeroAgents';
 import { wholeRecord } from '@/features/home/ticker-data';
 import { EvidenceTicker } from '@/features/home/EvidenceTicker';
 import { Inspection } from '@/features/home/Inspection';
@@ -173,156 +174,109 @@ export default async function HomePage() {
   return (
     <>
       {/* ───────────── Hero ───────────── */}
+      {/*
+        One column, centred, and shorter than it was.
+
+        It used to be a two-column grid: everything above on the left, an
+        inspection card on the right, and a twelve-column rule behind both.
+        The card is the strongest thing on the page and it was being asked to
+        be decoration beside a headline, at a size too small to read — so it
+        has an act of its own below, and the opening does one job instead of
+        two. What is left is the finding, the sentence under it, the one box
+        that starts a hire, and the agents themselves on the line.
+      */}
       <section className="relative overflow-hidden">
-        <div aria-hidden className="pointer-events-none absolute inset-0 [background-image:linear-gradient(to_right,var(--rule)_1px,transparent_1px)] [background-size:calc((100%-2rem)/12)_100%] opacity-[0.35] [mask-image:linear-gradient(to_bottom,black,transparent_85%)]" />
-        <div className="frame relative grid grid-cols-1 gap-10 pb-14 pt-8 sm:pt-10 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:items-center lg:gap-14 lg:pb-14 lg:pt-8">
+        <div className="frame relative flex flex-col items-center pt-10 text-center sm:pt-16">
           {/*
-            The headline keeps its full display size; everything around it is
-            set smaller and closer so the search, its examples and the line
-            about money still fit in the first screen of a laptop under it.
+            What is switched on, and how much is hireable through it. Both
+            read from config and from the same count Discover shows, so
+            neither can outlive the thing it describes.
           */}
-          <div className="flex flex-col justify-center gap-4">
-            {/*
-              Two marks, not a sentence.
-
-              The eyebrow ran "The agent marketplace · Live on BNB Chain
-              Mainnet · Testnet available" as one line of small grey text,
-              where the status and the standing claim read as the same
-              weight and neither was worth stopping on. Split in two: what
-              is switched on, and how much is actually hireable through it.
-
-              The first still comes from the config rather than being
-              written out, so the sentence cannot outlive the thing it
-              describes, and it still says what is available rather than
-              what has been proven — the record below counts what settled.
-              When no escrow is configured it carries the marketplace line
-              instead, which is the only case the old conditional existed
-              for.
-
-              The second is a count, and it is a link because a count a
-              reader cannot go and check is the kind of number this site
-              exists to not publish. It is read from the same source as
-              Discover's own collections, so the two cannot disagree, and
-              the destination is that collection.
-            */}
-            <p className="anim-rise flex flex-wrap items-center gap-1.5 text-[11.5px] font-medium">
-              <span className="inline-flex min-h-6 items-center gap-1.5 rounded-full border border-ok/30 bg-ok-wash px-2.5 py-0.5 leading-snug text-ok">
-                <span aria-hidden className="size-1.5 rounded-full bg-ok" />
-                {escrowAvailabilityLine() ?? 'The agent marketplace for BNB Chain'}
-              </span>
-              {home.catalogue.hireable > 0 && (
-                <Link
-                  href="/discover?hireable=1"
-                  className="inline-flex min-h-6 flex-wrap items-center gap-x-1.5 rounded-full border border-rule-strong bg-sunken px-2.5 py-0.5 leading-snug text-ink-2 transition-colors hover:border-ink hover:text-ink"
-                >
-                  <span className="t-readout">{home.catalogue.hireable}</span> hireable now
-                  {/* When Pokter last called an agent, so the count beside it has an age. */}
-                  {checkedAt && (
-                    <span className="whitespace-nowrap text-ink-3">
-                      · checked <Ago at={checkedAt} />
-                    </span>
-                  )}
-                  <Icon.Arrow size={13} />
-                </Link>
-              )}
-            </p>
-            {/*
-              The finding, not the promise.
-
-              This read "Find agents that actually work", which is a
-              claim, and a claim is the one thing this page cannot ask
-              anybody to take on trust: the whole product exists because a
-              registry entry asserting an agent works proves nothing. An
-              intensifier is what you reach for when you have no evidence
-              to show, and Pokter has the evidence — it rang every number
-              and wrote down who picked up. So the headline reports that
-              instead of asserting the conclusion.
-
-              The rule reaches "These do" rather than the opening clause:
-              the first sentence is the problem and the second is the
-              catalogue underneath, so the emphasis belongs on the half
-              that pays the sentence off.
-            */}
-            <h1 className="t-display anim-rise" style={{ animationDelay: '60ms' }}>
-              Most agents never answer. <span className="relative whitespace-nowrap">These do<span aria-hidden className="absolute -bottom-1 left-0 h-[0.09em] w-full origin-left bg-signal" style={{ animation: 'rise 700ms var(--ease-out) 500ms both' }} /></span>.
-            </h1>
-            {/*
-              "Every agent on BNB Chain" was off by three orders of
-              magnitude: 342,373 are registered and 260 have ever been
-              called. The monitored set is what the category searches in
-              marketplace.ts find and the classifier keeps, not the
-              registry — and overstating the denominator is the one error
-              this site cannot afford, because its product is the count.
-
-              No number here: the funnel on /methodology is counted from
-              its source and would only drift out of step with a figure
-              hardcoded into the hero.
-            */}
-            {/*
-              "We call the agents…" kept the metaphor of ringing every number
-              but read as naming them. The same claim in the words the record
-              section below uses, so the page says it one way.
-            */}
-            <p className="t-lede anim-rise max-w-[32rem] text-[15px] sm:text-[15.5px]" style={{ animationDelay: '120ms' }}>
-              We ask every BNB Chain agent we list, on a schedule, and publish
-              what came back. Hire on the record, not the pitch.
-            </p>
-            <TaskSearch size="m" className="anim-rise max-w-[32rem]" />
-            {/*
-              The rule, once, where somebody is about to start.
-              
-              It was already on the page three times in three
-              vocabularies — "Try free on testnet" in the header, "Live on
-              BNB Chain Mainnet · Testnet available" in the eyebrow above,
-              and "Test tokens · BNB Testnet" against "Real funds · BNB
-              Chain" on the cards. Each is true; none of them is the rule,
-              and a buyer had to assemble it from all three.
-
-              The trial half names who does the work. A free run is
-              carried by Pokter's own delivery agent, so it is not
-              evidence about the listed one — the distinction the
-              catalogue keeps everywhere else, and the one a buyer is
-              most likely to get wrong here.
-            */}
-            {/*
-              The rule and the two ways onward on one row. Stacked, the links
-              sat a line below the rule and, on a laptop, just under the
-              fold; beside it they cost no height of their own.
-            */}
-            <div className="anim-rise flex max-w-[32rem] flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-6" style={{ animationDelay: '180ms' }}>
-              <p className="max-w-[24rem] text-[12.5px] leading-relaxed text-ink-3">
-                {MAINNET_ESCROW ? (
-                  /* One line now, keeping both halves of the rule: who does a free run, and that a paid one is at the agent's own signed price. */
-                  <>
-                    <span className="font-medium text-ink-2">Try free</span> on testnet, run by Pokter&rsquo;s own agent. <span className="font-medium text-ink-2">Pay</span> on BNB Chain in {moneyWords(56)}, at a price the agent signed.
-                  </>
-                ) : (
-                  <>
-                    <span className="font-medium text-ink-2">Free</span> while escrow runs on BNB testnet: test tokens only, with Pokter&rsquo;s own agent doing the work.
-                  </>
+          <p className="anim-rise flex flex-wrap items-center justify-center gap-1.5 text-[11.5px] font-medium">
+            <span className="inline-flex min-h-6 items-center gap-1.5 rounded-full border border-ok/30 bg-ok-wash px-2.5 py-0.5 leading-snug text-ok">
+              <span aria-hidden className="size-1.5 rounded-full bg-ok" />
+              {escrowAvailabilityLine() ?? 'The agent marketplace for BNB Chain'}
+            </span>
+            {home.catalogue.hireable > 0 && (
+              <Link
+                href="/discover?hireable=1"
+                className="inline-flex min-h-6 flex-wrap items-center gap-x-1.5 rounded-full border border-rule-strong bg-sunken px-2.5 py-0.5 leading-snug text-ink-2 transition-colors hover:border-ink hover:text-ink"
+              >
+                <span className="t-readout">{home.catalogue.hireable}</span> hireable now
+                {checkedAt && (
+                  <span className="whitespace-nowrap text-ink-3">
+                    · checked <Ago at={checkedAt} />
+                  </span>
                 )}
-              </p>
-              <div className="flex shrink-0 flex-wrap items-center gap-x-5 gap-y-1.5 text-[13px] sm:flex-col sm:items-end">
-                <Link href="/in-action" className="inline-flex items-center gap-1.5 font-medium text-ink hover:underline">
-                  See Pokter in action <Icon.Arrow size={15} />
-                </Link>
-                <Link href="/build" className="inline-flex items-center gap-1.5 font-medium text-ink hover:underline">
-                  Build an agent <Icon.Arrow size={15} />
-                </Link>
-                <Link href="/how-it-works" className="text-ink-3 hover:text-ink">
-                  How hiring works
-                </Link>
-              </div>
-            </div>
-          </div>
-          <div className="anim-rise" style={{ animationDelay: '160ms' }}>
-            <Inspection specimens={home.specimens} />
-            <p className="mt-3 px-1 text-[12px] leading-snug text-ink-3">
-              {/* "3 registered agents" read as a count of the registry, a few screens above the registry's own count. */}
-              {home.specimens.length === 1 ? 'This agent is' : 'These agents are'} read from the registry, Pokter&rsquo;s probe history and the escrow index, as of when this page was built.
-            </p>
-          </div>
+                <Icon.Arrow size={13} />
+              </Link>
+            )}
+          </p>
+
+          {/*
+            The finding, not a promise. The rule reaches "These do" because
+            the first sentence is the problem and the second is the catalogue
+            underneath it.
+          */}
+          <h1 className="t-display anim-rise mt-5 max-w-[20ch]" style={{ animationDelay: '60ms' }}>
+            Most agents never answer.{' '}
+            <span className="relative whitespace-nowrap">
+              These do
+              <span
+                aria-hidden
+                className="absolute -bottom-1 left-0 h-[0.09em] w-full origin-left bg-signal"
+                style={{ animation: 'rise 700ms var(--ease-out) 500ms both' }}
+              />
+            </span>
+            .
+          </h1>
+
+          <p className="t-lede anim-rise mt-5 max-w-[46ch] text-[15px] sm:text-[15.5px]" style={{ animationDelay: '120ms' }}>
+            We ask every BNB Chain agent we list, on a schedule, and publish what came back. Hire on the
+            record, not the pitch.
+          </p>
+
+          <TaskSearch size="m" className="anim-rise mt-7 w-full max-w-[34rem] text-left" />
+
+          {/*
+            The rule, once, where somebody is about to start: who does a free
+            run, and that a paid one is at the agent's own signed price.
+          */}
+          <p className="anim-rise mt-4 max-w-[46ch] text-[12.5px] leading-relaxed text-ink-3" style={{ animationDelay: '180ms' }}>
+            {MAINNET_ESCROW ? (
+              <>
+                <span className="font-medium text-ink-2">Try free</span> on testnet, run by Pokter&rsquo;s own
+                agent. <span className="font-medium text-ink-2">Pay</span> on BNB Chain in {moneyWords(56)}, at a
+                price the agent signed.
+              </>
+            ) : (
+              <>
+                <span className="font-medium text-ink-2">Free</span> while escrow runs on BNB testnet: test
+                tokens only, with Pokter&rsquo;s own agent doing the work.
+              </>
+            )}
+          </p>
         </div>
+
+        {/* Pokter's own agents, on the line the hero ends on. */}
+        <HeroAgents chainId={CHAIN_ID === 56 ? 56 : 97} />
+      </section>
+
+      {/* ───────────── The three, read the same way ───────────── */}
+      {/*
+        The inspection card, at a size it can be read at. It was beside the
+        headline at half the width, where the one thing it exists to show —
+        the difference between an agent that works and one that only talks —
+        was too small to follow.
+      */}
+      <section className="frame py-14 sm:py-20" aria-label="Three agents inspected">
+        <Reveal className="mx-auto max-w-[44rem]">
+          <Inspection specimens={home.specimens} />
+          <p className="mt-3 px-1 text-[12px] leading-snug text-ink-3">
+            {home.specimens.length === 1 ? 'This agent is' : 'These agents are'} read from the registry,
+            Pokter&rsquo;s probe history and the escrow index, as of when this page was built.
+          </p>
+        </Reveal>
       </section>
 
       {/* ───────────── Hireable now ───────────── */}
