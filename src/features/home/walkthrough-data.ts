@@ -1,5 +1,7 @@
 import 'server-only';
 
+import type { Category } from '@/lib/agents/categories';
+import type { PlanCheckOutcome, PlanKind } from '@/lib/delivery/plan-checks';
 import { loadJobEvidence, type JobEvidence } from '@/lib/jobs/evidence';
 import { shortNetworkLabel, explorerBaseFor } from '@/lib/network/presentation';
 
@@ -33,13 +35,68 @@ export interface WalkStep {
   foot?: string;
 }
 
+/**
+ * The live values the walkthrough's screens draw, beyond the fact rows.
+ *
+ * The screens are a reconstruction of the product, so every string on them
+ * has to come from the job rather than from a designer: the brief is the
+ * brief the buyer wrote, the price is the price the agent signed, the
+ * hashes are the hashes on chain, the checks are the checks that ran and
+ * what each of them found. Nothing here is written for the page. A field
+ * the job did not carry is null and the screen says so, the same way the
+ * rows do.
+ */
+export interface WalkScene {
+  /** What was asked for, typed out on the first screen as the buyer typed it. */
+  brief: string;
+  /** The shelf the task was filed under, and the marketplace category it maps to. */
+  shelf: { label: string; category: Category | null };
+  agent: { name: string; mark: string | null; tokenId: string };
+  price: string;
+  escrow: string;
+  fundingTx: { short: string; href: string } | null;
+  deliverable: string | null;
+  deliveredAt: string | null;
+  method: string;
+  /** Every check that ran, in the order it ran, with what it found. */
+  checks: Array<{ label: string; outcome: PlanCheckOutcome; detail: string }>;
+  /** What the checks do not cover, in the checker's own words. */
+  notCovered: string[];
+  /** The real path each screen is at, shown in the window's address bar. */
+  paths: Record<WalkStep['key'], string>;
+}
+
 export interface Walkthrough {
   job: { chainId: number; jobId: string; href: string; network: string };
   agent: { name: string; href: string };
   /** True when a Pokter wallet funded it: said on the page, never softened. */
   fundedByTeam: boolean;
   steps: WalkStep[];
+  scene: WalkScene;
 }
+
+/**
+ * The marketplace shelf a kind of answer is sold from.
+ *
+ * The checker's `kind` is read from what was delivered; the category is
+ * where Pokter lists agents. They are two vocabularies for the same work
+ * and this is the only place they meet, so the first screen can show the
+ * real shelf the buyer would have been searching rather than a label
+ * written for the screenshot.
+ */
+const SHELF: Record<PlanKind, Category> = {
+  health: 'health-factor',
+  yield: 'yield',
+  grid: 'grid-trading',
+  range: 'rebalancing',
+  token: 'token-safety',
+  research: 'research',
+  trading: 'trading',
+  content: 'content',
+};
+
+/** Pokter's own agents are drawn with their own mark; anyone else's is an initial. */
+const HOUSE_MARKS = new Set(['brinkwatch', 'centreline', 'cresthold', 'gridloom', 'touchstone']);
 
 const shortHash = (h: string) => `${h.slice(0, 10)}…${h.slice(-6)}`;
 
@@ -131,9 +188,37 @@ export async function walkthroughFor(chainId: 56 | 97, jobId: string): Promise<W
     },
   ];
 
+  const markSlug = e.agent.name.toLowerCase().replace(/\s*by pokter$/, '').trim();
+
   return {
     job: { chainId: e.chainId, jobId: e.jobId, href: `/jobs/${e.chainId}/${e.jobId}`, network },
     agent: { name: e.agent.name, href: agentHref },
+    scene: {
+      brief: e.brief ? e.brief.replace(/\s+/g, ' ').trim() : '',
+      shelf: { label: e.checks.label, category: e.checks.kind ? SHELF[e.checks.kind] : null },
+      agent: {
+        name: e.agent.name,
+        mark: HOUSE_MARKS.has(markSlug) ? `/agents/${markSlug}.svg` : null,
+        tokenId: e.agent.tokenId,
+      },
+      price: e.amount,
+      escrow: `ERC-8183 escrow on ${network}`,
+      fundingTx: e.fundingTx ? { short: shortHash(e.fundingTx), href: `${explorer}/tx/${e.fundingTx}` } : null,
+      deliverable: e.chain ? shortHash(e.chain.deliverable) : null,
+      deliveredAt: e.deliveredAt
+        ? new Date(e.deliveredAt).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' }) + ' UTC'
+        : null,
+      method: e.checks.method,
+      checks: e.checks.checks.map((c) => ({ label: c.label, outcome: c.outcome, detail: c.detail })),
+      notCovered: e.checks.notCovered,
+      paths: {
+        find: '/discover',
+        inspect: agentHref,
+        fund: `/hire/${e.agent.chainId}/${e.agent.tokenId}`,
+        delivered: `/jobs/${e.chainId}/${e.jobId}`,
+        checked: `/jobs/${e.chainId}/${e.jobId}#checks`,
+      },
+    },
     /*
       Said plainly on the page. `team` is a Pokter wallet and `self` is the
       agent hiring itself; neither is a customer, and a walkthrough that let
@@ -145,3 +230,85 @@ export async function walkthroughFor(chainId: 56 | 97, jobId: string): Promise<W
 }
 
 export type { JobEvidence };
+
+/** One agent as the shelf lists it, flattened for the screens to draw. */
+export interface ShelfRow {
+  key: string;
+  name: string;
+  /** Pokter's own agents carry their mark; anyone else's gets an initial. */
+  mark: string | null;
+  note: string;
+  /** True for the agent this job actually hired: the row the cursor lands on. */
+  hired: boolean;
+}
+
+export interface Shelf {
+  label: string;
+  /** How many agents are listed on this shelf, from the same count Discover shows. */
+  count: number;
+  rows: ShelfRow[];
+}
+
+/**
+ * The shelf the first screen shows, from the live catalogue.
+ *
+ * The screen is a search result, and a search result full of invented
+ * competitors would be the one dishonest thing in the walkthrough: a
+ * reader would be looking at a ranking that never ran. So the rows are the
+ * shortlist Discover itself shows for that category, the count is the one
+ * Discover counts, and each row carries what Pokter measured rather than
+ * what the agent says.
+ *
+ * The agent that was actually hired has to be in the list, because the
+ * cursor lands on it. It is often a different registration from the one the
+ * shortlist ranks — the shortlist leads with mainnet and this job ran on
+ * testnet — so it is matched by name and added when the shortlist does not
+ * already carry it.
+ *
+ * Added last, and never first. Put at the top it would read as the agent
+ * the ranking chose, which is a claim about a ranking that did not run; at
+ * the bottom, marked as the one this job hired, it says the true thing
+ * instead — the measurements ranked these, and the buyer picked that one.
+ */
+export function shelfFor(
+  walk: Walkthrough,
+  outcomes: Array<{ id: Category; label: string; count: number; top: Array<{ key: string; name: string; rate: number | null; priceState: 'signed' | 'unverified' | 'none' }> }>,
+): Shelf | null {
+  const category = walk.scene.shelf.category;
+  if (!category) return null;
+  const outcome = outcomes.find((o) => o.id === category);
+  if (!outcome) return null;
+
+  const markFor = (name: string) => {
+    const slug = name.toLowerCase().replace(/\s*by pokter$/, '').trim();
+    return HOUSE_MARKS.has(slug) ? `/agents/${slug}.svg` : null;
+  };
+
+  const asRow = (row: { key: string; name: string; rate: number | null; priceState: 'signed' | 'unverified' | 'none' }): ShelfRow => ({
+    key: row.key,
+    name: row.name,
+    mark: markFor(row.name),
+    note: [
+      row.rate === null ? 'Never answered' : `${Math.round(row.rate * 100)}% of checks answered`,
+      row.priceState === 'signed' ? 'price signed' : row.priceState === 'unverified' ? 'no verified price' : 'no price',
+    ].join(' · '),
+    hired: row.name === walk.scene.agent.name,
+  });
+
+  const ranked = outcome.top.map(asRow);
+  const carriesHired = ranked.some((row) => row.hired);
+  const rows = carriesHired
+    ? ranked.slice(0, 3)
+    : [
+        ...ranked.slice(0, 2),
+        {
+          key: `hired:${walk.job.chainId}:${walk.scene.agent.tokenId}`,
+          name: walk.scene.agent.name,
+          mark: walk.scene.agent.mark,
+          note: `${walk.scene.price}, signed by its wallet`,
+          hired: true,
+        },
+      ];
+
+  return { label: outcome.label, count: outcome.count, rows };
+}

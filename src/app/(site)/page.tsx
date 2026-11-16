@@ -7,8 +7,8 @@ import { CAMPAIGN_END_LABEL, isCampaignLive } from '@/lib/campaign/window';
 import { CHAIN_ID, ESCROW_NETWORKS_LABEL, IS_TESTNET, MAINNET_ESCROW, escrowAvailabilityLine } from '@/lib/network/presentation';
 import { moneyWords } from '@/lib/integration/currencies';
 import { loadHome } from '@/features/home/data';
-import { walkthroughFor } from '@/features/home/walkthrough-data';
-import { HireWalkthrough } from '@/features/home/HireWalkthrough';
+import { shelfFor, walkthroughFor } from '@/features/home/walkthrough-data';
+import { ProductWalkthrough } from '@/features/home/ProductWalkthrough';
 import { HeroAgents } from '@/features/home/HeroAgents';
 import { wholeRecord } from '@/features/home/ticker-data';
 import { EvidenceTicker } from '@/features/home/EvidenceTicker';
@@ -50,6 +50,13 @@ export default async function HomePage() {
    * rather than shown half-built.
    */
   const walk = await walkthroughFor(97, '1733');
+  /*
+   * The shelf its first screen shows, from the same catalogue Discover
+   * ranks. Built here because the walkthrough is read before the counts
+   * are, and a search screen full of invented rivals would be the one
+   * dishonest thing in it.
+   */
+  const shelf = walk ? shelfFor(walk, home.outcomes) : null;
   /* The escrow record, openable jobs only. Read here so the row ships with the page. */
   const jobRecord = wholeRecord();
   const checkedAt = lastCheckAt();
@@ -262,6 +269,49 @@ export default async function HomePage() {
         <HeroAgents chainId={CHAIN_ID === 56 ? 56 : 97} />
       </section>
 
+      {/* ───────────── One hire, played back ───────────── */}
+      {/*
+        What hiring here is actually like, before anything is claimed about it.
+
+        The hero makes a finding and the record below proves it at scale;
+        between them a reader still has no idea what the thing does, and
+        nothing on a marketplace answers that like watching somebody use
+        it. So this runs one hire through the five screens it passed
+        through, with the cursor pressing what a buyer would press. It sits
+        here rather than beside the steps further down because it is the
+        first question anybody has, and making them scroll past four
+        sections of evidence to reach it was answering them last.
+      */}
+      {walk && (
+        <section className="frame pb-4 pt-16 sm:pt-24" aria-labelledby="walkthrough-title">
+          <Reveal className="mx-auto mb-10 flex max-w-[44rem] flex-col items-center gap-3 text-center">
+            <span className="t-label">One hire, start to finish</span>
+            <h2 id="walkthrough-title" className="t-h1">
+              Watch a real one go through.
+            </h2>
+            <p className="t-body max-w-[46ch] text-ink-2">
+              Five screens, one job, every figure read from it. Not a mock-up of how it could
+              work &mdash; the hire happened, and the receipts are underneath.
+            </p>
+          </Reveal>
+          <Reveal delay={80}>
+            <ProductWalkthrough walk={walk} shelf={shelf} />
+          </Reveal>
+        </section>
+      )}
+
+      {/*
+        What has happened here lately, moving, with every card openable.
+
+        It sits straight after the walkthrough on purpose: that showed one
+        hire in detail, and the obvious next question is whether it was the
+        only one. This answers it without a claim — the row is the jobs
+        themselves, each leading to its evidence page and its transaction.
+      */}
+      <div className="mt-14 sm:mt-20">
+        <EvidenceTicker record={jobRecord} />
+      </div>
+
       {/* ───────────── The three, read the same way ───────────── */}
       {/*
         The inspection card, at a size it can be read at. It was beside the
@@ -388,34 +438,18 @@ export default async function HomePage() {
         </div>
 
         {/*
-          The same five steps, as they happened to one job. The rail above
-          says what hiring is; this says what it was, with the figures read
-          from the job rather than written here.
+          The film is the first thing under the hero now, so the steps here
+          are what it generalises rather than a preamble to it.
         */}
         {walk && (
-          <>
-            <Reveal className="mt-20 flex max-w-2xl flex-col gap-3 sm:mt-28">
-              <span className="t-label">One hire, start to finish</span>
-              <h3 className="t-h2">
-                Here is one that happened. <span className="text-ink-3">Every figure links to where it can be checked.</span>
-              </h3>
-            </Reveal>
-            <Reveal className="mt-8" delay={80}>
-              <HireWalkthrough walk={walk} />
-            </Reveal>
-          </>
+          <Reveal className="mt-10 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-rule pt-6 text-sm text-ink-3">
+            <span>Those five steps, as they happened to one job.</span>
+            <Link href={walk.job.href} className="inline-flex items-center gap-1.5 font-medium text-ink hover:underline">
+              Open job #{walk.job.jobId} <Icon.Arrow size={15} />
+            </Link>
+          </Reveal>
         )}
       </section>
-
-      {/*
-        What has happened here lately, moving, with every card openable.
-
-        It sits straight after the walkthrough on purpose: that showed one
-        hire in detail, and the obvious next question is whether it was the
-        only one. This answers it without a claim — the row is the jobs
-        themselves, each leading to its evidence page and its transaction.
-      */}
-      <EvidenceTicker record={jobRecord} />
 
       {/* ───────────── The record ───────────── */}
       {/*
