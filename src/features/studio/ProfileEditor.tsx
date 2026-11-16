@@ -9,6 +9,7 @@ type Erc8004RegistrationFile = SdkFile & { tags?: string[]; categories?: string[
 import { CATEGORIES } from '@/lib/agents/categories';
 import { passkeyRegistrySigner } from '@/lib/registry/passkey-signer';
 import { readIdentityRegistration, updateIdentityFromWallet, type RegistryChainId } from '@/lib/registry/register';
+import { serviceAt } from '@/lib/registry/service-version';
 import { usePasskeySigner, usePasskeyWallet } from '@/lib/wallet/PasskeyProvider';
 import { Button } from '@/ui/Button';
 import { Notice, Skeleton } from '@/ui/Feedback';
@@ -44,6 +45,8 @@ export function ProfileEditor({ chainId, tokenId }: { chainId: RegistryChainId; 
   const [form, setForm] = useState<Editable | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [checked, setChecked] = useState<string | null>(null);
+  /** The A2A version the last check read from the card at `checked`. */
+  const [checkedVersion, setCheckedVersion] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
   const [step, setStep] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -87,9 +90,10 @@ export function ProfileEditor({ chainId, tokenId }: { chainId: RegistryChainId; 
       const index = serviceIndex(file!);
       const protocol = index >= 0 && /mcp/i.test(file!.services![index].name) ? 'mcp' : 'a2a';
       const r = await fetch('/api/builders/preflight', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ endpoint: form!.endpoint.trim(), protocol }) });
-      const body = (await r.json().catch(() => ({}))) as { ok?: boolean; detail?: string; error?: string };
+      const body = (await r.json().catch(() => ({}))) as { ok?: boolean; detail?: string; error?: string; a2aVersion?: string | null };
       if (!r.ok || !body.ok) throw new Error(body.error ?? body.detail ?? 'The endpoint did not answer.');
       setChecked(form!.endpoint);
+      setCheckedVersion(protocol === 'a2a' ? body.a2aVersion ?? null : null);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -104,9 +108,9 @@ export function ProfileEditor({ chainId, tokenId }: { chainId: RegistryChainId; 
       const endpoint = form!.endpoint.trim();
       // No A2A/MCP entry yet: add one rather than silently dropping the endpoint.
       const services = index >= 0
-        ? (file!.services ?? []).map((s, i) => (i === index ? { ...s, endpoint } : s))
+        ? (file!.services ?? []).map((s, i) => (i === index ? serviceAt(s, endpoint, checkedVersion) : s))
         : endpoint
-          ? [{ name: 'A2A', endpoint }, ...(file!.services ?? [])]
+          ? [{ name: 'A2A', endpoint, ...(checkedVersion ? { version: checkedVersion } : {}) }, ...(file!.services ?? [])]
           : (file!.services ?? []);
       const next = {
         ...file!,

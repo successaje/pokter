@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { A2A_PROTOCOL_VERSION } from '@/lib/a2a/card';
 
 import { ALTANA_NETWORK } from '@/lib/altana/client';
 import { demoSellerAddress } from '@/lib/erc8183/demo-seller';
@@ -16,7 +17,7 @@ export async function GET(): Promise<NextResponse> {
       'A testnet seller that proves the ERC-8183 funded-job, delivery and settlement lifecycle.',
     url: new URL('/api/seller/a2a', origin).href,
     version: '1.0.0',
-    protocolVersion: '0.3.0',
+    protocolVersion: A2A_PROTOCOL_VERSION,
     capabilities: { streaming: false, pushNotifications: false },
     provider: { organization: 'Pokter', url: origin.origin },
     skills: [

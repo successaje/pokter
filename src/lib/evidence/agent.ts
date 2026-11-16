@@ -1,4 +1,5 @@
 import { EVIDENCE_CHAINS } from '@/lib/evidence/refs';
+import { A2A_PROTOCOL_VERSION } from '@/lib/a2a/card';
 import type { ChainId } from '@/lib/scan/types';
 import { builtWithPokter } from '@/lib/brand/built-with';
 
@@ -57,7 +58,7 @@ export function evidenceCard(origin: URL, chainId?: ChainId) {
       'Reports what Pokter measured about any ERC-8004 agent on BNB Chain: calls taken, calls answered, whether a signed price can be settled, and the provenance of each claim. It reports; it does not rank.',
     url: endpoint.href,
     version: EVIDENCE_AGENT.version,
-    protocolVersion: '0.3.0',
+    protocolVersion: A2A_PROTOCOL_VERSION,
     capabilities: { streaming: false, pushNotifications: false },
     defaultInputModes: ['application/json'],
     defaultOutputModes: ['application/json'],

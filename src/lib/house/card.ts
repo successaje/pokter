@@ -1,3 +1,4 @@
+import { A2A_PROTOCOL_VERSION } from '@/lib/a2a/card';
 import { builtWithPokter } from '@/lib/brand/built-with';
 
 import { HOUSE_CHAINS, type HouseAgentDefinition, type HouseChainId } from './types';
@@ -23,7 +24,7 @@ export function houseCard(definition: HouseAgentDefinition, origin: URL, chainId
     description: definition.description,
     url: houseEndpoint(definition, origin, chainId).href,
     version: definition.version,
-    protocolVersion: '0.3.0',
+    protocolVersion: A2A_PROTOCOL_VERSION,
     capabilities: { streaming: false, pushNotifications: false },
     defaultInputModes: ['application/json', 'text/plain'],
     defaultOutputModes: ['application/json'],
