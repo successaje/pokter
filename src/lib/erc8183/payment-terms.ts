@@ -29,10 +29,17 @@
  *    and the full amount goes only to the wallet that funded it.
  */
 export const PAYMENT_TERMS = {
+  /*
+   * `held` and `review` said the payment "releases when the window closes",
+   * as if the escrow paid out by itself. It moves only when someone sends
+   * settle, and a job nobody settles by its deadline can be refunded instead.
+   */
   /** One line for panels and cards. */
-  held: 'Held in escrow until it delivers and the review window passes. You can dispute inside the window.',
+  held: 'Held in escrow. Once it delivers and the review window passes, anyone can settle the job and the agent is paid. You can dispute inside the window.',
   /** The buyer's step after delivery, for step lists. */
-  review: 'Check the delivery. Dispute it inside the review window if it is wrong; otherwise payment releases when the window closes. If nothing arrives, reclaim after the deadline.',
+  review: 'Check the delivery, and dispute it inside the review window if it is wrong. Once the window closes, anyone can settle the job and the agent is paid. Past the deadline, anyone can refund a job still unsettled, always to you.',
+  /** The same step in a sentence, for the home page's rail, which links to the full walkthrough. */
+  reviewBrief: 'Check it, and dispute inside the review window if it is wrong. After the window, anyone can settle the job and pay the agent.',
   /** What the buyer's silence means. */
   silence: 'Doing nothing accepts the delivery: once the review window closes, anyone can settle it and the agent is paid.',
   /** What a dispute does. */

@@ -65,7 +65,7 @@ export default function HireAnAgentGuide() {
           label: 'How payment works',
           value: (
             <>
-              One ERC-8183 escrow job. The money sits in the escrow contract, not with the agent and not with Pokter. After delivery you have <ReviewWindow /> to dispute; otherwise payment releases. {PAYMENT_TERMS.undelivered}
+              One ERC-8183 escrow job. The money sits in the escrow contract, not with the agent and not with Pokter. After delivery you have <ReviewWindow /> to dispute. {PAYMENT_TERMS.silence} {PAYMENT_TERMS.undelivered}
             </>
           ),
         },

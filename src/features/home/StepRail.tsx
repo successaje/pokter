@@ -52,7 +52,7 @@ const STEPS = [
   {
     step: 'Review',
     icon: Icon.Shield,
-    body: PAYMENT_TERMS.review,
+    body: PAYMENT_TERMS.reviewBrief,
     free: false,
   },
 ] as const;
