@@ -16,7 +16,10 @@ import { withPublicEndpoint } from '@/lib/proof/prober';
  * Redirects are followed by hand, at most `MAX_REDIRECTS`, and each hop is
  * checked the same way as the first, because profile hosts and IPFS
  * gateways do redirect, and refusing them outright would drop real images.
- * The body is read up to `MAX_BYTES` and no further.
+ * The body is read up to `MAX_BYTES` and no further, and the whole read,
+ * address lookups included, gives up at `timeoutMs`. The fetch's own signal
+ * starts only after the guard has resolved the host, so without the outer
+ * limit a host slow to resolve would hold its slot past it.
  */
 const MAX_REDIRECTS = 3;
 const MAX_BYTES = 200_000;
@@ -47,9 +50,14 @@ async function boundedJson(response: Response): Promise<unknown> {
   }
 }
 
-/** The parsed profile, or null for anything unreadable, refused, too large or redirected too often. */
+/** The parsed profile, or null for anything unreadable, refused, too large, redirected too often or slower than `timeoutMs`. */
 export async function readHostedProfile(url: string, { timeoutMs, endpoint = withPublicEndpoint }: { timeoutMs: number; endpoint?: Endpoint }): Promise<unknown> {
   const signal = AbortSignal.timeout(timeoutMs);
+  const expired = new Promise<null>((resolve) => signal.addEventListener('abort', () => resolve(null), { once: true }));
+  return Promise.race([readFollowing(url, signal, endpoint), expired]);
+}
+
+async function readFollowing(url: string, signal: AbortSignal, endpoint: Endpoint): Promise<unknown> {
   let target = url;
   try {
     for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {

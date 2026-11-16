@@ -94,6 +94,14 @@ test('too many redirects, a redirect without a location, an error, a large or a 
   }
 });
 
+test('the time limit covers the guard’s address lookup, not only the request', async () => {
+  /* A guard stuck resolving the host, as a slow or failing DNS server leaves it. */
+  const stuck = (async () => new Promise(() => {})) as never;
+  const started = Date.now();
+  assert.equal(await readHostedProfile('https://slow.example/p.json', { timeoutMs: 150, endpoint: stuck }), null);
+  assert.ok(Date.now() - started < 1_000, `gave up after ${Date.now() - started}ms`);
+});
+
 test('the catalogue reads hosted profiles only through this reader', () => {
   /* A security property, not wording: no request leaves the image module except through the guard. */
   const image = readFileSync(new URL('../../src/lib/registry/image.ts', import.meta.url), 'utf8');
