@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 
-import type { TickerEvent } from '@/features/home/ticker-data';
+import type { JobRecord, TickerEvent } from '@/features/home/ticker-data';
 import { Icon } from '@/ui/icons';
 
 /**
@@ -40,7 +40,12 @@ function Card({ event }: { event: TickerEvent }) {
       <div className="group flex min-w-[17.5rem] items-center gap-3 border-r border-rule px-5 py-3.5">
         <span
           aria-hidden
-          className={`size-1.5 shrink-0 rounded-full ${event.verb === 'Settled' ? 'bg-ok' : event.verb === 'Delivered' ? 'bg-info' : 'bg-rule-strong'}`}
+          className={`size-1.5 shrink-0 rounded-full ${
+            event.verb === 'Settled' ? 'bg-ok'
+            : event.verb === 'Delivered' ? 'bg-info'
+            : event.verb === 'Funded' ? 'bg-rule-strong'
+            : 'bg-watch'
+          }`}
         />
         <span className="flex min-w-0 flex-col gap-0.5">
           <span className="flex items-baseline gap-2 text-[13.5px]">
@@ -79,7 +84,8 @@ function Card({ event }: { event: TickerEvent }) {
   );
 }
 
-export function EvidenceTicker({ events }: { events: TickerEvent[] }) {
+export function EvidenceTicker({ record }: { record: JobRecord }) {
+  const { events, indexed, missed } = record;
   const [held, setHeld] = useState(false);
   const [still, setStill] = useState(false);
   const track = useRef<HTMLDivElement>(null);
@@ -98,7 +104,25 @@ export function EvidenceTicker({ events }: { events: TickerEvent[] }) {
   const seconds = events.length * SECONDS_PER_CARD;
 
   return (
-    <div className="relative border-y border-rule bg-raised/40">
+    <div className="border-y border-rule bg-raised/40">
+      {/*
+        What the row is, before it moves. Without this it reads as a brag
+        about volume, which the numbers do not support; with it, the misses
+        and the team-funded cards are the point rather than an awkwardness.
+      */}
+      <div className="frame flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 pt-4 text-[12.5px] text-ink-3">
+        <span>
+          Every escrow job with a transaction to open:{' '}
+          <span className="t-readout text-ink">{events.length}</span> of{' '}
+          <span className="t-readout">{indexed.toLocaleString('en-US')}</span> indexed,{' '}
+          <span className="t-readout text-ink">{missed}</span> of them ended with no delivery and the money
+          returned.
+        </span>
+        <Link href="/proof" className="font-medium text-ink-2 hover:text-ink hover:underline">
+          All of it, with receipts
+        </Link>
+      </div>
+      <div className="relative">
       {/*
         The row fades into the page at both edges rather than stopping at a
         hard line, so a card leaving is leaving rather than being cut.
@@ -153,6 +177,7 @@ export function EvidenceTicker({ events }: { events: TickerEvent[] }) {
           {held ? <Icon.Play size={12} /> : <span aria-hidden className="flex gap-[2px]"><span className="block h-2.5 w-[2px] bg-current" /><span className="block h-2.5 w-[2px] bg-current" /></span>}
         </button>
       )}
+      </div>
     </div>
   );
 }

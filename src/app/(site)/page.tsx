@@ -9,7 +9,7 @@ import { moneyWords } from '@/lib/integration/currencies';
 import { loadHome } from '@/features/home/data';
 import { walkthroughFor } from '@/features/home/walkthrough-data';
 import { HireWalkthrough } from '@/features/home/HireWalkthrough';
-import { recentEvents } from '@/features/home/ticker-data';
+import { wholeRecord } from '@/features/home/ticker-data';
 import { EvidenceTicker } from '@/features/home/EvidenceTicker';
 import { Inspection } from '@/features/home/Inspection';
 import { TaskSearch } from '@/features/home/TaskSearch';
@@ -49,8 +49,8 @@ export default async function HomePage() {
    * rather than shown half-built.
    */
   const walk = await walkthroughFor(97, '1733');
-  /* The last jobs that can be opened. Read here so the row is server-rendered with the page. */
-  const events = recentEvents();
+  /* The escrow record, openable jobs only. Read here so the row ships with the page. */
+  const jobRecord = wholeRecord();
   const checkedAt = lastCheckAt();
   const hireableCount = home.featured.length;
   /*
@@ -461,7 +461,7 @@ export default async function HomePage() {
         only one. This answers it without a claim — the row is the jobs
         themselves, each leading to its evidence page and its transaction.
       */}
-      <EvidenceTicker events={events} />
+      <EvidenceTicker record={jobRecord} />
 
       {/* ───────────── The record ───────────── */}
       {/*
