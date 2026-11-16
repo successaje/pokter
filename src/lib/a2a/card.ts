@@ -13,6 +13,14 @@
  * card declares in that binding, and says so when there is none.
  */
 
+/**
+ * The A2A version Pokter speaks: it asks in 0.3 (`message/send`), and its own
+ * agents' cards and registration files declare it. A registration's A2A
+ * service without a version leaves a reader to guess which wire format the
+ * card speaks; ERC-8004 says it should be given.
+ */
+export const A2A_PROTOCOL_VERSION = '0.3.0';
+
 export interface A2AInterface {
   url: string;
   binding: string;

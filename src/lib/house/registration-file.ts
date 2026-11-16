@@ -1,11 +1,12 @@
 import type { Erc8004RegistrationFile } from '@altananetwork/sdk';
 
+import { A2A_PROTOCOL_VERSION } from '@/lib/a2a/card';
 import { CATEGORIES } from '@/lib/agents/categories';
 import { builtWithPokter } from '@/lib/brand/built-with';
 
 import type { HouseAgentDefinition, HouseChainId } from './types';
 
-/** The ERC-8004 registration file: the per-chain card as its A2A endpoint, and its maker. */
+/** The ERC-8004 registration file: the per-chain card as its A2A endpoint, at the A2A version the card speaks, and its maker. */
 export function houseRegistrationFile(definition: HouseAgentDefinition, chainId: HouseChainId, origin: URL): Erc8004RegistrationFile {
   const listed = CATEGORIES.some((category) => category.id === definition.category);
   return {
@@ -14,7 +15,7 @@ export function houseRegistrationFile(definition: HouseAgentDefinition, chainId:
     description: definition.description,
     /* Its own mark, a fixed file: the registry points here, and a generated image changes when its route does. */
     image: new URL(`/agents/${definition.slug}.svg`, origin).href,
-    services: [{ name: 'A2A', endpoint: new URL(`/house/${definition.slug}/${chainId}/.well-known/agent-card.json`, origin).href }],
+    services: [{ name: 'A2A', endpoint: new URL(`/house/${definition.slug}/${chainId}/.well-known/agent-card.json`, origin).href, version: A2A_PROTOCOL_VERSION }],
     registrations: [],
     tags: listed ? [definition.category] : [],
     categories: listed ? [definition.category] : [],

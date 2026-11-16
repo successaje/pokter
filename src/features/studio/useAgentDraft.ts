@@ -39,6 +39,8 @@ export interface EndpointPreflight {
   quoteCapability: boolean;
   /** A skill named for pricing that Pokter does not ask (see `priceLikeSkill`). */
   priceLikeSkill?: string | null;
+  /** The A2A version of the interface Pokter would call, as the card declares it; null when it declares none, absent for MCP. */
+  a2aVersion?: string | null;
   /** Set when the card offers JSON-RPC only at an A2A version Pokter does not speak yet. */
   a2aVersionNote?: string | null;
   safety: {
@@ -325,6 +327,14 @@ export function useAgentDraft(initial?: StoredDraft | null, onBound?: (draftId: 
     [draft, runtime, plan.style],
   );
 
+  /*
+   * The version the checked card declares, written into the registration
+   * so a reader knows which A2A wire format to use. Only from a check of
+   * this exact endpoint, and never guessed: Pokter's own version is not
+   * the builder's, and an absent field is better than a wrong one.
+   */
+  const serviceVersion = draft.protocol === 'a2a' && endpointChecked ? preflight?.a2aVersion ?? null : null;
+
   const registrationFile = useMemo(
     () =>
       ({
@@ -333,7 +343,7 @@ export function useAgentDraft(initial?: StoredDraft | null, onBound?: (draftId: 
         description: draft.description.trim(),
         image,
         services: [
-          { name: draft.protocol.toUpperCase(), endpoint: draft.endpoint.trim() },
+          { name: draft.protocol.toUpperCase(), endpoint: draft.endpoint.trim(), ...(serviceVersion ? { version: serviceVersion } : {}) },
           ...(draft.repository.trim() ? [{ name: 'repository', endpoint: draft.repository.trim() }] : []),
         ],
         registrations: [],
@@ -351,7 +361,7 @@ export function useAgentDraft(initial?: StoredDraft | null, onBound?: (draftId: 
         // Made here, so it says so in the registry, where every marketplace reads it.
         ...builtWithPokter,
       }) as Erc8004RegistrationFile,
-    [draft, image],
+    [draft, image, serviceVersion],
   );
 
   async function runPreflight() {

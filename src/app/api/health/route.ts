@@ -37,6 +37,17 @@ export const dynamic = 'force-dynamic';
  */
 
 
+/*
+ * The commit this machine's image was built from, so anyone can tell what is
+ * live without trusting a release timestamp. The deploy passes it as a build
+ * arg (see the Dockerfile's runner stage); a build without one, such as a
+ * local or hand-run deploy, reports null rather than a guess. No I/O.
+ */
+function releaseCommit(): string | null {
+  const sha = process.env.POKTER_COMMIT?.trim().toLowerCase();
+  return sha && /^[0-9a-f]{40}$/.test(sha) ? sha : null;
+}
+
 /** The scheduler's switch as this process sees it: on, off, or on without the secret it needs (which is off in practice). */
 function schedulerState(): 'on' | 'off' | 'no-secret' {
   if (process.env.SWEEP_SCHEDULER !== 'on') return 'off';
@@ -95,6 +106,7 @@ export function GET(): NextResponse {
       // badly, which is not the same as `degraded` — that is reserved for the
       // storage faults below, the ones that gate.
       status: healthy ? (vitals.saturated ? 'saturated' : 'ok') : 'degraded',
+      commit: releaseCommit(),
       storage: { writable, persistent, stores: storage },
       /*
        * Serving, as distinct from answering this check.

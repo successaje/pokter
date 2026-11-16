@@ -111,7 +111,7 @@ jobs:
       - name: Deploy
         run: |
           for attempt in 1 2; do
-            if flyctl deploy --remote-only --config fly.toml; then exit 0; fi
+            if flyctl deploy --remote-only --config fly.toml --build-arg POKTER_COMMIT="${GITHUB_SHA}"; then exit 0; fi
             echo "::warning::Deploy attempt ${attempt} of 2 failed; retrying in 20s"
             sleep 20
           done
@@ -145,6 +145,29 @@ jobs:
             echo "::error::The sweep scheduler is ${scheduler:-not reported} on production. A Fly secret named SWEEP_SCHEDULER overrides fly.toml; unset it."
             exit 1
           fi
+
+      # What the health check above cannot see, by the deploy step's own
+      # account: a release that leaves production on an older commit while
+      # every check passes. The image names the commit it was built from, so
+      # compare it. A health response with no commit (a build that was not
+      # given one) is a warning, because it cannot be checked, not a failure.
+      - name: Verify production serves this commit
+        run: |
+          live=''
+          for attempt in 1 2 3 4 5 6; do
+            response=$(curl --silent --max-time 20 https://pokter.xyz/api/health || true)
+            live=$(echo "$response" | grep -o '"commit":"[0-9a-f]*"' | cut -d'"' -f4 || true)
+            if [ "$live" = "$GITHUB_SHA" ]; then exit 0; fi
+            # Answered, and built without a commit: waiting will not change it.
+            if echo "$response" | grep -q '"commit":null'; then break; fi
+            sleep 10
+          done
+          if [ -z "$live" ]; then
+            echo "::warning::/api/health names no commit, so this run cannot confirm production serves ${GITHUB_SHA}."
+            exit 0
+          fi
+          echo "::error::Production serves ${live}, not ${GITHUB_SHA}."
+          exit 1
 
       - name: Verify critical public journeys
         run: |
