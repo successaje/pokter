@@ -1,3 +1,5 @@
+import type { Instrumentation } from 'next';
+
 /**
  * Warm the registry cache when the server boots.
  *
@@ -47,3 +49,18 @@ export async function register(): Promise<void> {
       console.warn(`[warmup] failed: ${(error as Error).message}`);
     });
 }
+
+/**
+ * Every server error, with the request it failed.
+ *
+ * Next logs a failed render as an error and a digest, with no path, so a
+ * burst of them could not be traced to a page. This adds the method, the
+ * route and the path without its query string, which can carry a wallet or
+ * a token. Nothing else from the request is logged.
+ */
+export const onRequestError: Instrumentation.onRequestError = (error, request, context) => {
+  const message = error instanceof Error ? error.message : String(error);
+  const digest = typeof error === 'object' && error !== null && 'digest' in error ? ` digest=${String((error as { digest: unknown }).digest)}` : '';
+  const path = request.path.split('?')[0];
+  console.error(`[request-error] ${request.method} ${path} route=${context.routePath} type=${context.routeType}${digest}: ${message.slice(0, 300)}`);
+};
