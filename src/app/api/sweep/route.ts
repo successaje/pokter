@@ -14,6 +14,7 @@ import { noticeUnansweredJobs } from '@/lib/erc8183/notice-sweep';
 import { checkAnsweredTasks } from '@/lib/agent/answered-tasks-sweep';
 import { alertStuckJobs } from '@/lib/erc8183/stuck-alert';
 import { runKeeper } from '@/lib/erc8183/keeper';
+import { bearerTokenMatches } from '@/lib/security/bearer';
 import { attributeRecentJobs } from '@/lib/erc8183/attribute-owners';
 import { probeUnknownRelays } from '@/lib/erc8183/relay-probe';
 import { relayStatus } from '@/lib/erc8183/relay-refusal';
@@ -93,9 +94,8 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
   }
 
-  // Vercel Cron sends the secret as a bearer token.
-  const authorization = request.headers.get('authorization');
-  if (authorization !== `Bearer ${secret}`) {
+  // The scheduler and the backup workflow send the secret as a bearer token.
+  if (!bearerTokenMatches(request.headers.get('authorization'), secret)) {
     return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
   }
 
