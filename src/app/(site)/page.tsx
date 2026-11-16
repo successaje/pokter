@@ -7,8 +7,8 @@ import { CAMPAIGN_END_LABEL, isCampaignLive } from '@/lib/campaign/window';
 import { CHAIN_ID, ESCROW_NETWORKS_LABEL, IS_TESTNET, MAINNET_ESCROW, escrowAvailabilityLine } from '@/lib/network/presentation';
 import { moneyWords } from '@/lib/integration/currencies';
 import { loadHome } from '@/features/home/data';
-import { shelfFor, walkthroughFor } from '@/features/home/walkthrough-data';
-import { ProductWalkthrough } from '@/features/home/ProductWalkthrough';
+import { walkthroughFor } from '@/features/home/walkthrough-data';
+import { HireFilm } from '@/features/home/HireFilm';
 import { HeroAgents } from '@/features/home/HeroAgents';
 import { wholeRecord } from '@/features/home/ticker-data';
 import { EvidenceTicker } from '@/features/home/EvidenceTicker';
@@ -50,13 +50,6 @@ export default async function HomePage() {
    * rather than shown half-built.
    */
   const walk = await walkthroughFor(97, '1733');
-  /*
-   * The shelf its first screen shows, from the same catalogue Discover
-   * ranks. Built here because the walkthrough is read before the counts
-   * are, and a search screen full of invented rivals would be the one
-   * dishonest thing in it.
-   */
-  const shelf = walk ? shelfFor(walk, home.outcomes) : null;
   /* The escrow record, openable jobs only. Read here so the row ships with the page. */
   const jobRecord = wholeRecord();
   const checkedAt = lastCheckAt();
@@ -289,13 +282,14 @@ export default async function HomePage() {
             <h2 id="walkthrough-title" className="t-h1">
               Watch a real one go through.
             </h2>
-            <p className="t-body max-w-[46ch] text-ink-2">
-              Five screens, one job, every figure read from it. Not a mock-up of how it could
-              work &mdash; the hire happened, and the receipts are underneath.
+            <p className="t-body max-w-[48ch] text-ink-2">
+              Not a mock-up of how it could work. This is the screen recording of one job being
+              hired &mdash; the search, the agent, the wallet, the escrow, and Pokter checking the
+              answer afterwards. The receipts are underneath it.
             </p>
           </Reveal>
           <Reveal delay={80}>
-            <ProductWalkthrough walk={walk} shelf={shelf} />
+            <HireFilm walk={walk} />
           </Reveal>
         </section>
       )}

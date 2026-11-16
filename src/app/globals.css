@@ -916,47 +916,6 @@ dialog.sheet[open] .sheet-panel { animation: sheet-up 320ms var(--ease-out); }
 }
 
 /*
-  The buyer's own words typing into the search field on the walkthrough's
-  first screen.
-
-  Width, clipped, with the step count set inline from the brief's own
-  length, so the characters appear one at a time in the readout face rather
-  than the line sliding out from under a mask. The text is in the DOM in
-  full from the first frame: a screen reader and a page-text search both
-  find the whole brief whatever the animation is doing, and the sweeping
-  reduced-motion rule below leaves it rendered rather than half-typed.
-*/
-.walk-type {
-  display: inline-block;
-  overflow: hidden;
-  width: 100%;
-  border-right: 1.5px solid var(--ink);
-  animation-name: walk-type;
-  animation-duration: 1100ms;
-  animation-fill-mode: both;
-}
-
-@keyframes walk-type {
-  from { width: 0; }
-  to { width: 100%; }
-}
-
-/*
-  The ring a click leaves on the walkthrough's screens. Drawn at the cursor
-  rather than on the control, because the control is a drawing too and a
-  press that only changed the button would read as a state rather than as
-  somebody pressing it.
-*/
-.walk-press {
-  animation: walk-press 620ms var(--ease-out) forwards;
-}
-
-@keyframes walk-press {
-  from { opacity: 0.85; transform: scale(0.35); }
-  to { opacity: 0; transform: scale(1.5); }
-}
-
-/*
   The evidence row. Translates one copy's width, with a second copy behind it,
   so the loop has no seam; `animation-play-state` is set inline, because the
   row has to stop the instant a pointer or a key arrives on it and a class
