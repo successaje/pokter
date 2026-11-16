@@ -21,10 +21,11 @@ test('the log is newest first, and each entry is complete', () => {
 
 test('the November fixes are on the record, each with the pull request that made it', () => {
   const byTitle = (pattern: RegExp) => CORRECTIONS.find((c) => pattern.test(c.title));
-  assert.deepEqual(byTitle(/only the buyer could refund an expired job/)?.prs, [442]);
+  /* #448 corrected the risk disclosure #442 missed. */
+  assert.deepEqual(byTitle(/only the buyer could refund an expired job/)?.prs, [442, 448]);
   assert.deepEqual(byTitle(/jobs paid to Pokter’s courier as the agent’s paid work/)?.prs, [445]);
   assert.deepEqual(byTitle(/did say which block they read/)?.prs, [445]);
   assert.deepEqual(byTitle(/quote signature BNB’s agent SDK refuses/)?.prs, [446]);
-  assert.ok(byTitle(/release by itself when the review window closed/));
-  assert.ok(byTitle(/“attested” a narrower meaning/));
+  assert.deepEqual(byTitle(/release by itself when the review window closed/)?.prs, [448]);
+  assert.deepEqual(byTitle(/“attested” a narrower meaning/)?.prs, [448]);
 });
