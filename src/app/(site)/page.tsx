@@ -7,6 +7,8 @@ import { CAMPAIGN_END_LABEL, isCampaignLive } from '@/lib/campaign/window';
 import { ESCROW_NETWORKS_LABEL, escrowAvailabilityLine, IS_TESTNET, MAINNET_ESCROW } from '@/lib/network/presentation';
 import { moneyWords } from '@/lib/integration/currencies';
 import { loadHome } from '@/features/home/data';
+import { walkthroughFor } from '@/features/home/walkthrough-data';
+import { HireWalkthrough } from '@/features/home/HireWalkthrough';
 import { Inspection } from '@/features/home/Inspection';
 import { TaskSearch } from '@/features/home/TaskSearch';
 import { OUTCOMES } from '@/features/home/outcomes';
@@ -37,6 +39,14 @@ function count(value: number | null | undefined) {
 
 export default async function HomePage() {
   const home = await loadHome();
+  /*
+   * One real hire, played back under the steps that describe it. Named here
+   * rather than discovered, because this is the job that was recorded end to
+   * end and whose every step can be opened; `walkthroughFor` refuses it if
+   * the delivery or the checks ever stop reading, and the section is dropped
+   * rather than shown half-built.
+   */
+  const walk = await walkthroughFor(97, '1733');
   const checkedAt = lastCheckAt();
   const hireableCount = home.featured.length;
   /*
@@ -418,6 +428,25 @@ export default async function HomePage() {
             The full walkthrough <Icon.Arrow size={15} />
           </Link>
         </div>
+
+        {/*
+          The same five steps, as they happened to one job. The rail above
+          says what hiring is; this says what it was, with the figures read
+          from the job rather than written here.
+        */}
+        {walk && (
+          <>
+            <Reveal className="mt-20 flex max-w-2xl flex-col gap-3 sm:mt-28">
+              <span className="t-label">One hire, start to finish</span>
+              <h3 className="t-h2">
+                Here is one that happened. <span className="text-ink-3">Every figure links to where it can be checked.</span>
+              </h3>
+            </Reveal>
+            <Reveal className="mt-8" delay={80}>
+              <HireWalkthrough walk={walk} />
+            </Reveal>
+          </>
+        )}
       </section>
 
       {/* ───────────── The record ───────────── */}

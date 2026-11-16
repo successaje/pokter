@@ -914,3 +914,21 @@ dialog.sheet[open] .sheet-panel { animation: sheet-up 320ms var(--ease-out); }
     }
   }
 }
+
+/*
+  The bar under the step being played. Width only, so it composites on its
+  own layer and never reflows the column it sits in; it exists only while
+  something is actually advancing, so a paused walkthrough shows no bar
+  rather than a stalled one.
+*/
+.walk-tick {
+  width: 0%;
+  animation-name: walk-tick;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+
+@keyframes walk-tick {
+  from { width: 0%; }
+  to { width: 100%; }
+}
