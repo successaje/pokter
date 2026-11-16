@@ -148,20 +148,19 @@ const catalogueImages = new Map<string, CatalogueImage>();
 const attempted = new Map<string, number>();
 let refreshing: Promise<void> | null = null;
 
-/** The `image` of a hosted registration profile, or null. https and ipfs only; nothing else is fetched. */
+/**
+ * The `image` of a hosted registration profile, or null. https and ipfs only;
+ * nothing else is fetched, and that only through `readHostedProfile`, which
+ * refuses private addresses on every hop (the URL is the registrant's).
+ * Loaded when first needed, because it is server-only and this module is
+ * also read by code that never fetches a profile.
+ */
 async function hostedProfileImage(uri: string): Promise<string | null> {
   const url = uri.startsWith('ipfs://') ? `https://ipfs.io/ipfs/${uri.slice('ipfs://'.length)}` : safeImageUrl(uri);
   if (!url) return null;
-  try {
-    const response = await fetch(url, { signal: AbortSignal.timeout(PROFILE_TIMEOUT_MS), redirect: 'follow' });
-    if (!response.ok) return null;
-    const text = await response.text();
-    if (text.length > 200_000) return null;
-    const parsed: unknown = JSON.parse(text);
-    return parsed && typeof parsed === 'object' ? safeImageUrl((parsed as { image?: unknown }).image) : null;
-  } catch {
-    return null;
-  }
+  const { readHostedProfile } = await import('./hosted-profile');
+  const parsed = await readHostedProfile(url, { timeoutMs: PROFILE_TIMEOUT_MS });
+  return parsed && typeof parsed === 'object' ? safeImageUrl((parsed as { image?: unknown }).image) : null;
 }
 
 /** One chain's registered images, by token id. Missing ids were not readable this time. */
