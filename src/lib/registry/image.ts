@@ -144,10 +144,21 @@ const PROFILE_TIMEOUT_MS = 4_000;
 const MULTICALL_BATCH = 200;
 
 type CatalogueImage = { image: string | null };
-const catalogueImages = new Map<string, CatalogueImage>();
-/* When each agent was last asked about, found or not: an unreadable one waits its turn like the rest. */
-const attempted = new Map<string, number>();
-let refreshing: Promise<void> | null = null;
+type CatalogueState = {
+  images: Map<string, CatalogueImage>;
+  /* When each agent was last asked about, found or not: an unreadable one waits its turn like the rest. */
+  attempted: Map<string, number>;
+  refreshing: Promise<void> | null;
+};
+/*
+ * One cache per process, not per copy of this module. The server bundles
+ * the module more than once, and copies that each kept their own maps each
+ * read every agent: two full passes at once, every half hour.
+ */
+const shared = globalThis as typeof globalThis & { __pokterCatalogueImages?: CatalogueState };
+const state = (shared.__pokterCatalogueImages ??= { images: new Map(), attempted: new Map(), refreshing: null });
+const catalogueImages = state.images;
+const attempted = state.attempted;
 
 /**
  * The `image` of a hosted registration profile, or null. https and ipfs only;
@@ -226,15 +237,15 @@ export function catalogueImagesFor(
     const asked = attempted.get(key);
     if (asked === undefined || now - asked > CATALOGUE_IMAGE_FRESH_MS) due.push(agent);
   }
-  if (due.length > 0 && !refreshing) {
+  if (due.length > 0 && !state.refreshing) {
     for (const { chainId, tokenId } of due) attempted.set(`${chainId}:${tokenId}`, now);
     const started = Date.now();
-    refreshing = refreshCatalogueImages(due, read)
+    state.refreshing = refreshCatalogueImages(due, read)
       .then(() => {
         if (process.env.NODE_ENV !== 'test') console.info(`[timing] catalogue.images agents=${due.length} listed=${agents.length} elapsed=${Date.now() - started}ms`);
       })
       .finally(() => {
-        refreshing = null;
+        state.refreshing = null;
       });
   }
   return known;
@@ -244,10 +255,10 @@ export function catalogueImagesFor(
 export function resetCatalogueImages(): void {
   catalogueImages.clear();
   attempted.clear();
-  refreshing = null;
+  state.refreshing = null;
 }
 
 /** For tests: wait for a refresh in flight. */
 export function catalogueImagesSettled(): Promise<void> {
-  return refreshing ?? Promise.resolve();
+  return state.refreshing ?? Promise.resolve();
 }

@@ -15,7 +15,9 @@ const AGENTS_PER_PASS = 15;
  * slowly and the funders they lead to are kept for good, so a day is enough.
  */
 export const REVIEWERS_FRESH_MS = 24 * 60 * 60_000;
-const readAt = new Map<string, number>();
+/* Per process, not per copy of this module, which the server may bundle more than once. */
+const shared = globalThis as typeof globalThis & { __pokterReviewerReads?: Map<string, number> };
+const readAt = (shared.__pokterReviewerReads ??= new Map<string, number>());
 
 /** For tests: forget which agents were read. */
 export function resetReviewerReads(): void {
