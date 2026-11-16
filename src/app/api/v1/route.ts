@@ -3,6 +3,7 @@ import { apiEndpoints } from '@/lib/api/endpoints';
 import { VERDICTS, VOCABULARY } from '@/lib/search/query';
 import { API_VERSION } from '@/lib/api/v1';
 import { API_CHANGES } from '@/lib/api/changes';
+import { PROVENANCE } from '@/lib/api/provenance';
 import { apiJson, apiOptions, apiRateLimit, originOf } from '@/lib/api/respond';
 
 export const dynamic = 'force-dynamic';
@@ -37,13 +38,7 @@ export async function GET(request: Request) {
     enums: {
       categories: CATEGORIES.map((c) => ({ id: c.id, label: c.label })),
       verdicts: VERDICTS,
-      provenance: [
-        'onchain',
-        'attested',
-        'pokter-measured',
-        'calculated',
-        'declared',
-      ],
+      provenance: PROVENANCE.map((p) => p.id),
       query: VOCABULARY,
     },
     notes: {

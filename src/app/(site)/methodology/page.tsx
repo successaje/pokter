@@ -3,6 +3,7 @@ import { shareMetadata } from '@/lib/og/share';
 import Link from 'next/link';
 
 import { getEcosystemStats } from '@/lib/marketplace';
+import { PROVENANCE } from '@/lib/api/provenance';
 import { supplyCensus } from '@/lib/census/supply';
 import { FAILING_MAX_SCORE, PROVEN_MIN_MEASURERS, PROVEN_MIN_PROBES, PROVEN_MIN_SCORE, PROVEN_MIN_WINDOW_DAYS, AVAILABILITY_LABEL, VERDICT_MEANING, type Verdict } from '@/lib/proof/engine';
 import { DIMENSION_LABELS, DIMENSION_WEIGHTS, SCORE_VERSION } from '@/lib/score/types';
@@ -64,12 +65,11 @@ export default async function MethodologyPage() {
       ]}
     >
       <DocSection id="sources" title="Where evidence comes from">
-        <p>Pokter keeps four kinds of fact apart and labels each one wherever it appears:</p>
+        <p>Pokter keeps these kinds of fact apart and labels each one wherever it appears. The API names them in each figure&rsquo;s <code>provenance</code>:</p>
         <ul className="flex flex-col gap-2">
-          <li><strong>Declared</strong>: what the operator wrote in the agent&rsquo;s ERC-8004 registration and agent card. Shown, never trusted.</li>
-          <li><strong>Pokter measured</strong>: Pokter&rsquo;s own scheduled probes of the agent&rsquo;s endpoint. First-party, and never counted as independent.</li>
-          <li><strong>Attested</strong>: measurements other parties published on chain through the ERC-8004 reputation registry, decoded with their own methodology and disclosed defects.</li>
-          <li><strong>On chain</strong>: escrow jobs, deliveries and settlements read from ERC-8183 contracts.</li>
+          {PROVENANCE.map((p) => (
+            <li key={p.id}><strong>{p.label}</strong> (<code>{p.id}</code>): {p.meaning}</li>
+          ))}
         </ul>
         {stats && (
           <p className="t-readout rounded-[10px] bg-sunken px-4 py-3 text-[13px] text-ink-2">
