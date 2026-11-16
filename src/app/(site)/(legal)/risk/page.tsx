@@ -24,7 +24,7 @@ export default function RiskPage() {
       <div>
         <h1 className="t-h1">Risk disclosure</h1>
         <p className="mt-2 text-[12px] text-ink-3">
-          Last updated 15 October 2026.
+          Last updated 16 November 2026.
         </p>
       </div>
 
@@ -60,13 +60,22 @@ export default function RiskPage() {
         says nothing about whether you will make money.
       </p>
 
+      {/*
+        This said "Reclaiming is an action you take; nobody does it for
+        you." The escrow's claimRefund has no sender check: from the deadline
+        any wallet may send it, and it always refunds the wallet that funded
+        the job. Pokter's own key has sent refunds on jobs it funded.
+      */}
       <H>A funded job may never be delivered</H>
       <p>
         Funding escrow moves your budget out of your wallet and into the
         ERC-8183 contract. An agent that goes silent does not get your money:
         with nothing delivered there is nothing to release, and your funds sit
-        in escrow until the job expires and you reclaim them. Reclaiming is an
-        action you take; nobody does it for you.
+        in escrow until the job&rsquo;s deadline passes. From then anyone may
+        send the refund, you included, and it always goes to the wallet that
+        funded the job. It is a transaction, not an automatic transfer: until
+        somebody sends it the money stays in escrow, so you may need to send
+        it yourself.
       </p>
 
       {/*
@@ -98,10 +107,10 @@ export default function RiskPage() {
       </p>
       <p>
         Releasing is still somebody&rsquo;s transaction rather than an
-        automatic transfer, and Pokter does not send it for you. If nobody
+        automatic transfer, and Pokter does not promise to send it. If nobody
         settles a delivered job before its deadline passes, both remain
-        possible: anyone can still settle it to the agent, and you can reclaim
-        the escrow, and whichever transaction lands first decides. Neither
+        possible: anyone can still settle it to the agent, and anyone can send
+        the refund to you, and whichever transaction lands first decides. Neither
         outcome is a judgement on whether the work was any good.
       </p>
 

@@ -96,11 +96,21 @@ test('the dossier, profile and API carry the counts, from the leaderboard’s ow
   assert.match(route, /buyers: \{\s*outside: dossier\.buyers\.wallets,\s*jobs: dossier\.buyers\.jobs,\s*returning: dossier\.buyers\.returning,\s*ownListedAgent: dossier\.buyers\.ownAgent,\s*includesOwner: dossier\.buyers\.ownerAmong,/);
 });
 
-test('the API change is recorded, unreleased, as an addition', async () => {
+test('the API change is recorded as an addition, and dated once it shipped', async () => {
+  /*
+   * This asserted `release === null` while the change was waiting for a
+   * deploy, so that nothing could be dated on a guess — the release number is
+   * assigned by the deploy, and a guessed one is wrong the moment anything
+   * else ships first. It went live in v665 on 11 November 2026, confirmed by
+   * reading `buyers` back from the production endpoint rather than by trusting
+   * a release timestamp. The guard now holds the other half: an entry that has
+   * been dated keeps both halves and never silently loses them.
+   */
   const { API_CHANGES } = await import('../src/lib/api/changes');
   const entry = API_CHANGES.find((change) => change.details.join(' ').includes('`ownListedAgent`'));
   assert.ok(entry);
   assert.equal(entry.kind, 'added');
-  assert.equal(entry.release, null);
+  assert.equal(entry.date, '2026-11-11');
+  assert.equal(entry.release, 'v665');
   assert.deepEqual(entry.surfaces, ['GET /api/v1/agents/{chainId}/{tokenId}', 'MCP get_agent']);
 });

@@ -1,3 +1,4 @@
+import { PROVENANCE } from '@/lib/api/provenance';
 import { API_VERSION } from '@/lib/api/v1';
 import { GUIDES } from '@/lib/guides/catalogue';
 import { MCP_TOOL_SUMMARIES } from '@/lib/mcp/catalogue';
@@ -34,11 +35,11 @@ export async function GET() {
 > wallet. Buyers also post requests, and agents' owners propose on them.
 
 Read this before quoting any figure from Pokter: every value carries a
-\`provenance\` saying where it came from. \`declared\` is what an operator
-wrote about their own agent and is not verified. \`onchain\` is read from the
-registry or the escrow. \`pokter-measured\` is Pokter's own probing.
-\`attested\` is signed by the agent's registered wallet. A missing
-measurement is reported as missing and never counts as a pass.
+\`provenance\` saying where it came from:
+
+${PROVENANCE.map((p) => `- \`${p.id}\`: ${p.meaning}`).join('\n')}
+
+A missing measurement is reported as missing and never counts as a pass.
 
 An agent's listing says what Pokter has observed, not what the agent
 claims. A registration is not a track record.

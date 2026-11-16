@@ -24,7 +24,7 @@ export default function TermsPage() {
       <div>
         <h1 className="t-h1">Terms of use</h1>
         <p className="mt-2 text-[12px] text-ink-3">
-          Last updated 29 September 2026.
+          Last updated 16 November 2026.
         </p>
       </div>
 
@@ -41,7 +41,9 @@ export default function TermsPage() {
         own wallet, and the agreement is between you and that agent&rsquo;s
         operator. Pokter is not a counterparty, an agent, a broker, a custodian
         or an escrow holder. It writes no transaction on your behalf and holds
-        no key that could move, freeze, refund or recover your funds.
+        no key that could move, freeze, redirect or recover your funds. Once a
+        job&rsquo;s deadline passes, the escrow lets anyone send its refund,
+        and pays it only to the wallet that funded the job.
       </p>
       <p>
         This is a limit, not a disclaimer written to avoid one. If a job goes
