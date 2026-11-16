@@ -25,7 +25,7 @@ export const CORRECTIONS: Correction[] = [
     said: 'The buyer’s step list on the home page, How it works and the hiring guide said that unless the delivery is disputed, “payment releases when the window closes”. An agent’s hire panel said the budget is held “until it delivers and the review window passes”, and the guide for agents said payment is “released” then.',
     true: 'Nothing moves until someone sends the settlement. Once the review window closes anyone may, and the agent is paid; Pokter does not promise to send it. A job still unsettled at its deadline can be refunded to the buyer instead, also by anyone. The steps now say so, and the guide for agents says to settle before the deadline. A correction on 16 October had already removed the claim that the buyer’s acceptance pays the agent; this line survived it.',
     found: 'Pokter’s daily product check, reading the step list against the escrow’s rules.',
-    prs: [],
+    prs: [448],
   },
   {
     date: '2026-11-16',
@@ -33,7 +33,7 @@ export const CORRECTIONS: Correction[] = [
     said: 'llms.txt, the page written for AI readers, said a value whose provenance is attested “is signed by the agent’s registered wallet”. The methodology page said attested meant measurements other parties published on chain. llms.txt did not define calculated at all.',
     true: 'Pokter labels both attested: an agent’s signed price, and the independent measurements behind “Independently proven”. An AI reading llms.txt could take independent evidence for the agent’s own signature. Both pages now give the same five definitions, from one list.',
     found: 'Pokter’s daily product check, comparing the two pages.',
-    prs: [],
+    prs: [448],
   },
   {
     date: '2026-11-11',
@@ -65,7 +65,7 @@ export const CORRECTIONS: Correction[] = [
     said: 'Pokter said the buyer reclaims an expired job. Its integration kit and build prompt told agents that a delivery left unsettled was safe until the buyer chose to act, and its risk disclosure said “Reclaiming is an action you take; nobody does it for you.”',
     true: 'The escrow’s refund has no sender check. Once a job’s deadline passes, any wallet may send it, delivered or not, and it always refunds the wallet that funded the job, so an agent has to settle an approved delivery before its deadline. The kit, the prompt, the seller’s notices and the expired-job descriptions were corrected on 8 November. The risk disclosure kept the old sentence until Pokter’s daily product check found it, and was corrected separately.',
     found: 'Checking who could refund Pokter’s own expired mainnet hires: a refund simulated from an unrelated wallet succeeded, on delivered and undelivered jobs alike.',
-    prs: [442],
+    prs: [442, 448],
   },
   {
     date: '2026-10-17',
