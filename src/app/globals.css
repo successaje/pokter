@@ -932,3 +932,24 @@ dialog.sheet[open] .sheet-panel { animation: sheet-up 320ms var(--ease-out); }
   from { width: 0%; }
   to { width: 100%; }
 }
+
+/*
+  The evidence row. Translates one copy's width, with a second copy behind it,
+  so the loop has no seam; `animation-play-state` is set inline, because the
+  row has to stop the instant a pointer or a key arrives on it and a class
+  swap is a frame too late.
+
+  Not disabled under reduced motion by the sweeping rule below: the component
+  stops rendering the duplicate and makes the row scrollable instead, which is
+  the same content under the reader's own thumb rather than a frozen strip.
+*/
+.ticker-run {
+  animation-name: ticker-run;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+@keyframes ticker-run {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-100%, 0, 0); }
+}

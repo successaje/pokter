@@ -9,6 +9,8 @@ import { moneyWords } from '@/lib/integration/currencies';
 import { loadHome } from '@/features/home/data';
 import { walkthroughFor } from '@/features/home/walkthrough-data';
 import { HireWalkthrough } from '@/features/home/HireWalkthrough';
+import { recentEvents } from '@/features/home/ticker-data';
+import { EvidenceTicker } from '@/features/home/EvidenceTicker';
 import { Inspection } from '@/features/home/Inspection';
 import { TaskSearch } from '@/features/home/TaskSearch';
 import { OUTCOMES } from '@/features/home/outcomes';
@@ -47,6 +49,8 @@ export default async function HomePage() {
    * rather than shown half-built.
    */
   const walk = await walkthroughFor(97, '1733');
+  /* The last jobs that can be opened. Read here so the row is server-rendered with the page. */
+  const events = recentEvents();
   const checkedAt = lastCheckAt();
   const hireableCount = home.featured.length;
   /*
@@ -448,6 +452,16 @@ export default async function HomePage() {
           </>
         )}
       </section>
+
+      {/*
+        What has happened here lately, moving, with every card openable.
+
+        It sits straight after the walkthrough on purpose: that showed one
+        hire in detail, and the obvious next question is whether it was the
+        only one. This answers it without a claim — the row is the jobs
+        themselves, each leading to its evidence page and its transaction.
+      */}
+      <EvidenceTicker events={events} />
 
       {/* ───────────── The record ───────────── */}
       {/*
