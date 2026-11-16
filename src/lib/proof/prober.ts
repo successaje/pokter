@@ -6,7 +6,7 @@ export { MCP_PROTOCOL_VERSION, probeTarget };
 
 import { a2aCardFallback, cardRequiresAuth } from './card-access';
 import { lookup } from 'node:dns/promises';
-import { isIP } from 'node:net';
+import { BlockList, isIP } from 'node:net';
 import { Agent } from 'undici';
 
 import type { ScanAgentDetail } from '@/lib/scan/types';
@@ -113,7 +113,7 @@ function median(values: number[]): number | null {
 }
 
 function isPrivateIpv4(address: string): boolean {
-  const [a, b] = address.split('.').map(Number);
+  const [a, b, c] = address.split('.').map(Number);
   return (
     a === 0 ||
     a === 10 ||
@@ -122,8 +122,48 @@ function isPrivateIpv4(address: string): boolean {
     (a === 169 && b === 254) ||
     (a === 172 && b >= 16 && b <= 31) ||
     (a === 192 && b === 168) ||
+    // IETF protocol assignments, and the three documentation ranges.
+    (a === 192 && b === 0 && (c === 0 || c === 2)) ||
+    (a === 198 && b === 51 && c === 100) ||
+    (a === 203 && b === 0 && c === 113) ||
+    // Benchmarking, 198.18.0.0/15: not routed on the internet, often used inside networks.
+    (a === 198 && (b === 18 || b === 19)) ||
     a >= 224
   );
+}
+
+/*
+ * IPv6 ranges that are never a public agent, matched by parsing rather than
+ * by text, so every spelling of an address is caught. NAT64, 6to4 and Teredo
+ * each carry an IPv4 address inside, and on a network that routes them they
+ * reach whatever that address is, private ones included; no public service
+ * Pokter calls is reached that way. Fails closed: an address it cannot parse
+ * is treated as private.
+ */
+const RESERVED_IPV6 = new BlockList();
+for (const [prefix, bits] of [
+  ['::', 96], // unspecified, loopback and the deprecated IPv4-compatible form
+  ['::ffff:0:0', 96], // IPv4-mapped in a spelling `mappedIpv4` did not unwrap: refused rather than guessed
+  ['64:ff9b::', 96], // NAT64, well-known prefix
+  ['64:ff9b:1::', 48], // NAT64, local use
+  ['100::', 64], // discard-only
+  ['2001::', 32], // Teredo
+  ['2001:db8::', 32], // documentation
+  ['2002::', 16], // 6to4
+  ['fc00::', 7], // unique local
+  ['fe80::', 10], // link-local
+  ['fec0::', 10], // site-local, deprecated
+  ['ff00::', 8], // multicast
+] as const) {
+  RESERVED_IPV6.addSubnet(prefix, bits, 'ipv6');
+}
+
+function isReservedIpv6(address: string): boolean {
+  try {
+    return RESERVED_IPV6.check(address, 'ipv6');
+  } catch {
+    return true;
+  }
 }
 
 /**
@@ -146,7 +186,8 @@ function mappedIpv4(normalized: string): string | null {
   return [high >> 8, high & 0xff, low >> 8, low & 0xff].join('.');
 }
 
-function isPrivateAddress(address: string): boolean {
+/** Whether an address is outside the public internet, so never probed. Exported for its tests. */
+export function isPrivateAddress(address: string): boolean {
   if (isIP(address) === 4) return isPrivateIpv4(address);
 
   const normalized = address.toLowerCase();
@@ -154,16 +195,7 @@ function isPrivateAddress(address: string): boolean {
   const mapped = mappedIpv4(normalized);
   if (mapped) return isPrivateIpv4(mapped);
 
-  return (
-    normalized === '::' ||
-    normalized === '::1' ||
-    normalized.startsWith('fc') ||
-    normalized.startsWith('fd') ||
-    normalized.startsWith('fe8') ||
-    normalized.startsWith('fe9') ||
-    normalized.startsWith('fea') ||
-    normalized.startsWith('feb')
-  );
+  return isReservedIpv6(normalized);
 }
 
 /** Reject local, credential-bearing and non-HTTPS probe targets before fetch. */
