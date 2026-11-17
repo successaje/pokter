@@ -26,7 +26,7 @@ function BuilderByline({ owner, handle }: { owner: string; handle?: string }) {
 function MissedNote({ row, className }: { row: FindRow; className?: string }) {
   if (!row.paid.missed) return null;
   return (
-    <span className={cn('flex items-center gap-2 text-[12.5px] text-ink-2', className)} title="Funded through Pokter escrow, nothing delivered before the deadline">
+    <span className={cn('flex items-center gap-2 text-[12.5px] text-ink-2', className)} title="Funded through escrow, through Pokter or elsewhere, and nothing delivered before the deadline">
       <span className={cn('size-1.5 shrink-0 rounded-full', DOT.watch)} aria-hidden />
       Missed {row.paid.missed} of {row.paid.delivered + row.paid.missed} paid job{row.paid.delivered + row.paid.missed === 1 ? '' : 's'}
     </span>

@@ -28,7 +28,9 @@ export interface StructuredProfile {
     lifecycleOnly: boolean;
     /** Paid jobs it delivered, whether or not one can be shown as a sample. */
     delivered: number;
-    /** The newest of them, for its evidence page when there is no sample. */
+    /** Of those, the ones hired elsewhere: Pokter holds none of their answers. */
+    deliveredElsewhere: number;
+    /** The newest delivered through Pokter, for its evidence page when there is no sample. */
     latest: { chainId: number; jobId: string } | null;
   };
   goodFor: { skills: string[]; category: { label: string; declared: boolean } | null };
@@ -43,9 +45,11 @@ export interface StructuredInput {
   hireBlocker: { reason: string } | null;
   warnings: string[];
   /** The agent's jobs, newest first: a delivered one is never described as no delivery. */
-  jobHistory?: Array<{ chainId: number; jobId: string; delivered: boolean }>;
+  jobHistory?: Array<{ chainId: number; jobId: string; delivered: boolean; origin?: 'pokter' | 'elsewhere' | 'unindexed' }>;
   /** Every delivery counted, where the list above holds only the newest twelve jobs. */
   history?: { delivered: number };
+  /** Deliveries in that count hired elsewhere, which have no evidence page on Pokter. */
+  elsewhere?: { delivered: number };
 }
 
 const one = (value: string | null | undefined, max: number): string | null => {
@@ -120,7 +124,9 @@ export function structuredProfile(p: StructuredInput): StructuredProfile {
       relayed: answer?.kind === 'relayed',
       lifecycleOnly: p.sample?.kind === 'lifecycle',
       delivered: p.history?.delivered ?? (p.jobHistory ?? []).filter((job) => job.delivered).length,
-      latest: (p.jobHistory ?? []).find((job) => job.delivered) ?? null,
+      deliveredElsewhere: p.elsewhere?.delivered ?? 0,
+      /* Only a job hired through Pokter has an evidence page to open. */
+      latest: (p.jobHistory ?? []).find((job) => job.delivered && (job.origin ?? 'pokter') === 'pokter') ?? null,
     },
     goodFor: {
       skills,

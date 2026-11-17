@@ -52,10 +52,29 @@ test('delivered jobs with no sample to show are said as exactly that, with the n
   assert.equal(structuredProfile({ ...base, history: { delivered: 31 }, jobHistory: [{ chainId: 56, jobId: '9', delivered: true }] }).back.delivered, 31, 'the whole count, not the newest twelve');
   const view = code('features/agent/StructuredProfile.tsx');
   const noSample = view.indexOf('No published sample yet.');
-  const never = view.indexOf('It has not delivered a paid job through Pokter yet');
+  const never = view.indexOf('It has not delivered a paid job yet, through Pokter or elsewhere');
   assert.ok(noSample > 0 && never > noSample, 'checked before the never-delivered sentence');
   assert.match(view, /\) : s\.back\.delivered > 0 \? \(/);
   assert.match(view, /<Link href=\{jobEvidencePath\(\{ chainId: s\.back\.latest\.chainId, jobId: s\.back\.latest\.jobId \}\)\}/);
+});
+
+test('deliveries hired elsewhere are counted, and the evidence link goes only to one hired through Pokter', () => {
+  const s = structuredProfile({
+    ...base,
+    history: { delivered: 5 },
+    elsewhere: { delivered: 4 },
+    jobHistory: [
+      { chainId: 97, jobId: '1706', delivered: true, origin: 'elsewhere' },
+      { chainId: 97, jobId: '1703', delivered: true, origin: 'elsewhere' },
+      { chainId: 97, jobId: '1698', delivered: true, origin: 'pokter' },
+    ],
+  });
+  assert.equal(s.back.delivered, 5);
+  assert.equal(s.back.deliveredElsewhere, 4);
+  /* Pokter has no page for a job hired elsewhere; linking one would open a 404. */
+  assert.deepEqual(s.back.latest, { chainId: 97, jobId: '1698', delivered: true, origin: 'pokter' });
+  const all = structuredProfile({ ...base, history: { delivered: 2 }, elsewhere: { delivered: 2 }, jobHistory: [{ chainId: 97, jobId: '1706', delivered: true, origin: 'elsewhere' }] });
+  assert.equal(all.back.latest, null);
 });
 
 test('the one-line answer is the field that carries it, not the first field', () => {

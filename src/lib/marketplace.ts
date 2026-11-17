@@ -35,9 +35,10 @@ import { toSweepAttestation } from '@/lib/history/attest';
 import { computeScore } from '@/lib/score/engine';
 import { ScanError } from '@/lib/scan/client';
 import type { PokterScore } from '@/lib/score/types';
-import { getJobStore } from '@/lib/erc8183/store';
 import type { AgentEconomicHistory } from '@/lib/erc8183/economic-history';
 import { agentHistory, agentPaidWork, type PaidWork } from '@/lib/agent/credited-history';
+import type { EscrowRecord } from '@/lib/agent/escrow-record';
+import { agentRecordJobs } from '@/lib/agent/record-jobs';
 import { buyerCounts, type BuyerCounts } from '@/lib/agent/buyers';
 import { getReviewStore } from '@/lib/reviews/store';
 import { isPromotableAgent } from '@/lib/agents/eligibility';
@@ -436,6 +437,8 @@ export interface AgentDossier {
   score: PokterScore;
   /** Its paid work: its jobs without those the escrow paid to Pokter's courier (`agentPaidWork`). The score reads this. */
   paidWork: PaidWork;
+  /** The jobs behind `paidWork`: Pokter's, and the escrow's others for its wallet (`agentRecordJobs`), with what was left out. */
+  escrowRecord: EscrowRecord;
   /** Who funded that paid work from outside Pokter, and how far they are from independent. */
   buyers: BuyerCounts;
   /**
@@ -519,6 +522,7 @@ export async function getDossier(
   tokenId: string,
 ): Promise<AgentDossier> {
   const agent = await getAgent(chainId, tokenId);
+  const escrowRecord = agentRecordJobs(agent);
 
   const [feedbackPage, live, paidWork, listedOwners] = await Promise.all([
     listFeedbacks({ chainId, agentId: agent.id, limit: 50 }).catch(() => ({
@@ -532,7 +536,7 @@ export async function getDossier(
     // source of repeated-sample reliability evidence.
     probeAgent(agent, { samples: 1 }),
     // At most one registry read, for an agent with a job paid to a Pokter wallet.
-    agentPaidWork(getJobStore().byAgent(agent.chain_id, agent.token_id)),
+    agentPaidWork(escrowRecord.jobs),
     // Cached; never more than `OWNERS_WAIT_MS` on a cold start.
     listedOwnerSet(),
   ]);
@@ -571,6 +575,7 @@ export async function getDossier(
     latestCheck,
     score: computeScore({ agent, category, proof, attestations, record, live, history: paidWork.history }),
     paidWork,
+    escrowRecord,
     buyers: buyerCounts(paidWork.outsideBuyers, { listedOwners, owner: currentOwner ?? agent.owner_address ?? null }),
     quote,
     quoteCurrent: Boolean(
@@ -684,7 +689,7 @@ export async function getComparison(
     getProbeStore().quotesFor([{ chainId, tokenId }]).get(`${chainId}:${tokenId}`) ?? null,
     record.totalProbes,
   );
-  const { history: economicHistory } = await agentPaidWork(getJobStore().byAgent(chainId, tokenId));
+  const { history: economicHistory } = await agentPaidWork(agentRecordJobs(agent).jobs);
   const reviews = getReviewStore().byAgent(chainId, tokenId);
 
   return {
@@ -809,7 +814,6 @@ function searchableFrom(found: ScanAgent[]): SearchableWithHistory[] {
   if (found.length === 0) return [];
 
   const store = getProbeStore();
-  const jobs = getJobStore();
   const wallets = agentWallets();
   const since = new Date(Date.now() - HISTORY_DAYS * 86_400_000);
   const quotes = store.quotesFor(
@@ -833,7 +837,7 @@ function searchableFrom(found: ScanAgent[]): SearchableWithHistory[] {
         requiresAuth: gated.has(key),
       },
       record: buildTrackRecord(store.historyFor(agent.chain_id, agent.token_id, since)),
-      history: agentHistory(jobs.byAgent(agent.chain_id, agent.token_id)),
+      history: agentHistory(agentRecordJobs(agent).jobs),
       tested: passedCategoryCheck(agent, category),
       onChain: onChainOf(agent, category, wallets),
     };
@@ -953,10 +957,9 @@ async function buildSearchableWithStatus(
    * identical there to one that delivers, because availability was the only
    * outcome a card could show.
    *
-   * Reads the local job index, so this costs nothing the category queries
-   * were not already paying.
+   * Reads the local job and escrow indexes, so this costs nothing the
+   * category queries were not already paying.
    */
-  const jobs = getJobStore();
   const wallets = agentWallets();
   /* The image each agent registered, ahead of the indexer's proxy copy; see `catalogueImagesFor`. */
   const registeredImages = catalogueImagesFor(all.map((l) => ({ chainId: l.agent.chain_id, tokenId: l.agent.token_id })));
@@ -978,9 +981,7 @@ async function buildSearchableWithStatus(
     record: buildTrackRecord(
       store.historyFor(listing.agent.chain_id, listing.agent.token_id, since),
     ),
-    history: agentHistory(
-      jobs.byAgent(listing.agent.chain_id, listing.agent.token_id),
-    ),
+    history: agentHistory(agentRecordJobs(listing.agent).jobs),
     tested: passedCategoryCheck(listing.agent, listing.category),
     onChain: onChainOf(listing.agent, listing.category, wallets),
   })));
@@ -1087,11 +1088,9 @@ export async function listCategorySearchable(
    * identical there to one that delivers, because availability was the only
    * outcome the card could show.
    *
-   * Reads the local job index, so this costs nothing the category queries
-   * were not already paying.
+   * Reads the local job and escrow indexes, so this costs nothing the
+   * category queries were not already paying.
    */
-  const jobs = getJobStore();
-
   return listings.map((listing) => ({
     listing: {
       ...listing,
@@ -1105,9 +1104,7 @@ export async function listCategorySearchable(
     record: buildTrackRecord(
       store.historyFor(listing.agent.chain_id, listing.agent.token_id, since),
     ),
-    history: agentHistory(
-      jobs.byAgent(listing.agent.chain_id, listing.agent.token_id),
-    ),
+    history: agentHistory(agentRecordJobs(listing.agent).jobs),
   }));
 }
 

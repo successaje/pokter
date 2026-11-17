@@ -99,10 +99,20 @@ export function StructuredProfile({ s, sampleAnchor, onChain }: { s: Structured;
            * delivery. Two reasons, both said: an outside buyer's answer is
            * shown only once the buyer publishes it (`answerIsPublic`), and
            * any answer only once it matches its hash. The newest delivery's
-           * evidence is one click away either way.
+           * evidence is one click away either way. A delivery hired
+           * elsewhere has no answer here at all, so where they were is said.
            */
           <Missing>
-            No published sample yet. It has delivered {s.back.delivered === 1 ? 'a paid job' : `${s.back.delivered} paid jobs`} through Pokter. An outside buyer&rsquo;s answer appears here only once the buyer publishes it, and any answer only once it matches its hash on chain.{' '}
+            No published sample yet. It has delivered {s.back.delivered === 1 ? 'a paid job' : `${s.back.delivered} paid jobs`}
+            {s.back.deliveredElsewhere === 0
+              ? ' through Pokter'
+              : s.back.deliveredElsewhere >= s.back.delivered
+                ? `, ${s.back.delivered === 1 ? 'hired' : 'all hired'} elsewhere, so Pokter holds none of the answers`
+                : `, ${s.back.delivered - s.back.deliveredElsewhere} through Pokter and ${s.back.deliveredElsewhere} elsewhere`}
+            .{' '}
+            {s.back.deliveredElsewhere < s.back.delivered && (
+              <>An outside buyer&rsquo;s answer appears here only once the buyer publishes it, and any answer only once it matches its hash on chain.{' '}</>
+            )}
             {s.back.latest && (
               <Link href={jobEvidencePath({ chainId: s.back.latest.chainId, jobId: s.back.latest.jobId })} className="font-medium text-ink-2 hover:text-ink hover:underline">
                 The newest delivery&rsquo;s evidence
@@ -110,7 +120,7 @@ export function StructuredProfile({ s, sampleAnchor, onChain }: { s: Structured;
             )}
           </Missing>
         ) : (
-          <Missing>It has not delivered a paid job through Pokter yet, so there is no real sample to show.</Missing>
+          <Missing>It has not delivered a paid job yet, through Pokter or elsewhere, so there is no real sample to show.</Missing>
         )}
       </Row>
 

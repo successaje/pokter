@@ -43,7 +43,7 @@ import { gradeDuePaidChecks, gradeDuePaidHfChecks, gradeDuePaidV3Checks } from '
 import { captureFixtureDeliverables } from '@/lib/assay/capture';
 import { reconcileJobIndex } from '@/lib/erc8183/reconcile';
 import { publishSeal } from '@/lib/seals/run';
-import { indexEscrowJobs, refreshAgentWallets } from '@/lib/quest/indexer';
+import { backfillEscrowJobs, indexEscrowJobs, refreshAgentWallets, refreshEscrowStatuses } from '@/lib/quest/indexer';
 import { getQuestStore } from '@/lib/quest/store';
 import { refreshWalletActivity } from '@/lib/activity/store';
 import { refreshCapability } from '@/lib/capability/store';
@@ -72,6 +72,15 @@ const DISCOVERY_STEP_MS = 25_000;
 const PAID_V3_STEP_MS = 20_000;
 /* Answered-task checks read the chain and sellers' delivery hosts for a few jobs; what does not fit waits for the next run. */
 const ANSWERED_TASKS_STEP_MS = 30_000;
+/* Re-reading agents' escrow jobs that can still move: a few hundred reads at most. */
+const ESCROW_STATUS_STEP_MS = 15_000;
+/* The escrow's jobs from before the index began, a share per run until job 1; what does not fit waits. */
+const ESCROW_HISTORY_STEP_MS = 20_000;
+
+/* One row per wallet: agents that share a wallet would otherwise have it read once for each of them. */
+function oncePerWallet<T>(rows: T[], key: (row: T) => string): T[] {
+  return [...new Map(rows.map((row) => [key(row).toLowerCase(), row])).values()];
+}
 
 /** Held while a sweep runs in this process (there is one machine). */
 let sweepRunning = false;
@@ -629,6 +638,16 @@ export async function POST(request: Request): Promise<NextResponse> {
       // pair ran together on the one CPU that also serves the site.
       mapWithConcurrency([56, 97] as const, 1, (chain) => indexEscrowJobs(chain).catch(() => null)),
     );
+    /*
+     * Agents' jobs in that index that can still move, read again, so a job
+     * indexed as funded is not shown as funded after it was delivered and
+     * paid (`refreshEscrowStatuses`). Agents' records read these statuses.
+     */
+    const escrowStatuses = await budget.step(
+      'escrowStatuses',
+      () => refreshEscrowStatuses({ deadlineAt: Date.now() + Math.min(ESCROW_STATUS_STEP_MS, budget.spendable()) - 2_000 }),
+      { maxMs: ESCROW_STATUS_STEP_MS },
+    );
     // After the index, so the newest jobs are there to be judged.
     const answeredTasks = await budget.step(
       'answeredTasks',
@@ -652,6 +671,21 @@ export async function POST(request: Request): Promise<NextResponse> {
         return mapWithConcurrency([BSC_MAINNET, BSC_TESTNET] as const, 1, (chain) => runDiscovery(chain, { deadlineAt, signal }).catch(() => null));
       },
       { maxMs: DISCOVERY_STEP_MS },
+    );
+
+    /*
+     * The escrow's jobs from before the index began, newest first, a share
+     * per run until job 1 on each chain, so an agent's record reaches back
+     * to its first job (`backfillEscrowJobs`). Late and bounded, because
+     * nothing waits on it; testnet first, as it is the shorter walk.
+     */
+    const escrowHistory = await budget.step(
+      'escrowHistory',
+      () => {
+        const deadlineAt = Date.now() + Math.min(ESCROW_HISTORY_STEP_MS, budget.spendable()) - 2_000;
+        return mapWithConcurrency([97, 56] as const, 1, (chain) => backfillEscrowJobs(chain, { deadlineAt }).catch(() => null));
+      },
+      { maxMs: ESCROW_HISTORY_STEP_MS },
     );
 
     /*
@@ -703,10 +737,13 @@ export async function POST(request: Request): Promise<NextResponse> {
     const walletActivity = listings
       ? await budget.step('walletActivity', () =>
           refreshWalletActivity(
-            getQuestStore()
-              .allAgentWallets()
-              .filter((w) => listed.has(`${w.chainId}:${w.tokenId}`))
-              .map((w) => ({ chainId: w.chainId, agentWallet: w.wallet })),
+            oncePerWallet(
+              getQuestStore()
+                .allAgentWallets()
+                .filter((w) => listed.has(`${w.chainId}:${w.tokenId}`))
+                .map((w) => ({ chainId: w.chainId, agentWallet: w.wallet })),
+              (w) => `${w.chainId}:${w.agentWallet}`,
+            ),
           ),
         )
       : null;
@@ -730,10 +767,13 @@ export async function POST(request: Request): Promise<NextResponse> {
     const capability = onChainJobs.size
       ? await budget.step('capability', () =>
           refreshCapability(
-            getQuestStore()
-              .allAgentWallets()
-              .filter((w) => onChainJobs.has(`${w.chainId}:${w.tokenId}`))
-              .map((w) => ({ chainId: w.chainId, wallet: w.wallet })),
+            oncePerWallet(
+              getQuestStore()
+                .allAgentWallets()
+                .filter((w) => onChainJobs.has(`${w.chainId}:${w.tokenId}`))
+                .map((w) => ({ chainId: w.chainId, wallet: w.wallet })),
+              (w) => `${w.chainId}:${w.wallet}`,
+            ),
           ),
         )
       : null;
@@ -786,6 +826,8 @@ export async function POST(request: Request): Promise<NextResponse> {
       reviewerFunders,
       capability,
       questIndex,
+      escrowStatuses,
+      escrowHistory,
       answeredTasks,
       reconciled,
       sealed,

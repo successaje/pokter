@@ -7,7 +7,6 @@ import { assayForCategory, type AssayDefinition } from '@/lib/assay/catalog';
 import { passedCheck } from '@/lib/assay/standing';
 import type { AgentEconomicHistory } from '@/lib/erc8183/economic-history';
 import { quotePayableOn } from '@/lib/erc8183/payable';
-import { getJobStore } from '@/lib/erc8183/store';
 import type { AgentDossier } from '@/lib/marketplace';
 import { escrowOptionsForHire } from '@/lib/network/escrow';
 
@@ -30,7 +29,8 @@ export function dossierLadder(d: AgentDossier, escrowChain: number, { liveAnswer
   const { agent, category, record } = d;
   const escrowOptions = escrowOptionsForHire(d.quote?.currency);
   const payable = d.quote ? quotePayableOn(escrowChain, d.quote.currency) : null;
-  const history = agentHistory(getJobStore().byAgent(agent.chain_id, agent.token_id));
+  /* The same jobs the dossier's paid work was read from: Pokter's and the escrow's others for its wallet. */
+  const history = agentHistory(d.escrowRecord.jobs);
   const definition = assayForCategory(category);
   const categoryCheck = definition
     ? { definition, run: getAssayStore().latest({ chainId: agent.chain_id, tokenId: agent.token_id }, definition.id) }
