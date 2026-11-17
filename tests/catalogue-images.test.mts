@@ -56,6 +56,21 @@ test('a list with one new agent reads that agent, not the whole list again', asy
   assert.deepEqual(calls, ['56:374107,1', '97:2618', '56:374115']);
 });
 
+test('two copies of the module share one cache, so only one reads', async () => {
+  /* The server bundles this module more than once; a second import by another URL is a second copy. */
+  resetCatalogueImages();
+  const copy = (await import(`../src/lib/registry/image.ts?copy=${Date.now()}`)) as typeof import('../src/lib/registry/image');
+  assert.notEqual(copy.catalogueImagesFor, catalogueImagesFor, 'a separate copy');
+  const calls: string[] = [];
+  const read = reader({ '56:374107': brinkwatch }, calls);
+  catalogueImagesFor(agents, { read });
+  copy.catalogueImagesFor(agents, { read });
+  await catalogueImagesSettled();
+  await copy.catalogueImagesSettled();
+  assert.deepEqual(calls, ['56:374107,1', '97:2618'], 'read once, not once per copy');
+  assert.equal(copy.catalogueImagesFor(agents, { read }).get('56:374107'), brinkwatch, 'and the other copy sees what was read');
+});
+
 test('a read that fails keeps what was known', async () => {
   resetCatalogueImages();
   catalogueImagesFor(agents, { read: reader({ '56:374107': brinkwatch }) });
