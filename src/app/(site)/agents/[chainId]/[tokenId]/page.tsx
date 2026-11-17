@@ -135,13 +135,12 @@ const JOB_STATE: Record<string, string> = {
 };
 
 /* Where a row's job came from: the tag a reader scans the list by. */
-const JOB_ORIGIN: Record<'pokter' | 'elsewhere' | 'unindexed', string> = {
+const JOB_ORIGIN: Record<'pokter' | 'elsewhere', string> = {
   pokter: 'Through Pokter',
   elsewhere: 'Elsewhere',
-  unindexed: 'Funded by Pokter',
 };
 
-/* What a row's date is: Pokter knows when it hired; of a job outside its index, only its delivery or its deadline. */
+/* What a row's date is: Pokter knows when it hired; of a job hired elsewhere, only its delivery or its deadline. */
 const JOB_DATE: Record<'hired' | 'delivered' | 'due', string> = {
   hired: 'Hired',
   delivered: 'Delivered',
@@ -1119,9 +1118,9 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                         <span className="flex min-w-0 flex-col gap-0.5">
                           <span className="flex flex-wrap items-baseline gap-x-2">
                             <span className="font-medium">{JOB_STATE[job.status] ?? job.status}</span>
-                            {/* A job outside Pokter's index has no page on Pokter: its record is the escrow's, linked on the right. */}
-                            {job.origin !== 'pokter' ? (
-                              <span className="t-readout text-[11.5px] text-ink-3" title={`Job #${job.jobId} is not in Pokter's index. Pokter has the escrow's record of it and nothing more.`}>
+                            {/* A job hired elsewhere has no page on Pokter: its record is the escrow's, linked on the right. */}
+                            {job.origin === 'elsewhere' ? (
+                              <span className="t-readout text-[11.5px] text-ink-3" title={`Job #${job.jobId} was hired elsewhere. Pokter has the escrow's record of it and nothing more.`}>
                                 #{job.jobId}
                               </span>
                             ) : (

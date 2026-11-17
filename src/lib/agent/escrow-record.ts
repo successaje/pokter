@@ -24,9 +24,10 @@ import type { EscrowJob } from '@/lib/quest/store';
  *   would multiply one wallet's work by the agents on it.
  * - A job the wallet paid itself is not work anyone bought: left out and
  *   reported.
- * - A job one of Pokter's own wallets funded is Pokter's even when the
- *   index does not hold it: it is counted and labelled as Pokter's, never
- *   as hired elsewhere.
+ * - A job one of Pokter's own wallets funded that the index does not hold
+ *   was made outside Pokter's hire flow, such as a test. That flow is what
+ *   tells the agent a job is funded, so the agent may never have heard of
+ *   it: it counts neither as a delivery nor as a miss, and is reported.
  *
  * A job that was never funded is not in the record anywhere. Everything else
  * enters the same summary Pokter's own jobs do (`agentHistory`), so a missed
@@ -38,8 +39,8 @@ import type { EscrowJob } from '@/lib/quest/store';
 export interface ElsewhereSummary {
   /** Jobs another wallet hired elsewhere, in the record. */
   counted: number;
-  /** Jobs a Pokter wallet funded that Pokter's index never recorded, in the record as Pokter's. */
-  unindexed: number;
+  /** Jobs a Pokter wallet funded outside Pokter's hire flow: not in the record. */
+  pokterOutsideFlow: number;
   /** Jobs elsewhere the wallet paid itself for: not in the record. */
   selfPaid: number;
   /** When the wallet is registered to other agents too: its funded jobs elsewhere, not in anyone's record, and how many agents share it. */
@@ -53,8 +54,8 @@ export interface EscrowRecord {
 
 const iso = (seconds: number) => new Date(seconds * 1000).toISOString();
 
-/** A job outside Pokter's index, in the shape Pokter's record reads, marked as such. Null for a status the kernel does not have. */
-export function elsewhereJob(row: EscrowJob, agent: { chainId: number; tokenId: string; name: string }, origin: 'elsewhere' | 'unindexed' = 'elsewhere'): HiredJob | null {
+/** A job made elsewhere, in the shape Pokter's record reads, marked as such. Null for a status the kernel does not have. */
+export function elsewhereJob(row: EscrowJob, agent: { chainId: number; tokenId: string; name: string }): HiredJob | null {
   const status = JOB_STATUS_NAMES[row.status];
   if (!status) return null;
   const submittedAt = row.submittedAt ? iso(row.submittedAt) : null;
@@ -79,7 +80,7 @@ export function elsewhereJob(row: EscrowJob, agent: { chainId: number; tokenId: 
     statusCheckedAt: row.statusReadAt ?? '',
     deliverableUrl: null,
     settleTxHash: null,
-    origin,
+    origin: 'elsewhere',
     submittedAt,
   };
 }
@@ -106,10 +107,10 @@ export function escrowRecord({
   escrow: EscrowJob[];
   agentsOnWallet: number;
   knownToPokter: (chainId: number, jobId: string) => boolean;
-  /** Pokter's own wallets, lower-cased: a job one of them funded is Pokter's, indexed or not. */
+  /** Pokter's own wallets, lower-cased: a job one of them funded outside the index is Pokter's own, not the agent's record. */
   team: ReadonlySet<string>;
 }): EscrowRecord {
-  const none: EscrowRecord = { jobs: pokter, elsewhere: { counted: 0, unindexed: 0, selfPaid: 0, shared: null } };
+  const none: EscrowRecord = { jobs: pokter, elsewhere: { counted: 0, pokterOutsideFlow: 0, selfPaid: 0, shared: null } };
   if (!wallet) return none;
   const paid = wallet.toLowerCase();
   const outside = escrow.filter((row) =>
@@ -119,13 +120,13 @@ export function escrowRecord({
     !knownToPokter(row.chainId, String(row.jobId)),
   );
   const selfPaid = outside.filter((row) => row.client.toLowerCase() === paid).length;
-  const bought = outside.filter((row) => row.client.toLowerCase() !== paid);
+  const pokterOutsideFlow = outside.filter((row) => row.client.toLowerCase() !== paid && team.has(row.client.toLowerCase())).length;
+  const bought = outside.filter((row) => row.client.toLowerCase() !== paid && !team.has(row.client.toLowerCase()));
   if (agentsOnWallet > 1) {
-    return { jobs: pokter, elsewhere: { counted: 0, unindexed: 0, selfPaid, shared: bought.length ? { jobs: bought.length, agents: agentsOnWallet } : null } };
+    return { jobs: pokter, elsewhere: { counted: 0, pokterOutsideFlow, selfPaid, shared: bought.length ? { jobs: bought.length, agents: agentsOnWallet } : null } };
   }
-  const added = bought.flatMap((row) => elsewhereJob(row, agent, team.has(row.client.toLowerCase()) ? 'unindexed' : 'elsewhere') ?? []);
-  const unindexed = added.filter((job) => job.origin === 'unindexed').length;
-  return { jobs: [...pokter, ...added], elsewhere: { counted: added.length - unindexed, unindexed, selfPaid, shared: null } };
+  const added = bought.flatMap((row) => elsewhereJob(row, agent) ?? []);
+  return { jobs: [...pokter, ...added], elsewhere: { counted: added.length, pokterOutsideFlow, selfPaid, shared: null } };
 }
 
 /** "1 through Pokter, 4 elsewhere": where the funded jobs in a record came from, or null when all came through Pokter. */
@@ -136,5 +137,6 @@ export function originNote(funded: number, elsewhere: ElsewhereSummary): string 
     parts.push(`${elsewhere.shared.jobs} more on a wallet ${elsewhere.shared.agents} agents share, not counted`);
   }
   if (elsewhere.selfPaid) parts.push(`${elsewhere.selfPaid} it paid itself elsewhere, not counted`);
+  if (elsewhere.pokterOutsideFlow) parts.push(`${elsewhere.pokterOutsideFlow} Pokter funded outside its hire flow, not counted`);
   return parts.length ? parts.join(' · ') : null;
 }

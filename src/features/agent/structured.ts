@@ -45,7 +45,7 @@ export interface StructuredInput {
   hireBlocker: { reason: string } | null;
   warnings: string[];
   /** The agent's jobs, newest first: a delivered one is never described as no delivery. */
-  jobHistory?: Array<{ chainId: number; jobId: string; delivered: boolean; origin?: 'pokter' | 'elsewhere' | 'unindexed' }>;
+  jobHistory?: Array<{ chainId: number; jobId: string; delivered: boolean; origin?: 'pokter' | 'elsewhere' }>;
   /** Every delivery counted, where the list above holds only the newest twelve jobs. */
   history?: { delivered: number };
   /** Deliveries in that count hired elsewhere, which have no evidence page on Pokter. */

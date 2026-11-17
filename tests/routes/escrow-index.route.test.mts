@@ -27,6 +27,7 @@ const W1 = '0x00000000000000000000000000000000000000a1';
 const SHARED = '0x00000000000000000000000000000000000000a2';
 const STRANGER = '0x00000000000000000000000000000000000000ff';
 const ZERO = '0x0000000000000000000000000000000000000000';
+const U = '0xc70B8741B8B07A6d61E54fd4B20f22Fa648E5565';
 const NOW = Date.now();
 const s = (ms: number) => BigInt(Math.floor(ms / 1000));
 const SEPTEMBER = Date.parse('2026-09-15T00:00:00Z');
@@ -53,7 +54,7 @@ const reader = {
   readContract: async ({ functionName, args }: { functionName: string; args?: readonly bigint[] }) => {
     if (functionName === 'jobCounter') return 10n;
     const id = Number(args![0]);
-    if (functionName === 'jobPaymentToken') return ZERO;
+    if (functionName === 'jobPaymentToken') return U;
     reads.push(id);
     const j = chain[id];
     return { id: BigInt(id), client: j.client, provider: j.provider, evaluator: ZERO, description: '', budget: 10n ** 16n, expiredAt: j.expiredAt, status: j.status, hook: ZERO, submittedAt: j.submittedAt, deliverable: `0x${'0'.repeat(64)}` };
@@ -117,13 +118,41 @@ test('an agent’s record is Pokter’s jobs and its wallet’s others, each onc
 
   const one = agentRecordJobs({ chain_id: 97, token_id: '1', name: 'One', agent_wallet: null });
   assert.deepEqual(one.jobs.map((job) => [job.jobId, job.origin ?? 'pokter']).sort(), [['1', 'elsewhere'], ['10', 'pokter'], ['7', 'elsewhere'], ['8', 'elsewhere']]);
-  assert.deepEqual(one.elsewhere, { counted: 3, unindexed: 0, selfPaid: 0, shared: null });
+  assert.deepEqual(one.elsewhere, { counted: 3, pokterOutsideFlow: 0, selfPaid: 0, shared: null });
 
   const two = agentRecordJobs({ chain_id: 97, token_id: '2', name: 'Two', agent_wallet: null });
   assert.deepEqual(two.jobs, []);
-  assert.deepEqual(two.elsewhere, { counted: 0, unindexed: 0, selfPaid: 0, shared: { jobs: 1, agents: 2 } });
+  assert.deepEqual(two.elsewhere, { counted: 0, pokterOutsideFlow: 0, selfPaid: 0, shared: { jobs: 1, agents: 2 } });
 
   /* A wallet the sweep has not read yet: the listing's, shared or not by what the table knows. */
   const fresh = agentRecordJobs({ chain_id: 97, token_id: '4', name: 'Four', agent_wallet: SHARED });
   assert.deepEqual(fresh.elsewhere.shared, { jobs: 1, agents: 3 });
+});
+
+test('a job stored before its budget and provider were set is read again in full, and so is an older row', async () => {
+  const store = getQuestStore();
+  /* Stored as created: open, no provider named yet, no budget. */
+  const created = { client: '0x00000000000000000000000000000000000000cb', provider: ZERO, status: 0, expiredAt: s(NOW + 3_600_000), submittedAt: 0n };
+  chain[11] = created;
+  store.advance(97, [{ chainId: 97, jobId: 11, client: created.client, provider: ZERO, budget: '0', expiredAt: Number(created.expiredAt), status: 0, description: '' }], 1, 12, new Date(NOW).toISOString());
+  /* Then the buyer named this agent, set the budget and funded it, and it was delivered and paid. */
+  chain[11] = { ...created, provider: W1, status: 3, submittedAt: s(NOW + 600_000) };
+
+  /* A row stored before budgets and tokens were re-read: budget stale, token unread. */
+  const { DatabaseSync } = await import('node:sqlite');
+  const db = new DatabaseSync(process.env.QUEST_DB_PATH!);
+  db.prepare("UPDATE escrow_jobs SET budget = '0', payment_token = NULL, fields_read_at = NULL WHERE chain_id = 97 AND job_id = 7").run();
+  db.close();
+
+  reads.length = 0;
+  await refreshEscrowStatuses({ clients: { 56: reader, 97: reader }, now: () => NOW + 5 * 3_600_000 });
+  assert.ok(reads.includes(11) && reads.includes(7), `read ${reads.join(', ')}`);
+  const rows = new Map(store.byProvider(97, W1).map((job) => [job.jobId, job]));
+  assert.deepEqual([rows.get(11)?.status, rows.get(11)?.budget], [3, String(10n ** 16n)], 'named as provider, funded and paid');
+  assert.deepEqual([rows.get(7)?.budget, rows.get(7)?.paymentToken], [String(10n ** 16n), U.toLowerCase()], 'its budget and its token, so the row reads 0.01 $U, not base units');
+  assert.ok(agentRecordJobs({ chain_id: 97, token_id: '1', name: 'One', agent_wallet: null }).jobs.some((job) => job.jobId === '11' && job.budgetRaw === String(10n ** 16n)));
+
+  reads.length = 0;
+  await refreshEscrowStatuses({ clients: { 56: reader, 97: reader }, now: () => NOW + 7 * 3_600_000 });
+  assert.ok(!reads.includes(11) && !reads.includes(7), 'settled, and read in full: not read again');
 });

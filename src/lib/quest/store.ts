@@ -73,6 +73,8 @@ const ADDED_COLUMNS = [
   'ALTER TABLE escrow_jobs ADD COLUMN payment_token TEXT',
   'ALTER TABLE escrow_jobs ADD COLUMN submitted_at INTEGER',
   'ALTER TABLE escrow_jobs ADD COLUMN status_read_at TEXT',
+  /* When budget and provider were last read. Null on rows from before they were re-read, which are re-read once. */
+  'ALTER TABLE escrow_jobs ADD COLUMN fields_read_at TEXT',
 ];
 
 export interface EscrowJob {
@@ -142,17 +144,18 @@ class QuestStore {
 
   private upsertJobs(chainId: number, jobs: EscrowJob[], readAt: string): void {
     const upsert = this.db.prepare(
-      `INSERT INTO escrow_jobs (chain_id, job_id, client, provider, budget, expired_at, status, description, payment_token, submitted_at, status_read_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO escrow_jobs (chain_id, job_id, client, provider, budget, expired_at, status, description, payment_token, submitted_at, status_read_at, fields_read_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT (chain_id, job_id) DO UPDATE SET status = excluded.status,
+         provider = excluded.provider, budget = excluded.budget,
          payment_token = COALESCE(excluded.payment_token, escrow_jobs.payment_token),
          submitted_at = COALESCE(excluded.submitted_at, escrow_jobs.submitted_at),
-         status_read_at = excluded.status_read_at`,
+         status_read_at = excluded.status_read_at, fields_read_at = excluded.fields_read_at`,
     );
     for (const j of jobs) {
       upsert.run(
         chainId, j.jobId, j.client.toLowerCase(), j.provider.toLowerCase(), j.budget, j.expiredAt, j.status, j.description,
-        j.paymentToken ? j.paymentToken.toLowerCase() : null, j.submittedAt ?? null, readAt,
+        j.paymentToken ? j.paymentToken.toLowerCase() : null, j.submittedAt ?? null, readAt, readAt,
       );
     }
   }
@@ -192,21 +195,27 @@ class QuestStore {
   }
 
   /**
-   * Jobs of agent wallets whose status can still change, least recently read
-   * first: funded or submitted, or open and last read before its deadline.
+   * Jobs that can still change, of agent wallets or of no provider yet,
+   * least recently read first: funded or submitted; open and last read
+   * before its deadline; never re-read since its budget and provider were
+   * stored; or with its token unread, which every job has.
    *
-   * The open case is most of them. The index reads new jobs every few
-   * minutes, so it often stores a job between its creation and its funding.
-   * One read after the deadline settles it: a job still open then was never
+   * The index reads new jobs every few minutes, so it often stores a job
+   * between its creation and its funding: open, with no budget, and
+   * sometimes with no provider, which the buyer may set later. One read
+   * after the deadline settles an open job: still open then, it was never
    * funded. A job read since `readBefore` is left for a later pass.
    */
   jobsToRefresh({ readBefore, limit }: { readBefore: string; limit: number }): EscrowJob[] {
     const rows = this.db
       .prepare(
         `SELECT e.* FROM escrow_jobs e
-          WHERE e.provider IN (SELECT wallet FROM registered_wallets WHERE chain_id = e.chain_id
-                               UNION SELECT wallet FROM agent_wallets WHERE chain_id = e.chain_id)
+          WHERE (e.provider = '0x0000000000000000000000000000000000000000'
+                 OR e.provider IN (SELECT wallet FROM registered_wallets WHERE chain_id = e.chain_id
+                                   UNION SELECT wallet FROM agent_wallets WHERE chain_id = e.chain_id))
             AND (e.status IN (1, 2)
+                 OR e.fields_read_at IS NULL
+                 OR e.payment_token IS NULL
                  OR (e.status = 0 AND (e.status_read_at IS NULL
                                        OR e.status_read_at < strftime('%Y-%m-%dT%H:%M:%fZ', e.expired_at, 'unixepoch'))))
             AND (e.status_read_at IS NULL OR e.status_read_at < ?)
@@ -217,11 +226,16 @@ class QuestStore {
     return rows.map(fromRow);
   }
 
-  /** Statuses read again from chain. */
-  saveStatuses(reads: Array<{ chainId: number; jobId: number; status: number; submittedAt: number }>, readAt = new Date().toISOString()): void {
-    const update = this.db.prepare('UPDATE escrow_jobs SET status = ?, submitted_at = ?, status_read_at = ? WHERE chain_id = ? AND job_id = ?');
+  /** Jobs read again from chain: everything that can change after creation. */
+  saveReads(reads: Array<{ chainId: number; jobId: number; status: number; submittedAt: number; budget: string; provider: string; paymentToken: string | null }>, readAt = new Date().toISOString()): void {
+    const update = this.db.prepare(
+      `UPDATE escrow_jobs SET status = ?, submitted_at = ?, budget = ?, provider = ?, payment_token = COALESCE(?, payment_token),
+         status_read_at = ?, fields_read_at = ? WHERE chain_id = ? AND job_id = ?`,
+    );
     this.inTransaction(() => {
-      for (const r of reads) update.run(r.status, r.submittedAt, readAt, r.chainId, r.jobId);
+      for (const r of reads) {
+        update.run(r.status, r.submittedAt, r.budget, r.provider.toLowerCase(), r.paymentToken ? r.paymentToken.toLowerCase() : null, readAt, readAt, r.chainId, r.jobId);
+      }
     });
   }
 
