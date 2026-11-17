@@ -42,7 +42,7 @@ export function draftPreviewRow(draft: { name: string; description: string; cate
     priceFresh: false,
     hirable: false,
     deliveredByPokter: false,
-    paid: { jobs: 0, completed: 0, delivered: 0, missed: 0, outsideCompleted: 0 },
+    paid: { jobs: 0, completed: 0, delivered: 0, missed: 0, outsideCompleted: 0, teamCompleted: 0 },
     maturity: deriveMaturity({
       registered: true,
       reachable: false,

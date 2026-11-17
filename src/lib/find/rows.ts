@@ -80,7 +80,7 @@ export interface FindRow {
   priceFresh: boolean;
   hirable: boolean;
   deliveredByPokter: boolean;
-  paid: { jobs: number; completed: number; delivered: number; missed: number; outsideCompleted: number };
+  paid: { jobs: number; completed: number; delivered: number; missed: number; outsideCompleted: number; teamCompleted: number };
   maturity: AgentMaturity;
   owner: string;
 }
@@ -147,6 +147,7 @@ export function toFindRow(
       delivered: history?.delivered ?? 0,
       missed: history?.missed ?? 0,
       outsideCompleted: history?.outsideTeam.completed ?? 0,
+      teamCompleted: history?.teamCompleted ?? 0,
     },
     maturity,
     owner: agent.owner_address.toLowerCase(),

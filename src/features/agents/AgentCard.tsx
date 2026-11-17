@@ -1,6 +1,7 @@
 import Link from 'next/link';
 
 import type { FindRow } from '@/lib/find/rows';
+import { teamFundedNote } from './paid-note';
 import { hireNetworkTags } from '@/lib/network/hire-networks';
 import { shortNetworkLabel } from '@/lib/network/presentation';
 import { cn } from '@/lib/ui/cn';
@@ -259,6 +260,7 @@ export function AgentCard({
 }) {
   const availability = availabilityText(row);
   const terminalJobs = row.paid.completed + row.paid.missed;
+  const teamNote = teamFundedNote(row.paid);
   const checked = row.maturity.steps.find((step) => step.id === 'checked')?.earned ?? false;
   return (
     <article className={cn('group relative flex h-full flex-col rounded-[12px] border border-rule bg-raised p-5 transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-rule-strong hover:shadow-lift sm:rounded-[16px]', className)}>
@@ -329,9 +331,10 @@ export function AgentCard({
         "Paid result" counted every settled job, Pokter's own test hires
         included, and "Proof" only outside buyers and passed answer checks,
         so a card could read "2/2 settled" beside "No proof yet". Both were
-        true and together they read as a contradiction. Settled jobs now
-        carry how many were for outside buyers on the same reading, and a
-        passed answer check is named under the reply rate. The settled count
+        true and together they read as a contradiction. Settled jobs say,
+        on the same reading, when Pokter itself paid for some of them
+        (`teamFundedNote`), and a passed answer check is named under the
+        reply rate. The settled count
         shows on a phone too: hidden there, "No proof yet" was the only
         evidence a phone reader saw.
 
@@ -370,7 +373,7 @@ export function AgentCard({
             <span className={cn('t-readout truncate', row.paid.missed ? 'text-watch' : undefined)}>
               {terminalJobs > 0 ? `${row.paid.completed}/${terminalJobs} settled` : row.paid.jobs > 0 ? 'In progress' : <span className="text-ink-3">Not hired</span>}
             </span>
-            {row.paid.completed > 0 && <span className="text-[11.5px] leading-snug text-ink-3">{row.paid.outsideCompleted} for outside buyers</span>}
+            {teamNote && <span className="text-[11.5px] leading-snug text-ink-3">{teamNote}</span>}
           </dd>
         </div>
         <div className="flex min-w-0 flex-col gap-1.5">
