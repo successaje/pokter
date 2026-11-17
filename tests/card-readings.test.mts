@@ -10,10 +10,11 @@ import test from 'node:test';
 
 const card = readFileSync(new URL('../src/features/agents/AgentCard.tsx', import.meta.url), 'utf8');
 
-test('settled jobs carry how many were for outside buyers, on the same reading', () => {
+test('settled jobs say on the same reading when Pokter paid for some of them', () => {
   assert.match(card, /<dt className="t-label">Paid jobs<\/dt>/);
   assert.match(card, /`\$\{row\.paid\.completed\}\/\$\{terminalJobs\} settled`/);
-  assert.match(card, /\{row\.paid\.outsideCompleted\} for outside buyers<\/span>/);
+  assert.match(card, /\{teamNote && <span className="text-\[11\.5px\] leading-snug text-ink-3">\{teamNote\}<\/span>\}/);
+  assert.doesNotMatch(card, /for outside buyers<\/span>/);
 });
 
 test('a passed answer check is shown only where there is one, linked to its comparison, and nothing says "No proof yet"', () => {

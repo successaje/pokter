@@ -56,6 +56,12 @@ export interface AgentEconomicHistory {
    */
   relayedDelivered: number;
   completed: number;
+  /**
+   * Settled jobs a declared Pokter wallet funded, or whose funder is
+   * unknown, which Pokter counts as its own: said on cards, so a record of
+   * Pokter's tests is not read as demand.
+   */
+  teamCompleted: number;
   rejected: number;
   expired: number;
   /**
@@ -232,6 +238,7 @@ export function summariseEconomicHistory(
     operatorDelivered: deliveries.filter(deliveredByPokter).length,
     relayedDelivered: deliveries.filter(relayedDelivery).length,
     completed: funded.filter((job) => job.status === 'COMPLETED').length,
+    teamCompleted: funded.filter((job) => job.status === 'COMPLETED' && fundedByTeam(job, team)).length,
     rejected: funded.filter((job) => job.status === 'REJECTED').length,
     expired: funded.filter((job) => job.status === 'EXPIRED').length,
     /*
