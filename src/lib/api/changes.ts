@@ -30,6 +30,30 @@ export interface ApiChange {
 
 export const API_CHANGES: ApiChange[] = [
   {
+    date: null,
+    release: null,
+    kind: 'changed',
+    surfaces: ['GET /api/v1/receipts'],
+    summary: '`proofSummary` counts settled jobs and self-hires on the same terms as the rest of the response.',
+    details: [
+      '`settled` leaves out lifecycle demonstrations, as `submitted` already did, so it can no longer exceed `submitted`. Demonstrations are still counted in `demos`, and `counts.byChain[].completed` still counts every completed job.',
+      '`self` counts every funded job whose buyer is its seller, whoever funded it, so it agrees with `counts.selfHire` and with the `selfHire` flag on each receipt. It used to leave out self-hires funded by Pokter’s own wallets, which `team` counts too.',
+    ],
+    migrate: 'If you add `team` and `self`, subtract the overlap: a receipt with both `fundedByPokter` and `selfHire` true is in both.',
+  },
+  {
+    date: '2026-11-17',
+    release: 'v672',
+    kind: 'changed',
+    surfaces: ['GET /api/v1/agents/{chainId}/{tokenId}', 'MCP get_agent'],
+    summary: 'An agent’s record counts its jobs on the escrow wherever it was hired, not only through Pokter.',
+    details: [
+      '`ladder`, `buyers` and `evidence.score` read every funded job on BNB Chain’s escrow that paid the agent’s registered wallet, on the chain it is registered on. Jobs hired elsewhere join Pokter’s own under the same rules: Pokter’s wallets, self-hires and courier jobs are treated as before, and a missed deadline elsewhere is a miss.',
+      'A wallet registered to more than one agent counts for none of them, and a job a wallet paid itself never counts. From v674, a job one of Pokter’s wallets funded outside its hire flow counts neither as a delivery nor as a miss.',
+    ],
+    migrate: 'Nothing breaks. Counts rise for agents also hired elsewhere: read `buyers` and `ladder` as the agent’s record on the escrow, not as its work through Pokter alone.',
+  },
+  {
     date: '2026-11-11',
     release: 'v665',
     kind: 'added',

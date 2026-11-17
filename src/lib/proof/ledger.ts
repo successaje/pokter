@@ -19,11 +19,27 @@ export interface LedgerFilters {
 
 export interface LedgerRow {
   job: HiredJob;
+  /** One class per job: a Pokter wallet first, then the seller paying itself, then anyone else. */
   funder: JobFunder;
   funded: boolean;
   lifecycleDemo: boolean;
   submitted: boolean;
+  /** The escrow completed. A row's own fact: the settled count leaves demos out (`matchesMetric`). */
   settled: boolean;
+  /** Buyer and seller the same wallet, whoever that is: the receipt's `selfHire`, so a Pokter wallet paying itself is one too. */
+  selfHire: boolean;
+}
+
+const FUNDER_LABEL: Record<JobFunder, string> = {
+  team: 'Pokter team wallet',
+  self: 'Self-hire',
+  outside: 'Outside-team wallet',
+  unknown: 'Funder unknown',
+};
+
+/** Who funded a job, in the words every part of the proof page uses. */
+export function funderLabel(row: Pick<LedgerRow, 'funder' | 'selfHire'>): string {
+  return row.funder === 'team' && row.selfHire ? 'Pokter team wallet, paying itself' : FUNDER_LABEL[row.funder];
 }
 
 export function matchesAudience(row: LedgerRow, audience: ProofAudience): boolean {
@@ -65,18 +81,28 @@ export function ledgerRows(jobs: readonly HiredJob[], team: ReadonlySet<string>,
       // Escrow submission is a chain state. A self-hosted answer still needs a separate hash check.
       submitted: (job.status === 'SUBMITTED' || job.status === 'COMPLETED') && !lifecycleDemo,
       settled: job.status === 'COMPLETED',
+      selfHire: Boolean(job.client) && job.client!.toLowerCase() === job.provider.toLowerCase(),
     };
   });
 }
 
+/**
+ * Which rows a summary number counts, and opens.
+ *
+ * Settled jobs leave out lifecycle demonstrations, as submissions do, so a
+ * settled count can never exceed the submissions it settled; demonstrations
+ * have their own count. Self-hires are every funded job whose buyer is its
+ * seller, the receipt's `selfHire`, so a Pokter wallet paying itself is in
+ * both the team and the self-hire counts.
+ */
 export function matchesMetric(row: LedgerRow, metric: LedgerMetric): boolean {
   switch (metric) {
     case 'funded': return row.funded;
     case 'submitted': return row.submitted;
-    case 'settled': return row.settled;
+    case 'settled': return row.settled && !row.lifecycleDemo;
     case 'outside-wallets': return row.funded && row.funder === 'outside' && !row.lifecycleDemo;
     case 'team': return row.funded && row.funder === 'team';
-    case 'self': return row.funded && row.funder === 'self';
+    case 'self': return row.funded && row.selfHire;
     case 'demo': return row.lifecycleDemo;
   }
 }
@@ -104,7 +130,7 @@ export function summarizeLedger(rows: readonly LedgerRow[]) {
     jobs: rows.length,
     funded: rows.filter((row) => row.funded).length,
     submitted: rows.filter((row) => row.submitted).length,
-    settled: rows.filter((row) => row.settled).length,
+    settled: rows.filter((row) => matchesMetric(row, 'settled')).length,
     outsideWallets: new Set(knownOutside.map((row) => row.job.client!.toLowerCase())).size,
     outsideJobs: knownOutside.length,
     team: rows.filter((row) => matchesMetric(row, 'team')).length,

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { filterLedger, ledgerRows, matchesAudience, receiptSpotlights, summarizeLedger, type LedgerFilters } from '../src/lib/proof/ledger';
+import { filterLedger, funderLabel, ledgerRows, matchesAudience, receiptSpotlights, summarizeLedger, type LedgerFilters } from '../src/lib/proof/ledger';
 import type { HiredJob } from '../src/lib/erc8183/types';
 
 const team = '0x0000000000000000000000000000000000000001';
@@ -33,7 +33,7 @@ test('every summary number opens exactly its qualifying rows, except distinct-wa
   assert.equal(summary.jobs, 7);
   assert.equal(summary.funded, 5);
   assert.equal(summary.submitted, 3);
-  assert.equal(summary.settled, 4);
+  assert.equal(summary.settled, 3, 'the demo is left out, as from submissions');
   assert.equal(summary.outsideWallets, 1);
   assert.equal(summary.outsideJobs, 2);
   assert.equal(filterLedger(rows, { ...all, metric: 'funded' }).length, summary.funded);
@@ -91,4 +91,33 @@ test('receipt spotlights show both networks when eligible outside jobs exist on 
   rows[1].job.hiredAt = '2026-11-04T00:00:00Z';
   rows[2].job.hiredAt = '2026-11-05T00:00:00Z';
   assert.deepEqual(receiptSpotlights(rows, 'outside', 2).map((row) => row.job.chainId), [56, 97]);
+});
+
+test('settled never exceeds submitted, and self-hires agree with the receipts’ flag', () => {
+  /* As on testnet: completed demos made "Settled" read higher than "With a submission". */
+  const demos = ['d1', 'd2'].map((id) => job(97, id, 'COMPLETED', outside));
+  const jobs = [...demos, job(97, '1', 'COMPLETED', outside), job(97, '2', 'SUBMITTED', outside)];
+  const summary = summarizeLedger(ledgerRows(jobs, new Set([team]), (j) => j.jobId.startsWith('d')));
+  assert.deepEqual([summary.submitted, summary.settled, summary.demos], [2, 1, 2]);
+
+  /* A Pokter wallet paying itself is a self-hire as the receipt says, and team-funded as well. */
+  const rows = ledgerRows([
+    { ...job(97, '3', 'EXPIRED', provider) },
+    { ...job(97, '4', 'EXPIRED', team), provider: team as HiredJob['provider'] },
+    job(97, '5', 'COMPLETED', team),
+  ], new Set([team]), () => false);
+  const counts = summarizeLedger(rows);
+  assert.equal(counts.self, rows.filter((row) => row.job.client?.toLowerCase() === row.job.provider.toLowerCase()).length);
+  assert.deepEqual([counts.self, counts.team], [2, 2]);
+});
+
+test('one label per funder, wherever the page names it', () => {
+  const rows = ledgerRows([
+    job(97, '1', 'COMPLETED', outside),
+    job(97, '2', 'COMPLETED', team),
+    job(97, '3', 'COMPLETED', provider),
+    { ...job(97, '4', 'COMPLETED', team), provider: team as HiredJob['provider'] },
+    job(97, '5', 'COMPLETED', undefined),
+  ], new Set([team]), () => false);
+  assert.deepEqual(rows.map(funderLabel), ['Outside-team wallet', 'Pokter team wallet', 'Self-hire', 'Pokter team wallet, paying itself', 'Funder unknown']);
 });
