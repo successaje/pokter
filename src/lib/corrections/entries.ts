@@ -25,7 +25,7 @@ export const CORRECTIONS: Correction[] = [
     said: 'After agents’ records began counting every escrow job, Brinkwatch’s profile showed 16 jobs funded, 13 delivered and 3 missed deadlines. The three were tagged “Funded by Pokter”.',
     true: 'The three were jobs Pokter’s operator key funded from a development session on 15 and 16 October, outside Pokter’s hire flow. That flow is what tells an agent a job is funded, and it never ran for them, so Brinkwatch was never told of them. A job one of Pokter’s wallets funds outside the hire flow now counts neither as a delivery nor as a miss, and the profile says how many there are. Brinkwatch’s record is 13 jobs, all delivered.',
     found: 'Looking for why the three jobs were missing from Pokter’s index: they had been recorded only on a development machine, and no notice was ever sent.',
-    prs: [],
+    prs: [456],
   },
   {
     date: '2026-11-17',

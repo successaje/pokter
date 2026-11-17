@@ -29,4 +29,5 @@ test('the November fixes are on the record, each with the pull request that made
   assert.deepEqual(byTitle(/release by itself when the review window closed/)?.prs, [448]);
   assert.deepEqual(byTitle(/“attested” a narrower meaning/)?.prs, [448]);
   assert.deepEqual(byTitle(/counted only the jobs hired through Pokter/)?.prs, [455]);
+  assert.deepEqual(byTitle(/charged with missed deadlines on Pokter’s own tests/)?.prs, [456]);
 });
