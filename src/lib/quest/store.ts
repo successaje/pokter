@@ -197,8 +197,8 @@ class QuestStore {
   /**
    * Jobs that can still change, of agent wallets or of no provider yet,
    * least recently read first: funded or submitted; open and last read
-   * before its deadline; or never re-read since its budget and provider
-   * were stored.
+   * before its deadline; never re-read since its budget and provider were
+   * stored; or with its token unread, which every job has.
    *
    * The index reads new jobs every few minutes, so it often stores a job
    * between its creation and its funding: open, with no budget, and
@@ -215,6 +215,7 @@ class QuestStore {
                                    UNION SELECT wallet FROM agent_wallets WHERE chain_id = e.chain_id))
             AND (e.status IN (1, 2)
                  OR e.fields_read_at IS NULL
+                 OR e.payment_token IS NULL
                  OR (e.status = 0 AND (e.status_read_at IS NULL
                                        OR e.status_read_at < strftime('%Y-%m-%dT%H:%M:%fZ', e.expired_at, 'unixepoch'))))
             AND (e.status_read_at IS NULL OR e.status_read_at < ?)
@@ -226,12 +227,15 @@ class QuestStore {
   }
 
   /** Jobs read again from chain: everything that can change after creation. */
-  saveReads(reads: Array<{ chainId: number; jobId: number; status: number; submittedAt: number; budget: string; provider: string }>, readAt = new Date().toISOString()): void {
+  saveReads(reads: Array<{ chainId: number; jobId: number; status: number; submittedAt: number; budget: string; provider: string; paymentToken: string | null }>, readAt = new Date().toISOString()): void {
     const update = this.db.prepare(
-      'UPDATE escrow_jobs SET status = ?, submitted_at = ?, budget = ?, provider = ?, status_read_at = ?, fields_read_at = ? WHERE chain_id = ? AND job_id = ?',
+      `UPDATE escrow_jobs SET status = ?, submitted_at = ?, budget = ?, provider = ?, payment_token = COALESCE(?, payment_token),
+         status_read_at = ?, fields_read_at = ? WHERE chain_id = ? AND job_id = ?`,
     );
     this.inTransaction(() => {
-      for (const r of reads) update.run(r.status, r.submittedAt, r.budget, r.provider.toLowerCase(), readAt, readAt, r.chainId, r.jobId);
+      for (const r of reads) {
+        update.run(r.status, r.submittedAt, r.budget, r.provider.toLowerCase(), r.paymentToken ? r.paymentToken.toLowerCase() : null, readAt, readAt, r.chainId, r.jobId);
+      }
     });
   }
 

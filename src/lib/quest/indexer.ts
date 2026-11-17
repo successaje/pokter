@@ -164,8 +164,8 @@ const REFRESH_LIMIT = 300;
  * delivered and paid. Only agents' jobs, and jobs with no provider yet,
  * are re-read, at most hourly each and least recently read first
  * (`jobsToRefresh` says which can still move). Status, delivery time,
- * budget and provider are all taken from the read. A failed read leaves
- * the row for the next pass.
+ * budget and provider are all taken from the read, and the token when it
+ * was never read. A failed read leaves the row for the next pass.
  */
 export async function refreshEscrowStatuses(
   { deadlineAt = Number.POSITIVE_INFINITY, clients = { 56: questClient(56), 97: questClient(97) }, now = Date.now }:
@@ -179,11 +179,16 @@ export async function refreshEscrowStatuses(
   for (let i = 0; i < due.length && now() < deadlineAt; i += BATCH) {
     const batch = due.slice(i, i + BATCH).filter((job) => job.chainId in QUEST_CHAINS);
     const reads = await Promise.all(batch.map((job) => readJob(clients[job.chainId as QuestChainId], job.chainId as QuestChainId, BigInt(job.jobId)).catch(() => null)));
+    /* Only where it is missing: a job's token is fixed when it is created. */
+    const tokens = await Promise.all(batch.map((job) => (job.paymentToken ? null : readPaymentToken(clients[job.chainId as QuestChainId], job.chainId as QuestChainId, BigInt(job.jobId)))));
     const fresh = batch.flatMap((job, k) => {
       const onChain = reads[k];
       if (!onChain) return [];
       if (onChain.status !== job.status) changed += 1;
-      return [{ chainId: job.chainId, jobId: job.jobId, status: onChain.status, submittedAt: Number(onChain.submittedAt), budget: onChain.budget.toString(), provider: onChain.provider }];
+      return [{
+        chainId: job.chainId, jobId: job.jobId, status: onChain.status, submittedAt: Number(onChain.submittedAt),
+        budget: onChain.budget.toString(), provider: onChain.provider, paymentToken: tokens[k],
+      }];
     });
     store.saveReads(fresh, new Date(now()).toISOString());
     read += fresh.length;
