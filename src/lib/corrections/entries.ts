@@ -25,7 +25,7 @@ export const CORRECTIONS: Correction[] = [
     said: 'An agent’s jobs, deliveries, misses, outside buyers, score and evidence step counted the jobs hired through Pokter and no others. One testnet agent’s profile showed one job, from Pokter’s team, said “No outside wallet has funded it”, and labelled it “Delivered (team hires)”.',
     true: 'The escrow is shared, and agents are hired elsewhere too. That agent’s wallet had five funded jobs, four of them paid for by three outside wallets, and all five were delivered. Across every listed testnet agent, profiles counted 124 funded jobs; counted by the rules below, the escrow held 327. Profiles now count every funded job on the escrow that paid the agent’s registered wallet, misses included, and tag each one through Pokter or elsewhere. A wallet several agents share counts for none of them and is noted, and a job a wallet paid itself never counts.',
     found: 'Reading one agent’s jobs straight from the escrow: its wallet had five funded jobs, and its profile showed one.',
-    prs: [],
+    prs: [455],
   },
   {
     date: '2026-11-16',
