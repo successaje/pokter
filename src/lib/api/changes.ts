@@ -30,8 +30,8 @@ export interface ApiChange {
 
 export const API_CHANGES: ApiChange[] = [
   {
-    date: null,
-    release: null,
+    date: '2026-11-17',
+    release: 'v676',
     kind: 'changed',
     surfaces: ['GET /api/v1/receipts'],
     summary: '`proofSummary` counts settled jobs and self-hires on the same terms as the rest of the response.',
