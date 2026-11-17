@@ -159,10 +159,12 @@ const REFRESH_LIMIT = 300;
 /**
  * Read again the jobs of agent wallets whose status can still change.
  *
- * A stored status is the one read when the job was indexed, and a job
- * indexed as open may since have been funded, delivered and paid. Only
- * agents' jobs are re-read, at most hourly each and least recently read
- * first (`jobsToRefresh` says which can still move). A failed read leaves
+ * A stored row is the job as it stood when indexed, and a job indexed as
+ * open may since have been given its budget and provider, funded,
+ * delivered and paid. Only agents' jobs, and jobs with no provider yet,
+ * are re-read, at most hourly each and least recently read first
+ * (`jobsToRefresh` says which can still move). Status, delivery time,
+ * budget and provider are all taken from the read. A failed read leaves
  * the row for the next pass.
  */
 export async function refreshEscrowStatuses(
@@ -181,9 +183,9 @@ export async function refreshEscrowStatuses(
       const onChain = reads[k];
       if (!onChain) return [];
       if (onChain.status !== job.status) changed += 1;
-      return [{ chainId: job.chainId, jobId: job.jobId, status: onChain.status, submittedAt: Number(onChain.submittedAt) }];
+      return [{ chainId: job.chainId, jobId: job.jobId, status: onChain.status, submittedAt: Number(onChain.submittedAt), budget: onChain.budget.toString(), provider: onChain.provider }];
     });
-    store.saveStatuses(fresh, new Date(now()).toISOString());
+    store.saveReads(fresh, new Date(now()).toISOString());
     read += fresh.length;
     failed += batch.length - fresh.length;
   }

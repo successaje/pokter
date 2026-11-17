@@ -127,3 +127,31 @@ test('an agent’s record is Pokter’s jobs and its wallet’s others, each onc
   const fresh = agentRecordJobs({ chain_id: 97, token_id: '4', name: 'Four', agent_wallet: SHARED });
   assert.deepEqual(fresh.elsewhere.shared, { jobs: 1, agents: 3 });
 });
+
+test('a job stored before its budget and provider were set is read again in full, and so is an older row', async () => {
+  const store = getQuestStore();
+  /* Stored as created: open, no provider named yet, no budget. */
+  const created = { client: '0x00000000000000000000000000000000000000cb', provider: ZERO, status: 0, expiredAt: s(NOW + 3_600_000), submittedAt: 0n };
+  chain[11] = created;
+  store.advance(97, [{ chainId: 97, jobId: 11, client: created.client, provider: ZERO, budget: '0', expiredAt: Number(created.expiredAt), status: 0, description: '' }], 1, 12, new Date(NOW).toISOString());
+  /* Then the buyer named this agent, set the budget and funded it, and it was delivered and paid. */
+  chain[11] = { ...created, provider: W1, status: 3, submittedAt: s(NOW + 600_000) };
+
+  /* A row stored before budgets were re-read, its budget stale. */
+  const { DatabaseSync } = await import('node:sqlite');
+  const db = new DatabaseSync(process.env.QUEST_DB_PATH!);
+  db.prepare("UPDATE escrow_jobs SET budget = '0', fields_read_at = NULL WHERE chain_id = 97 AND job_id = 7").run();
+  db.close();
+
+  reads.length = 0;
+  await refreshEscrowStatuses({ clients: { 56: reader, 97: reader }, now: () => NOW + 5 * 3_600_000 });
+  assert.ok(reads.includes(11) && reads.includes(7), `read ${reads.join(', ')}`);
+  const rows = new Map(store.byProvider(97, W1).map((job) => [job.jobId, job]));
+  assert.deepEqual([rows.get(11)?.status, rows.get(11)?.budget], [3, String(10n ** 16n)], 'named as provider, funded and paid');
+  assert.equal(rows.get(7)?.budget, String(10n ** 16n));
+  assert.ok(agentRecordJobs({ chain_id: 97, token_id: '1', name: 'One', agent_wallet: null }).jobs.some((job) => job.jobId === '11' && job.budgetRaw === String(10n ** 16n)));
+
+  reads.length = 0;
+  await refreshEscrowStatuses({ clients: { 56: reader, 97: reader }, now: () => NOW + 7 * 3_600_000 });
+  assert.ok(!reads.includes(11) && !reads.includes(7), 'settled, and read in full: not read again');
+});
