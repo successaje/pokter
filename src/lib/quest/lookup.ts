@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { CAMPAIGN_STARTS_AT } from '@/lib/campaign/window';
 import { decodePokterJobEnvelope } from '@/lib/erc8183/job-envelope';
 import { COMMERCE_ABI, JOB_STATUS, QUEST_CHAINS, questClient, type QuestChainId } from './indexer';
 import { marketplaceFromRecord, POKTER_MARKETPLACE, summariseQuest, type QuestHire, type QuestSummary } from './progress';
@@ -31,6 +32,17 @@ function agentBySignedPrice(chainId: number, wallet: string): { chainId: number;
 }
 
 /**
+ * The jobs inside the campaign window: deadline on or after it opened.
+ *
+ * The index reaches back before the campaign, for agents' records; the
+ * tracker counts the campaign's jobs only.
+ */
+export function inCampaignWindow<T extends { expiredAt: number }>(jobs: T[]): T[] {
+  const opened = Math.floor(CAMPAIGN_STARTS_AT.getTime() / 1000);
+  return jobs.filter((job) => job.expiredAt >= opened);
+}
+
+/**
  * A wallet's hires since the campaign opened, on both escrow contracts.
  *
  * Statuses are re-read from chain (a job indexed as open may have been
@@ -41,7 +53,7 @@ function agentBySignedPrice(chainId: number, wallet: string): { chainId: number;
  */
 export async function lookupQuest(address: string): Promise<QuestLookup> {
   const store = getQuestStore();
-  const indexed = store.byClient(address);
+  const indexed = inCampaignWindow(store.byClient(address));
 
   const byChain = new Map<QuestChainId, typeof indexed>();
   for (const job of indexed) {

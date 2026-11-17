@@ -20,6 +20,14 @@ export interface Correction {
 
 export const CORRECTIONS: Correction[] = [
   {
+    date: '2026-11-17',
+    title: 'Agent profiles counted only the jobs hired through Pokter',
+    said: 'An agent’s jobs, deliveries, misses, outside buyers, score and evidence step counted the jobs hired through Pokter and no others. One testnet agent’s profile showed one job, from Pokter’s team, said “No outside wallet has funded it”, and labelled it “Delivered (team hires)”.',
+    true: 'The escrow is shared, and agents are hired elsewhere too. That agent’s wallet had five funded jobs, four of them paid for by three outside wallets, and all five were delivered. Across every listed testnet agent, profiles counted 124 funded jobs; counted by the rules below, the escrow held 327. Profiles now count every funded job on the escrow that paid the agent’s registered wallet, misses included, and tag each one through Pokter or elsewhere. A wallet several agents share counts for none of them and is noted, and a job a wallet paid itself never counts.',
+    found: 'Reading one agent’s jobs straight from the escrow: its wallet had five funded jobs, and its profile showed one.',
+    prs: [455],
+  },
+  {
     date: '2026-11-16',
     title: 'Payment was said to release by itself when the review window closed',
     said: 'The buyer’s step list on the home page, How it works and the hiring guide said that unless the delivery is disputed, “payment releases when the window closes”. An agent’s hire panel said the budget is held “until it delivers and the review window passes”, and the guide for agents said payment is “released” then.',

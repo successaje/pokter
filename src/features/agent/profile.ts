@@ -34,8 +34,8 @@ import { summarisePublishedEvidence, type PublishedEvidenceSummary } from '@/lib
 import { suggestionLabel, suggestionNote } from '@/lib/find/suggested';
 import { getProbeStore } from '@/lib/history/store';
 import { endpointReading } from '@/lib/compare/rows';
-import { getJobStore } from '@/lib/erc8183/store';
 import { escrowCommerceAddress } from '@/lib/erc8183/addresses';
+import type { ElsewhereSummary } from '@/lib/agent/escrow-record';
 import { jobReceipt } from '@/lib/jobs/receipt-link';
 import { getReviewStore } from '@/lib/reviews/store';
 import type { VerifiedReview } from '@/lib/reviews/model';
@@ -159,6 +159,12 @@ export interface AgentProfile {
   /** The outside wallets that funded `paidWork`, and how far they are from independent. */
   buyers: BuyerCounts;
   /**
+   * The jobs in the record not hired through Pokter, what was left out
+   * and why (`escrowRecord`), and how many of them were delivered: Pokter
+   * holds no answer for those, so the sample says where the deliveries were.
+   */
+  elsewhere: ElsewhereSummary & { delivered: number };
+  /**
    * The funded jobs behind the counts above, newest first.
    *
    * The tab reported five totals and showed none of the work they came
@@ -178,7 +184,19 @@ export interface AgentProfile {
     amountLabel: string;
     /** The token the escrow holds for this job; null until it is read. */
     paymentToken: string | null;
-    hiredAt: string;
+    /**
+     * The row's date and what it is. Pokter knows when it hired a job; of a
+     * job made elsewhere it knows only when it was delivered, or its
+     * deadline, and says which.
+     */
+    date: string;
+    dateMeans: 'hired' | 'delivered' | 'due';
+    /**
+     * Hired through Pokter, with an evidence page; elsewhere, with only the
+     * escrow's facts; or funded by a Pokter wallet that the index never
+     * recorded, which has the escrow's facts and no page either.
+     */
+    origin: 'pokter' | 'elsewhere' | 'unindexed';
     delivered: boolean;
     /** The escrow paid Pokter's courier, not the agent: listed, and in no paid-work figure. */
     viaCourier: boolean;
@@ -462,11 +480,14 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
     paidWork: d.paidWork.history,
     courierJobs: d.paidWork.courierJobs.length,
     buyers: d.buyers,
-    /* Same source as the counts beside them: the store, read once. */
+    elsewhere: {
+      ...d.escrowRecord.elsewhere,
+      delivered: d.escrowRecord.jobs.filter((job) => job.origin === 'elsewhere' && (job.status === 'SUBMITTED' || job.status === 'COMPLETED')).length,
+    },
+    /* Same source as the counts beside them: the dossier's record, read once. */
     jobHistory: (() => {
       const courier = new Set(d.paidWork.courierJobs);
-      return getJobStore()
-        .byAgent(agent.chain_id, agent.token_id)
+      return d.escrowRecord.jobs
         .filter((job) => job.status !== 'OPEN')
         .slice()
         .sort((a, b) => Date.parse(b.hiredAt) - Date.parse(a.hiredAt))
@@ -478,7 +499,9 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
           /* In the job's own token, from its own decimals: not budgetRaw / 1e18 in $U. */
           amountLabel: jobAmountLabel({ chainId: job.chainId, paymentToken: job.paymentToken ?? null, budgetRaw: job.budgetRaw }),
           paymentToken: job.paymentToken ?? null,
-          hiredAt: job.hiredAt,
+          date: job.hiredAt,
+          dateMeans: !job.origin ? 'hired' as const : job.submittedAt ? 'delivered' as const : 'due' as const,
+          origin: job.origin ?? ('pokter' as const),
           delivered: job.status === 'SUBMITTED' || job.status === 'COMPLETED',
           viaCourier: courier.has(`${job.chainId}:${job.jobId}`),
           receipt: jobReceipt(job, escrowCommerceAddress),

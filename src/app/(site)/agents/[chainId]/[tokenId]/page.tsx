@@ -14,6 +14,7 @@ import { formatDelivery, formatMs, shortAddress } from '@/lib/ui/format';
 import type { ChainId } from '@/lib/scan/types';
 import { commissionTaskTemplates, templatesFromSkills } from '@/lib/hire/taskTemplates';
 import { jobEvidencePath, utcWhen } from '@/lib/jobs/evidence-view';
+import { originNote } from '@/lib/agent/escrow-record';
 import { AnswerValue, DeliveredAnswerView } from '@/features/delivery/AnswerView';
 import { PlanChecks, planCheckTally } from '@/features/delivery/PlanChecks';
 import { planCheckPreviewForCategory } from '@/lib/delivery/plan-checks';
@@ -131,6 +132,20 @@ const JOB_STATE: Record<string, string> = {
   COMPLETED: 'Settled',
   EXPIRED: 'Expired, reclaimed',
   REJECTED: 'Disputed',
+};
+
+/* Where a row's job came from: the tag a reader scans the list by. */
+const JOB_ORIGIN: Record<'pokter' | 'elsewhere' | 'unindexed', string> = {
+  pokter: 'Through Pokter',
+  elsewhere: 'Elsewhere',
+  unindexed: 'Funded by Pokter',
+};
+
+/* What a row's date is: Pokter knows when it hired; of a job outside its index, only its delivery or its deadline. */
+const JOB_DATE: Record<'hired' | 'delivered' | 'due', string> = {
+  hired: 'Hired',
+  delivered: 'Delivered',
+  due: 'Due',
 };
 
 type Params = Promise<{ chainId: string; tokenId: string }>;
@@ -1023,12 +1038,14 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                 {/*
                   Paid work only. A job the escrow paid Pokter's courier for
                   is listed below and said here, not counted: the agent
-                  answered it and was not paid.
+                  answered it and was not paid. Jobs hired elsewhere are
+                  counted, and the note says how many came through Pokter.
                 */}
                 <Readout
                   label="Jobs funded"
                   value={p.paidWork.jobs}
                   note={[
+                    originNote(p.paidWork.jobs, p.elsewhere),
                     p.paidWork.pending ? `${p.paidWork.pending} still inside the deadline` : null,
                     p.courierJobs ? `${p.courierJobs} through Pokter’s courier, not counted` : null,
                   ].filter(Boolean).join(' · ') || 'Through Pokter escrow'}
@@ -1102,15 +1119,26 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                         <span className="flex min-w-0 flex-col gap-0.5">
                           <span className="flex flex-wrap items-baseline gap-x-2">
                             <span className="font-medium">{JOB_STATE[job.status] ?? job.status}</span>
-                            <Link href={jobEvidencePath(job)} className="t-readout text-[11.5px] text-ink-3 underline decoration-rule-strong underline-offset-2 hover:text-ink hover:decoration-ink" title={`Job #${job.jobId}: what the escrow records and Pokter's check of the delivery`}>
-                              #{job.jobId}
-                            </Link>
+                            {/* A job outside Pokter's index has no page on Pokter: its record is the escrow's, linked on the right. */}
+                            {job.origin !== 'pokter' ? (
+                              <span className="t-readout text-[11.5px] text-ink-3" title={`Job #${job.jobId} is not in Pokter's index. Pokter has the escrow's record of it and nothing more.`}>
+                                #{job.jobId}
+                              </span>
+                            ) : (
+                              <Link href={jobEvidencePath(job)} className="t-readout text-[11.5px] text-ink-3 underline decoration-rule-strong underline-offset-2 hover:text-ink hover:decoration-ink" title={`Job #${job.jobId}: what the escrow records and Pokter's check of the delivery`}>
+                                #{job.jobId}
+                              </Link>
+                            )}
+                            {/* Where it was hired, on every row, so the list can be read by it. */}
+                            <span className="inline-flex h-[18px] items-center rounded-full border border-rule-strong bg-sunken px-1.5 text-[10.5px] font-medium text-ink-2">
+                              {JOB_ORIGIN[job.origin]}
+                            </span>
                             {/* Said on the row, not inferred from a total: a job the
                                 escrow paid Pokter's courier for is not the agent's paid work. */}
                             {job.viaCourier && <span className="text-[11.5px] text-watch">Through Pokter&rsquo;s courier, not counted</span>}
                           </span>
                           <span className="text-[11.5px] text-ink-3">
-                            {new Date(job.hiredAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })} · {shortNetworkLabel(job.chainId)}
+                            {JOB_DATE[job.dateMeans]} {new Date(job.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })} · {shortNetworkLabel(job.chainId)}
                           </span>
                         </span>
                         <span className="flex shrink-0 flex-col items-end gap-1">

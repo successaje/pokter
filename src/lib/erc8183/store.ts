@@ -108,6 +108,8 @@ export interface JobStore {
   all(): HiredJob[];
   byId(id: string): HiredJob | null;
   byAgent(chainId: number, tokenId: string): HiredJob[];
+  /** Whether the index holds this escrow job, for any agent. */
+  knowsJob(chainId: number, jobId: string): boolean;
   /** Jobs funded by one wallet, newest first. */
   byClient(client: string): HiredJob[];
   /** Attach the chain funder only with the public on-chain task, because wallet lookups are public. */
@@ -765,6 +767,11 @@ class SqliteJobStore implements JobStore {
       .prepare('SELECT * FROM jobs WHERE id = ?')
       .get(id) as unknown as JobRow | undefined;
     return row ? toJob(row) : null;
+  }
+
+  /** Whether Pokter's index holds this escrow job, for any agent. */
+  knowsJob(chainId: number, jobId: string): boolean {
+    return this.db.prepare('SELECT 1 FROM jobs WHERE chain_id = ? AND job_id = ? LIMIT 1').get(chainId, jobId) !== undefined;
   }
 
   byClient(client: string): HiredJob[] {

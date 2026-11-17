@@ -36,8 +36,10 @@ export function questClient(chainId: QuestChainId) {
   return createPublicClient({ chain, transport: readTransport(chainId, rpcs), batch: { multicall: true } });
 }
 type Client = ReturnType<typeof questClient>;
+/** What the index reads through; a test passes its own. */
+export type Reader = Pick<Client, 'readContract'>;
 
-function readJob(client: Client, chainId: QuestChainId, id: bigint) {
+function readJob(client: Reader, chainId: QuestChainId, id: bigint) {
   return client.readContract({ address: QUEST_CHAINS[chainId].commerce, abi: COMMERCE_ABI, functionName: 'getJob', args: [id] });
 }
 
@@ -46,7 +48,7 @@ function readJob(client: Client, chainId: QuestChainId, id: bigint) {
  * default; a failed read is stored as null (unknown) and does not stop the
  * batch, since the token is shown, not summed.
  */
-function readPaymentToken(client: Client, chainId: QuestChainId, id: bigint): Promise<string | null> {
+function readPaymentToken(client: Reader, chainId: QuestChainId, id: bigint): Promise<string | null> {
   return client
     .readContract({ address: QUEST_CHAINS[chainId].commerce, abi: COMMERCE_ABI, functionName: 'jobPaymentToken', args: [id] })
     .then((token) => (/^0x0{40}$/i.test(token as string) ? null : (token as string)))
@@ -61,7 +63,7 @@ function readPaymentToken(client: Client, chainId: QuestChainId, id: bigint): Pr
  * deadline after it is included. Deadlines rise with job ids closely enough
  * for a binary search.
  */
-async function firstCampaignJob(client: Client, chainId: QuestChainId, counter: bigint): Promise<bigint> {
+async function firstCampaignJob(client: Reader, chainId: QuestChainId, counter: bigint): Promise<bigint> {
   let low = 1n;
   let high = counter + 1n;
   while (low < high) {
@@ -72,17 +74,37 @@ async function firstCampaignJob(client: Client, chainId: QuestChainId, counter: 
   return low;
 }
 
+/** A batch of jobs by id, with their payment tokens, as rows. */
+async function readRows(client: Reader, chainId: QuestChainId, ids: bigint[]): Promise<EscrowJob[]> {
+  const jobs = await Promise.all(ids.map((id) => readJob(client, chainId, id)));
+  const tokens = await Promise.all(jobs.map((j) => readPaymentToken(client, chainId, j.id)));
+  return jobs.map((j, i) => ({
+    chainId,
+    jobId: Number(j.id),
+    client: j.client,
+    provider: j.provider,
+    budget: j.budget.toString(),
+    expiredAt: Number(j.expiredAt),
+    status: j.status,
+    description: j.description.slice(0, 4000),
+    paymentToken: tokens[i],
+    submittedAt: Number(j.submittedAt),
+  }));
+}
+
 /**
  * Index new jobs by id from where the cursor stands, a bounded number per
  * run, reading current state, which any node serves. A failed batch stops
  * the run with the cursor before it, so nothing is skipped.
+ *
+ * Every job is kept: agents' records read the whole index, and the
+ * campaign tracker applies its own window (`inCampaignWindow`).
  */
 export async function indexEscrowJobs(
   chainId: QuestChainId,
-  { maxBatches = 20 }: { maxBatches?: number } = {},
+  { maxBatches = 20, client = questClient(chainId) }: { maxBatches?: number; client?: Reader } = {},
 ): Promise<{ chainId: number; indexed: number; nextJob: number; counter: number; caughtUp: boolean }> {
   const store = getQuestStore();
-  const client = questClient(chainId);
   const counter = await client.readContract({ address: QUEST_CHAINS[chainId].commerce, abi: COMMERCE_ABI, functionName: 'jobCounter' });
   const existing = store.cursor(chainId);
   const first = existing ? BigInt(existing.firstJob) : await firstCampaignJob(client, chainId, counter);
@@ -91,27 +113,81 @@ export async function indexEscrowJobs(
   for (let batch = 0; batch < maxBatches && next <= counter; batch += 1) {
     const ids: bigint[] = [];
     for (let id = next; id <= counter && ids.length < BATCH; id += 1n) ids.push(id);
-    const jobs = await Promise.all(ids.map((id) => readJob(client, chainId, id)));
-    const inWindow = jobs.filter((j) => j.expiredAt >= BigInt(CAMPAIGN_START));
-    const tokens = await Promise.all(inWindow.map((j) => readPaymentToken(client, chainId, j.id)));
-    const rows: EscrowJob[] = inWindow
-      .map((j, i) => ({
-        chainId,
-        jobId: Number(j.id),
-        client: j.client,
-        provider: j.provider,
-        budget: j.budget.toString(),
-        expiredAt: Number(j.expiredAt),
-        status: j.status,
-        description: j.description.slice(0, 4000),
-        paymentToken: tokens[i],
-      }));
+    const rows = await readRows(client, chainId, ids);
     next = ids[ids.length - 1] + 1n;
     store.advance(chainId, rows, Number(first), Number(next));
     indexed += rows.length;
   }
   if (!existing && indexed === 0) store.advance(chainId, [], Number(first), Number(next));
   return { chainId, indexed, nextJob: Number(next), counter: Number(counter), caughtUp: next > counter };
+}
+
+/**
+ * Read the jobs before the index's first one, newest first, until job 1.
+ *
+ * A new index starts at the campaign's first job, and an agent's record
+ * needs every job before it too. Walking down from there leaves the forward
+ * index free to keep up with new jobs while the history fills in, which on
+ * mainnet is tens of thousands of jobs. Bounded by batches and by a
+ * deadline, and a failed batch leaves the cursor where it was.
+ */
+export async function backfillEscrowJobs(
+  chainId: QuestChainId,
+  { maxBatches = 20, deadlineAt = Number.POSITIVE_INFINITY, client = questClient(chainId), now = Date.now }: { maxBatches?: number; deadlineAt?: number; client?: Reader; now?: () => number } = {},
+): Promise<{ chainId: number; indexed: number; firstJob: number | null; complete: boolean }> {
+  const store = getQuestStore();
+  const cursor = store.cursor(chainId);
+  /* Nothing to extend until the forward index has started. */
+  if (!cursor) return { chainId, indexed: 0, firstJob: null, complete: false };
+  let first = BigInt(cursor.firstJob);
+  let indexed = 0;
+  for (let batch = 0; batch < maxBatches && first > 1n && now() < deadlineAt; batch += 1) {
+    const ids: bigint[] = [];
+    for (let id = first - 1n; id >= 1n && ids.length < BATCH; id -= 1n) ids.push(id);
+    const rows = await readRows(client, chainId, ids);
+    first = ids[ids.length - 1];
+    store.extendBack(chainId, rows, Number(first));
+    indexed += rows.length;
+  }
+  return { chainId, indexed, firstJob: Number(first), complete: first <= 1n };
+}
+
+/** How long a job that can still move goes between reads. */
+export const ESCROW_STATUS_FRESH_MS = 60 * 60_000;
+const REFRESH_LIMIT = 300;
+
+/**
+ * Read again the jobs of agent wallets whose status can still change.
+ *
+ * A stored status is the one read when the job was indexed, and a job
+ * indexed as open may since have been funded, delivered and paid. Only
+ * agents' jobs are re-read, at most hourly each and least recently read
+ * first (`jobsToRefresh` says which can still move). A failed read leaves
+ * the row for the next pass.
+ */
+export async function refreshEscrowStatuses(
+  { deadlineAt = Number.POSITIVE_INFINITY, clients = { 56: questClient(56), 97: questClient(97) }, now = Date.now }:
+  { deadlineAt?: number; clients?: Record<QuestChainId, Reader>; now?: () => number } = {},
+): Promise<{ read: number; changed: number; failed: number }> {
+  const store = getQuestStore();
+  const due = store.jobsToRefresh({ readBefore: new Date(now() - ESCROW_STATUS_FRESH_MS).toISOString(), limit: REFRESH_LIMIT });
+  let read = 0;
+  let changed = 0;
+  let failed = 0;
+  for (let i = 0; i < due.length && now() < deadlineAt; i += BATCH) {
+    const batch = due.slice(i, i + BATCH).filter((job) => job.chainId in QUEST_CHAINS);
+    const reads = await Promise.all(batch.map((job) => readJob(clients[job.chainId as QuestChainId], job.chainId as QuestChainId, BigInt(job.jobId)).catch(() => null)));
+    const fresh = batch.flatMap((job, k) => {
+      const onChain = reads[k];
+      if (!onChain) return [];
+      if (onChain.status !== job.status) changed += 1;
+      return [{ chainId: job.chainId, jobId: job.jobId, status: onChain.status, submittedAt: Number(onChain.submittedAt) }];
+    });
+    store.saveStatuses(fresh, new Date(now()).toISOString());
+    read += fresh.length;
+    failed += batch.length - fresh.length;
+  }
+  return { read, changed, failed };
 }
 
 const IDENTITY = {

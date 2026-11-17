@@ -28,4 +28,5 @@ test('the November fixes are on the record, each with the pull request that made
   assert.deepEqual(byTitle(/quote signature BNB’s agent SDK refuses/)?.prs, [446]);
   assert.deepEqual(byTitle(/release by itself when the review window closed/)?.prs, [448]);
   assert.deepEqual(byTitle(/“attested” a narrower meaning/)?.prs, [448]);
+  assert.deepEqual(byTitle(/counted only the jobs hired through Pokter/)?.prs, [455]);
 });

@@ -152,10 +152,11 @@ export function outsideBuyerJobs(
 }
 
 /**
- * Summarise only jobs Pokter has indexed and attributed to an ERC-8004
- * identity. This is deliberately not described as chain-wide activity: the
- * commerce contract does not carry the agent token id, so attribution depends
- * on Pokter's immutable job envelope and index.
+ * Summarise the jobs attributed to one ERC-8004 identity. The commerce
+ * contract does not carry the agent token id, so attribution is the
+ * caller's: Pokter's envelope and index for its own jobs, and the agent's
+ * registered wallet for jobs hired elsewhere (`agent/escrow-record.ts`),
+ * which this treats by the same rules.
  */
 export function summariseEconomicHistory(
   jobs: HiredJob[],
