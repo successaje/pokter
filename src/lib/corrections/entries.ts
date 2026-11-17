@@ -21,9 +21,17 @@ export interface Correction {
 export const CORRECTIONS: Correction[] = [
   {
     date: '2026-11-17',
+    title: 'A house agent was charged with missed deadlines on Pokter’s own tests',
+    said: 'After agents’ records began counting every escrow job, Brinkwatch’s profile showed 16 jobs funded, 13 delivered and 3 missed deadlines. The three were tagged “Funded by Pokter”.',
+    true: 'The three were jobs Pokter’s operator key funded from a development session on 15 and 16 October, outside Pokter’s hire flow. That flow is what tells an agent a job is funded, and it never ran for them, so Brinkwatch was never told of them. A job one of Pokter’s wallets funds outside the hire flow now counts neither as a delivery nor as a miss, and the profile says how many there are. Brinkwatch’s record is 13 jobs, all delivered.',
+    found: 'Looking for why the three jobs were missing from Pokter’s index: they had been recorded only on a development machine, and no notice was ever sent.',
+    prs: [],
+  },
+  {
+    date: '2026-11-17',
     title: 'Agent profiles counted only the jobs hired through Pokter',
     said: 'An agent’s jobs, deliveries, misses, outside buyers, score and evidence step counted the jobs hired through Pokter and no others. One testnet agent’s profile showed one job, from Pokter’s team, said “No outside wallet has funded it”, and labelled it “Delivered (team hires)”.',
-    true: 'The escrow is shared, and agents are hired elsewhere too. That agent’s wallet had five funded jobs, four of them paid for by three outside wallets, and all five were delivered. Across every listed testnet agent, profiles counted 124 funded jobs; counted by the rules below, the escrow held 327. Profiles now count every funded job on the escrow that paid the agent’s registered wallet, misses included, and tag each one through Pokter or elsewhere. A wallet several agents share counts for none of them and is noted, and a job a wallet paid itself never counts.',
+    true: 'The escrow is shared, and agents are hired elsewhere too. That agent’s wallet had five funded jobs, four of them paid for by three outside wallets, and all five were delivered. Across every listed testnet agent, profiles counted 124 funded jobs; counted by the rules below, the escrow held 323. Profiles now count every funded job on the escrow that paid the agent’s registered wallet, misses included, and tag each one through Pokter or elsewhere. A wallet several agents share counts for none of them and is noted, and a job a wallet paid itself never counts.',
     found: 'Reading one agent’s jobs straight from the escrow: its wallet had five funded jobs, and its profile showed one.',
     prs: [455],
   },

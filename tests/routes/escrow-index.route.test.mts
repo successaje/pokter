@@ -117,11 +117,11 @@ test('an agent’s record is Pokter’s jobs and its wallet’s others, each onc
 
   const one = agentRecordJobs({ chain_id: 97, token_id: '1', name: 'One', agent_wallet: null });
   assert.deepEqual(one.jobs.map((job) => [job.jobId, job.origin ?? 'pokter']).sort(), [['1', 'elsewhere'], ['10', 'pokter'], ['7', 'elsewhere'], ['8', 'elsewhere']]);
-  assert.deepEqual(one.elsewhere, { counted: 3, unindexed: 0, selfPaid: 0, shared: null });
+  assert.deepEqual(one.elsewhere, { counted: 3, pokterOutsideFlow: 0, selfPaid: 0, shared: null });
 
   const two = agentRecordJobs({ chain_id: 97, token_id: '2', name: 'Two', agent_wallet: null });
   assert.deepEqual(two.jobs, []);
-  assert.deepEqual(two.elsewhere, { counted: 0, unindexed: 0, selfPaid: 0, shared: { jobs: 1, agents: 2 } });
+  assert.deepEqual(two.elsewhere, { counted: 0, pokterOutsideFlow: 0, selfPaid: 0, shared: { jobs: 1, agents: 2 } });
 
   /* A wallet the sweep has not read yet: the listing's, shared or not by what the table knows. */
   const fresh = agentRecordJobs({ chain_id: 97, token_id: '4', name: 'Four', agent_wallet: SHARED });

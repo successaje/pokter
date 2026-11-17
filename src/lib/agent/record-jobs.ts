@@ -42,7 +42,7 @@ export function agentRecordJobs(agent: { chain_id: number; token_id: string; nam
 }
 
 function pokterOnly(pokter: EscrowRecord['jobs']): EscrowRecord {
-  return { jobs: pokter, elsewhere: { counted: 0, unindexed: 0, selfPaid: 0, shared: null } };
+  return { jobs: pokter, elsewhere: { counted: 0, pokterOutsideFlow: 0, selfPaid: 0, shared: null } };
 }
 
 function identity(agent: { chain_id: number; token_id: string; name?: string | null }) {

@@ -191,12 +191,8 @@ export interface AgentProfile {
      */
     date: string;
     dateMeans: 'hired' | 'delivered' | 'due';
-    /**
-     * Hired through Pokter, with an evidence page; elsewhere, with only the
-     * escrow's facts; or funded by a Pokter wallet that the index never
-     * recorded, which has the escrow's facts and no page either.
-     */
-    origin: 'pokter' | 'elsewhere' | 'unindexed';
+    /** Hired through Pokter, with an evidence page, or elsewhere, with only the escrow's facts. */
+    origin: 'pokter' | 'elsewhere';
     delivered: boolean;
     /** The escrow paid Pokter's courier, not the agent: listed, and in no paid-work figure. */
     viaCourier: boolean;

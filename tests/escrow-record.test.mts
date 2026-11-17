@@ -54,7 +54,7 @@ test('jobs hired elsewhere join Pokter’s, each once, and only funded work anot
   assert.deepEqual(record.jobs.map((job) => [job.jobId, job.origin ?? 'pokter']), [
     ['1698', 'pokter'], ['1699', 'elsewhere'], ['1702', 'elsewhere'], ['1703', 'elsewhere'], ['1706', 'elsewhere'], ['1710', 'elsewhere'],
   ]);
-  assert.deepEqual(record.elsewhere, { counted: 5, unindexed: 0, selfPaid: 1, shared: null });
+  assert.deepEqual(record.elsewhere, { counted: 5, pokterOutsideFlow: 0, selfPaid: 1, shared: null });
 
   /* The same summary Pokter's own jobs go through: deliveries, misses and buyers by its rules. */
   const history = summariseEconomicHistory(record.jobs, T * 1000 + 7_200_000);
@@ -68,7 +68,7 @@ test('jobs hired elsewhere join Pokter’s, each once, and only funded work anot
 test('a wallet several agents share is counted for none of them, and said beside the record', () => {
   const record = escrowRecord({ agent: AGENT, pokter: [pokterJob], wallet: WALLET, escrow, agentsOnWallet: 3, knownToPokter, team });
   assert.deepEqual(record.jobs, [pokterJob]);
-  assert.deepEqual(record.elsewhere, { counted: 0, unindexed: 0, selfPaid: 1, shared: { jobs: 5, agents: 3 } });
+  assert.deepEqual(record.elsewhere, { counted: 0, pokterOutsideFlow: 0, selfPaid: 1, shared: { jobs: 5, agents: 3 } });
   assert.equal(originNote(1, record.elsewhere), '5 more on a wallet 3 agents share, not counted · 1 it paid itself elsewhere, not counted');
 });
 
@@ -78,16 +78,18 @@ test('no wallet, or nothing elsewhere, leaves the record as Pokter’s and says 
   assert.equal(originNote(1, own.elsewhere), null);
 });
 
-test('a job Pokter’s own wallet funded and its index never recorded is Pokter’s, counted, and never called elsewhere', () => {
-  /* A paid check: funded by the operator key, and nothing delivered. */
-  const check = row(1460, TEAM, 5, { expiredAt: T - 60 });
-  const record = escrowRecord({ agent: AGENT, pokter: [pokterJob], wallet: WALLET, escrow: [check], agentsOnWallet: 1, knownToPokter, team });
-  assert.deepEqual(record.jobs.map((job) => [job.jobId, job.origin ?? 'pokter']), [['1698', 'pokter'], ['1460', 'unindexed']]);
-  assert.deepEqual(record.elsewhere, { counted: 0, unindexed: 1, selfPaid: 0, shared: null });
-  assert.equal(originNote(2, record.elsewhere), null, 'both came through Pokter');
-  const history = summariseEconomicHistory(record.jobs, T * 1000);
-  assert.equal(history.missed, 1, 'the agent’s wallet owed it, so the miss is the agent’s, as for any team hire');
-  assert.equal(history.outsideTeam.jobs, 0);
+test('a job Pokter’s own wallet funded outside its hire flow counts neither way, and is said', () => {
+  /* Funded by the operator key outside the hire flow, so the agent was never told of it; it lapsed, and was delivered once elsewhere. */
+  const lapsed = row(1460, TEAM, 5, { expiredAt: T - 60 });
+  const delivered = row(1335, TEAM, 3);
+  const record = escrowRecord({ agent: AGENT, pokter: [pokterJob], wallet: WALLET, escrow: [lapsed, delivered], agentsOnWallet: 1, knownToPokter, team });
+  assert.deepEqual(record.jobs, [pokterJob], 'neither a miss nor a delivery for the agent');
+  assert.deepEqual(record.elsewhere, { counted: 0, pokterOutsideFlow: 2, selfPaid: 0, shared: null });
+  assert.equal(originNote(1, record.elsewhere), '2 Pokter funded outside its hire flow, not counted');
+  assert.equal(summariseEconomicHistory(record.jobs, T * 1000).missed, 0);
+  /* On a shared wallet they are still Pokter's own, not part of the shared count. */
+  const shared = escrowRecord({ agent: AGENT, pokter: [], wallet: WALLET, escrow: [lapsed], agentsOnWallet: 2, knownToPokter, team });
+  assert.deepEqual(shared.elsewhere, { counted: 0, pokterOutsideFlow: 1, selfPaid: 0, shared: null });
 });
 
 test('a job made elsewhere carries the escrow’s facts and none of the stranger’s words, dated by what is known', () => {

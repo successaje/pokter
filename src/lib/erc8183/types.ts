@@ -60,16 +60,14 @@ export interface HiredJob {
    */
   reclaimTxHash?: Hex | null;
   /**
-   * Set on a job the escrow paid, or holds for, the agent's wallet that is
-   * not in Pokter's index (`agent/escrow-record.ts`): `elsewhere` when
-   * another wallet hired it, `unindexed` when a Pokter wallet funded it and
-   * the index never recorded it. Pokter has the escrow's facts about it and
-   * nothing else: no brief, no funding time and no transaction. So `task`
-   * is empty, and `hiredAt` is not a hire time: it is when the job was
-   * delivered, or its deadline, kept only to order rows. Nothing that
-   * measures time from funding may read it.
+   * Set on a job the escrow paid, or holds for, the agent's wallet that was
+   * hired elsewhere (`agent/escrow-record.ts`). Pokter has the escrow's
+   * facts about it and nothing else: no brief, no funding time and no
+   * transaction. So `task` is empty, and `hiredAt` is not a hire time: it
+   * is when the job was delivered, or its deadline, kept only to order rows.
+   * Nothing that measures time from funding may read it.
    */
-  origin?: 'elsewhere' | 'unindexed';
+  origin?: 'elsewhere';
   /** When the escrow recorded the delivery, for a job made elsewhere; null when nothing was delivered. */
   submittedAt?: string | null;
 }
