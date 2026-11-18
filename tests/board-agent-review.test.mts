@@ -20,7 +20,7 @@ const job: ReviewedJob = { client: BUYER, provider: '0x81762d5214fCB6fB3b102beF9
 const identity = { chainId: 56, tokenId: '1220' };
 const content: ReviewContent = { rating: 4, deliveredAsPromised: true, speed: 'on-time', wouldHireAgain: true, comment: '  Clear and on time.  ' };
 
-const base = {
+const base: Parameters<typeof prepareBoardReview>[0] = {
   chainId: 56,
   jobId: '57301',
   wallet: BUYER,
@@ -29,7 +29,7 @@ const base = {
   job,
   identity,
   holdsAgentId: async () => true,
-  simulate: async () => ({ ok: true as const }),
+  simulate: async () => ({ ok: true }),
 };
 
 test('the call records exactly this review: the job, the stars, the answers and the trimmed comment’s hash', async () => {
