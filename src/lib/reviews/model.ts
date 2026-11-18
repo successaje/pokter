@@ -21,6 +21,8 @@ export interface VerifiedReview {
   onchainTx?: Hex | null;
   /** The chain that transaction is on: the agent's registry chain. */
   onchainChainId?: number | null;
+  /** The PokterBoard transaction, once the buyer recorded the review there with their Agent ID (`lib/board`). */
+  boardTx?: Hex | null;
 }
 
 /** The escrow statuses a job has ended in: settled, rejected by its evaluator, or refunded after its deadline. */

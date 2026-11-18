@@ -64,6 +64,7 @@ class ReviewStore {
       'ALTER TABLE reviews ADD COLUMN moderation_reason TEXT',
       'ALTER TABLE reviews ADD COLUMN onchain_tx TEXT',
       'ALTER TABLE reviews ADD COLUMN onchain_chain_id INTEGER',
+      'ALTER TABLE reviews ADD COLUMN board_tx TEXT',
     ]) {
       try { this.db.exec(statement); }
       catch (error) {
@@ -116,6 +117,11 @@ class ReviewStore {
   /** Record the verified ERC-8004 feedback transaction for a review. */
   setOnchain(chainId: number, jobId: string, transactionHash: string, onchainChainId: number): void {
     this.db.prepare('UPDATE reviews SET onchain_tx=?, onchain_chain_id=? WHERE chain_id=? AND job_id=?').run(transactionHash, onchainChainId, chainId, jobId);
+  }
+
+  /** Record the verified PokterBoard transaction for a review. */
+  setBoard(chainId: number, jobId: string, transactionHash: string): void {
+    this.db.prepare('UPDATE reviews SET board_tx=? WHERE chain_id=? AND job_id=?').run(transactionHash, chainId, jobId);
   }
 
   report(input: { chainId: number; jobId: string; reason: ReviewReportReason; detail: string }): number {
@@ -174,6 +180,7 @@ function toReview(row: Record<string, string | number | null>): VerifiedReview {
     visibility: String(row.visibility ?? 'published') as VerifiedReview['visibility'],
     onchainTx: row.onchain_tx ? (String(row.onchain_tx) as VerifiedReview['signature']) : null,
     onchainChainId: row.onchain_chain_id === null || row.onchain_chain_id === undefined ? null : Number(row.onchain_chain_id),
+    boardTx: row.board_tx ? (String(row.board_tx) as VerifiedReview['signature']) : null,
   };
 }
 

@@ -407,6 +407,8 @@ All optional for local browsing. Server-only unless marked public.
 | `ALTANA_MAINNET_OPERATOR_PURPOSES` | Comma-separated operator purposes allowed to sign on mainnet, e.g. `evidence-agent`. Nothing signs on mainnet without it |
 | `KEEPER` | The keeper, which settles Pokter's delivered jobs once their review window closes and refunds undelivered ones once their deadline passes. `dry` reads and simulates and sends nothing; `on` sends. Anything else, including unset, is off |
 | `KEEPER_CHAINS` | Escrow chains the keeper acts on, e.g. `97,56`. Unset means testnet only, so mainnet is opened by naming it |
+| `POKTER_BOARD_ADDRESS` | The PokterBoard contract on BNB Smart Chain, where buyers holding an Agent ID record their reviews. Unset means no board: nothing offers or reads it |
+| `POKTER_BOARD_FROM_BLOCK` | The block PokterBoard was deployed in, where reading its reviews starts |
 | `KEEPER_KEY` | The keeper's signer: a wallet of its own holding only BNB for gas, never `ALTANA_ADMIN_KEY` (the keeper refuses it). The escrow pays settlements to the agent and refunds to the buyer whoever sends them, so this key only pays gas |
 | `*_DB_PATH` | SQLite locations: `PROBE`, `SESSION`, `JOB`, `DELIVERABLE`, `RATE_LIMIT`, `NOTIFICATION`, `REVIEW`, `BUILDER`, `FUNDER`, `ASSAY`, `QUEST`, `CONVERSION`, `SEAL`, `WALLET_ACTIVITY`, `CAPABILITY`, `FEEDBACK`, `BRIEF`, `PROFILE`, `SCOUT`, `MAINTENANCE`, `SATURATION`. Default `./data/`. A new store is registered in `src/lib/health/stores.ts`, the Dockerfile and `fly.toml` together |
 

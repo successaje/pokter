@@ -16,6 +16,7 @@ import { Icon } from '@/ui/icons';
 import { Rating } from '@/ui/Rating';
 import { FeedbackCard } from './FeedbackCard';
 import { PublishRating } from './PublishRating';
+import { RecordOnBoard } from './RecordOnBoard';
 import { useLiveSignMessage } from '@/lib/wallet/use-live-sign-message';
 
 const RATING_WORD = ['', 'Poor', 'Fair', 'Good', 'Very good', 'Excellent'] as const;
@@ -147,7 +148,12 @@ export function ReviewForm({ job }: { job: HiredJob }) {
         <div className="flex flex-col gap-3 px-5 py-4">
           <Rating value={prior.rating} />
           {prior.comment && <p className="text-[14px] leading-relaxed text-ink-2">&ldquo;{prior.comment}&rdquo;</p>}
-          {(state === 'saved' || (mine && active.mode === 'external')) && <PublishRating review={prior} />}
+          {(state === 'saved' || (mine && active.mode === 'external')) && (
+            <>
+              <RecordOnBoard review={prior} />
+              <PublishRating review={prior} />
+            </>
+          )}
         </div>
       </FeedbackCard>
     );

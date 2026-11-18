@@ -47,7 +47,8 @@ export async function POST(request: Request): Promise<NextResponse> {
   // The escrow the job was funded on; older callers only used the default.
   const chainId = jobChainParam(body.chainId === undefined ? undefined : String(body.chainId)) ?? ALTANA_NETWORK.chainId;
 
-  if (getReviewStore().get(chainId, jobId)?.onchainTx) {
+  const stored = getReviewStore().get(chainId, jobId);
+  if (stored?.onchainTx || stored?.boardTx) {
     return NextResponse.json({ error: 'This review is published on chain and can no longer be edited.' }, { status: 409 });
   }
 
