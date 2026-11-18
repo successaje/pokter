@@ -1,4 +1,4 @@
-import { decodeFunctionData, getAddress, keccak256, parseAbi, stringToBytes, zeroHash, type Address, type Hex } from 'viem';
+import { decodeFunctionData, getAddress, keccak256, parseAbi, parseEventLogs, stringToBytes, zeroHash, type Address, type Hex, type Log } from 'viem';
 
 import type { ReviewContent, ReviewSpeed, VerifiedReview } from '@/lib/reviews/model';
 
@@ -20,6 +20,13 @@ export const BOARD_CHAIN_ID = 56 as const;
 
 /** The Agent ID registry on BNB Smart Chain: one non-transferable token per Binance Wallet user. */
 export const AGENT_ID_REGISTRY: Address = '0x60B9262456dE011F7d15a54CdD8c48bAaa8B022F';
+
+/**
+ * How many distinct holders must have rated an agent before the rating
+ * moves its score: as many as the buyer wallets "Proven in use" asks for,
+ * so one or two opinions never swing it.
+ */
+export const BOARD_RATING_MIN_REVIEWERS = 3;
 
 export const AGENT_ID_ABI = parseAbi(['function balanceOf(address owner) view returns (uint256)']);
 
@@ -114,4 +121,10 @@ export function matchesBoardReview(
   if (rating !== review.rating || flags !== reviewFlags(review)) return { ok: false, reason: 'The recorded rating does not match the review.' };
   if (hash !== commentHash(review.comment)) return { ok: false, reason: 'The recorded comment does not match the review.' };
   return { ok: true };
+}
+
+/** The provider wallet a confirmed board review rated, from its receipt's `Reviewed` log; null when it has none. */
+export function reviewedProvider(logs: Log[], board: Address): Address | null {
+  const events = parseEventLogs({ abi: BOARD_ABI, eventName: 'Reviewed', logs }).filter((log) => getAddress(log.address) === getAddress(board));
+  return events[0] ? getAddress(events[0].args.provider) : null;
 }

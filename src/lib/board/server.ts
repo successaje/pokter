@@ -15,7 +15,7 @@ import { AGENT_ID_ABI, AGENT_ID_REGISTRY, BOARD_ABI, BOARD_CHAIN_ID, BOARD_REFUS
  */
 export function boardContract(): { address: Address; fromBlock: bigint | null } | null {
   const address = process.env.POKTER_BOARD_ADDRESS?.trim();
-  if (!address || !isAddress(address)) return null;
+  if (!address || !isAddress(address, { strict: false })) return null;
   const block = process.env.POKTER_BOARD_FROM_BLOCK?.trim();
   return { address: getAddress(address), fromBlock: block && /^\d+$/.test(block) ? BigInt(block) : null };
 }
@@ -49,6 +49,31 @@ export async function holdsAgentId(wallet: Address, reader: Pick<BoardReader, 'r
   const holds = balance > 0n;
   holders.set(key, { holds, until: now + (holds ? HOLDER_TTL_MS : NON_HOLDER_TTL_MS) });
   return holds;
+}
+
+/**
+ * Which of these wallets hold an Agent ID, lowercased, or null when the
+ * registry could not be read in time: an unread answer is never "none".
+ */
+export async function agentIdHolderSet(
+  wallets: readonly string[],
+  { reader = boardClient(), timeoutMs = 3_000 }: { reader?: Pick<BoardReader, 'readContract'>; timeoutMs?: number } = {},
+): Promise<Set<string> | null> {
+  const unique = [...new Set(wallets.map((w) => w.toLowerCase()))].filter((w) => isAddress(w));
+  if (unique.length === 0) return new Set();
+  const reads = Promise.all(unique.map(async (wallet) => ((await holdsAgentId(wallet as Address, reader)) ? wallet : null)));
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<null>((resolve) => {
+    timer = setTimeout(() => resolve(null), timeoutMs);
+  });
+  try {
+    const held = await Promise.race([reads, late]);
+    return held ? new Set(held.filter((w): w is Address => w !== null)) : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /**

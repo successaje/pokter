@@ -44,6 +44,7 @@ import { captureFixtureDeliverables } from '@/lib/assay/capture';
 import { reconcileJobIndex } from '@/lib/erc8183/reconcile';
 import { publishSeal } from '@/lib/seals/run';
 import { backfillEscrowJobs, indexEscrowJobs, refreshAgentWallets, refreshEscrowStatuses } from '@/lib/quest/indexer';
+import { refreshBoardRatings } from '@/lib/board/ratings';
 import { getQuestStore } from '@/lib/quest/store';
 import { refreshWalletActivity } from '@/lib/activity/store';
 import { refreshCapability } from '@/lib/capability/store';
@@ -74,6 +75,8 @@ const PAID_V3_STEP_MS = 20_000;
 const ANSWERED_TASKS_STEP_MS = 30_000;
 /* Re-reading agents' escrow jobs that can still move: a few hundred reads at most. */
 const ESCROW_STATUS_STEP_MS = 15_000;
+/* PokterBoard's ratings: a few multicalls, once an hour. */
+const BOARD_RATINGS_STEP_MS = 10_000;
 /* The escrow's jobs from before the index began, a share per run until job 1; what does not fit waits. */
 const ESCROW_HISTORY_STEP_MS = 20_000;
 
@@ -648,6 +651,16 @@ export async function POST(request: Request): Promise<NextResponse> {
       () => refreshEscrowStatuses({ deadlineAt: Date.now() + Math.min(ESCROW_STATUS_STEP_MS, budget.spendable()) - 2_000 }),
       { maxMs: ESCROW_STATUS_STEP_MS },
     );
+    /*
+     * Every listed agent wallet's rating on PokterBoard, read from the
+     * contract's own totals at most hourly (`refreshBoardRatings`). Off
+     * until a board is set.
+     */
+    const boardRatings = await budget.step(
+      'boardRatings',
+      () => refreshBoardRatings({ deadlineAt: Date.now() + Math.min(BOARD_RATINGS_STEP_MS, budget.spendable()) - 2_000 }),
+      { maxMs: BOARD_RATINGS_STEP_MS },
+    );
     // After the index, so the newest jobs are there to be judged.
     const answeredTasks = await budget.step(
       'answeredTasks',
@@ -827,6 +840,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       capability,
       questIndex,
       escrowStatuses,
+      boardRatings,
       escrowHistory,
       answeredTasks,
       reconciled,

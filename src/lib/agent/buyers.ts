@@ -23,11 +23,17 @@ export interface BuyerCounts {
   ownAgent: number | null;
   /** Whether the agent's own owner is one of the wallets; null when its owner was not read. */
   ownerAmong: boolean | null;
+  /**
+   * Wallets that hold an Agent ID. One per Binance Wallet user and not
+   * transferable, so each is a different person, which no count of wallets
+   * can say. Null when the registry was not read.
+   */
+  agentId: number | null;
 }
 
 export function buyerCounts(
   perWallet: ReadonlyMap<string, number>,
-  { listedOwners, owner }: { listedOwners: ReadonlySet<string> | null; owner: string | null },
+  { listedOwners, owner, agentIdHolders = null }: { listedOwners: ReadonlySet<string> | null; owner: string | null; agentIdHolders?: ReadonlySet<string> | null },
 ): BuyerCounts {
   const wallets = [...perWallet.keys()].map((wallet) => wallet.toLowerCase());
   const counts = [...perWallet.values()];
@@ -38,6 +44,7 @@ export function buyerCounts(
     returning: counts.filter((count) => count > 1).length,
     ownAgent: listedOwners ? wallets.filter((wallet) => listedOwners.has(wallet) || wallet === ownerWallet).length : null,
     ownerAmong: ownerWallet ? wallets.includes(ownerWallet) : null,
+    agentId: agentIdHolders ? wallets.filter((wallet) => agentIdHolders.has(wallet)).length : null,
   };
 }
 
@@ -67,6 +74,14 @@ export function buyerNote(counts: BuyerCounts): BuyerNotePart[] {
         ? '1 is this agent’s owner'
         : `${counts.ownAgent} ${counts.ownAgent === 1 ? 'owns' : 'own'} a listed agent${counts.ownerAmong ? ', one of them this agent’s owner' : ''}`;
     parts.push({ text, tone: 'watch', title: 'Outside Pokter’s team, and not independent of the marketplace.' });
+  }
+  /* Said only when some do: a wallet without one is unverified, not suspect, and most buyers have none yet. */
+  if (counts.agentId) {
+    parts.push({
+      text: counts.wallets === 1 ? 'holds an Agent ID' : `${counts.agentId} ${counts.agentId === 1 ? 'holds' : 'hold'} an Agent ID`,
+      tone: 'neutral',
+      title: 'An Agent ID is one per Binance Wallet user and cannot be transferred, so each wallet holding one is a different person.',
+    });
   }
   return parts;
 }

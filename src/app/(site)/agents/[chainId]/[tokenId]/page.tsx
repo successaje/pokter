@@ -1161,10 +1161,28 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                 </div>
               )}
 
-              {p.reviews.length === 0 ? (
-                <p className="rounded-[12px] border border-dashed border-rule-strong px-5 py-4 text-[13.5px] text-ink-2">
-                  No reviews yet. On Pokter, only the wallet that funded a completed job can review it, and the review is signed by that wallet, so there are no anonymous ratings to show.
+              {/*
+                The board's own totals: one current rating per person holding
+                an Agent ID, for jobs they paid for and the agent delivered.
+                Read from the contract, so it stands without Pokter's word.
+              */}
+              {p.boardRating && (
+                <p className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[13.5px] text-ink-2">
+                  <Rating value={p.boardRating.average} />
+                  <span>
+                    <strong className="font-medium text-ink">{p.boardRating.average.toFixed(1)}/5</strong> from {p.boardRating.reviewers} {p.boardRating.reviewers === 1 ? 'person' : 'people'} holding an Agent ID, one rating each, recorded on{' '}
+                    <a href={`${explorerBaseFor(56)}/address/${p.boardRating.board}#events`} target="_blank" rel="noreferrer noopener" className="link" title="Each holder counts once, for a job they funded and the agent delivered. The contract checks this itself.">
+                      PokterBoard
+                    </a>
+                  </span>
                 </p>
+              )}
+              {p.reviews.length === 0 ? (
+                p.boardRating ? null : (
+                  <p className="rounded-[12px] border border-dashed border-rule-strong px-5 py-4 text-[13.5px] text-ink-2">
+                    No reviews yet. On Pokter, only the wallet that funded a job the agent delivered can review it, and the review is signed by that wallet, so there are no anonymous ratings to show.
+                  </p>
+                )
               ) : (
                 <ul className="ruled" aria-label="Reviews signed by the wallets that funded these jobs">
                   {p.reviews.slice(0, 6).map((r) => (
@@ -1182,6 +1200,11 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                         <span>
                           Job <span className="t-readout">#{r.jobId}</span> · signed by the funding wallet <span className="t-readout">{r.buyer.slice(0, 6)}…{r.buyer.slice(-4)}</span>
                         </span>
+                        {r.boardTx && (
+                          <a href={`${explorerBaseFor(56)}/tx/${r.boardTx}`} target="_blank" rel="noreferrer noopener" className="link" title="Recorded on PokterBoard by a buyer holding an Agent ID">
+                            Agent ID holder
+                          </a>
+                        )}
                         {r.onchainTx && r.onchainChainId && (
                           <a href={`${explorerBaseFor(r.onchainChainId)}/tx/${r.onchainTx}`} target="_blank" rel="noreferrer noopener" className="link" title="Published to the ERC-8004 reputation registry by the buyer">
                             On chain

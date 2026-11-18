@@ -57,6 +57,18 @@ class ReviewStore {
       );
       CREATE INDEX IF NOT EXISTS idx_review_reports_status
         ON review_reports (status, created_at DESC);
+      CREATE TABLE IF NOT EXISTS board_ratings (
+        board TEXT NOT NULL,
+        provider TEXT NOT NULL,
+        reviewers INTEGER NOT NULL,
+        stars INTEGER NOT NULL,
+        read_at TEXT NOT NULL,
+        PRIMARY KEY (board, provider)
+      );
+      CREATE TABLE IF NOT EXISTS board_reads (
+        board TEXT PRIMARY KEY,
+        read_at TEXT NOT NULL
+      );
     `);
     for (const statement of [
       "ALTER TABLE reviews ADD COLUMN visibility TEXT NOT NULL DEFAULT 'published'",
@@ -122,6 +134,43 @@ class ReviewStore {
   /** Record the verified PokterBoard transaction for a review. */
   setBoard(chainId: number, jobId: string, transactionHash: string): void {
     this.db.prepare('UPDATE reviews SET board_tx=? WHERE chain_id=? AND job_id=?').run(transactionHash, chainId, jobId);
+  }
+
+  /**
+   * PokterBoard's ratings of provider wallets, as read from the contract.
+   * Only rated wallets are kept: a wallet's reviewer count never falls, so
+   * a wallet missing here has none.
+   */
+  saveBoardRatings(board: string, rows: Array<{ provider: string; reviewers: number; stars: number }>, readAt: string): void {
+    const insert = this.db.prepare(`
+      INSERT INTO board_ratings (board, provider, reviewers, stars, read_at) VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(board, provider) DO UPDATE SET reviewers=excluded.reviewers, stars=excluded.stars, read_at=excluded.read_at
+    `);
+    this.db.exec('BEGIN');
+    try {
+      for (const row of rows) insert.run(board.toLowerCase(), row.provider.toLowerCase(), row.reviewers, row.stars, readAt);
+      this.db.exec('COMMIT');
+    } catch (error) {
+      this.db.exec('ROLLBACK');
+      throw error;
+    }
+  }
+
+  boardRating(board: string, provider: string): { reviewers: number; stars: number; readAt: string } | null {
+    const row = this.db.prepare('SELECT reviewers, stars, read_at FROM board_ratings WHERE board=? AND provider=?').get(board.toLowerCase(), provider.toLowerCase()) as
+      | { reviewers: number; stars: number; read_at: string }
+      | undefined;
+    return row ? { reviewers: Number(row.reviewers), stars: Number(row.stars), readAt: String(row.read_at) } : null;
+  }
+
+  /** When every agent wallet's board rating was last read. */
+  boardReadAt(board: string): string | null {
+    const row = this.db.prepare('SELECT read_at FROM board_reads WHERE board=?').get(board.toLowerCase()) as { read_at: string } | undefined;
+    return row?.read_at ?? null;
+  }
+
+  setBoardReadAt(board: string, readAt: string): void {
+    this.db.prepare('INSERT INTO board_reads (board, read_at) VALUES (?, ?) ON CONFLICT(board) DO UPDATE SET read_at=excluded.read_at').run(board.toLowerCase(), readAt);
   }
 
   report(input: { chainId: number; jobId: string; reason: ReviewReportReason; detail: string }): number {

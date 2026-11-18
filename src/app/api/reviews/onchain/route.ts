@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { createPublicClient, fallback, http, isHash, type Hex } from 'viem';
 import { bsc, bscTestnet } from 'viem/chains';
 
-import { BOARD_CHAIN_ID, matchesBoardReview } from '@/lib/board/contract';
+import { BOARD_CHAIN_ID, matchesBoardReview, reviewedProvider } from '@/lib/board/contract';
+import { refreshBoardRatings } from '@/lib/board/ratings';
 import { boardContract } from '@/lib/board/server';
 import { matchesFeedback } from '@/lib/reviews/onchain';
 import { getReviewStore } from '@/lib/reviews/store';
@@ -60,6 +61,9 @@ export async function POST(request: Request): Promise<NextResponse> {
     if (!match.ok) return NextResponse.json({ error: match.reason }, { status: 409 });
     if (board) {
       store.setBoard(chainId, jobId, hash);
+      /* The agent's rating as the board now holds it, rather than at the next hourly read. */
+      const provider = reviewedProvider(receipt.logs, board.address);
+      if (provider) await refreshBoardRatings({ wallets: [provider] }).catch(() => null);
       return NextResponse.json({ recorded: true, target: 'board', chainId: BOARD_CHAIN_ID, transactionHash: hash });
     }
     store.setOnchain(chainId, jobId, hash, review.agentChainId);

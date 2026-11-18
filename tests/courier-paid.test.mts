@@ -87,7 +87,7 @@ test('the profile, its score, Compare and delivery times read paid work by this 
   /* Its buyers are counted over the same jobs as its paid work. */
   assert.match(credited, /outsideBuyers: outsideBuyerJobs\(paid, \{ isLifecycleDemo \}\),/);
   const marketplace = code('lib/marketplace.ts');
-  assert.match(marketplace, /score: computeScore\(\{ agent, category, proof, attestations, record, live, history: paidWork\.history \}\),/);
+  assert.match(marketplace, /score: computeScore\(\{ agent, category, proof, attestations, record, live, history: paidWork\.history, buyerRating: boardRating \}\),/);
   assert.match(marketplace, /const \{ history: economicHistory \} = await agentPaidWork\(agentRecordJobs\(agent\)\.jobs\);/);
   assert.match(code('lib/agent/delivery-times.ts'), /\.filter\(\(job\) => job\.status !== 'OPEN' && !courierPaid\(job\)\)/);
   const profile = code('app/(site)/agents/[chainId]/[tokenId]/page.tsx');
