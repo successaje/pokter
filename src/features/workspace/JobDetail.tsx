@@ -37,6 +37,7 @@ import { UsefulnessQuestion } from './UsefulnessQuestion';
 import { JobUpdates } from './JobUpdates';
 import { localMoment } from '@/lib/time/local-moment';
 import { releaseAllowed } from '@/lib/jobs/release';
+import { reviewableJob } from '@/lib/reviews/model';
 
 /**
  * Finds the job in this device's memory, or rebuilds it from chain. A job
@@ -195,6 +196,18 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
     enabled: delivered,
     staleTime: 60_000,
   });
+  /*
+   * A rejected or refunded job can be reviewed only if the agent delivered
+   * something (`reviewableJob`), and the escrow is what records that.
+   */
+  const lapsed = job.status === 'REJECTED' || job.status === 'EXPIRED';
+  const lapsedDelivery = useQuery({
+    queryKey: ['job-delivered', job.chainId, job.jobId],
+    queryFn: async () => (await readReviewTiming(job.chainId, BigInt(job.jobId))).submittedAt,
+    enabled: lapsed && owned,
+    staleTime: 5 * 60_000,
+  });
+  const reviewable = job.status === 'COMPLETED' || (lapsed && reviewableJob(job.status, lapsedDelivery.data ?? 0));
   /*
    * Frozen, except that it jumps once as the review window closes. `useNow`
    * alone never moves, and nothing on chain changes at that moment either
@@ -512,21 +525,20 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
 
       {/*
         The public review and the private answer side by side, each saying
-        who sees it. They were two full-width sections, the private one
-        first, each with its own title and a paragraph explaining it; the
-        review can be written only once escrow settles, so until then the
-        private question stands alone.
+        who sees it. The review can be written once the job has ended with
+        a delivery: settled, or rejected or refunded after the agent
+        delivered. Until then the private question stands alone.
       */}
-      {(job.status === 'SUBMITTED' || job.status === 'COMPLETED') && owned && (
+      {(job.status === 'SUBMITTED' || reviewable) && owned && (
         <section aria-labelledby="feedback-title" className="flex flex-col gap-4">
           <div>
             <h2 id="feedback-title" className="t-h3">How did the agent do?</h2>
             <p className="text-[13.5px] text-ink-2">
-              {job.status === 'COMPLETED' ? 'Share how this job went.' : 'Tell Pokter privately whether the answer helped. You can review the job once escrow settles.'}
+              {reviewable ? 'Share how this job went.' : 'Tell Pokter privately whether the answer helped. You can review the job once escrow settles.'}
             </p>
           </div>
-          <div className={cn('grid items-start gap-4', job.status === 'COMPLETED' ? 'lg:grid-cols-[minmax(0,1fr)_minmax(0,21rem)]' : 'max-w-xl')}>
-            {job.status === 'COMPLETED' && <ReviewForm job={job} />}
+          <div className={cn('grid items-start gap-4', reviewable ? 'lg:grid-cols-[minmax(0,1fr)_minmax(0,21rem)]' : 'max-w-xl')}>
+            {reviewable && <ReviewForm job={job} />}
             <UsefulnessQuestion job={job} />
           </div>
         </section>

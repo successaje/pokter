@@ -23,7 +23,24 @@ export interface VerifiedReview {
   onchainChainId?: number | null;
 }
 
-export const REVIEW_REPORT_REASONS = ['spam', 'harassment', 'personal-information', 'unrelated', 'other'] as const;
+/** The escrow statuses a job has ended in: settled, rejected by its evaluator, or refunded after its deadline. */
+export const ENDED_JOB_STATUSES = ['COMPLETED', 'REJECTED', 'EXPIRED'] as const;
+
+/**
+ * Whether a job can be reviewed: it has ended, and the agent delivered
+ * something. The same rule as PokterBoard's `review`, so any review Pokter
+ * accepts can also be recorded there.
+ *
+ * A client can fund a job naming any agent without its agreement, let it
+ * lapse and take the money back, so a job with nothing delivered may be one
+ * the agent never saw. A rejected or refunded job the agent did deliver is
+ * where a review says the most.
+ */
+export function reviewableJob(status: string, submittedAt: bigint | number): boolean {
+  return (ENDED_JOB_STATUSES as readonly string[]).includes(status) && BigInt(submittedAt) > 0n;
+}
+
+export const REVIEW_REPORT_REASONS =['spam', 'harassment', 'personal-information', 'unrelated', 'other'] as const;
 export type ReviewReportReason = (typeof REVIEW_REPORT_REASONS)[number];
 
 export interface ReviewContent {

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
 import type { HiredJob } from '@/lib/erc8183/types';
-import { reviewMessage, type ReviewContent, type ReviewSpeed, type VerifiedReview } from '@/lib/reviews/model';
+import { ENDED_JOB_STATUSES, reviewMessage, type ReviewContent, type ReviewSpeed, type VerifiedReview } from '@/lib/reviews/model';
 import { useActiveWallet } from '@/lib/wallet/active';
 import { signPasskeyMessage } from '@/lib/wallet/passkey-message';
 import { usePasskeyWallet } from '@/lib/wallet/PasskeyProvider';
@@ -99,8 +99,8 @@ function Question({ label, children }: { label: string; children: React.ReactNod
 }
 
 /**
- * A review only the funding wallet can write, for a completed job. The
- * wallet signs the exact content and job identity (a signature, not a
+ * A review only the funding wallet can write, for a job that ended with a
+ * delivery (`reviewableJob`; the job page checks the delivery). The wallet signs the exact content and job identity (a signature, not a
  * transaction: no gas), and the server checks the signer funded the job.
  */
 export function ReviewForm({ job }: { job: HiredJob }) {
@@ -124,9 +124,10 @@ export function ReviewForm({ job }: { job: HiredJob }) {
   // A review this job already has, so a returning buyer sees it (and can
   // publish it on chain) instead of an empty form.
   const agentChainId = job.agentChainId ?? 56;
+  const ended = (ENDED_JOB_STATUSES as readonly string[]).includes(job.status);
   const existing = useQuery({
     queryKey: ['job-review', job.chainId, job.jobId],
-    enabled: job.status === 'COMPLETED',
+    enabled: ended,
     staleTime: 60_000,
     queryFn: async (): Promise<VerifiedReview | null> => {
       const response = await fetch(`/api/reviews?agentChainId=${agentChainId}&agentTokenId=${job.agentTokenId}`);
@@ -136,7 +137,7 @@ export function ReviewForm({ job }: { job: HiredJob }) {
     },
   });
 
-  if (job.status !== 'COMPLETED') return null;
+  if (!ended) return null;
 
   const prior = state === 'saved' ? saved : existing.data;
   if (prior) {
