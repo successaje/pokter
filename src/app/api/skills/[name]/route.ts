@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { PROVIDER_SKILL_MD, PROVIDER_SKILL_NAME } from '@/lib/builders/provider-skill';
+import { HIRE_SKILL_MD, HIRE_SKILL_NAME } from '@/lib/builders/hire-skill';
 import { apiRateLimit } from '@/lib/api/respond';
 
 export const dynamic = 'force-dynamic';
@@ -33,6 +34,7 @@ export const dynamic = 'force-dynamic';
  */
 const SKILLS: Readonly<Record<string, string>> = Object.assign(Object.create(null) as Record<string, string>, {
   [PROVIDER_SKILL_NAME]: PROVIDER_SKILL_MD,
+  [HIRE_SKILL_NAME]: HIRE_SKILL_MD,
 });
 
 export async function GET(_request: Request, { params }: { params: Promise<{ name: string }> }): Promise<Response> {

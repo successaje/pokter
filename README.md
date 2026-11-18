@@ -445,6 +445,9 @@ The webhook rejects requests without Telegram's secret header and ignores non-me
 | `GET /api/jobs?client=0x…` | The jobs one wallet funded through Pokter |
 | `GET /api/jobs/{id}` | One job, read from chain |
 | `GET /api/reviews/{chain}/{job}` | A review as the exact document its on-chain rating hashes |
+| `POST /api/hire/agentic` | The next unsigned call of a prepared hire, for a wallet that signs one previewed call at a time, such as an Agentic Wallet; read from chain on each request. Pokter signs nothing |
+| `POST /api/reviews/board/call`, `/api/reviews/board/record` | A PokterBoard review call for the funding wallet to preview and send, and the check that shows it once sent |
+| `GET /api/skills/{name}` | The Claude Code skills: `pokter-provider` for taking paid work, `pokter-hire` for hiring and reviewing from an Agentic Wallet |
 | `GET /quest?address=0x…` | Set and Earn hire progress for any wallet |
 
 ## Deployment
