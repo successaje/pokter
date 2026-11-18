@@ -4,11 +4,10 @@ import { getAddress, isAddress, isHex, type Hex } from 'viem';
 import { signedByWallet, walletCanBeChecked } from '@/lib/wallet/signed-by';
 import { ALTANA_NETWORK, altanaNetworkFor } from '@/lib/altana/client';
 import { jobChainParam } from '@/lib/jobs/href';
-import { decodePokterJobEnvelope } from '@/lib/erc8183/job-envelope';
 import { ENDED_JOB_STATUSES, reviewableJob, reviewMessage, validReviewContent, type VerifiedReview } from '@/lib/reviews/model';
 import { getReviewStore } from '@/lib/reviews/store';
 import { getErc8183Job } from '@/lib/erc8183/job-read';
-import { getJobStore } from '@/lib/erc8183/store';
+import { jobAgentIdentity } from '@/lib/reviews/job-identity';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 import { logAndPublic } from '@/lib/api/public-error';
 
@@ -64,13 +63,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     if (getAddress(job.client) !== getAddress(buyer)) {
       return NextResponse.json({ error: 'Only the on-chain buyer can review this job.' }, { status: 403 });
     }
-    // The envelope on chain, or for a job written as the seller's signed quote
-    // alone, Pokter's index (whose identity was checked against the registry).
-    const envelope = decodePokterJobEnvelope(job.description);
-    const indexed = envelope ? null : getJobStore().all().find((j) => j.chainId === chainId && j.jobId === jobId) ?? null;
-    const identity = envelope
-      ? { chainId: envelope.identity.chainId, tokenId: envelope.identity.tokenId }
-      : indexed && { chainId: indexed.agentChainId ?? 56, tokenId: indexed.agentTokenId };
+    const identity = jobAgentIdentity(chainId, jobId, job.description);
     if (!identity || identity.chainId !== agentChainId || identity.tokenId !== agentTokenId) {
       return NextResponse.json({ error: 'The job does not identify this agent.' }, { status: 409 });
     }

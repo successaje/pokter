@@ -77,6 +77,7 @@ class ReviewStore {
       'ALTER TABLE reviews ADD COLUMN onchain_tx TEXT',
       'ALTER TABLE reviews ADD COLUMN onchain_chain_id INTEGER',
       'ALTER TABLE reviews ADD COLUMN board_tx TEXT',
+      "ALTER TABLE reviews ADD COLUMN proof TEXT NOT NULL DEFAULT 'signature'",
     ]) {
       try { this.db.exec(statement); }
       catch (error) {
@@ -129,6 +130,37 @@ class ReviewStore {
   /** Record the verified ERC-8004 feedback transaction for a review. */
   setOnchain(chainId: number, jobId: string, transactionHash: string, onchainChainId: number): void {
     this.db.prepare('UPDATE reviews SET onchain_tx=?, onchain_chain_id=? WHERE chain_id=? AND job_id=?').run(transactionHash, onchainChainId, chainId, jobId);
+  }
+
+  /**
+   * A review its buyer wrote on PokterBoard, verified from the chain. It
+   * replaces a signed review of the same job, since the board's record is
+   * the one the agent's rating counts; one already proved by the board is
+   * kept as it is.
+   */
+  saveBoardReview(review: VerifiedReview & { boardTx: string }): void {
+    this.db.prepare(`
+      INSERT INTO reviews
+        (chain_id, job_id, agent_chain_id, agent_token_id, buyer, rating,
+         delivered_as_promised, speed, would_hire_again, comment, signature, updated_at, board_tx, proof)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '0x', ?, ?, 'board')
+      ON CONFLICT(chain_id, job_id) DO UPDATE SET
+        rating=excluded.rating,
+        delivered_as_promised=excluded.delivered_as_promised,
+        speed=excluded.speed,
+        would_hire_again=excluded.would_hire_again,
+        comment=excluded.comment,
+        signature='0x',
+        updated_at=excluded.updated_at,
+        board_tx=excluded.board_tx,
+        proof='board'
+      WHERE reviews.proof <> 'board'
+    `).run(
+      review.chainId, review.jobId, review.agentChainId, review.agentTokenId,
+      review.buyer, review.rating, review.deliveredAsPromised ? 1 : 0,
+      review.speed, review.wouldHireAgain ? 1 : 0, review.comment,
+      review.updatedAt, review.boardTx,
+    );
   }
 
   /** Record the verified PokterBoard transaction for a review. */
@@ -230,6 +262,7 @@ function toReview(row: Record<string, string | number | null>): VerifiedReview {
     onchainTx: row.onchain_tx ? (String(row.onchain_tx) as VerifiedReview['signature']) : null,
     onchainChainId: row.onchain_chain_id === null || row.onchain_chain_id === undefined ? null : Number(row.onchain_chain_id),
     boardTx: row.board_tx ? (String(row.board_tx) as VerifiedReview['signature']) : null,
+    proof: row.proof === 'board' ? 'board' : 'signature',
   };
 }
 
