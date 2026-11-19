@@ -2,7 +2,7 @@ import { encodeFunctionData, erc20Abi, getAddress, type Address, type Hex } from
 
 import { jobLifetimeSeconds } from '@/lib/erc8183/deadline';
 import { buildTokenHireCalls, type TokenHireAddresses } from '@/lib/erc8183/hire-calls';
-import { decodePokterJobEnvelope, encodePokterJobEnvelope, type PokterJobQuote } from '@/lib/erc8183/job-envelope';
+import { decodePokterJobEnvelope, decodeReferenceJobDescription, encodePokterJobEnvelope, type PokterJobQuote } from '@/lib/erc8183/job-envelope';
 import { checkPurchaseIntent, EXPIRY_MARGIN_SECONDS, type PurchaseIntent } from '@/lib/hire/purchase-intent';
 
 /**
@@ -179,7 +179,7 @@ export async function nextAgenticCall(input: {
   }
   if ((await reader.balance(token, wallet)) < amount) return { state: 'stopped', jobId, reason: `This wallet holds less than ${money}. Add it, then ask again; job #${jobId} is open and holds nothing.` };
   if (allowance < amount) return approve(allowance > 0n ? 0n : amount, jobId);
-  const signedUntil = decodePokterJobEnvelope(job.description)?.quote?.expiresAt;
+  const signedUntil = described(job.description)?.signedUntil;
   if (signedUntil !== undefined && signedUntil * 1000 <= now + EXPIRY_MARGIN_SECONDS * 1000) {
     return {
       state: 'stopped',
@@ -192,8 +192,8 @@ export async function nextAgenticCall(input: {
   /*
    * The job this wallet created for this hire: by its id when the caller
    * has it, or among the jobs created since `searchFrom`. A job counts only
-   * if this wallet created it for this provider, in this token, with a
-   * Pokter envelope for this agent and this exact task.
+   * if this wallet created it for this provider, in this token, for this
+   * exact task, in either description Pokter writes (`described`).
    */
   async function locateJob(): Promise<{ id: bigint; job: AgenticJob } | null | string> {
     if (input.jobId) {
@@ -213,9 +213,10 @@ export async function nextAgenticCall(input: {
 
   async function belongs(id: bigint, job: AgenticJob): Promise<boolean> {
     if (getAddress(job.client) !== wallet || getAddress(job.provider) !== getAddress(terms.provider)) return false;
-    const envelope = decodePokterJobEnvelope(job.description);
-    if (!envelope || envelope.task !== terms.task) return false;
-    if (envelope.identity.chainId !== terms.agent.chainId || envelope.identity.tokenId !== terms.agent.tokenId) return false;
+    const description = described(job.description);
+    if (!description || description.task !== terms.task) return false;
+    if (description.identity && (description.identity.chainId !== terms.agent.chainId || description.identity.tokenId !== terms.agent.tokenId)) return false;
+    if (description.escrow && getAddress(description.escrow) !== getAddress(addresses.commerce)) return false;
     const paid = await reader.jobToken(id);
     const paysIn = /^0x0{40}$/i.test(paid) ? getAddress(addresses.paymentToken) : getAddress(paid);
     return paysIn === token;
@@ -260,6 +261,20 @@ export async function nextAgenticCall(input: {
       searchFrom: (counter + 1n).toString(),
     };
   }
+}
+
+/*
+ * A job's description as Pokter writes it, either way: its own envelope,
+ * which names the agent, or, when the seller's quote carries one, the
+ * seller's signed quote alone in the reference SDK's shape, which names no
+ * agent but the escrow its price was signed for. The brief and the price's
+ * expiry are in both.
+ */
+function described(description: string): { task: string; signedUntil: number | undefined; identity: { chainId: number; tokenId: string } | null; escrow: string | null } | null {
+  const envelope = decodePokterJobEnvelope(description);
+  if (envelope) return { task: envelope.task, signedUntil: envelope.quote?.expiresAt, identity: envelope.identity, escrow: envelope.quote?.domain?.verifyingContract ?? null };
+  const reference = decodeReferenceJobDescription(description);
+  return reference ? { task: reference.task, signedUntil: reference.quote.expiresAt, identity: null, escrow: reference.quote.domain?.verifyingContract ?? null } : null;
 }
 
 /* A built call as the wallet takes it. Every escrow call carries calldata; one without is a builder fault, never sent empty. */

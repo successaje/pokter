@@ -153,6 +153,55 @@ test('the five calls come in order, each read from the chain, and end funded', a
   assert.ok(job.expiredAt > BigInt(Math.floor(T / 1000) + 7 * 86_400), 'its deadline leaves room for the dispute window');
 });
 
+/* As production's quote route answers: the seller's signed quote in the reference SDK's shape rides along, and becomes the whole description. */
+function anchored(expiresAt = Math.floor(T / 1000) + 600): AgenticQuote {
+  const plain = quote();
+  const anchor = {
+    version: 1, negotiated_at: Math.floor(T / 1000), task: terms().task, terms: { deliverables: 'A JSON assessment.' },
+    price: PRICE.toString(), currency: USDT, quote_expires_at: expiresAt, chain_id: 56, verifying_contract: getAddress(addresses.commerce),
+    negotiation_hash: plain.quote.negotiationHash, provider_sig: plain.quote.providerSignature,
+  };
+  return { quote: { ...plain.quote, expiresAt, anchor }, intent: { ...plain.intent, expiresAt } };
+}
+
+test('a job written as the seller’s signed quote alone is found again, and created once', async () => {
+  const c = chain();
+  c.setAllowance(PRICE);
+  const create = await next(c, { quote: anchored() });
+  if (create.state !== 'call' || create.step !== 'create') return assert.fail(JSON.stringify(create));
+  c.apply(create.call);
+  const description = c.jobs.get(57_301n)!.description;
+  assert.equal(decodePokterJobEnvelope(description), null, 'no Pokter envelope: the anchor is the whole description');
+  assert.equal(JSON.parse(description).provider_sig, quote().quote.providerSignature);
+
+  const seen: string[] = [];
+  let jobId: bigint | undefined;
+  for (let i = 0; i < 4; i += 1) {
+    const step = await next(c, { searchFrom: BigInt(create.searchFrom!), jobId, quote: anchored() });
+    if (step.state === 'funded') { seen.push('funded'); break; }
+    if (step.state !== 'call') return assert.fail(JSON.stringify(step));
+    seen.push(step.step);
+    c.apply(step.call);
+    if (step.jobId) jobId = BigInt(step.jobId);
+  }
+  assert.deepEqual(seen, ['register', 'budget', 'fund', 'funded'], 'never a second create');
+});
+
+test('an anchored job whose signed price lapsed stops before funding', async () => {
+  const c = chain();
+  c.setAllowance(PRICE);
+  const create = await next(c, { quote: anchored() });
+  if (create.state !== 'call') return assert.fail(JSON.stringify(create));
+  c.apply(create.call);
+  for (const expected of ['register', 'budget']) {
+    const step = await next(c, { jobId: 57_301n });
+    assert.ok(step.state === 'call' && step.step === expected, JSON.stringify(step));
+    if (step.state === 'call') c.apply(step.call);
+  }
+  const late = await next(c, { jobId: 57_301n, now: T + 11 * 60_000 });
+  assert.equal(late.state, 'stopped');
+});
+
 test('the approval is for exactly the price, and an older allowance is cleared first', async () => {
   const c = chain();
   const first = await next(c);
