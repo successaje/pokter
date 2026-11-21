@@ -70,4 +70,5 @@ export interface PokterScore {
 }
 
 // 1.1.0: Performance is measured from paid jobs delivered and missed.
-export const SCORE_VERSION = '1.1.0';
+// 1.2.0: Performance also counts a PokterBoard rating from three or more distinct Agent ID holders.
+export const SCORE_VERSION = '1.2.0';

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
 import type { HiredJob } from '@/lib/erc8183/types';
-import { reviewMessage, type ReviewContent, type ReviewSpeed, type VerifiedReview } from '@/lib/reviews/model';
+import { ENDED_JOB_STATUSES, reviewMessage, type ReviewContent, type ReviewSpeed, type VerifiedReview } from '@/lib/reviews/model';
 import { useActiveWallet } from '@/lib/wallet/active';
 import { signPasskeyMessage } from '@/lib/wallet/passkey-message';
 import { usePasskeyWallet } from '@/lib/wallet/PasskeyProvider';
@@ -16,6 +16,7 @@ import { Icon } from '@/ui/icons';
 import { Rating } from '@/ui/Rating';
 import { FeedbackCard } from './FeedbackCard';
 import { PublishRating } from './PublishRating';
+import { RecordOnBoard } from './RecordOnBoard';
 import { useLiveSignMessage } from '@/lib/wallet/use-live-sign-message';
 
 const RATING_WORD = ['', 'Poor', 'Fair', 'Good', 'Very good', 'Excellent'] as const;
@@ -99,8 +100,8 @@ function Question({ label, children }: { label: string; children: React.ReactNod
 }
 
 /**
- * A review only the funding wallet can write, for a completed job. The
- * wallet signs the exact content and job identity (a signature, not a
+ * A review only the funding wallet can write, for a job that ended with a
+ * delivery (`reviewableJob`; the job page checks the delivery). The wallet signs the exact content and job identity (a signature, not a
  * transaction: no gas), and the server checks the signer funded the job.
  */
 export function ReviewForm({ job }: { job: HiredJob }) {
@@ -124,9 +125,10 @@ export function ReviewForm({ job }: { job: HiredJob }) {
   // A review this job already has, so a returning buyer sees it (and can
   // publish it on chain) instead of an empty form.
   const agentChainId = job.agentChainId ?? 56;
+  const ended = (ENDED_JOB_STATUSES as readonly string[]).includes(job.status);
   const existing = useQuery({
     queryKey: ['job-review', job.chainId, job.jobId],
-    enabled: job.status === 'COMPLETED',
+    enabled: ended,
     staleTime: 60_000,
     queryFn: async (): Promise<VerifiedReview | null> => {
       const response = await fetch(`/api/reviews?agentChainId=${agentChainId}&agentTokenId=${job.agentTokenId}`);
@@ -136,7 +138,7 @@ export function ReviewForm({ job }: { job: HiredJob }) {
     },
   });
 
-  if (job.status !== 'COMPLETED') return null;
+  if (!ended) return null;
 
   const prior = state === 'saved' ? saved : existing.data;
   if (prior) {
@@ -146,7 +148,12 @@ export function ReviewForm({ job }: { job: HiredJob }) {
         <div className="flex flex-col gap-3 px-5 py-4">
           <Rating value={prior.rating} />
           {prior.comment && <p className="text-[14px] leading-relaxed text-ink-2">&ldquo;{prior.comment}&rdquo;</p>}
-          {(state === 'saved' || (mine && active.mode === 'external')) && <PublishRating review={prior} />}
+          {(state === 'saved' || (mine && active.mode === 'external')) && (
+            <>
+              <RecordOnBoard review={prior} />
+              <PublishRating review={prior} />
+            </>
+          )}
         </div>
       </FeedbackCard>
     );

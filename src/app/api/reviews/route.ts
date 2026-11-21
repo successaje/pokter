@@ -5,7 +5,7 @@ import { signedByWallet, walletCanBeChecked } from '@/lib/wallet/signed-by';
 import { ALTANA_NETWORK, altanaNetworkFor } from '@/lib/altana/client';
 import { jobChainParam } from '@/lib/jobs/href';
 import { decodePokterJobEnvelope } from '@/lib/erc8183/job-envelope';
-import { reviewMessage, validReviewContent, type VerifiedReview } from '@/lib/reviews/model';
+import { ENDED_JOB_STATUSES, reviewableJob, reviewMessage, validReviewContent, type VerifiedReview } from '@/lib/reviews/model';
 import { getReviewStore } from '@/lib/reviews/store';
 import { getErc8183Job } from '@/lib/erc8183/job-read';
 import { getJobStore } from '@/lib/erc8183/store';
@@ -47,14 +47,19 @@ export async function POST(request: Request): Promise<NextResponse> {
   // The escrow the job was funded on; older callers only used the default.
   const chainId = jobChainParam(body.chainId === undefined ? undefined : String(body.chainId)) ?? ALTANA_NETWORK.chainId;
 
-  if (getReviewStore().get(chainId, jobId)?.onchainTx) {
+  const stored = getReviewStore().get(chainId, jobId);
+  if (stored?.onchainTx || stored?.boardTx) {
     return NextResponse.json({ error: 'This review is published on chain and can no longer be edited.' }, { status: 409 });
   }
 
   try {
     const job = await getErc8183Job(altanaNetworkFor(chainId), BigInt(jobId));
-    if (job.statusName !== 'COMPLETED') {
-      return NextResponse.json({ error: 'Only completed jobs can be reviewed.' }, { status: 409 });
+    if (!reviewableJob(job.statusName, job.submittedAt)) {
+      const ended = (ENDED_JOB_STATUSES as readonly string[]).includes(job.statusName);
+      return NextResponse.json(
+        { error: ended ? 'Only a job the agent delivered can be reviewed.' : 'A job can be reviewed once it is settled, rejected or refunded.' },
+        { status: 409 },
+      );
     }
     if (getAddress(job.client) !== getAddress(buyer)) {
       return NextResponse.json({ error: 'Only the on-chain buyer can review this job.' }, { status: 403 });

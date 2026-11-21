@@ -41,6 +41,8 @@ import type { EscrowRecord } from '@/lib/agent/escrow-record';
 import { agentRecordJobs } from '@/lib/agent/record-jobs';
 import { buyerCounts, type BuyerCounts } from '@/lib/agent/buyers';
 import { getReviewStore } from '@/lib/reviews/store';
+import { agentBoardRating, type BoardRating } from '@/lib/board/ratings';
+import { agentIdHolderSet } from '@/lib/board/server';
 import { isPromotableAgent } from '@/lib/agents/eligibility';
 import { capPerOwner, preferDistinctOwners } from '@/lib/agents/diversity';
 import { getAssayStore } from '@/lib/assay/store';
@@ -441,6 +443,8 @@ export interface AgentDossier {
   escrowRecord: EscrowRecord;
   /** Who funded that paid work from outside Pokter, and how far they are from independent. */
   buyers: BuyerCounts;
+  /** Its rating on PokterBoard from distinct people holding an Agent ID, when it has one (`agentBoardRating`). */
+  boardRating: BoardRating | null;
   /**
    * The last price this agent signed for itself, and whether it still
    * stands. The hire form needs it: without the agent's own price it fell
@@ -541,9 +545,14 @@ export async function getDossier(
     listedOwnerSet(),
   ]);
 
-  const currentOwner = await registryOwner(chainId, tokenId).catch(() => null);
+  const [currentOwner, agentIdHolders] = await Promise.all([
+    registryOwner(chainId, tokenId).catch(() => null),
+    // Which outside buyers are distinct people; cached a day per holder, and never more than a few seconds.
+    agentIdHolderSet([...paidWork.outsideBuyers.keys()]),
+  ]);
   const authors = await resolveAttestationAuthors(chainId, currentOwner ?? agent.owner_address, feedbackPage.items);
   const attestations = feedbackPage.items.map((row) => toAttestation(row, authors.get(row.id)));
+  const boardRating = agentBoardRating(agent);
 
   const since = new Date(Date.now() - HISTORY_DAYS * 86_400_000);
   const probes = getProbeStore().historyFor(chainId, tokenId, since);
@@ -573,10 +582,11 @@ export async function getDossier(
     live,
     record,
     latestCheck,
-    score: computeScore({ agent, category, proof, attestations, record, live, history: paidWork.history }),
+    score: computeScore({ agent, category, proof, attestations, record, live, history: paidWork.history, buyerRating: boardRating }),
     paidWork,
     escrowRecord,
-    buyers: buyerCounts(paidWork.outsideBuyers, { listedOwners, owner: currentOwner ?? agent.owner_address ?? null }),
+    buyers: buyerCounts(paidWork.outsideBuyers, { listedOwners, owner: currentOwner ?? agent.owner_address ?? null, agentIdHolders }),
+    boardRating,
     quote,
     quoteCurrent: Boolean(
       quote && (!quote.expiresAt || Date.parse(quote.expiresAt) > Date.now()),
@@ -697,7 +707,7 @@ export async function getComparison(
     category,
     proof,
     record,
-    score: computeScore({ agent, category, proof, attestations, record, history: economicHistory }),
+    score: computeScore({ agent, category, proof, attestations, record, history: economicHistory, buyerRating: agentBoardRating(agent) }),
     quote,
     quoteCurrent: Boolean(
       quote && (!quote.expiresAt || Date.parse(quote.expiresAt) > Date.now()),
