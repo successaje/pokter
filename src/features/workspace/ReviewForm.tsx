@@ -151,7 +151,8 @@ export function ReviewForm({ job }: { job: HiredJob }) {
           {(state === 'saved' || (mine && active.mode === 'external')) && (
             <>
               <RecordOnBoard review={prior} />
-              <PublishRating review={prior} />
+              {/* The registry entry links a signed document; a review proved by its board transaction has no signature to link. */}
+              {prior.proof !== 'board' && <PublishRating review={prior} />}
             </>
           )}
         </div>

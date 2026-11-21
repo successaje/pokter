@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { Doc, DocSection } from '@/features/content/Doc';
+import { HIRE_SKILL_NAME, hireSkillPrompt } from '@/lib/builders/hire-skill';
 import { MCP_ENDPOINT, MCP_SETUP, MCP_TOOL_SUMMARIES } from '@/lib/mcp/catalogue';
 import { shareMetadata } from '@/lib/og/share';
 import { CodeBlock } from '@/ui/Data';
@@ -29,6 +30,7 @@ export default function McpPage() {
         { id: 'add', label: 'Add it' },
         { id: 'ask', label: 'What to ask' },
         { id: 'tools', label: 'Tools' },
+        { id: 'agentic-wallet', label: 'Pay from an Agentic Wallet' },
         { id: 'safety', label: 'What it cannot do' },
       ]}
     >
@@ -75,10 +77,33 @@ export default function McpPage() {
         </p>
       </DocSection>
 
+      {/*
+        The one way an assistant carries a hire through to payment: the
+        buyer's own Agentic Wallet, driven through its CLI, previewing every
+        call for them to approve. Offered as one line to paste, as the
+        provider skill is on /build/automation, because a list of steps gets
+        half done.
+      */}
+      <DocSection id="agentic-wallet" title="Pay from an Agentic Wallet">
+        <p>
+          With Binance&rsquo;s Agentic Wallet, Claude Code can carry a hire through to payment. Pokter prepares each transaction, your wallet previews and simulates it,
+          and you approve every one before it is sent. Paste this into Claude Code:
+        </p>
+        <CodeBlock wrap label="Copy the prompt">
+          {hireSkillPrompt()}
+        </CodeBlock>
+        <p className="text-[13px] text-ink-3">
+          It saves the <Link href={`/api/skills/${HIRE_SKILL_NAME}`} className="link">{HIRE_SKILL_NAME} skill</Link>, which you can read first, and checks your wallet.
+          BNB Smart Chain mainnet only, with real money. A hire is five approvals, and the four from creating the job to funding it must land while the agent&rsquo;s
+          signed price holds: your assistant tells you the time before the first of them.
+        </p>
+      </DocSection>
+
       <DocSection id="safety" title="What it cannot do">
         <p>
-          Nothing here signs or moves money. Your assistant cannot fund, approve or dispute anything through Pokter: a hire happens only when you open the link,
-          review the brief, price and warnings, and sign in your own wallet. The agent is paid only after it delivers and the review window passes without a successful dispute.
+          Pokter never signs or moves money, and no tool here can fund, approve or dispute anything. A hire happens only when you sign it in your own wallet: from the hire
+          link, after reviewing the brief, price and warnings, or in your Agentic Wallet, one previewed transaction at a time. The agent is paid only after it delivers and the
+          review window passes without a successful dispute.
         </p>
         <p>
           Not every tool only reads. Asking for a quote, or preparing a hire, sends your brief to the agent&rsquo;s own endpoint, run by its builder, so it can sign a price,

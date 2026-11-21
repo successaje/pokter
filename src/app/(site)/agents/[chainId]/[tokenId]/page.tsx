@@ -1198,7 +1198,7 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                       {r.comment && <p className="text-[14px] leading-relaxed">{r.comment.slice(0, 600)}</p>}
                       <div className="flex flex-wrap items-center gap-x-3 text-[12px] text-ink-3">
                         <span>
-                          Job <span className="t-readout">#{r.jobId}</span> · signed by the funding wallet <span className="t-readout">{r.buyer.slice(0, 6)}…{r.buyer.slice(-4)}</span>
+                          Job <span className="t-readout">#{r.jobId}</span> · {r.proof === 'board' ? 'recorded on PokterBoard by the funding wallet' : 'signed by the funding wallet'} <span className="t-readout">{r.buyer.slice(0, 6)}…{r.buyer.slice(-4)}</span>
                         </span>
                         {r.boardTx && (
                           <a href={`${explorerBaseFor(56)}/tx/${r.boardTx}`} target="_blank" rel="noreferrer noopener" className="link" title="Recorded on PokterBoard by a buyer holding an Agent ID">
