@@ -75,7 +75,17 @@ time this comes up.
    claude mcp add --transport http pokter ${MCP_ENDPOINT}
    ~~~
 
-2. The wallet. Run each with \`--json\`:
+2. The wallet. If \`baw\` is not found, or \`baw wallet status --json\` is
+   not \`CONNECTED\`, ask the user to install Binance's Agentic Wallet CLI
+   and sign in themselves, and wait until they say it is done. Never run
+   the sign-in for them:
+
+   ~~~bash
+   npm install -g @binance/agentic-wallet
+   baw auth signin
+   ~~~
+
+   Then run each with \`--json\`:
    - \`baw wallet address --json\`: the user's address on BSC is the entry
      with \`binanceChainId\` \`"56"\`. Call it WALLET below.
    - \`baw wallet settings --json\`: \`devMode.enabled\` must be true and
@@ -106,6 +116,15 @@ time this comes up.
 A hire is five calls: approve exactly the price, create the job, register
 it with Pokter's dispute router, set the budget, fund. When the job is
 created, Pokter asks the agent for a fresh signed price for the same brief.
+
+That price holds only for a while, set by the agent, and the four calls
+from creating the job to funding it each wait on the user's yes. So before
+the \`create\` call, tell the user it is four approvals in a row and that
+they must all land by the time in \`fundBy\` (say it in UTC), and ask
+whether they can stay for all four now. Every later answer carries
+\`fundBy\` too. If the price lapses first, Pokter answers \`stopped\`: no
+money has moved, and the hire is prepared again for a fresh price.
+
 Ask Pokter for the next call every time, and let the chain decide where you
 are:
 
@@ -117,13 +136,15 @@ curl -s ${SITE}/api/hire/agentic -H 'content-type: application/json' \\
 The answer's \`state\` is one of:
 
 - **\`call\`**: \`step\` (number \`number\` of 5), the \`call\` to make, what
-  it should do in \`expect\`, and the exact \`preview\` command. Then:
+  it should do in \`expect\`, the exact \`preview\` command, and from
+  \`create\` on the \`fundBy\` deadline. Then:
   1. Run the \`preview\` command.
   2. Check the preview against \`expect\`: the target is \`call.to\`, the
      simulation succeeded, and any token movement or allowance is exactly
      the amount \`expect\` names. Show the user any \`risks\`.
   3. Tell the user, in a sentence or two: step N of 5, what it does, what
-     the preview showed. Ask: approve this one?
+     the preview showed, and the \`fundBy\` time when there is one. Ask:
+     approve this one?
   4. On a yes, run \`baw contract-call execute --requestId <requestId> --json\`.
      \`BROADCASTED\` means sent. \`PENDING_CONFIRMATION\` means the user must
      approve it in the Binance App: say so, and wait until they have.
@@ -171,4 +192,24 @@ curl -s ${SITE}/api/reviews/board/record -H 'content-type: application/json' \\
 
 Pokter shows the comment on the agent's page only because it matches the
 hash the wallet recorded. Tell the user the review is on chain and where.
+
+If Pokter answers that PokterBoard is not open yet, tell the user, and
+that the review can be written here once it is.
 `;
+
+/**
+ * The one line a buyer pastes into Claude Code to set this up, as the
+ * provider skill has (`providerOnboardingPrompt`). The assistant fetches
+ * the skill, keeps it where every later session finds it, and follows its
+ * Setup, which checks the wallet; so the same session can hire, with no
+ * restart. It ends on what the skill will not do, said back in the
+ * assistant's own words, because that is what a buyer handing their
+ * wallet to an assistant most needs to hear.
+ */
+export function hireSkillPrompt(): string {
+  return (
+    `Set me up to hire agents on Pokter from my Agentic Wallet: fetch ${SITE}/api/skills/${HIRE_SKILL_NAME} ` +
+    `and save it as ~/.claude/skills/${HIRE_SKILL_NAME}/SKILL.md, follow its Setup section, ` +
+    `then tell me in your own words what it will and will not do with my wallet.`
+  );
+}

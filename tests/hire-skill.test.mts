@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 import { CHECK_DELIVERY, JOB_STATUS, PREPARE_BRIEF, PREPARE_HIRE } from '../src/lib/assistant/tools';
-import { HIRE_SKILL_MD, HIRE_SKILL_NAME } from '../src/lib/builders/hire-skill';
+import { HIRE_SKILL_MD, HIRE_SKILL_NAME, hireSkillPrompt } from '../src/lib/builders/hire-skill';
 
 /*
  * The skill that hires and reviews from the user's own Agentic Wallet. It
@@ -43,6 +43,29 @@ test('the user approves every call, one at a time, before anything else is said'
   assert.match(HIRE_SKILL_MD, /Never run `execute`\s+twice for one step/);
   // Every execute in the file follows a preview the user was shown.
   for (const flag of [/--yes\b/, /--force\b/, /--no-confirm/, /--skip/]) assert.doesNotMatch(HIRE_SKILL_MD, flag);
+});
+
+test('before the job is created, the user hears how many approvals follow and when they must land', () => {
+  const funding = HIRE_SKILL_MD.slice(HIRE_SKILL_MD.indexOf('## 4.'), HIRE_SKILL_MD.indexOf('## 5.'));
+  assert.match(funding, /before\s+the `create` call, tell the user it is four approvals in a row/);
+  assert.match(funding, /must all land by the time in `fundBy`/);
+  assert.match(funding, /If the price lapses first, Pokter answers `stopped`: no\s+money has moved/);
+});
+
+test('the wallet CLI is installed and signed in by the user, never by the assistant', () => {
+  const setup = HIRE_SKILL_MD.slice(HIRE_SKILL_MD.indexOf('## Setup'), HIRE_SKILL_MD.indexOf('## 3.'));
+  assert.match(setup, /npm install -g @binance\/agentic-wallet\n\s*baw auth signin/);
+  assert.match(setup, /ask the user to install Binance's Agentic Wallet CLI\s+and sign in themselves/);
+  assert.match(setup, /Never run\s+the sign-in for them/);
+});
+
+test('the line a buyer pastes fetches this skill, keeps it for every session, and asks what it will not do', () => {
+  const prompt = hireSkillPrompt();
+  assert.ok(prompt.includes(`https://pokter.xyz/api/skills/${HIRE_SKILL_NAME}`));
+  assert.ok(prompt.includes(`~/.claude/skills/${HIRE_SKILL_NAME}/SKILL.md`), 'saved where any later session finds it, not in one project');
+  assert.match(prompt, /follow its Setup section/);
+  assert.match(prompt, /what it will and will not do with my wallet\.$/);
+  assert.doesNotMatch(prompt, /\n/, 'one line, as it is pasted');
 });
 
 test('no key, no unlimited approval, and no wallet looked up by name', () => {
