@@ -259,6 +259,40 @@ test('a price that lapses before funding stops at the fund step, with the job un
   assert.equal(c.jobs.get(jobId)!.status, 0);
 });
 
+test('from the create call on, each call says when the job must be funded by', async () => {
+  const c = chain();
+  const approve = await next(c);
+  assert.ok(approve.state === 'call' && approve.step === 'approve');
+  assert.equal(approve.state === 'call' && approve.fundBy, undefined, 'before the job, no price is signed yet');
+  if (approve.state === 'call') c.apply(approve.call);
+
+  // The signed price holds 10 minutes; the fund step refuses in its last one.
+  const fundBy = new Date(T + 9 * 60_000).toISOString();
+  const create = await next(c);
+  assert.ok(create.state === 'call' && create.step === 'create');
+  if (create.state !== 'call') return;
+  assert.equal(create.fundBy, fundBy);
+  c.apply(create.call);
+  for (const expected of ['register', 'budget', 'fund']) {
+    const step = await next(c, { jobId: 57_301n });
+    assert.ok(step.state === 'call' && step.step === expected, JSON.stringify(step));
+    if (step.state !== 'call') return;
+    assert.equal(step.fundBy, fundBy, `${expected} repeats it`);
+    c.apply(step.call);
+  }
+});
+
+test('once the price has lapsed, no further approval is asked for a job that cannot be funded', async () => {
+  const c = chain();
+  c.setAllowance(PRICE);
+  const create = await next(c);
+  if (create.state !== 'call') return assert.fail(JSON.stringify(create));
+  c.apply(create.call);
+  const late = await next(c, { jobId: 57_301n, now: T + 11 * 60_000 });
+  assert.equal(late.state, 'stopped', 'not register, then budget, for nothing');
+  assert.match(late.state === 'stopped' ? late.reason : '', /Nothing was funded: the job is open and holds no money/);
+});
+
 test('a job that is not this hire’s is refused by id, and passed over when searching', async () => {
   const c = chain();
   c.setAllowance(PRICE);

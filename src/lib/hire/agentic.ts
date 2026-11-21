@@ -49,6 +49,14 @@ export type AgenticNext =
       expect: string;
       /** For `create`: pass back as `searchFrom` with the next request, so the new job is found even without its transaction. */
       searchFrom?: string;
+      /**
+       * The time, ISO, by which every call from `create` to `fund` must have
+       * landed: a margin before the agent's signed price stops holding, as
+       * the fund step refuses within it. Said to the owner before they
+       * approve, because each call waits on them. Absent until the job's
+       * price is known, and when the agent's price never lapses.
+       */
+      fundBy?: string;
     }
   | { state: 'funded'; jobId: string }
   | { state: 'stopped'; reason: string; jobId: string | null };
@@ -142,12 +150,13 @@ export async function nextAgenticCall(input: {
   if (typeof found === 'string') return { state: 'stopped', jobId: input.jobId?.toString() ?? null, reason: found };
 
   const allowance = await reader.allowance(token, wallet, addresses.commerce);
-  const approve = (to: bigint, jobId: string | null): AgenticNext => ({
+  const approve = (to: bigint, jobId: string | null, fundBy?: string): AgenticNext => ({
     state: 'call',
     step: 'approve',
     number: 1,
     of: 5,
     jobId,
+    ...(fundBy ? { fundBy } : {}),
     call: { to: token, value: '0', data: encodeFunctionData({ abi: erc20Abi, functionName: 'approve', args: [addresses.commerce, to] }) },
     expect:
       to === 0n
@@ -166,9 +175,23 @@ export async function nextAgenticCall(input: {
   const { id, job } = found;
   const jobId = id.toString();
   if (job.status >= FUNDED) return { state: 'funded', jobId };
+  /*
+   * Once the agent's signed price has lapsed the job cannot be funded here,
+   * so no further call is offered: registering it or setting its budget
+   * would only cost the owner approvals and gas for a job that stays empty.
+   */
+  const signedUntil = described(job.description)?.signedUntil;
+  if (signedUntil !== undefined && signedUntil * 1000 <= now + EXPIRY_MARGIN_SECONDS * 1000) {
+    return {
+      state: 'stopped',
+      jobId,
+      reason: `The agent's signed price for job #${jobId} has expired, so the agent may refuse a funded job. Nothing was funded: the job is open and holds no money. Prepare the hire again for a fresh price.`,
+    };
+  }
+  const fundBy = fundByFor(signedUntil);
   const calls = callsFor(id, job.description, job.expiredAt);
   const step = (step: AgenticStep, index: number, expect: string): AgenticNext => ({
-    state: 'call', step, number: AGENTIC_STEPS.indexOf(step) + 1, of: 5, jobId, call: unsigned(calls[index]), expect,
+    state: 'call', step, number: AGENTIC_STEPS.indexOf(step) + 1, of: 5, jobId, call: unsigned(calls[index]), expect, ...(fundBy ? { fundBy } : {}),
   });
 
   if (getAddress(await reader.jobPolicy(id)) !== getAddress(addresses.policy)) {
@@ -178,15 +201,7 @@ export async function nextAgenticCall(input: {
     return step('budget', 2, `Sets job #${jobId}'s budget to ${money}, the agent's signed price. No money moves.`);
   }
   if ((await reader.balance(token, wallet)) < amount) return { state: 'stopped', jobId, reason: `This wallet holds less than ${money}. Add it, then ask again; job #${jobId} is open and holds nothing.` };
-  if (allowance < amount) return approve(allowance > 0n ? 0n : amount, jobId);
-  const signedUntil = described(job.description)?.signedUntil;
-  if (signedUntil !== undefined && signedUntil * 1000 <= now + EXPIRY_MARGIN_SECONDS * 1000) {
-    return {
-      state: 'stopped',
-      jobId,
-      reason: `The agent's signed price for job #${jobId} has expired, so the agent may refuse a funded job. Nothing was funded: the job is open and holds no money. Prepare the hire again for a fresh price.`,
-    };
-  }
+  if (allowance < amount) return approve(allowance > 0n ? 0n : amount, jobId, fundBy);
   return step('fund', 4, `Funds job #${jobId}: moves ${money} from this wallet into the ERC-8183 escrow ${addresses.commerce}. The agent is paid only after it delivers and the review window passes without a dispute.`);
 
   /*
@@ -250,12 +265,14 @@ export async function nextAgenticCall(input: {
     const expiredAt = BigInt(Math.floor(now / 1000) + jobLifetimeSeconds(await reader.disputeWindow()));
     const [first] = callsFor(0n, description, expiredAt);
     const counter = await reader.jobCounter();
+    const fundBy = fundByFor(fresh.quote.expiresAt);
     return {
       state: 'call',
       step: 'create',
       number: 2,
       of: 5,
       jobId: null,
+      ...(fundBy ? { fundBy } : {}),
       call: unsigned(first),
       expect: `Creates a job on the ERC-8183 escrow ${addresses.commerce} for ${terms.agent.name} (provider ${terms.provider}), carrying the brief and the agent's signed price of ${money}. No money moves.`,
       searchFrom: (counter + 1n).toString(),
@@ -275,6 +292,11 @@ function described(description: string): { task: string; signedUntil: number | u
   if (envelope) return { task: envelope.task, signedUntil: envelope.quote?.expiresAt, identity: envelope.identity, escrow: envelope.quote?.domain?.verifyingContract ?? null };
   const reference = decodeReferenceJobDescription(description);
   return reference ? { task: reference.task, signedUntil: reference.quote.expiresAt, identity: null, escrow: reference.quote.domain?.verifyingContract ?? null } : null;
+}
+
+/* When the job must be funded by: the fund step's margin before the signed price stops holding, or nothing when it never does. */
+function fundByFor(signedUntil: number | undefined): string | undefined {
+  return signedUntil === undefined ? undefined : new Date((signedUntil - EXPIRY_MARGIN_SECONDS) * 1000).toISOString();
 }
 
 /* A built call as the wallet takes it. Every escrow call carries calldata; one without is a builder fault, never sent empty. */
