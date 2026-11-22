@@ -11,7 +11,7 @@ import { FIELD_CELL, FIELD_COLS } from '@/lib/landing/hero-field';
  * A scan line in the signal colour crosses the field and the squares it
  * passes flash and fade, while a small log in the frame's corner types what
  * the checking has found so far, and the rule under "These do" is drawn
- * last. About two seconds, and the words never wait for it: the headline,
+ * last. About three seconds, and the words never wait for it: the headline,
  * the lede and the search are there from the first frame, and the only
  * thing held back is the underline.
  *
@@ -30,14 +30,17 @@ import { FIELD_CELL, FIELD_COLS } from '@/lib/landing/hero-field';
 const SESSION_KEY = 'pokter:hero-intro';
 /** The timeline, in ms from the moment it starts. */
 const SWEEP_AT = 250;
-const SWEEP_FOR = 1300;
-const FLASH_FOR = 700;
+/** Slow enough to follow with the eye: the line is the thing being shown. */
+const SWEEP_FOR = 2600;
+const FLASH_FOR = 1000;
 const TYPE_FIRST_AT = 100;
-const TYPE_SECOND_AT = 1450;
-const UNDERLINE_AT = 1600;
-const PER_CHAR = 22;
+/** The finding types as the sweep reaches the far edge, and the underline lands just after. */
+const TYPE_SECOND_AT = SWEEP_AT + SWEEP_FOR - 150;
+const UNDERLINE_AT = SWEEP_AT + SWEEP_FOR + 50;
+const PER_CHAR = 28;
 
-const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+/* A gentle ease, so the line keeps a steady pace across the middle rather than racing through it. */
+const easeInOut = (t: number) => -(Math.cos(Math.PI * t) - 1) / 2;
 
 /** A few squares per column, the same ones every visit. */
 function rowsFor(col: number, rows: number): number[] {
