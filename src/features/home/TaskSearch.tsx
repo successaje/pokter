@@ -26,7 +26,7 @@ export const TASK_SUGGESTIONS = [
  * person) and ranked against measured agents. Suggestions are real searches,
  * not decoration.
  */
-export function TaskSearch({ size = 'l', autoFocus, className }: { size?: 'l' | 'm'; autoFocus?: boolean; className?: string }) {
+export function TaskSearch({ size = 'l', autoFocus, className, align = 'start' }: { size?: 'l' | 'm'; autoFocus?: boolean; className?: string; align?: 'start' | 'center' }) {
   const router = useRouter();
   const [value, setValue] = useState('');
   const [pending, start] = useTransition();
@@ -76,7 +76,7 @@ export function TaskSearch({ size = 'l', autoFocus, className }: { size?: 'l' | 
           <span className="sm:hidden">{pending ? '' : <Icon.Arrow size={16} />}</span>
         </button>
       </form>
-      <ul className="flex flex-nowrap gap-2 overflow-hidden" aria-label="Example tasks">
+      <ul className={cn('flex flex-nowrap gap-2 overflow-hidden', align === 'center' && 'justify-center')} aria-label="Example tasks">
         {TASK_SUGGESTIONS.map((suggestion, i) => (
           <li key={suggestion.query} className={cn('shrink-0', i === 2 && 'max-sm:hidden')}>
             <Link

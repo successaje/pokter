@@ -914,3 +914,129 @@ dialog.sheet[open] .sheet-panel { animation: sheet-up 320ms var(--ease-out); }
     }
   }
 }
+
+/* ---------- Landing: the ruled sheet ----------
+ *
+ * The home page is set as one sheet: the frame's two edges run the length of
+ * the page as hairlines, sections are cut across it by full-width rules, and
+ * each rule is pinned to the edges by a small registration cross. Inside,
+ * cells are ruled rather than boxed. One accent, the signal yellow; one dark
+ * band, for builders. Graph paper shows wherever the sheet is left blank.
+ */
+:root {
+  --band: #111214;
+  --band-raised: #191a1d;
+  --band-ink: #eeece5;
+  --band-ink-2: #a8a69e;
+  --band-rule: #2b2c30;
+}
+:root[data-theme="dark"] {
+  --band: #0b0c0d;
+  --band-raised: #141517;
+  --band-rule: #26272b;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --band: #0b0c0d;
+    --band-raised: #141517;
+    --band-rule: #26272b;
+  }
+}
+
+.graph-paper {
+  --graph: color-mix(in oklab, var(--rule) 62%, transparent);
+  background-image:
+    linear-gradient(to right, var(--graph) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--graph) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* The frame's edges, drawn the length of the page. */
+.sheet-rails {
+  position: absolute;
+  inset-block: 0;
+  left: 50%;
+  width: 100%;
+  max-width: 1240px;
+  transform: translateX(-50%);
+  border-inline: 1px solid var(--rule);
+  pointer-events: none;
+}
+
+/* A registration cross where a rule meets an edge. */
+.sheet-cross {
+  position: absolute;
+  top: 0;
+  width: 13px;
+  height: 13px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.sheet-cross::before,
+.sheet-cross::after {
+  content: "";
+  position: absolute;
+  background: var(--ink-3);
+}
+.sheet-cross::before { left: 6px; top: 0; width: 1px; height: 13px; }
+.sheet-cross::after { top: 6px; left: 0; height: 1px; width: 13px; }
+
+/* The hero's field: grid cells that light as a call goes out, most of them briefly. */
+@keyframes call-miss {
+  0%, 100% { opacity: 0; }
+  6% { opacity: 1; }
+  22% { opacity: 0; }
+}
+@keyframes call-answer {
+  0% { opacity: 0; transform: scale(0.6); }
+  8%, 78% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1); }
+}
+.call-cell {
+  position: absolute;
+  width: 23px;
+  height: 23px;
+  opacity: 0;
+  animation: call-miss var(--d, 7s) ease-out var(--o, 0s) infinite;
+}
+.call-cell[data-answered] {
+  animation-name: call-answer;
+  animation-timing-function: var(--ease-out);
+}
+
+/* A rule drawn in segments, the way a measured line is marked off. */
+.signal-rule > span {
+  display: block;
+  height: 100%;
+  transform-origin: left center;
+}
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .signal-rule > span {
+      animation: rule-draw linear both;
+      animation-timeline: view();
+      animation-range: entry 10% entry 90%;
+    }
+  }
+}
+@keyframes rule-draw {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+/* The activity row's loop. */
+.ticker-run {
+  animation-name: ticker-run;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+@keyframes ticker-run {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-100%, 0, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .call-cell { animation: none; }
+  .call-cell[data-answered] { opacity: 1; }
+  .ticker-run { animation: none; }
+}
