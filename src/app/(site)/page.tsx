@@ -41,9 +41,12 @@ function count(value: number | null | undefined) {
 /*
  * The home page, set as one ruled sheet.
  *
- * The frame's edges run the length of the page and every section is cut
- * across them by a rule pinned with a registration cross; cells inside are
- * ruled, not boxed, and anything left blank shows graph paper. The ground
+ * Sections are cut across the page by rules with a registration mark at
+ * the frame's edges; cells inside are ruled, not boxed, and anything left
+ * blank shows graph paper. The frame's edges are drawn as lines only where
+ * the paper is open — the first screen and the last ask — because
+ * everywhere between, the ruled cells already draw their own, and a second
+ * pair of lines 40px outside them was noise. The ground
  * is paper throughout, with one accent — the signal yellow, for where money
  * or an answer is — and one dark band, for builders, whose job on this page
  * is different from a buyer's. The chapters of colour this replaces (indigo
@@ -134,7 +137,6 @@ export default async function HomePage() {
 
   return (
     <div className="relative">
-      <SheetRails />
 
       {/* ───────────── Hero ───────────── */}
       {/*
@@ -151,6 +153,7 @@ export default async function HomePage() {
         style={{ ['--grid-glow' as string]: 'color-mix(in oklab, var(--signal) 13%, transparent)' }}
       >
         <HeroField />
+        <SheetRails />
         <div className="frame relative flex flex-col items-center gap-5 py-12 text-center sm:py-14">
           {/*
             Two marks: what is switched on, and how much is actually
@@ -614,10 +617,10 @@ export default async function HomePage() {
         The one dark band. Somebody building an agent has a different job
         here from somebody hiring one, and a ground of their own says so
         before a word does. Dark in either theme, with the signal yellow as
-        its one colour, and its own pair of edges continuing the sheet's.
+        its one colour.
       */}
       <section aria-labelledby="builders-title" className="relative z-[1] bg-[var(--band)] text-[var(--band-ink)]">
-        <div className="frame grid grid-cols-1 gap-12 py-20 sm:py-28 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:items-center lg:gap-20 lg:border-x lg:border-[var(--band-rule)]">
+        <div className="frame grid grid-cols-1 gap-12 py-20 sm:py-28 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:items-center lg:gap-20">
           <Reveal className="flex flex-col gap-5">
             <span className="t-label inline-flex items-center gap-2 !text-[var(--band-ink-2)]">
               <span aria-hidden className="size-[7px] bg-signal" />
@@ -737,6 +740,7 @@ export default async function HomePage() {
       >
         <div aria-hidden className="graph-paper absolute inset-0 [mask-image:radial-gradient(ellipse_60%_70%_at_50%_50%,black,transparent_75%)]" />
         <PointerGrid className="[mask-image:radial-gradient(ellipse_70%_80%_at_50%_50%,black,transparent_85%)]" />
+        <SheetRails />
         <Reveal className="frame relative flex flex-col items-center gap-5 py-24 text-center sm:py-32">
           <span className="t-label inline-flex items-center gap-2">
             <span aria-hidden className="size-[7px] bg-signal" />

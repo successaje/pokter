@@ -7,15 +7,16 @@ import { PointerGrid } from '@/ui/PointerGrid';
 /*
  * The landing page's sheet: the pieces every section is cut from.
  *
- * The page is set like a ruled sheet rather than a stack of cards. The
- * frame's edges run its length as hairlines (`SheetRails`), sections are cut
- * across it by full-width rules pinned to those edges with a registration
- * cross (`SheetRule`), and anything left blank shows graph paper. It is the
+ * The page is set like a ruled sheet rather than a stack of cards. Sections
+ * are cut across it by full-width rules with a registration cross where
+ * they meet the frame's edges (`SheetRule`), the open sections draw those
+ * edges as hairlines (`SheetRails`), and anything left blank shows graph
+ * paper. It is the
  * site's own measuring motif — the ruler under the record, the ticks in the
  * footer — taken from decoration into the layout itself.
  */
 
-/** The frame's two edges, the full height of whatever holds them. Desktop only. */
+/** The frame's two edges, the full height of the section that holds them. Desktop only. */
 export function SheetRails() {
   return <div aria-hidden className="sheet-rails hidden lg:block" />;
 }
