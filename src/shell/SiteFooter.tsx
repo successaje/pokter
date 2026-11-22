@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { GUIDES } from '@/lib/guides/catalogue';
 import { POKTER_SOCIAL_LINKS } from '@/lib/social/links';
 import { SUPPORT_EMAIL } from '@/lib/support/contact';
-import { PointerGrid } from '@/ui/PointerGrid';
+import { PixelEdge } from '@/ui/PixelEdge';
 
 import { Mark } from './Logo';
 
@@ -73,39 +73,24 @@ const GROUPS: Array<{ title: string; links: Array<{ href: string; label: string;
  * the relationship to BNB Chain exactly as far as it goes and no further.
  *
  * The page closes on one block of brand colour, the index and the name,
- * drawn as a ruler with ticks along its top and its foot. The yellow is the
+ * which the paper above breaks up into square by square. The yellow is the
  * footer's alone: the ask above it stays on paper with the evidence. It does
  * not change with the theme, so neither does this.
  */
 export function SiteFooter() {
   return (
     <footer className="pb-16 md:pb-0">
-      <div aria-hidden className="ruler">
-        <div className="frame" />
-      </div>
+      {/* The page's paper breaking up into the yellow, square by square, rather than a rule drawn across it. */}
+      <PixelEdge />
       {/*
-        The yellow is paper too. The lattice is ruled into it in the ink, faint
-        at the top where the index is read and firmer toward the name at the
-        foot, with a light under the pointer and the same squares that answer
-        it everywhere else on the site — white here, the one colour that
-        reads on the signal.
+        The yellow is paper too, ruled in the ink on the same 24px lattice as
+        the edge above it: faint at the top where the index is read, firmer
+        toward the name at the foot, with a soft light where the page ends.
+        It holds still; the edge is what moves.
       */}
-      <div
-        data-grid-host
-        className="relative overflow-hidden bg-[var(--signal)] text-[var(--signal-ink)]"
-        style={{
-          ['--graph-line' as string]: 'rgb(22 23 26 / 0.075)',
-          ['--grid-lens' as string]: 'rgb(22 23 26 / 0.26)',
-          ['--grid-trail' as string]: '#16171a',
-          ['--grid-answer' as string]: '#fffdf5',
-          ['--grid-glow' as string]: 'rgb(255 253 245 / 0.32)',
-          ['--glow' as string]: '520px',
-          ['--lens' as string]: '220px',
-        }}
-      >
+      <div className="relative overflow-hidden bg-[var(--signal)] text-[var(--signal-ink)]" style={{ ['--graph-line' as string]: 'rgb(22 23 26 / 0.075)' }}>
         <div aria-hidden className="graph-paper pointer-events-none absolute inset-0 [mask-image:linear-gradient(to_bottom,transparent_8%,black_70%)]" />
         <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_80%_at_85%_110%,rgb(255_253_245/0.28),transparent_60%)]" />
-        <PointerGrid trailAlpha={0.09} answerAlpha={0.85} />
         <div className="frame relative">
           {/*
             The index at a size meant to be read from, under labels set small:
@@ -170,9 +155,6 @@ export function SiteFooter() {
         </div>
       </div>
       {/* <FooterAssembly /> */}
-      <div aria-hidden className="ruler ruler-foot">
-        <div className="frame" />
-      </div>
     </footer>
   );
 }

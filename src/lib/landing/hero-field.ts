@@ -9,7 +9,8 @@
  */
 
 export const FIELD_COLS = 62;
-export const FIELD_ROWS = 27;
+/** Tall enough for a first screen of 960px; the hero is the whole first screen now. */
+export const FIELD_ROWS = 40;
 export const FIELD_CELL = 24;
 export const FIELD_SIZE = 46;
 /** At most this many hold in the signal colour; the rest flash and go dark. */
@@ -25,9 +26,13 @@ export interface FieldCell {
   offset: number;
 }
 
-/** The middle of the field is where the words are: no cell lands there. */
+/**
+ * The middle of the field is where the words are: no cell lands there. The
+ * words are centred in a first screen of any height, so the zone runs the
+ * column's whole height below the top two rows.
+ */
 export function inTextZone(col: number, row: number): boolean {
-  return col > 12 && col < 49 && row > 1 && row < 25;
+  return col > 12 && col < 49 && row > 1;
 }
 
 function seeded(seed: number) {

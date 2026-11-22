@@ -137,14 +137,21 @@ export default async function HomePage() {
       <SheetRails />
 
       {/* ───────────── Hero ───────────── */}
+      {/*
+        The whole first screen, under the header (64px and its rule), with the
+        words centred in it, so the line that opens the film sits at the fold
+        and the next section arrives on the first scroll rather than peeking
+        in as a label with nothing under it. On a phone the tab bar takes
+        another 64px from the foot.
+      */}
       <section
-        className="relative overflow-hidden"
+        className="relative flex min-h-[calc(100svh-8rem-1px)] flex-col justify-center overflow-hidden md:min-h-[calc(100svh-4rem-1px)]"
         aria-labelledby="hero-title"
         data-grid-host
         style={{ ['--grid-glow' as string]: 'color-mix(in oklab, var(--signal) 13%, transparent)' }}
       >
         <HeroField />
-        <div className="frame relative flex flex-col items-center gap-5 pb-14 pt-12 text-center sm:pt-16 lg:pb-16 lg:pt-20">
+        <div className="frame relative flex flex-col items-center gap-5 py-12 text-center sm:py-14">
           {/*
             Two marks: what is switched on, and how much is actually
             hireable through it. The second is a link, because a count a

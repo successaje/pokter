@@ -59,3 +59,14 @@ test('the field is the same on the server and on every visit', () => {
   assert.deepEqual(heroFieldCells(), heroFieldCells());
   assert.notDeepEqual(heroFieldCells(1), heroFieldCells(2));
 });
+
+test('the footer’s edge thins out from the yellow toward the paper, and is the same edge every time', async () => {
+  const { EDGE_COLS, EDGE_ROWS, pixelEdge } = await import('../src/lib/ui/pixel-edge');
+  const squares = pixelEdge();
+  const filled = (row: number) => squares.filter((s) => s.row === row && s.kind !== 'ghost').length;
+  for (let row = 1; row < EDGE_ROWS; row++) assert.ok(filled(row) < filled(row - 1), `row ${row} is thinner than the one under it`);
+  assert.ok(filled(0) > EDGE_COLS * 0.75, 'the row touching the yellow is nearly solid');
+  assert.equal(squares.filter((s) => s.row === 0 && s.kind === 'ghost').length, 0, 'no squares flash into the bottom row');
+  assert.equal(new Set(squares.map((s) => `${s.col}:${s.row}`)).size, squares.length, 'one square per cell');
+  assert.deepEqual(pixelEdge(), pixelEdge());
+});
