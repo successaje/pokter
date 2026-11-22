@@ -15,6 +15,7 @@ import { AgentBoard } from '@/features/landing/AgentBoard';
 import { CountUp } from '@/features/landing/CountUp';
 import { HireDemo } from '@/features/landing/HireDemo';
 import { LiveTicker } from '@/features/landing/LiveTicker';
+import { HeroIntro } from '@/features/landing/HeroIntro';
 import { InView } from '@/features/landing/InView';
 import { HeroField, SectionHead, SheetRails, SheetRule, SignalRule } from '@/features/landing/Sheet';
 import { PointerGrid } from '@/ui/PointerGrid';
@@ -154,6 +155,7 @@ export default async function HomePage() {
       >
         <HeroField />
         <SheetRails />
+        {home.measured.monitored > 0 && <HeroIntro called={home.measured.monitored} answered={home.measured.answering} />}
         <div className="frame relative flex flex-col items-center gap-5 py-12 text-center sm:py-14">
           {/*
             Two marks: what is switched on, and how much is actually
@@ -192,7 +194,7 @@ export default async function HomePage() {
             Most agents never answer.{' '}
             <span className="relative whitespace-nowrap">
               These do
-              <span aria-hidden className="absolute -bottom-1 left-0 h-[0.09em] w-full origin-left bg-signal" style={{ animation: 'rise 700ms var(--ease-out) 500ms both' }} />
+              <span aria-hidden data-hero-underline className="absolute -bottom-1 left-0 h-[0.09em] w-full origin-left bg-signal" style={{ animation: 'rise 700ms var(--ease-out) 500ms both' }} />
             </span>
             .
           </h1>
