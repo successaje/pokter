@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 
 import { FIELD_CELL, FIELD_COLS, FIELD_ROWS, heroFieldCells } from '@/lib/landing/hero-field';
 import { cn } from '@/lib/ui/cn';
+import { PointerGrid } from '@/ui/PointerGrid';
 
 /*
  * The landing page's sheet: the pieces every section is cut from.
@@ -102,17 +103,19 @@ export function SectionHead({
  * The hero's field: graph paper, and here and there a cell lighting up the
  * way a call goes out. Most flash and go dark; a few hold, in the signal
  * colour. Which cells, and how, is `hero-field.ts`; this only draws them.
- * CSS only: nothing here runs a script.
+ *
+ * Over it, the pointer grid: the lattice shows through round the pointer
+ * even behind the words, the squares it crosses light and fade, and one it
+ * rests on answers. Aligned to the same 24px lattice, so a lit square sits
+ * in a square of the paper.
  */
 const FIELD = heroFieldCells();
 
 export function HeroField() {
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden [mask-image:linear-gradient(to_bottom,black_55%,transparent)]">
-      <div
-        className="graph-paper absolute left-1/2 top-0 -translate-x-1/2 [mask-image:radial-gradient(ellipse_58%_56%_at_50%_42%,transparent_46%,black_86%)]"
-        style={{ width: FIELD_COLS * FIELD_CELL + 1, height: FIELD_ROWS * FIELD_CELL + 1 }}
-      >
+      <div className="absolute left-1/2 top-0 -translate-x-1/2" style={{ width: FIELD_COLS * FIELD_CELL + 1, height: FIELD_ROWS * FIELD_CELL + 1 }}>
+        <div className="graph-paper absolute inset-0 [mask-image:radial-gradient(ellipse_58%_56%_at_50%_42%,transparent_46%,black_86%)]">
         {FIELD.map((cell) => (
           <span
             key={`${cell.col}:${cell.row}`}
@@ -126,6 +129,8 @@ export function HeroField() {
             }}
           />
         ))}
+        </div>
+        <PointerGrid cell={FIELD_CELL} />
       </div>
     </div>
   );

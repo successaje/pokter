@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { GUIDES } from '@/lib/guides/catalogue';
 import { POKTER_SOCIAL_LINKS } from '@/lib/social/links';
 import { SUPPORT_EMAIL } from '@/lib/support/contact';
+import { PointerGrid } from '@/ui/PointerGrid';
+
 import { Mark } from './Logo';
 
 const GROUPS: Array<{ title: string; links: Array<{ href: string; label: string; external?: boolean }> }> = [
@@ -81,8 +83,30 @@ export function SiteFooter() {
       <div aria-hidden className="ruler">
         <div className="frame" />
       </div>
-      <div className="bg-[var(--signal)] text-[var(--signal-ink)]">
-        <div className="frame">
+      {/*
+        The yellow is paper too. The lattice is ruled into it in the ink, faint
+        at the top where the index is read and firmer toward the name at the
+        foot, with a light under the pointer and the same squares that answer
+        it everywhere else on the site — white here, the one colour that
+        reads on the signal.
+      */}
+      <div
+        data-grid-host
+        className="relative overflow-hidden bg-[var(--signal)] text-[var(--signal-ink)]"
+        style={{
+          ['--graph-line' as string]: 'rgb(22 23 26 / 0.075)',
+          ['--grid-lens' as string]: 'rgb(22 23 26 / 0.26)',
+          ['--grid-trail' as string]: '#16171a',
+          ['--grid-answer' as string]: '#fffdf5',
+          ['--grid-glow' as string]: 'rgb(255 253 245 / 0.32)',
+          ['--glow' as string]: '520px',
+          ['--lens' as string]: '220px',
+        }}
+      >
+        <div aria-hidden className="graph-paper pointer-events-none absolute inset-0 [mask-image:linear-gradient(to_bottom,transparent_8%,black_70%)]" />
+        <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_80%_at_85%_110%,rgb(255_253_245/0.28),transparent_60%)]" />
+        <PointerGrid trailAlpha={0.09} answerAlpha={0.85} />
+        <div className="frame relative">
           {/*
             The index at a size meant to be read from, under labels set small:
             the links are what somebody scrolled this far for, and the labels

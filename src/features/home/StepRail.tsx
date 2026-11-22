@@ -1,3 +1,4 @@
+import { InView } from '@/features/landing/InView';
 import { PAYMENT_TERMS } from '@/lib/erc8183/payment-terms';
 import { Icon } from '@/ui/icons';
 
@@ -53,13 +54,14 @@ const STEPS = [
 /* The free steps come first, so one bracket covers them and the other the rest. */
 const FREE_STEPS = STEPS.filter((item) => item.free).length;
 
-function Bracket({ label, tone, className, span }: { label: string; tone: 'quiet' | 'signal'; className?: string; span: number }) {
+/** A bracket over the steps it spans, drawn in from its left end once seen; `at` is when, in steps. */
+function Bracket({ label, tone, className, span, at }: { label: string; tone: 'quiet' | 'signal'; className?: string; span: number; at: number }) {
   const line = tone === 'signal' ? 'bg-signal' : 'bg-rule-strong';
   return (
-    <div className={className} style={{ gridColumn: `span ${span} / span ${span}` }}>
-      <span className="t-label block pb-2.5 text-center">{label}</span>
+    <div className={className} style={{ gridColumn: `span ${span} / span ${span}`, ['--i' as string]: at }}>
+      <span className="seq-item t-label block pb-2.5 text-center">{label}</span>
       <div aria-hidden className="relative h-2">
-        <span className={`absolute inset-x-0 top-0 h-[2px] ${line}`} />
+        <span className={`seq-draw absolute inset-x-0 top-0 h-[2px] ${line}`} />
         <span className={`absolute left-0 top-0 h-2 w-[2px] ${line}`} />
         <span className={`absolute right-0 top-0 h-2 w-[2px] ${line}`} />
       </div>
@@ -80,17 +82,24 @@ export function StepRail() {
         </h2>
       </div>
 
-      {/* The brackets take their spans from the steps, so they cannot disagree with them. */}
-      <div className="hidden grid-cols-5 lg:grid" aria-hidden>
-        <Bracket label="Free · nothing to connect" tone="quiet" className="pr-3" span={FREE_STEPS} />
-        <Bracket label="Through one escrow · paid only by delivering" tone="signal" className="pl-3" span={STEPS.length - FREE_STEPS} />
-      </div>
+      {/*
+        Once seen, the five arrive in order and the brackets draw in over
+        them, the escrow one last, so the line between free and paid is the
+        final thing drawn. The brackets take their spans from the steps, so
+        they cannot disagree with them.
+      */}
+      <InView>
+        <div className="hidden grid-cols-5 lg:grid" aria-hidden>
+          <Bracket label="Free · nothing to connect" tone="quiet" className="pr-3" span={FREE_STEPS} at={2} />
+          <Bracket label="Through one escrow · paid only by delivering" tone="signal" className="pl-3" span={STEPS.length - FREE_STEPS} at={6} />
+        </div>
 
-      <ol aria-label="The five steps of a hire" className="grid grid-cols-1 border-l border-t border-rule sm:grid-cols-2 lg:mt-3 lg:grid-cols-5">
+        <ol aria-label="The five steps of a hire" className="grid grid-cols-1 border-l border-t border-rule sm:grid-cols-2 lg:mt-3 lg:grid-cols-5">
         {STEPS.map((item, i) => (
           <li
             key={item.step}
-            className="group relative flex flex-col gap-4 border-b border-r border-rule bg-raised/50 p-5 transition-colors duration-200 hover:bg-raised sm:min-h-[220px] xl:p-6"
+            style={{ ['--i' as string]: i }}
+            className="seq-item group relative flex flex-col gap-4 border-b border-r border-rule bg-raised/50 p-5 transition-colors duration-200 hover:bg-raised sm:min-h-[220px] xl:p-6"
           >
             {/* Which side of the line it is on, drawn in as the pointer arrives. */}
             <span
@@ -116,7 +125,8 @@ export function StepRail() {
             </div>
           </li>
         ))}
-      </ol>
+        </ol>
+      </InView>
     </>
   );
 }

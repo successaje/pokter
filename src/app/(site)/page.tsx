@@ -15,7 +15,9 @@ import { AgentBoard } from '@/features/landing/AgentBoard';
 import { CountUp } from '@/features/landing/CountUp';
 import { HireDemo } from '@/features/landing/HireDemo';
 import { LiveTicker } from '@/features/landing/LiveTicker';
+import { InView } from '@/features/landing/InView';
 import { HeroField, SectionHead, SheetRails, SheetRule, SignalRule } from '@/features/landing/Sheet';
+import { PointerGrid } from '@/ui/PointerGrid';
 import { FILM_JOB } from '@/lib/landing/film-chapters';
 import { filmRecordFor } from '@/lib/landing/film-record';
 import { AgentAvatar } from '@/ui/Agent';
@@ -135,7 +137,12 @@ export default async function HomePage() {
       <SheetRails />
 
       {/* ───────────── Hero ───────────── */}
-      <section className="relative overflow-hidden" aria-labelledby="hero-title">
+      <section
+        className="relative overflow-hidden"
+        aria-labelledby="hero-title"
+        data-grid-host
+        style={{ ['--grid-glow' as string]: 'color-mix(in oklab, var(--signal) 13%, transparent)' }}
+      >
         <HeroField />
         <div className="frame relative flex flex-col items-center gap-5 pb-14 pt-12 text-center sm:pt-16 lg:pb-16 lg:pt-20">
           {/*
@@ -438,9 +445,9 @@ export default async function HomePage() {
                 >
                   <span className="flex items-center justify-between gap-3">
                     <span className="t-readout text-[12px] text-ink-3">{String(index + 1).padStart(2, '0')}</span>
-                    <span className="flex -space-x-2" aria-hidden>
+                    <span className="flex -space-x-2 group-hover:space-x-0.5" aria-hidden>
                       {(entry?.top ?? []).slice(0, 3).map((row) => (
-                        <AgentAvatar key={row.key} name={row.name} imageUrl={row.imageUrl} seed={row.key} size={26} className="rounded-full border-2 border-paper" />
+                        <AgentAvatar key={row.key} name={row.name} imageUrl={row.imageUrl} seed={row.key} size={26} className="rounded-full border-2 border-paper transition-[margin] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)]" />
                       ))}
                     </span>
                   </span>
@@ -481,7 +488,7 @@ export default async function HomePage() {
           standards the table below spells out. On graph paper, in the
           page's own ink, rather than on four fills of their own.
         */}
-        <ul className="mt-10 -mr-4 flex snap-x snap-mandatory overflow-x-auto border-l border-t border-rule [scrollbar-width:none] sm:mr-0 sm:grid sm:grid-cols-2 sm:overflow-visible lg:grid-cols-4 [&::-webkit-scrollbar]:hidden">
+        <InView as="ul" className="mt-10 -mr-4 flex snap-x snap-mandatory overflow-x-auto border-l border-t border-rule [scrollbar-width:none] sm:mr-0 sm:grid sm:grid-cols-2 sm:overflow-visible lg:grid-cols-4 [&::-webkit-scrollbar]:hidden">
           {[
             {
               href: '/methodology',
@@ -547,7 +554,7 @@ export default async function HomePage() {
               </div>
             </li>
           ))}
-        </ul>
+        </InView>
         <details className="group mt-8">
           <summary className="flex cursor-pointer list-none items-center gap-1.5 text-sm font-medium text-ink-2 hover:text-ink [&::-webkit-details-marker]:hidden">
             <Icon.ChevronRight size={15} className="transition-transform duration-200 group-open:rotate-90" />
@@ -631,8 +638,14 @@ export default async function HomePage() {
                 <span className="t-readout text-[11px] text-[var(--band-ink-2)]">5 checks</span>
               </div>
               {/* A rail rather than five ruled rows: these are stages of one thing, and an agent is not hireable until the last. */}
-              <ol className="relative flex flex-col px-6 py-4">
-                <span className="absolute bottom-9 left-[calc(1.5rem+13px)] top-9 border-l border-dashed border-[var(--band-rule)]" aria-hidden />
+              {/*
+                Run in order when seen, the way Studio runs them: the line
+                drops through the five, and each lights as it is reached and
+                goes back. A scan, not a result — nothing here is anybody's
+                agent passing.
+              */}
+              <InView as="ol" className="relative flex flex-col px-6 py-4">
+                <span className="seq-drop absolute bottom-9 left-[calc(1.5rem+13px)] top-9 border-l border-dashed border-[var(--band-rule)]" aria-hidden />
                 {[
                   [Icon.Key, 'ERC-8004 identity', 'Registered, and owned by your wallet'],
                   [Icon.Doc, 'Agent card', 'Resolvable, with a category and skills'],
@@ -642,8 +655,8 @@ export default async function HomePage() {
                 ].map(([Glyph, title, detail], i) => {
                   const Node = Glyph as typeof Icon.Key;
                   return (
-                    <li key={title as string} className="group relative flex items-start gap-4 py-3">
-                      <span className="relative z-10 grid size-[27px] shrink-0 place-items-center border border-[var(--band-rule)] bg-[var(--band-raised)] text-[var(--band-ink-2)] transition-colors group-hover:border-signal group-hover:text-signal">
+                    <li key={title as string} className="seq-item group relative flex items-start gap-4 py-3" style={{ ['--i' as string]: i * 2 + 2 }}>
+                      <span className="scan-tick relative z-10 grid size-[27px] shrink-0 place-items-center border border-[var(--band-rule)] bg-[var(--band-raised)] text-[var(--band-ink-2)] transition-colors group-hover:border-signal group-hover:text-signal">
                         <Node size={13} />
                       </span>
                       <span className="flex min-w-0 flex-col gap-0.5 pt-0.5">
@@ -656,7 +669,7 @@ export default async function HomePage() {
                     </li>
                   );
                 })}
-              </ol>
+              </InView>
               <p className="border-t border-[var(--band-rule)] px-6 py-4 text-[12px] leading-relaxed text-[var(--band-ink-2)]">
                 Studio runs all five against your endpoint before you register, and again on every sweep after.
               </p>
@@ -709,8 +722,14 @@ export default async function HomePage() {
       )}
 
       {/* ───────────── The ask ───────────── */}
-      <section className="relative overflow-hidden" aria-labelledby="cta-title">
+      <section
+        className="relative overflow-hidden"
+        aria-labelledby="cta-title"
+        data-grid-host
+        style={{ ['--grid-glow' as string]: 'color-mix(in oklab, var(--signal) 12%, transparent)' }}
+      >
         <div aria-hidden className="graph-paper absolute inset-0 [mask-image:radial-gradient(ellipse_60%_70%_at_50%_50%,black,transparent_75%)]" />
+        <PointerGrid className="[mask-image:radial-gradient(ellipse_70%_80%_at_50%_50%,black,transparent_85%)]" />
         <Reveal className="frame relative flex flex-col items-center gap-5 py-24 text-center sm:py-32">
           <span className="t-label inline-flex items-center gap-2">
             <span aria-hidden className="size-[7px] bg-signal" />
@@ -738,8 +757,8 @@ export default async function HomePage() {
 function PanelChips({ items }: { items: Array<{ label: string; live?: boolean }> }) {
   return (
     <ul className="flex max-w-[16rem] flex-wrap justify-center gap-1.5">
-      {items.map((item) => (
-        <li key={item.label} className="inline-flex h-6 items-center gap-1.5 rounded-full border border-rule bg-raised px-2.5 text-[11.5px] font-medium text-ink-2">
+      {items.map((item, i) => (
+        <li key={item.label} style={{ ['--i' as string]: i + 2 }} className="seq-item inline-flex h-6 items-center gap-1.5 rounded-full border border-rule bg-raised px-2.5 text-[11.5px] font-medium text-ink-2">
           {item.live !== undefined && <span className={`size-1.5 shrink-0 rounded-full ${item.live ? 'bg-ok' : 'border border-ink-3'}`} aria-hidden />}
           {item.label}
           {item.live === false && <span className="sr-only"> (not live)</span>}
@@ -757,7 +776,7 @@ function PanelRows({ rows }: { rows: Array<{ mark: 'yes' | 'no' | 'part' | 'step
       {rows.map((row, i) => {
         const Glyph = Mark[row.mark];
         return (
-          <li key={row.text} className="flex items-center gap-2.5 py-2">
+          <li key={row.text} style={{ ['--i' as string]: i + 2 }} className="seq-item flex items-center gap-2.5 py-2">
             {Glyph ? <Glyph size={13} className={`shrink-0 ${tone[row.mark]}`} aria-hidden /> : <span className="t-readout w-3.5 shrink-0 text-[11px] text-ink-3">{i + 1}</span>}
             {row.text}
           </li>

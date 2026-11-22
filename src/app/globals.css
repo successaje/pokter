@@ -944,11 +944,76 @@ dialog.sheet[open] .sheet-panel { animation: sheet-up 320ms var(--ease-out); }
 }
 
 .graph-paper {
-  --graph: color-mix(in oklab, var(--rule) 62%, transparent);
   background-image:
-    linear-gradient(to right, var(--graph) 1px, transparent 1px),
-    linear-gradient(to bottom, var(--graph) 1px, transparent 1px);
+    linear-gradient(to right, var(--graph-line, color-mix(in oklab, var(--rule) 62%, transparent)) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--graph-line, color-mix(in oklab, var(--rule) 62%, transparent)) 1px, transparent 1px);
   background-size: 24px 24px;
+}
+
+/*
+ * The pointer grid (`PointerGrid`): the lattice drawn darker and shown only
+ * through a lens round the pointer, and an optional glow under it. The host
+ * sets the colours; position comes from `--mx` and `--my`, written by the
+ * component as the pointer moves, so nothing here re-renders anything.
+ */
+.pointer-grid-lens {
+  --lens-line: var(--grid-lens, var(--rule-strong));
+  background-image:
+    linear-gradient(to right, var(--lens-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--lens-line) 1px, transparent 1px);
+  background-size: var(--cell, 24px) var(--cell, 24px);
+  -webkit-mask-image: radial-gradient(var(--lens, 190px) circle at var(--mx, -999px) var(--my, -999px), black, transparent);
+  mask-image: radial-gradient(var(--lens, 190px) circle at var(--mx, -999px) var(--my, -999px), black, transparent);
+  opacity: 0;
+  transition: opacity 450ms var(--ease-out);
+}
+.pointer-grid-glow {
+  background: radial-gradient(var(--glow, 440px) circle at var(--mx, -999px) var(--my, -999px), var(--grid-glow, transparent), transparent 70%);
+  opacity: 0;
+  transition: opacity 600ms var(--ease-out);
+}
+.pointer-grid[data-on] .pointer-grid-lens,
+.pointer-grid[data-on] .pointer-grid-glow {
+  opacity: 1;
+}
+
+/*
+ * Things that arrive in order once seen (`InView` arms the element, then
+ * sets `data-seen`): each marked child waits its turn, `--i` steps of 90ms,
+ * so a list reads itself in rather than appearing at once. Nothing is held
+ * back until the script has armed it, so with no script everything is
+ * simply there, as it is under reduced motion.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  [data-inview][data-armed] .seq-item {
+    opacity: 0;
+    transform: translateY(8px);
+    transition:
+      opacity 520ms var(--ease-out),
+      transform 520ms var(--ease-out);
+    transition-delay: calc(var(--i, 0) * 90ms);
+  }
+  [data-inview][data-armed][data-seen] .seq-item {
+    opacity: 1;
+    transform: none;
+  }
+  [data-inview][data-armed] .seq-draw {
+    transform: scaleX(0);
+    transform-origin: left center;
+    transition: transform 900ms var(--ease-out);
+    transition-delay: calc(var(--i, 0) * 90ms);
+  }
+  [data-inview][data-armed][data-seen] .seq-draw {
+    transform: none;
+  }
+  [data-inview][data-armed] .seq-drop {
+    transform: scaleY(0);
+    transform-origin: top center;
+    transition: transform 1100ms var(--ease-out) 150ms;
+  }
+  [data-inview][data-armed][data-seen] .seq-drop {
+    transform: none;
+  }
 }
 
 /* The frame's edges, drawn the length of the page. */
@@ -1039,4 +1104,15 @@ dialog.sheet[open] .sheet-panel { animation: sheet-up 320ms var(--ease-out); }
   .call-cell { animation: none; }
   .call-cell[data-answered] { opacity: 1; }
   .ticker-run { animation: none; }
+}
+
+/* A check being run: lit in the signal colour as it is reached, then back. */
+@keyframes scan-tick {
+  0%, 100% { border-color: var(--band-rule); color: var(--band-ink-2); background-color: var(--band-raised); }
+  30%, 55% { border-color: var(--signal); color: var(--signal); background-color: color-mix(in oklab, var(--signal) 16%, var(--band-raised)); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  [data-inview][data-armed][data-seen] .scan-tick {
+    animation: scan-tick 1100ms var(--ease-out) calc(var(--i, 0) * 90ms + 380ms) both;
+  }
 }

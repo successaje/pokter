@@ -12,6 +12,7 @@ import { Ago } from '@/ui/Ago';
 import { AgentAvatar, ProbeStrip } from '@/ui/Agent';
 import { Icon } from '@/ui/icons';
 import { NetworkTag } from '@/ui/Network';
+import { PointerGrid } from '@/ui/PointerGrid';
 import { VERDICT_TONE, VerdictGlyph } from '@/ui/Verdict';
 
 /**
@@ -172,11 +173,20 @@ export function AgentBoard({ agents, cards }: { agents: BoardAgent[]; cards: She
 
   return (
     /*
+     * The paper lies under the whole sheet and shows only through its blank
+     * cells, so those are the cells that answer the pointer: the lattice
+     * brightens as it comes near, the squares it crosses light, and one it
+     * rests on answers. The cells with something in them sit on top,
+     * opaque, and stay still.
+     */
+    <div data-grid-host className="relative">
+      <PointerGrid className="graph-paper hidden lg:block" />
+    {/*
      * A row to swipe on a phone, a sheet from a tablet up. Stacked, eleven
      * cells were three screens between the film and everything else; the
      * cell cut off at the edge is what says there are more.
-     */
-    <ul aria-label="Hireable agents, and what is happening around them" className="-mr-4 flex snap-x snap-mandatory overflow-x-auto border-l border-t border-rule [scrollbar-width:none] sm:mr-0 sm:grid sm:grid-cols-2 sm:overflow-visible lg:grid-cols-4 [&::-webkit-scrollbar]:hidden">
+     */}
+    <ul aria-label="Hireable agents, and what is happening around them" className="relative z-[1] -mr-4 flex snap-x snap-mandatory overflow-x-auto border-l border-t border-rule [scrollbar-width:none] sm:mr-0 sm:grid sm:grid-cols-2 sm:overflow-visible lg:grid-cols-4 [&::-webkit-scrollbar]:hidden">
       {cells.map(({ slot, item }) => {
         /* A diagonal, so the sheet fills from its own top-left corner. */
         const delay = still ? 0 : ((slot % COLUMNS) + Math.floor(slot / COLUMNS)) * 0.06;
@@ -197,7 +207,7 @@ export function AgentBoard({ agents, cards }: { agents: BoardAgent[]; cards: She
             <motion.li
               key={`gap-${slot}`}
               aria-hidden
-              className="graph-paper hidden border-b border-r border-rule lg:block"
+              className="hidden border-b border-r border-rule lg:block"
               initial={still ? false : { opacity: 0 }}
               whileInView={{ opacity: 1 }}
               viewport={{ once: true, amount: 0.2 }}
@@ -212,5 +222,6 @@ export function AgentBoard({ agents, cards }: { agents: BoardAgent[]; cards: She
         );
       })}
     </ul>
+    </div>
   );
 }
