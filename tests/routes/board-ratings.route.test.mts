@@ -35,11 +35,13 @@ getQuestStore().saveAgentWallets([
   { wallet: FLAKY, chainId: 56, tokenId: '106', name: 'Flaky' },
 ]);
 
-function board(ratings: Record<string, [bigint, bigint]>, { fail = new Set<string>() } = {}) {
+function board(ratings: Record<string, [bigint, bigint]>, { fail = new Set<string>(), from = {} as Record<string, number> } = {}) {
   const asked: string[] = [];
   const reader = {
-    readContract: (async ({ address, functionName, args }: { address: Address; functionName: string; args: [Address] }) => {
+    readContract: (async ({ address, functionName, args }: { address: Address; functionName: string; args: Address[] }) => {
       assert.equal(address.toLowerCase(), BOARD.toLowerCase());
+      // A rated wallet is also asked what each of Pokter's own wallets gave it; `from` keys are "provider:reviewer".
+      if (functionName === 'ratingFrom') return BigInt(from[`${args[0].toLowerCase()}:${args[1].toLowerCase()}`] ?? 0);
       assert.equal(functionName, 'ratingOf');
       const wallet = args[0].toLowerCase();
       asked.push(wallet);
@@ -92,4 +94,23 @@ test('an agent gets its own wallet’s rating, and none for a shared wallet or a
   assert.equal(agentBoardRating({ chain_id: 56, token_id: '999' }), null, 'an agent with no wallet read has none');
   // An agent the sweep has not read a wallet for yet uses its listing's wallet.
   assert.equal(agentBoardRating({ chain_id: 56, token_id: '998', agent_wallet: SOLO })?.reviewers, undefined, 'its listing wallet is Solo’s, which another agent holds');
+});
+
+test('a rating from one of Pokter’s own wallets is left out of the agent’s rating, and one only Pokter gave is no rating', async () => {
+  process.env.POKTER_BOARD_ADDRESS = BOARD;
+  const TEAM = '0x564cbb1c360af36681591f47af469913b6364431';
+  // Solo: three holders gave 13 stars, one of them Pokter's (5). Unrated: only Pokter rated it.
+  const read = board({ [SOLO]: [3n, 13n], [UNRATED]: [1n, 5n] }, { from: { [`${SOLO}:${TEAM}`]: 5, [`${UNRATED}:${TEAM}`]: 5 } });
+  await refreshBoardRatings({ reader: read.reader, now: T + 50 * 3_600_000, wallets: [SOLO, UNRATED], team: [TEAM] });
+  const solo = agentBoardRating({ chain_id: 56, token_id: '101' });
+  assert.equal(solo?.reviewers, 2);
+  assert.equal(solo?.stars, 8);
+  assert.equal(solo?.average, 4);
+  // Unrated had an earlier rating from a holder in this file; now that only Pokter's remains, it shows none.
+  assert.equal(agentBoardRating({ chain_id: 56, token_id: '104' }), null);
+});
+
+test('the team wallets include the Agentic Wallet Pokter hires and reviews with', async () => {
+  const { teamAddressSet } = await import('../../src/lib/team/wallets');
+  assert.ok(teamAddressSet().has('0x564cbb1c360af36681591f47af469913b6364431'));
 });
