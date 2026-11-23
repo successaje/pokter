@@ -34,13 +34,21 @@ function movedPaths(): string[] {
 }
 
 /**
- * Every URL path `src/app` defines a page for.
+ * Every URL path `src/app` answers at — pages and handlers both.
  *
  * Route groups (`(site)`) and parallel slots (`@modal`) contribute no URL
  * segment, so they are walked through without extending the path. Dynamic
  * segments (`[chainId]`) are skipped entirely: this test compares static
  * paths only, which is the whole fault class seen so far and keeps it free of
  * guesses about how a `:param` redirect and a `[param]` route overlap.
+ *
+ * `route.ts` counts as well as `page.tsx`. A handler is shadowed by a
+ * redirect exactly as a page is, and is worse off for it: the twice this
+ * went wrong, somebody eventually opened the page and saw the wrong thing,
+ * where nothing that reaches an endpoint is a person. The callers are
+ * other people's clients and probers, and what they report back is
+ * whatever the redirect's destination said — most often a 404 that names
+ * no address at all.
  */
 function routePaths(): Set<string> {
   const found = new Set<string>();
@@ -51,7 +59,7 @@ function routePaths(): Set<string> {
     } catch {
       return;
     }
-    if (entries.some((entry) => entry.isFile() && /^page\.(tsx|ts|jsx|js)$/.test(entry.name))) {
+    if (entries.some((entry) => entry.isFile() && /^(page|route)\.(tsx|ts|jsx|js)$/.test(entry.name))) {
       found.add(`/${segments.join('/')}`);
     }
     for (const entry of entries) {
@@ -80,6 +88,20 @@ test('no legacy redirect shadows a route the app defines', () => {
     [],
     `these paths are both redirected and defined as pages, so the page is unreachable: ${collisions.join(', ')}`,
   );
+});
+
+test('the walk counts handlers, not only pages', () => {
+  /*
+   * Pinned separately because widening it changes nothing observable on
+   * its own: there is no collision among the handlers today, so narrowing
+   * the walk back to pages leaves every other assertion here passing and
+   * silently drops ninety-nine paths out of the guard's reach. This one
+   * names a path that exists only as a handler, so it fails the moment
+   * they stop being counted.
+   */
+  const routes = routePaths();
+  assert.ok(routes.has('/api/health'), '/api/health has only a route.ts, and the walk must still find it');
+  assert.ok(!routes.has('/api'), 'a directory with no page or route of its own is not a path');
 });
 
 test('the page the last collision hid is defined and no longer redirected', () => {
