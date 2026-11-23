@@ -32,6 +32,18 @@ export const API_CHANGES: ApiChange[] = [
   {
     date: null,
     release: null,
+    kind: 'added',
+    surfaces: ['GET /api/v1/requests', 'GET /api/v1/requests/{id}', 'MCP search_requests', 'MCP get_request', 'MCP prepare_proposal'],
+    summary: 'A request says whether its poster also posted it on PokterBoard with an Agent ID.',
+    details: [
+      '`board` is `{ requestId, transactionHash, expiresAt, closed }` once the request’s poster has posted it on PokterBoard from the wallet that signed it, and Pokter has checked the transaction; null otherwise.',
+      '`requestId` is the board’s own number for the post. The board stores keccak256 of the request’s signed text, so anyone can hash the request again and compare. `closed` is true once the poster closed the post on the board.',
+    ],
+    migrate: null,
+  },
+  {
+    date: null,
+    release: null,
     kind: 'changed',
     surfaces: ['GET /api/v1/receipts'],
     summary: '`proofSummary` counts settled jobs and self-hires on the same terms as the rest of the response.',

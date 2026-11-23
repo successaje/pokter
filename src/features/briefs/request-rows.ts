@@ -42,6 +42,7 @@ export function requestRows(now: number): Array<RequestRowData & { taking: boole
     postedAt: b.postedAt,
     state: b.state,
     proposals: store.bidsFor(b.id).length,
+    onBoard: Boolean(b.board && !b.board.closedTx),
     taking: acceptsProposals(b, now),
     hired: hired(b),
   }));

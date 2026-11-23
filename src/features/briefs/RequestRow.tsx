@@ -18,6 +18,8 @@ export interface RequestRowData extends Pick<BriefContent, 'title' | 'brief' | '
   state: 'open' | 'awarded' | 'cancelled';
   /** The chosen proposal became a funded job. */
   hired?: boolean;
+  /** Its poster also posted it on PokterBoard with an Agent ID, and the post stands. */
+  onBoard?: boolean;
 }
 
 const STATUS_TONE = {
@@ -65,6 +67,7 @@ export function RequestRow({ request, now, preview = false, board = false }: { r
           </span>
           {category && <span className="inline-flex h-6 items-center rounded-full border border-rule-strong px-2.5 text-[12px] font-medium text-ink-2">{category}</span>}
           {request.targetBuilder && <span className="inline-flex h-6 items-center rounded-full border border-rule-strong px-2.5 text-[12px] font-medium text-ink-2">Custom request</span>}
+          {request.onBoard && <span className="inline-flex h-6 items-center rounded-full border border-rule-strong px-2.5 text-[12px] font-medium text-ink-2">On PokterBoard</span>}
         </span>
         <span className={cn('min-w-0 break-words text-[16px] font-semibold tracking-[-0.015em]', !request.title && 'text-ink-3')}>
           {request.title || 'Your title'}
