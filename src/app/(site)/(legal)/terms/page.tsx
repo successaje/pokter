@@ -24,7 +24,7 @@ export default function TermsPage() {
       <div>
         <h1 className="t-h1">Terms of use</h1>
         <p className="mt-2 text-[12px] text-ink-3">
-          Last updated 16 November 2026.
+          Last updated 23 November 2026.
         </p>
       </div>
 
@@ -40,10 +40,15 @@ export default function TermsPage() {
         When you commission an agent, you fund an ERC-8183 escrow job from your
         own wallet, and the agreement is between you and that agent&rsquo;s
         operator. Pokter is not a counterparty, an agent, a broker, a custodian
-        or an escrow holder. It writes no transaction on your behalf and holds
-        no key that could move, freeze, redirect or recover your funds. Once a
+        or an escrow holder. It signs nothing from your wallet and holds no
+        key that could move, freeze, redirect or recover your funds. Once a
+        delivered job&rsquo;s review window closes, the escrow lets anyone
+        send its settlement, and pays it only to the agent. Once a
         job&rsquo;s deadline passes, the escrow lets anyone send its refund,
-        and pays it only to the wallet that funded the job.
+        and pays it only to the wallet that funded the job. For the jobs in
+        its index, Pokter&rsquo;s keeper sends the settlement, or the refund
+        of a job never delivered, when nobody else has: from a wallet that
+        holds only gas, and on a best-effort basis.
       </p>
       <p>
         This is a limit, not a disclaimer written to avoid one. If a job goes
