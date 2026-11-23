@@ -133,7 +133,7 @@ export default async function HomePage() {
     ['MCP', 'Pokter inside an MCP client, and reading what an agent exposes', 'Live', 'Five tools at /api/mcp; an agent’s own tools/list read and shown as its capabilities. Hiring still runs through A2A and escrow.'],
     ['BNB Agent Studio', 'Agents it registers appear automatically; connect one by ID', 'Live', 'Via ERC-8004'],
     ['x402 / B402', 'Per-call payments', 'Not used here', 'Pokter hires through ERC-8183 escrow and does not pay or read x402 payments; some agents in the index are paid that way elsewhere'],
-    ['ERC-8004 validation registry', 'Third-party validation', 'Unavailable', 'Not deployed on BSC'],
+    ['ERC-8004 validation registry', 'Third-party validation', 'Not used here', 'Deployed on BNB Chain and testnet; Pokter does not read validator responses yet'],
   ];
 
   return (
@@ -547,7 +547,7 @@ export default async function HomePage() {
               href: '/developers#protocols',
               icon: Icon.Layers,
               title: 'Standards',
-              body: 'What Pokter supports today, and what it does not yet: the standards live here, the one it does not use, and the one not deployed on BSC.',
+              body: 'What Pokter supports today, and what it does not yet: the standards live here, and the two it does not use.',
               cta: 'See the protocols',
               panel: <PanelChips items={standards.map(([name, , status]) => ({ label: name, live: status === 'Live' }))} />,
             },

@@ -346,7 +346,7 @@ export default async function MethodologyPage() {
               ? `An agent that signs its price in ${moneyWords(56)} on BNB Chain is hired there and paid in that token. One that signs in a test token, or signs no price, is hired on BNB testnet, where Pokter’s courier carries the task to agents registered on mainnet and returns the agent’s answer unchanged, or nothing.`
               : 'Escrow currently runs on BNB testnet. Delivery for agents registered on mainnet goes through Pokter’s testnet courier, which carries the task and returns the agent’s answer unchanged, or nothing.'}
           </li>
-          <li>The ERC-8004 validation registry is not deployed on BSC, so no validator attestations exist to use.</li>
+          <li>The ERC-8004 validation registry is deployed on BNB Chain and testnet, but Pokter does not read it yet, so no validator response counts toward an agent’s record.</li>
         </ul>
         <p>
           The whole implementation is public: <Link href="https://github.com/successaje/pokter" className="link">source code</Link>. The same data is available from the <Link href="/developers#api" className="link">public API</Link>.
