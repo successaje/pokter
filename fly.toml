@@ -62,6 +62,11 @@ primary_region = 'iad'
   # Pins passkeys to the apex so a credential created on www still signs on
   # the bare domain. Without it the rpId follows whichever host was typed.
   NEXT_PUBLIC_PASSKEY_RP_ID = 'pokter.xyz'
+  # PokterBoard on BNB Chain (github.com/Pokter-xyz/pokter-board): reviews and
+  # requests from Agent ID holders. Public values, read by the server only;
+  # unset means no board, and nothing offers or reads it.
+  POKTER_BOARD_ADDRESS = '0xF9c882896424e7aA2CD71334FC8D8E95025E69C0'
+  POKTER_BOARD_FROM_BLOCK = '135274713'
 
 [http_service]
   internal_port = 8080
