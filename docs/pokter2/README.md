@@ -111,8 +111,9 @@ ever rendered as HTML.
   labelled suggestion.
 - "Registered" is never shown as "verified". New listings start at "Not
   measured".
-- Standards are shown as Live, Partial, Planned or Unavailable. x402 is
-  Planned, and the ERC-8004 validation registry is Unavailable.
+- Standards are shown as Live or Not used here. x402 is Not used here, and
+  so is the ERC-8004 validation registry: deployed on BNB Chain and testnet,
+  but not read by Pokter yet.
 - There are no stars, popularity or ratings. Reviews are only those signed
   by funding wallets.
 - Permissions: one escrow payment and no standing access, stated on the
