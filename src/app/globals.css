@@ -1088,6 +1088,27 @@ dialog.sheet[open] .sheet-panel { animation: sheet-up 320ms var(--ease-out); }
   .edge-square[data-kind="ghost"] { animation: edge-ghost var(--d, 9s) ease-out var(--o, 0s) infinite; }
 }
 
+/*
+ * The hero's second line, in turn (HeroHeadline): every line stacked in one
+ * grid cell so the headline keeps its size, and only the shown one visible.
+ */
+.hero-line {
+  opacity: 0;
+  transform: translateY(0.22em);
+  transition:
+    opacity 480ms var(--ease-out),
+    transform 480ms var(--ease-out);
+}
+.hero-line[data-on] {
+  opacity: 1;
+  transform: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-line {
+    transition: none;
+  }
+}
+
 /* The hero log's cursor (`HeroIntro`): a block that blinks, as a terminal's does. */
 .hero-caret {
   display: inline-block;
