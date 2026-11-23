@@ -4,6 +4,8 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
+import type { BoardEvent } from '@/lib/board/activity';
+
 import type { ReviewReportReason, VerifiedReview } from './model';
 
 export interface ReviewReport {
@@ -68,6 +70,31 @@ class ReviewStore {
       CREATE TABLE IF NOT EXISTS board_reads (
         board TEXT PRIMARY KEY,
         read_at TEXT NOT NULL
+      );
+      /* PokterBoard's events, as board/activity-server.ts scans them: who reviewed what, who posted and closed which request. */
+      CREATE TABLE IF NOT EXISTS board_events (
+        board TEXT NOT NULL,
+        tx TEXT NOT NULL,
+        log_index INTEGER NOT NULL,
+        block_number INTEGER NOT NULL,
+        block_time TEXT,
+        kind TEXT NOT NULL,
+        wallet TEXT,
+        job_id TEXT,
+        provider TEXT,
+        rating INTEGER,
+        flags INTEGER,
+        comment_hash TEXT,
+        request_id TEXT,
+        brief_hash TEXT,
+        expires_at INTEGER,
+        PRIMARY KEY (board, tx, log_index)
+      );
+      /* The next block to scan for the board's events, and when the scan last ran. */
+      CREATE TABLE IF NOT EXISTS board_scan (
+        board TEXT PRIMARY KEY,
+        next_block INTEGER NOT NULL,
+        scanned_at TEXT NOT NULL
       );
     `);
     for (const statement of [
@@ -199,6 +226,61 @@ class ReviewStore {
   boardReadAt(board: string): string | null {
     const row = this.db.prepare('SELECT read_at FROM board_reads WHERE board=?').get(board.toLowerCase()) as { read_at: string } | undefined;
     return row?.read_at ?? null;
+  }
+
+  /** Board events, kept once each: a rescanned log replaces itself. */
+  saveBoardEvents(board: string, events: readonly BoardEvent[]): void {
+    const insert = this.db.prepare(`
+      INSERT OR REPLACE INTO board_events
+        (board, tx, log_index, block_number, block_time, kind, wallet, job_id, provider, rating, flags, comment_hash, request_id, brief_hash, expires_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    this.db.exec('BEGIN');
+    try {
+      for (const e of events) {
+        insert.run(
+          board.toLowerCase(), e.tx, e.logIndex, e.blockNumber, e.time, e.kind, e.wallet, e.jobId ?? null, e.provider ?? null,
+          e.rating ?? null, e.flags ?? null, e.commentHash ?? null, e.requestId ?? null, e.briefHash ?? null, e.expiresAt ?? null,
+        );
+      }
+      this.db.exec('COMMIT');
+    } catch (error) {
+      this.db.exec('ROLLBACK');
+      throw error;
+    }
+  }
+
+  /** Every event of a board, in chain order. */
+  boardEvents(board: string): BoardEvent[] {
+    const rows = this.db.prepare('SELECT * FROM board_events WHERE board=? ORDER BY block_number, log_index').all(board.toLowerCase()) as Array<Record<string, unknown>>;
+    return rows.map((r) => ({
+      tx: r.tx as `0x${string}`,
+      logIndex: r.log_index as number,
+      blockNumber: r.block_number as number,
+      time: (r.block_time as string | null) ?? null,
+      kind: r.kind as BoardEvent['kind'],
+      wallet: (r.wallet as string | null) ?? null,
+      ...(r.job_id != null ? { jobId: r.job_id as string } : {}),
+      ...(r.provider != null ? { provider: r.provider as string } : {}),
+      ...(r.rating != null ? { rating: r.rating as number } : {}),
+      ...(r.flags != null ? { flags: r.flags as number } : {}),
+      ...(r.comment_hash != null ? { commentHash: r.comment_hash as `0x${string}` } : {}),
+      ...(r.request_id != null ? { requestId: r.request_id as string } : {}),
+      ...(r.brief_hash != null ? { briefHash: r.brief_hash as `0x${string}` } : {}),
+      ...(r.expires_at != null ? { expiresAt: r.expires_at as number } : {}),
+    }));
+  }
+
+  /** Where the scan of a board's events stands: the next block to read, and when it last ran. */
+  boardScan(board: string): { nextBlock: number; scannedAt: string } | null {
+    const row = this.db.prepare('SELECT next_block, scanned_at FROM board_scan WHERE board=?').get(board.toLowerCase()) as { next_block: number; scanned_at: string } | undefined;
+    return row ? { nextBlock: row.next_block, scannedAt: row.scanned_at } : null;
+  }
+
+  setBoardScan(board: string, nextBlock: number, scannedAt: string): void {
+    this.db
+      .prepare('INSERT INTO board_scan (board, next_block, scanned_at) VALUES (?, ?, ?) ON CONFLICT(board) DO UPDATE SET next_block=excluded.next_block, scanned_at=excluded.scanned_at')
+      .run(board.toLowerCase(), nextBlock, scannedAt);
   }
 
   setBoardReadAt(board: string, readAt: string): void {
