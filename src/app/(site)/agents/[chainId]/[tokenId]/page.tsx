@@ -9,6 +9,7 @@ import { Fragment, Suspense, type ReactNode } from 'react';
 import { getServiceStore } from '@/lib/services/store';
 
 import { CHAIN_ID, chainLabel, explorerBaseFor, shortNetworkLabel } from '@/lib/network/presentation';
+import { teamWalletSet } from '@/lib/team/server';
 import { cn } from '@/lib/ui/cn';
 import { formatDelivery, formatMs, shortAddress } from '@/lib/ui/format';
 import type { ChainId } from '@/lib/scan/types';
@@ -544,6 +545,8 @@ export default async function AgentPage({ params, searchParams }: { params: Para
   }
 
   const p = result.profile;
+  /* Reviews from Pokter's own wallets are marked as such: a review Pokter wrote is not a buyer's verdict. */
+  const teamWallets = teamWalletSet();
   const path = `/agents/${p.chainId}/${p.tokenId}`;
   // The agent's own example first, as on the hire page; Pokter's category wording only when it declares none.
   const declaredTemplates = templatesFromSkills(p.skills);
@@ -1200,6 +1203,11 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                         <span>
                           Job <span className="t-readout">#{r.jobId}</span> · {r.proof === 'board' ? 'recorded on PokterBoard by the funding wallet' : 'signed by the funding wallet'} <span className="t-readout">{r.buyer.slice(0, 6)}…{r.buyer.slice(-4)}</span>
                         </span>
+                        {teamWallets.has(r.buyer.toLowerCase()) && (
+                          <span className="font-medium text-ink-2" title="One of Pokter’s own wallets: a test of Pokter’s flow, not a buyer’s verdict, and left out of the agent’s board rating">
+                            Pokter team
+                          </span>
+                        )}
                         {r.boardTx && (
                           <a href={`${explorerBaseFor(56)}/tx/${r.boardTx}`} target="_blank" rel="noreferrer noopener" className="link" title="Recorded on PokterBoard by a buyer holding an Agent ID">
                             Agent ID holder

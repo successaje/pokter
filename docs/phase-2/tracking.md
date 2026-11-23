@@ -163,6 +163,7 @@ escrow client-side, so the funds and the authority are the user's throughout.
 | Team passkey wallet — buyer side, end-to-end testing | `0x3fb8779f4f42e1800F27AAec9564530BCaa852Bf` |
 | Second team passkey wallet — buyer side, declared 2026-10-01 | `0xcE515e144c33EDbD1c3320fde0dE6373315885eD` |
 | Team wallet, added 2026-10-14 | `0xdAb12cf15F4385188bE62bda9F00877AF4C1b32f` |
+| Team Agentic Wallet: test hires and reviews, holds Agent ID `pokter`. Added 2026-11-23, after Set and Earn closed (5 November); not part of that campaign's declaration | `0x564cbb1c360Af36681591F47AF469913B6364431` |
 
 ### The retired operator address
 
