@@ -15,6 +15,7 @@ import { AgentBoard } from '@/features/landing/AgentBoard';
 import { CountUp } from '@/features/landing/CountUp';
 import { HireDemo } from '@/features/landing/HireDemo';
 import { LiveTicker } from '@/features/landing/LiveTicker';
+import { HeroHeadline } from '@/features/landing/HeroHeadline';
 import { HeroIntro } from '@/features/landing/HeroIntro';
 import { InView } from '@/features/landing/InView';
 import { HeroField, SectionHead, SheetRails, SheetRule, SignalRule } from '@/features/landing/Sheet';
@@ -187,17 +188,10 @@ export default async function HomePage() {
           {/*
             The finding, not the promise: Pokter rang every number and wrote
             down who picked up, so the headline reports that. Kept at its
-            full display size; the rule reaches "These do", the half that
-            pays the sentence off.
+            full display size, with the finding on a line of its own and the
+            line under it taking turns (HeroHeadline).
           */}
-          <h1 id="hero-title" className="t-display anim-rise max-w-[14ch]" style={{ animationDelay: '60ms' }}>
-            Most agents never answer.{' '}
-            <span className="relative whitespace-nowrap">
-              These do
-              <span aria-hidden data-hero-underline className="absolute -bottom-1 left-0 h-[0.09em] w-full origin-left bg-signal" style={{ animation: 'rise 700ms var(--ease-out) 500ms both' }} />
-            </span>
-            .
-          </h1>
+          <HeroHeadline />
           <p className="t-lede anim-rise max-w-[34rem]" style={{ animationDelay: '120ms' }}>
             We ask every BNB Chain agent we list, on a schedule, and publish what came back. Hire on the record, not the pitch.
           </p>
