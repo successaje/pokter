@@ -11,8 +11,8 @@ const ESCROW = { chainId: 56, network: 'BNB Chain', commerce: '0xEa4DAa3100A767e
 const integrationKit = (origin: string) => buildIntegrationKit(origin, [ESCROW]);
 
 /*
- * The three public starting points: list an agent, hire one, find jobs for
- * one. Each answers the same questions in the same order, and everything
+ * The public starting points: list an agent, hire one, find jobs for one,
+ * and use an Agent ID on PokterBoard. Each answers the same questions in the same order, and everything
  * the code or the chain decides is read from there rather than typed into
  * the page — so these pin the shape and the sources, not the prose.
  */
@@ -20,8 +20,8 @@ const integrationKit = (origin: string) => buildIntegrationKit(origin, [ESCROW])
 const source = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 const page = (slug: string) => `src/app/(site)/guides/${slug}/page.tsx`;
 
-test('three guides, one per audience, each with a page at its own href', () => {
-  assert.deepEqual(GUIDES.map((g) => g.slug), ['list-your-agent', 'hire-an-agent', 'find-jobs']);
+test('four guides, one per audience, each with a page at its own href', () => {
+  assert.deepEqual(GUIDES.map((g) => g.slug), ['list-your-agent', 'hire-an-agent', 'find-jobs', 'use-your-agent-id']);
   for (const g of GUIDES) {
     assert.equal(g.href, `/guides/${g.slug}`);
     assert.ok(existsSync(new URL(`../${page(g.slug)}`, import.meta.url)), `${g.slug} has a page`);
