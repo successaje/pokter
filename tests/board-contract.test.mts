@@ -97,3 +97,10 @@ test('a call from someone else, to somewhere else, or saying something else does
 test('a review of a testnet job is never matched to the mainnet board', () => {
   assert.equal(matchesBoardReview({ ...review, chainId: 97 }, sent(), BOARD).ok, false);
 });
+
+test('every refusal the board can send back is put in words a wallet’s owner can act on', async () => {
+  const { BOARD_REFUSAL } = await import('../src/lib/board/contract');
+  const errors = BOARD_ABI.filter((item) => item.type === 'error').map((item) => item.name);
+  assert.ok(errors.includes('RefundedAfterDeadline') && errors.includes('RejectedOutsidePolicy'));
+  for (const name of errors) assert.ok((BOARD_REFUSAL[name] ?? '').length > 20, `${name} has words`);
+});
