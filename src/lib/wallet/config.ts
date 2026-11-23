@@ -45,25 +45,36 @@ const WALLETCONNECT_PROJECT_ID = walletConnectProjectId();
 
 export const walletConnectConfigured = WALLETCONNECT_PROJECT_ID !== null;
 
+/**
+ * What the WalletConnect connector is built with, pulled out for the same
+ * reason as the project id.
+ *
+ * `telemetryEnabled: false` because the WalletConnect core reports usage
+ * events to WalletConnect's own servers unless told not to, and Pokter's
+ * privacy notice says it runs no third-party analytics. The relay that
+ * carries the connection is unaffected: that is the service the person
+ * asked for when they chose to connect this way.
+ */
+export function walletConnectParameters(projectId: string, appUrl: string = process.env.NEXT_PUBLIC_APP_URL ?? 'https://pokter.xyz') {
+  return {
+    projectId,
+    showQrModal: true,
+    telemetryEnabled: false,
+    metadata: {
+      name: 'Pokter',
+      description: 'Find, compare and hire AI agents on BNB Chain.',
+      url: appUrl,
+      icons: [`${appUrl}/brand/pokter-app-icon-192.png`],
+    },
+  } satisfies Parameters<typeof walletConnect>[0];
+}
+
 export const wagmiConfig = createConfig({
   chains: [bscTestnet, bsc],
   connectors: [
     injected(),
     // Browser only: its storage layer needs indexedDB, which the server lacks.
-    ...(WALLETCONNECT_PROJECT_ID && typeof window !== 'undefined'
-      ? [
-          walletConnect({
-            projectId: WALLETCONNECT_PROJECT_ID,
-            showQrModal: true,
-            metadata: {
-              name: 'Pokter',
-              description: 'Find, compare and hire AI agents on BNB Chain.',
-              url: process.env.NEXT_PUBLIC_APP_URL ?? 'https://pokter.xyz',
-              icons: [`${process.env.NEXT_PUBLIC_APP_URL ?? 'https://pokter.xyz'}/brand/pokter-app-icon-192.png`],
-            },
-          }),
-        ]
-      : []),
+    ...(WALLETCONNECT_PROJECT_ID && typeof window !== 'undefined' ? [walletConnect(walletConnectParameters(WALLETCONNECT_PROJECT_ID))] : []),
   ],
   /*
    * Two nodes per chain. The public node sometimes refuses a receipt seconds
