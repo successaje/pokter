@@ -143,6 +143,23 @@ export interface Brief extends BriefContent {
   postedAt: string;
   /** Set when a bid is accepted. */
   awardedBidId: string | null;
+  /**
+   * The request as its poster also posted it on PokterBoard, with the wallet
+   * that holds their Agent ID, once Pokter has checked the transaction
+   * (`lib/board/requests.ts`). Null or absent when it is not on the board.
+   */
+  board?: BoardRequestLink | null;
+}
+
+/** A request's post on PokterBoard: the board's own id for it, and the transactions that posted and closed it. */
+export interface BoardRequestLink {
+  /** The board's request id, a decimal string. */
+  requestId: string;
+  tx: Hex;
+  /** When the post stops standing on the board, as an ISO time. */
+  expiresAt: string;
+  /** The poster closed it on the board; null while it stands. */
+  closedTx: Hex | null;
 }
 
 export interface BidContent {

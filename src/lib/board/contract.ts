@@ -45,9 +45,20 @@ export const BOARD_ABI = parseAbi([
   'error UnpaidJob()',
   'error JobNotEnded(uint8 status)',
   'error NothingDelivered()',
+  'error RefundedAfterDeadline()',
+  'error RejectedOutsidePolicy()',
+  'function postRequest(bytes32 briefHash, uint64 expiresAt) returns (uint256 requestId)',
+  'function closeRequest(uint256 requestId)',
+  'function requests(uint256 requestId) view returns (address poster, uint64 expiresAt, bool closed)',
+  'event RequestPosted(uint256 indexed requestId, address indexed poster, bytes32 briefHash, uint64 expiresAt)',
+  'event RequestClosed(uint256 indexed requestId)',
+  'error EmptyBrief()',
+  'error ExpiryNotInFuture()',
+  'error NotRequestPoster()',
+  'error RequestAlreadyClosed()',
 ]);
 
-/** Why the board refuses a review, in words a buyer can act on. */
+/** Why the board refuses a call, in words its sender can act on. */
 export const BOARD_REFUSAL: Record<string, string> = {
   NotAgentIdHolder: 'The wallet that funded this job holds no Agent ID.',
   RatingOutOfRange: 'A rating is 1 to 5 stars.',
@@ -58,6 +69,12 @@ export const BOARD_REFUSAL: Record<string, string> = {
   UnpaidJob: 'A job with no budget cannot be reviewed.',
   JobNotEnded: 'The job has not ended on the escrow yet.',
   NothingDelivered: 'The agent delivered nothing on this job, so it cannot be reviewed.',
+  RefundedAfterDeadline: 'This job was refunded after its deadline, so its buyer did not pay for the delivery and cannot review it on PokterBoard.',
+  RejectedOutsidePolicy: 'This job was rejected by an evaluator other than the escrow’s dispute policy, so its buyer got the money back with nobody deciding against the agent, and cannot review it on PokterBoard.',
+  EmptyBrief: 'The request has no text to post.',
+  ExpiryNotInFuture: 'The request has stopped taking proposals, so it cannot be posted.',
+  NotRequestPoster: 'Only the wallet that posted this request on PokterBoard can close it there.',
+  RequestAlreadyClosed: 'This request is already closed on PokterBoard.',
 };
 
 /* Bits 2-3 of `flags`; 0 means the reviewer did not say. */

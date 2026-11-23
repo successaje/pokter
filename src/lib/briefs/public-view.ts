@@ -87,6 +87,10 @@ export function requestSummary(brief: Brief, facts: RequestFacts, origin: string
     poster: brief.poster,
     targetBuilder: brief.targetBuilder ?? null,
     proposals: facts.proposals,
+    /* Its post on PokterBoard by its poster's Agent ID wallet, once Pokter has checked the transaction; null when it is not on the board. */
+    board: brief.board
+      ? { requestId: brief.board.requestId, transactionHash: brief.board.tx, expiresAt: brief.board.expiresAt, closed: Boolean(brief.board.closedTx) }
+      : null,
     page: `${origin}/requests/${brief.id}`,
   };
 }

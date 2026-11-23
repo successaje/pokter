@@ -1,10 +1,11 @@
 import 'server-only';
 
-import { createPublicClient, getAddress, isAddress, type Address } from 'viem';
+import { createPublicClient, getAbiItem, getAddress, isAddress, type Abi, type Address, type Hex, type Log } from 'viem';
 import { bsc } from 'viem/chains';
 
 import { readTransport } from '@/lib/chain/rpc';
 import { publicReadUrls } from '@/lib/chain/transport';
+import { historyClient } from '@/lib/erc8183/history-client';
 import type { VerifiedReview } from '@/lib/reviews/model';
 import { AGENT_ID_ABI, AGENT_ID_REGISTRY, BOARD_ABI, BOARD_CHAIN_ID, BOARD_REFUSAL, boardReviewCall } from './contract';
 
@@ -109,6 +110,66 @@ function revertName(error: unknown): string | undefined {
     current = cause;
   }
   return undefined;
+}
+
+/**
+ * Whether the board would take a call from this wallet now, judged by
+ * simulating that wallet's own call, so every rule is the contract's. A
+ * refusal comes back in the board's words; anything else is thrown.
+ */
+export async function simulateBoardCall(
+  call: { address: Address; abi: Abi; functionName: string; args: readonly unknown[] },
+  account: Address,
+  reader: Pick<BoardReader, 'simulateContract'> = boardClient(),
+): Promise<{ ok: true } | { ok: false; reason: string }> {
+  try {
+    await reader.simulateContract({ address: call.address, abi: call.abi, functionName: call.functionName, args: call.args, account: getAddress(account) } as never);
+    return { ok: true };
+  } catch (error) {
+    const name = revertName(error);
+    if (name && BOARD_REFUSAL[name]) return { ok: false, reason: BOARD_REFUSAL[name] };
+    throw error;
+  }
+}
+
+/** A board transaction as Pokter checks it: who sent it where, with what, and what the board logged. */
+export interface BoardTransaction {
+  from: Address;
+  to: Address | null;
+  input: Hex;
+  succeeded: boolean;
+  logs: Log[];
+}
+
+type TxReader = { getTransaction(args: { hash: Hex }): Promise<{ from: Address; to: Address | null; input: Hex }>; getTransactionReceipt(args: { hash: Hex }): Promise<{ status: string; logs: Log[] }> };
+
+/** Read a sent transaction and its receipt from the board's chain. */
+export async function readBoardTransaction(hash: Hex, reader: TxReader = makeClient() as unknown as TxReader): Promise<BoardTransaction> {
+  const [tx, receipt] = await Promise.all([reader.getTransaction({ hash }), reader.getTransactionReceipt({ hash })]);
+  return { from: tx.from, to: tx.to, input: tx.input, succeeded: receipt.status === 'success', logs: receipt.logs };
+}
+
+/*
+ * How far back a post or close is looked for when the wallet returned no
+ * transaction, as when its owner approved it later in the Binance App:
+ * about an hour of blocks, as far as public nodes serve logs.
+ */
+const RECENT_BLOCKS = 8_000n;
+
+/** The poster's most recent post of this hash on the board, or close of this request, in the last hour or so of blocks. */
+export async function findBoardRequestTransaction(
+  board: Address,
+  find: { post: { poster: Address; briefHash: Hex } } | { close: { requestId: bigint } },
+): Promise<Hex | null> {
+  const client = historyClient(BOARD_CHAIN_ID);
+  const latest = await client.getBlockNumber();
+  const fromBlock = latest > RECENT_BLOCKS ? latest - RECENT_BLOCKS : 0n;
+  if ('post' in find) {
+    const logs = await client.getLogs({ address: board, event: getAbiItem({ abi: BOARD_ABI, name: 'RequestPosted' }), args: { poster: find.post.poster }, fromBlock, toBlock: latest });
+    return logs.filter((log) => log.args.briefHash === find.post.briefHash).at(-1)?.transactionHash ?? null;
+  }
+  const logs = await client.getLogs({ address: board, event: getAbiItem({ abi: BOARD_ABI, name: 'RequestClosed' }), args: { requestId: find.close.requestId }, fromBlock, toBlock: latest });
+  return logs.at(-1)?.transactionHash ?? null;
 }
 
 /** Whether a job is already reviewed on the board, by anyone's means. */
