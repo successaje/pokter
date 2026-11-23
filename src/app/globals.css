@@ -457,50 +457,6 @@ main:has(> [data-flush-footer]:last-child) + footer {
 }
 
 /*
- * The edges of a coloured block, drawn as a ruler: ticks in the block's
- * colour rising from its top into the paper, and hanging from its foot. The
- * footer's are yellow; a chapter sets `--ruler` to its own fill. A small
- * mark every 8px, a half mark every 40 and a full one every 80. It measures
- * nothing and is not a reading of anything; it is the brand's instrument,
- * not one of its figures.
- *
- * The full marks are counted from the frame's own left edge, so the first
- * one stands over the first column rather than wherever the window happens
- * to start. The ticks are painted on a layer three windows
- * wide pulled one window left, with the pattern pushed back by the same
- * window: the two cancel, which pins it to the frame without having to know
- * the scrollbar's width.
- */
-.ruler {
-  overflow: hidden;
-}
-.ruler > .frame {
-  position: relative;
-  height: 22px;
-  /* `.frame`'s own inline padding, at its breakpoints. */
-  --frame-pad: 16px;
-}
-@media (min-width: 640px) { .ruler > .frame { --frame-pad: 28px; } }
-@media (min-width: 1024px) { .ruler > .frame { --frame-pad: 40px; } }
-.ruler > .frame::before {
-  content: '';
-  position: absolute;
-  inset-block: 0;
-  left: -100vw;
-  width: 300vw;
-  background-image:
-    linear-gradient(to right, var(--ruler, var(--signal)) 2px, transparent 2px),
-    linear-gradient(to right, var(--ruler, var(--signal)) 2px, transparent 2px),
-    linear-gradient(to right, var(--ruler, var(--signal)) 2px, transparent 2px);
-  background-size: 80px 22px, 40px 13px, 8px 7px;
-  background-repeat: repeat-x;
-  background-position: calc(100vw + var(--frame-pad)) 100%;
-}
-.ruler-foot > .frame::before {
-  background-position: calc(100vw + var(--frame-pad)) 0;
-}
-
-/*
  * A link in the closing block. On hover a tick slides in ahead of it: the
  * ruler's mark, set against the line being pointed at.
  */
@@ -913,4 +869,239 @@ dialog.sheet[open] .sheet-panel { animation: sheet-up 320ms var(--ease-out); }
       padding-bottom: max(12px, env(safe-area-inset-bottom));
     }
   }
+}
+
+/* ---------- Landing: the ruled sheet ----------
+ *
+ * The home page is set as one sheet: the frame's two edges run the length of
+ * the page as hairlines, sections are cut across it by full-width rules, and
+ * each rule is pinned to the edges by a small registration cross. Inside,
+ * cells are ruled rather than boxed. One accent, the signal yellow; one dark
+ * band, for builders. Graph paper shows wherever the sheet is left blank.
+ */
+:root {
+  --band: #111214;
+  --band-raised: #191a1d;
+  --band-ink: #eeece5;
+  --band-ink-2: #a8a69e;
+  --band-rule: #2b2c30;
+}
+:root[data-theme="dark"] {
+  --band: #0b0c0d;
+  --band-raised: #141517;
+  --band-rule: #26272b;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --band: #0b0c0d;
+    --band-raised: #141517;
+    --band-rule: #26272b;
+  }
+}
+
+.graph-paper {
+  background-image:
+    linear-gradient(to right, var(--graph-line, color-mix(in oklab, var(--rule) 62%, transparent)) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--graph-line, color-mix(in oklab, var(--rule) 62%, transparent)) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/*
+ * The pointer grid (`PointerGrid`): the lattice drawn darker and shown only
+ * through a lens round the pointer, and an optional glow under it. The host
+ * sets the colours; position comes from `--mx` and `--my`, written by the
+ * component as the pointer moves, so nothing here re-renders anything.
+ */
+.pointer-grid-lens {
+  --lens-line: var(--grid-lens, var(--rule-strong));
+  background-image:
+    linear-gradient(to right, var(--lens-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--lens-line) 1px, transparent 1px);
+  background-size: var(--cell, 24px) var(--cell, 24px);
+  -webkit-mask-image: radial-gradient(var(--lens, 190px) circle at var(--mx, -999px) var(--my, -999px), black, transparent);
+  mask-image: radial-gradient(var(--lens, 190px) circle at var(--mx, -999px) var(--my, -999px), black, transparent);
+  opacity: 0;
+  transition: opacity 450ms var(--ease-out);
+}
+.pointer-grid-glow {
+  background: radial-gradient(var(--glow, 440px) circle at var(--mx, -999px) var(--my, -999px), var(--grid-glow, transparent), transparent 70%);
+  opacity: 0;
+  transition: opacity 600ms var(--ease-out);
+}
+.pointer-grid[data-on] .pointer-grid-lens,
+.pointer-grid[data-on] .pointer-grid-glow {
+  opacity: 1;
+}
+
+/*
+ * Things that arrive in order once seen (`InView` arms the element, then
+ * sets `data-seen`): each marked child waits its turn, `--i` steps of 90ms,
+ * so a list reads itself in rather than appearing at once. Nothing is held
+ * back until the script has armed it, so with no script everything is
+ * simply there, as it is under reduced motion.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  [data-inview][data-armed] .seq-item {
+    opacity: 0;
+    transform: translateY(8px);
+    transition:
+      opacity 520ms var(--ease-out),
+      transform 520ms var(--ease-out);
+    transition-delay: calc(var(--i, 0) * 90ms);
+  }
+  [data-inview][data-armed][data-seen] .seq-item {
+    opacity: 1;
+    transform: none;
+  }
+  [data-inview][data-armed] .seq-draw {
+    transform: scaleX(0);
+    transform-origin: left center;
+    transition: transform 900ms var(--ease-out);
+    transition-delay: calc(var(--i, 0) * 90ms);
+  }
+  [data-inview][data-armed][data-seen] .seq-draw {
+    transform: none;
+  }
+  [data-inview][data-armed] .seq-drop {
+    transform: scaleY(0);
+    transform-origin: top center;
+    transition: transform 1100ms var(--ease-out) 150ms;
+  }
+  [data-inview][data-armed][data-seen] .seq-drop {
+    transform: none;
+  }
+}
+
+/* The frame's edges, drawn the length of the page. */
+.sheet-rails {
+  position: absolute;
+  inset-block: 0;
+  left: 50%;
+  width: 100%;
+  max-width: 1240px;
+  transform: translateX(-50%);
+  border-inline: 1px solid var(--rule);
+  pointer-events: none;
+}
+
+/* A registration cross where a rule meets an edge. */
+.sheet-cross {
+  position: absolute;
+  top: 0;
+  width: 13px;
+  height: 13px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.sheet-cross::before,
+.sheet-cross::after {
+  content: "";
+  position: absolute;
+  background: var(--ink-3);
+}
+.sheet-cross::before { left: 6px; top: 0; width: 1px; height: 13px; }
+.sheet-cross::after { top: 6px; left: 0; height: 1px; width: 13px; }
+
+/* The hero's field: grid cells that light as a call goes out, most of them briefly. */
+@keyframes call-miss {
+  0%, 100% { opacity: 0; }
+  6% { opacity: 1; }
+  22% { opacity: 0; }
+}
+@keyframes call-answer {
+  0% { opacity: 0; transform: scale(0.6); }
+  8%, 78% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1); }
+}
+.call-cell {
+  position: absolute;
+  width: 23px;
+  height: 23px;
+  opacity: 0;
+  animation: call-miss var(--d, 7s) ease-out var(--o, 0s) infinite;
+}
+.call-cell[data-answered] {
+  animation-name: call-answer;
+  animation-timing-function: var(--ease-out);
+}
+
+/* A rule drawn in segments, the way a measured line is marked off. */
+.signal-rule > span {
+  display: block;
+  height: 100%;
+  transform-origin: left center;
+}
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .signal-rule > span {
+      animation: rule-draw linear both;
+      animation-timeline: view();
+      animation-range: entry 10% entry 90%;
+    }
+  }
+}
+@keyframes rule-draw {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+/* The activity row's loop. */
+.ticker-run {
+  animation-name: ticker-run;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+@keyframes ticker-run {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-100%, 0, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .call-cell { animation: none; }
+  .call-cell[data-answered] { opacity: 1; }
+  .ticker-run { animation: none; }
+}
+
+/* A check being run: lit in the signal colour as it is reached, then back. */
+@keyframes scan-tick {
+  0%, 100% { border-color: var(--band-rule); color: var(--band-ink-2); background-color: var(--band-raised); }
+  30%, 55% { border-color: var(--signal); color: var(--signal); background-color: color-mix(in oklab, var(--signal) 16%, var(--band-raised)); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  [data-inview][data-armed][data-seen] .scan-tick {
+    animation: scan-tick 1100ms var(--ease-out) calc(var(--i, 0) * 90ms + 380ms) both;
+  }
+}
+
+/* The footer's edge (`PixelEdge`): some squares fade and return, some flash into a gap. */
+@keyframes edge-twinkle {
+  0%, 100% { opacity: 1; }
+  42%, 58% { opacity: 0; }
+}
+@keyframes edge-ghost {
+  0%, 100% { opacity: 0; }
+  10%, 22% { opacity: 1; }
+}
+.edge-square[data-kind="ghost"] { opacity: 0; }
+@media (prefers-reduced-motion: no-preference) {
+  .edge-square[data-kind="twinkle"] { animation: edge-twinkle var(--d, 8s) ease-in-out var(--o, 0s) infinite; }
+  .edge-square[data-kind="ghost"] { animation: edge-ghost var(--d, 9s) ease-out var(--o, 0s) infinite; }
+}
+
+/* The hero log's cursor (`HeroIntro`): a block that blinks, as a terminal's does. */
+.hero-caret {
+  display: inline-block;
+  width: 0.6em;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: -0.12em;
+  background: currentColor;
+  opacity: 0.7;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .hero-caret { animation: hero-caret 1.05s steps(1, end) infinite; }
+}
+@keyframes hero-caret {
+  0%, 50% { opacity: 0.7; }
+  50.01%, 100% { opacity: 0; }
 }

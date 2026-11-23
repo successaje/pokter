@@ -83,8 +83,12 @@ test('featured agents say where a hire settles under the price, as every card do
   assert.match(featured, /<HiringLines row=\{row\} network=\{false\} \/>/);
   // The network by name, Mainnet or Testnet; what the money is, in the tooltip (hire-networks.ts).
   assert.match(card, /title=\{tag\.meaning\}/);
-  // The home page passes each agent's networks across its registrations, as Discover does.
-  assert.match(code('app/(site)/page.tsx'), /<FeaturedAgent row=\{row\} hireChainIds=\{row\.hireChainIds\} \/>/);
+  // The home page's board says each agent's networks across its registrations, as Discover does, with one tag per cell.
+  assert.match(code('app/(site)/page.tsx'), /<AgentBoard agents=\{home\.board\} cards=\{home\.sheet\} \/>/);
+  const board = code('features/landing/AgentBoard.tsx');
+  assert.equal(board.match(/<NetworkTag /g)?.length, 1, 'one tag per cell');
+  assert.match(board, /<NetworkTag chainId=\{agent\.hireChainId\} alsoHireOn=\{agent\.hireChainIds\} \/>/);
+  assert.match(code('features/home/data.ts'), /hireChainIds: hireChainIdsOf\(row\.hireChainId, \(others\.get\(row\) \?\? \[\]\)\.map\(\(twin\) => twin\.hireChainId\)\)/);
 });
 
 test('rankings and proof say what each of the three boards counts, and rankings names its networks', () => {

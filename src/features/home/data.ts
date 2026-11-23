@@ -18,6 +18,8 @@ import { teamWalletSet } from '@/lib/team/server';
 import { fundedByTeam } from '@/lib/team/wallets';
 import { isLifecycleDemo } from '@/lib/agent/credited-history';
 import { isSelfHire } from '@/lib/erc8183/production-proof';
+import { oneLine } from '@/lib/landing/one-line';
+import { sheetCards, tickerItems, type SheetCard, type TickerItem } from '@/lib/landing/sheet';
 
 /** One line of the hero's inspection: a real check with a real result. */
 export interface SpecimenCheck {
@@ -157,6 +159,15 @@ export interface HomeData {
   specimens: Specimen[];
   /** `hireChainIds`: every network the agent can be hired on with a verified price, across its registrations. */
   featured: Array<FindRow & { hireChainIds: number[] }>;
+  /**
+   * The sheet's agents: the same rule as `featured`, eight deep, each with
+   * one line of what it does. `featured` is the first four of these.
+   */
+  board: Array<FindRow & { hireChainIds: number[]; purpose: string }>;
+  /** The sheet's other cells: work delivered, a request open, the figure the page rests on. */
+  sheet: SheetCard[];
+  /** Recent calls and escrow events, for the activity row. */
+  ticker: TickerItem[];
   outcomes: Array<{ id: Category; label: string; count: number; top: FindRow[] }>;
   /**
    * Jobs outside buyers funded; Pokter's own test hires are counted apart in
@@ -209,10 +220,15 @@ export async function loadHome(): Promise<HomeData> {
     token_id: row.tokenId,
   }));
   const owners = new Set<string>();
-  const featured = oneEach
+  const board = oneEach
     .filter((row) => (owners.has(row.owner) ? false : (owners.add(row.owner), true)))
-    .slice(0, 4)
-    .map((row) => ({ ...row, hireChainIds: hireChainIdsOf(row.hireChainId, (others.get(row) ?? []).map((twin) => twin.hireChainId)) }));
+    .slice(0, 8)
+    .map((row) => ({
+      ...row,
+      hireChainIds: hireChainIdsOf(row.hireChainId, (others.get(row) ?? []).map((twin) => twin.hireChainId)),
+      purpose: oneLine(row.description),
+    }));
+  const featured = board.slice(0, 4);
 
   const outcomes = CATEGORIES.map((category) => {
     const top = outcomeShortlist(entries, category.id, 3).map((entry) => byKey.get(`${entry.listing.agent.chain_id}:${entry.listing.agent.token_id}`)!);
@@ -250,6 +266,9 @@ export async function loadHome(): Promise<HomeData> {
     stats,
     specimens: chooseSpecimens(entries, rows),
     featured,
+    board,
+    sheet: sheetCards(allJobs, team, stats, answered),
+    ticker: tickerItems(rows, allJobs, team),
     outcomes,
     activity: { completedJobs: jobs.completedJobs, answeredJobs: answered, demoJobs: demos, selfHireJobs: selfHires, courierJobs: courier, completedMainnet: mainnetJobs.completedJobs, teamCompleted: teamJobs.completedJobs, indexedJobs: jobs.indexedJobs, activeJobs: jobs.activeJobs },
     measured: { monitored: stats?.agentsMonitored ?? 0, answering: stats?.agentsAnswering ?? 0 },

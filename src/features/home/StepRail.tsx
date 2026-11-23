@@ -1,29 +1,23 @@
-'use client';
-
-import { useCallback, useEffect, useRef, useState } from 'react';
-
+import { InView } from '@/features/landing/InView';
 import { PAYMENT_TERMS } from '@/lib/erc8183/payment-terms';
 import { Icon } from '@/ui/icons';
 
 /**
- * The five hiring steps, as a rail of coloured cards.
+ * The five hiring steps, as five ruled cells under two brackets.
  *
- * They were five equal cells of a bordered grid, which gave a buyer no
- * reason to read past the first: the one sentence that matters on this
- * section — you can stop before you fund — was carried by a small green
- * word in a corner, identical in weight on the cards it applied to and
- * the ones it did not.
+ * They were five coloured cards, and before that five equal cells with a
+ * small green "free" in the corner of two of them. Both lost the one
+ * sentence this section exists for — you can stop before you fund — the
+ * first in a word nobody read, the second in five colours that said five
+ * different things were happening.
  *
- * That sentence used to read "you can leave at any of the first three",
- * which this file contradicted three lines down: `Hire` is `free: false`
- * because it is where the escrow is funded. The heading offered a way out
- * at the step its own badge marks as the commitment.
- *
- * So each step is its own card now, and the rail scrolls. The last card
- * deliberately sits half off the right edge at most widths, because a row
- * that ends flush reads as complete and this one is not: "Review" is the
- * step people most need to reach and least expect to exist.
+ * So the line is drawn where it falls. A bracket spans the two steps that
+ * cost nothing and another, in the signal colour, spans the three that run
+ * through escrow, and the cells under them stay one colour, because they
+ * are one process. On a phone, where brackets would have nowhere to sit,
+ * each cell says which side it is on.
  */
+
 const STEPS = [
   {
     step: 'Find',
@@ -57,124 +51,82 @@ const STEPS = [
   },
 ] as const;
 
+/* The free steps come first, so one bracket covers them and the other the rest. */
+const FREE_STEPS = STEPS.filter((item) => item.free).length;
+
+/** A bracket over the steps it spans, drawn in from its left end once seen; `at` is when, in steps. */
+function Bracket({ label, tone, className, span, at }: { label: string; tone: 'quiet' | 'signal'; className?: string; span: number; at: number }) {
+  const line = tone === 'signal' ? 'bg-signal' : 'bg-rule-strong';
+  return (
+    <div className={className} style={{ gridColumn: `span ${span} / span ${span}`, ['--i' as string]: at }}>
+      <span className="seq-item t-label block pb-2.5 text-center">{label}</span>
+      <div aria-hidden className="relative h-2">
+        <span className={`seq-draw absolute inset-x-0 top-0 h-[2px] ${line}`} />
+        <span className={`absolute left-0 top-0 h-2 w-[2px] ${line}`} />
+        <span className={`absolute right-0 top-0 h-2 w-[2px] ${line}`} />
+      </div>
+    </div>
+  );
+}
+
 export function StepRail() {
-  const rail = useRef<HTMLOListElement>(null);
-  const [at, setAt] = useState<{ start: boolean; end: boolean }>({ start: true, end: false });
-
-  /*
-   * Measured rather than counted. Cards-per-view changes with the
-   * viewport, so tracking an index would have to know the breakpoints the
-   * CSS already knows; scroll position does not.
-   */
-  const measure = useCallback(() => {
-    const el = rail.current;
-    if (!el) return;
-    const max = el.scrollWidth - el.clientWidth;
-    setAt({ start: el.scrollLeft <= 4, end: el.scrollLeft >= max - 4 });
-  }, []);
-
-  useEffect(() => {
-    measure();
-    const el = rail.current;
-    if (!el) return;
-    const observer = new ResizeObserver(measure);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [measure]);
-
-  const nudge = (direction: 1 | -1) => {
-    const el = rail.current;
-    if (!el) return;
-    const card = el.querySelector('li');
-    const step = card ? card.getBoundingClientRect().width + 16 : el.clientWidth * 0.8;
-    /*
-     * Asked, not assumed. globals.css already forces `scroll-behavior:
-     * auto` under `prefers-reduced-motion: reduce`, but that property does
-     * not override a behavior named explicitly in a scroll call — so the
-     * one path that animates on purpose is the one the stylesheet cannot
-     * reach.
-     */
-    const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    el.scrollBy({ left: step * direction, behavior: still ? 'auto' : 'smooth' });
-  };
-
   return (
     <>
-      <div className="mb-10 flex items-end justify-between gap-6">
-        <div className="flex max-w-2xl flex-col gap-4">
-          <span className="t-label">How hiring works</span>
-          <h2 id="how-title" className="t-h1">
-            Five steps, and you can stop before you fund.
-          </h2>
-        </div>
-        {/*
-          Hidden from assistive tech on purpose: the rail itself is a
-          focusable, arrow-key-scrollable list, so these duplicate a
-          control a keyboard already has rather than adding one.
-        */}
-        <div className="hidden shrink-0 items-center gap-2 sm:flex lg:hidden" aria-hidden>
-          {([-1, 1] as const).map((d) => {
-            const done = d === -1 ? at.start : at.end;
-            return (
-              <button
-                key={d}
-                type="button"
-                tabIndex={-1}
-                onClick={() => nudge(d)}
-                disabled={done}
-                className="grid size-10 place-items-center rounded-full border border-rule text-ink-2 transition-[opacity,border-color,color] hover:border-rule-strong hover:text-ink disabled:pointer-events-none disabled:opacity-35"
-              >
-                {d === -1 ? <Icon.ChevronLeft size={17} /> : <Icon.ChevronRight size={17} />}
-              </button>
-            );
-          })}
-        </div>
+      <div className="mb-10 flex max-w-2xl flex-col gap-3.5">
+        <span className="t-label inline-flex items-center gap-2">
+          <span aria-hidden className="size-[7px] bg-signal" />
+          How hiring works
+        </span>
+        <h2 id="how-title" className="t-h1">
+          Five steps, and you can stop before you fund.
+        </h2>
       </div>
 
-      <ol
-        ref={rail}
-        onScroll={measure}
-        tabIndex={0}
-        aria-label="The five steps of a hire"
-        /*
-         * A rail only while it has to be one. At `lg` every step fits, so
-         * it becomes a plain five-column grid: the bleed was meant to say
-         * "there is more", and at 1440px it said it by hiding Review
-         * completely and half of Receive — the two steps that explain what
-         * happens to a buyer's money after they pay.
-         */
-        className="-mr-4 flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth pb-2 [scrollbar-width:none] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ink sm:-mr-7 lg:mr-0 lg:grid lg:grid-cols-5 lg:overflow-x-visible lg:pb-0 [&::-webkit-scrollbar]:hidden"
-      >
+      {/*
+        Once seen, the five arrive in order and the brackets draw in over
+        them, the escrow one last, so the line between free and paid is the
+        final thing drawn. The brackets take their spans from the steps, so
+        they cannot disagree with them.
+      */}
+      <InView>
+        <div className="hidden grid-cols-5 lg:grid" aria-hidden>
+          <Bracket label="Free · nothing to connect" tone="quiet" className="pr-3" span={FREE_STEPS} at={2} />
+          <Bracket label="Through one escrow · paid only by delivering" tone="signal" className="pl-3" span={STEPS.length - FREE_STEPS} at={6} />
+        </div>
+
+        <ol aria-label="The five steps of a hire" className="grid grid-cols-1 border-l border-t border-rule sm:grid-cols-2 lg:mt-3 lg:grid-cols-5">
         {STEPS.map((item, i) => (
           <li
             key={item.step}
-            style={{ ['--fill' as string]: `var(--step-${i + 1})`, ['--on-fill' as string]: `var(--step-${i + 1}-ink)` }}
-            className="flex min-h-[340px] w-[78vw] max-w-[380px] shrink-0 snap-start flex-col rounded-[18px] bg-[var(--fill)] p-6 text-[var(--on-fill)] sm:w-[46vw] sm:p-7 lg:min-h-[320px] lg:w-auto lg:max-w-none lg:p-5 xl:p-6"
+            style={{ ['--i' as string]: i }}
+            className="seq-item group relative flex flex-col gap-4 border-b border-r border-rule bg-raised/50 p-5 transition-colors duration-200 hover:bg-raised sm:min-h-[220px] xl:p-6"
           >
-            <div className="flex items-start justify-between gap-3">
-              <span className="grid size-10 place-items-center rounded-[11px] bg-[var(--on-fill)]/10">
-                <item.icon size={19} />
-              </span>
-              {item.free && (
-                <span className="rounded-full bg-[var(--on-fill)]/12 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.06em]">
-                  Free
-                </span>
-              )}
-            </div>
-
-            <h3 className="mt-5 text-[22px] font-semibold leading-tight tracking-[-0.02em]">{item.step}</h3>
-            <p className="mt-2.5 text-[14px] leading-relaxed opacity-80">{item.body}</p>
-
-            {/* The step number, as the card's own mark. */}
+            {/* Which side of the line it is on, drawn in as the pointer arrives. */}
             <span
               aria-hidden
-              className="t-readout mt-auto pt-8 text-[64px] font-medium leading-none tracking-[-0.04em] opacity-25"
-            >
-              {String(i + 1).padStart(2, '0')}
-            </span>
+              className={`absolute inset-x-0 top-0 h-[2px] origin-left scale-x-0 transition-transform duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:scale-x-100 ${item.free ? 'bg-ink' : 'bg-signal'}`}
+            />
+            <div className="flex items-center justify-between gap-3">
+              <span className="t-readout text-[12px] text-ink-3">{String(i + 1).padStart(2, '0')}</span>
+              <span className="grid size-9 place-items-center rounded-full border border-rule bg-paper text-ink-2 transition-colors group-hover:border-ink group-hover:text-ink">
+                <item.icon size={16} />
+              </span>
+            </div>
+            <div className="mt-6 flex flex-col gap-2 sm:mt-10">
+              <h3 className="flex items-center gap-2 text-[18px] font-semibold tracking-[-0.02em]">
+                {item.step}
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[10.5px] font-medium uppercase tracking-[0.06em] lg:hidden ${item.free ? 'bg-sunken text-ink-2' : 'bg-signal-wash text-ink'}`}
+                >
+                  {item.free ? 'Free' : 'Escrow'}
+                </span>
+              </h3>
+              <p className="text-[13.5px] leading-relaxed text-ink-2">{item.body}</p>
+            </div>
           </li>
         ))}
-      </ol>
+        </ol>
+      </InView>
     </>
   );
 }
