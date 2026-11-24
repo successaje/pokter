@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { wagmiConfig, walletConnectProjectId } from '../src/lib/wallet/config';
+import { wagmiConfig, walletConnectParameters, walletConnectProjectId } from '../src/lib/wallet/config';
 
 test('a missing or blank project id counts as absent', () => {
   assert.equal(walletConnectProjectId(undefined), null);
@@ -16,6 +16,19 @@ test('a missing or blank project id counts as absent', () => {
 test('a real project id is taken, trimmed', () => {
   assert.equal(walletConnectProjectId('0123456789abcdef'), '0123456789abcdef');
   assert.equal(walletConnectProjectId('  0123456789abcdef \n'), '0123456789abcdef');
+});
+
+test('WalletConnect is built with its usage reporting off', () => {
+  const parameters = walletConnectParameters('0123456789abcdef', 'https://pokter.xyz');
+  assert.equal(
+    parameters.telemetryEnabled,
+    false,
+    'left unset, the WalletConnect core reports usage events to its own servers, and Pokter promises no third-party analytics',
+  );
+  assert.equal(parameters.projectId, '0123456789abcdef');
+  assert.equal(parameters.showQrModal, true);
+  assert.equal(parameters.metadata.url, 'https://pokter.xyz');
+  assert.deepEqual(parameters.metadata.icons, ['https://pokter.xyz/brand/pokter-app-icon-192.png']);
 });
 
 test('the injected connector is present whatever the environment says', () => {

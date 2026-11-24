@@ -4,6 +4,8 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
+import type { Hex } from 'viem';
+
 import { requestToken } from '@/lib/network/tokens';
 
 import { amountToRaw, type Bid, type Brief, type BriefState } from './model';
@@ -74,6 +76,13 @@ class BriefStore {
     if (!columns.some((c) => c.name === 'payment_token')) this.db.exec('ALTER TABLE briefs ADD COLUMN payment_token TEXT');
     if (!columns.some((c) => c.name === 'budget_raw')) this.db.exec('ALTER TABLE briefs ADD COLUMN budget_raw TEXT');
     if (!columns.some((c) => c.name === 'target_builder')) this.db.exec('ALTER TABLE briefs ADD COLUMN target_builder TEXT');
+    /* Its post on PokterBoard, once its poster made one with their Agent ID (`lib/board/requests.ts`). Null on every request that is not on the board. */
+    if (!columns.some((c) => c.name === 'board_request_id')) this.db.exec('ALTER TABLE briefs ADD COLUMN board_request_id TEXT');
+    if (!columns.some((c) => c.name === 'board_tx')) this.db.exec('ALTER TABLE briefs ADD COLUMN board_tx TEXT');
+    if (!columns.some((c) => c.name === 'board_expires_at')) this.db.exec('ALTER TABLE briefs ADD COLUMN board_expires_at TEXT');
+    if (!columns.some((c) => c.name === 'board_closed_tx')) this.db.exec('ALTER TABLE briefs ADD COLUMN board_closed_tx TEXT');
+    /* 'board' for a request whose board post is its proof, made from a wallet that signs no plain message; null for a signed one. */
+    if (!columns.some((c) => c.name === 'proof')) this.db.exec('ALTER TABLE briefs ADD COLUMN proof TEXT');
     const bidColumns = this.db.prepare('PRAGMA table_info(bids)').all() as Array<{ name: string }>;
     if (!bidColumns.some((c) => c.name === 'payment_token')) this.db.exec('ALTER TABLE bids ADD COLUMN payment_token TEXT');
     if (!bidColumns.some((c) => c.name === 'price_raw')) this.db.exec('ALTER TABLE bids ADD COLUMN price_raw TEXT');
@@ -167,12 +176,21 @@ class BriefStore {
       chainId: row.chain_id as number,
       deliverDays: row.deliver_days as number,
       signature: row.signature as Brief['signature'],
+      proof: row.proof === 'board' ? 'board' : 'signature',
       state: row.state as BriefState,
       postedAt: row.posted_at as string,
       awardedBidId: (row.awarded_bid_id as string | null) ?? null,
       closesAt: (row.closes_at as string | null) ?? null,
       category: (row.category as Brief['category']) ?? null,
       targetBuilder: (row.target_builder as Brief['targetBuilder']) ?? null,
+      board: row.board_tx
+        ? {
+            requestId: row.board_request_id as string,
+            tx: row.board_tx as Hex,
+            expiresAt: row.board_expires_at as string,
+            closedTx: (row.board_closed_tx as Hex | null) ?? null,
+          }
+        : null,
     };
   }
 
@@ -199,11 +217,18 @@ class BriefStore {
     };
   }
 
+  /**
+   * Store a new request. One posted on PokterBoard as its proof arrives with
+   * its board post already checked, and is stored with it in the same row,
+   * so it is never readable without the transaction that shows its poster
+   * agreed to it.
+   */
   add(brief: Brief): void {
+    if (brief.proof === 'board' && !brief.board) throw new Error('A request proven by its board post needs the post.');
     this.db
       .prepare(
-        `INSERT INTO briefs (id, poster, title, brief, acceptance, fail_signals, budget_u, chain_id, deliver_days, signature, state, posted_at, awarded_bid_id, closes_at, category, payment_token, budget_raw, target_builder)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?)`,
+        `INSERT INTO briefs (id, poster, title, brief, acceptance, fail_signals, budget_u, chain_id, deliver_days, signature, state, posted_at, awarded_bid_id, closes_at, category, payment_token, budget_raw, target_builder, proof, board_request_id, board_tx, board_expires_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         brief.id,
@@ -223,6 +248,10 @@ class BriefStore {
         brief.paymentToken ?? null,
         brief.budgetRaw,
         brief.targetBuilder?.toLowerCase() ?? null,
+        brief.proof === 'board' ? 'board' : null,
+        brief.board?.requestId ?? null,
+        brief.board?.tx ?? null,
+        brief.board?.expiresAt ?? null,
       );
   }
 
@@ -318,6 +347,24 @@ class BriefStore {
   /** Withdrawn by its poster. Only an open request: an awarded one has a builder waiting on it. */
   withdraw(briefId: string): boolean {
     return this.db.prepare("UPDATE briefs SET state = 'cancelled' WHERE id = ? AND state = 'open'").run(briefId).changes > 0;
+  }
+
+  /**
+   * The request's post on PokterBoard, once Pokter has checked the
+   * transaction. Only the first is kept: a poster can post the same text on
+   * the board twice, and the request links to the post it was shown with.
+   */
+  recordBoardPost(briefId: string, post: { requestId: string; tx: Hex; expiresAt: string }): boolean {
+    return (
+      this.db
+        .prepare('UPDATE briefs SET board_request_id = ?, board_tx = ?, board_expires_at = ? WHERE id = ? AND board_tx IS NULL')
+        .run(post.requestId, post.tx, post.expiresAt, briefId).changes > 0
+    );
+  }
+
+  /** The poster closed the request's post on PokterBoard. Only a post that stands, once. */
+  recordBoardClose(briefId: string, tx: Hex): boolean {
+    return this.db.prepare('UPDATE briefs SET board_closed_tx = ? WHERE id = ? AND board_tx IS NOT NULL AND board_closed_tx IS NULL').run(tx, briefId).changes > 0;
   }
 
   /** Each wallet that posted a request, and when it first did. For the operator's counts only. */

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import { jobAmountLabel } from '@/lib/erc8183/job-amount';
+import { jobAmountLabel, jobToken } from '@/lib/erc8183/job-amount';
 import type { HiredJob } from '@/lib/erc8183/types';
 import { cn } from '@/lib/ui/cn';
 import { formatElapsed } from '@/lib/ui/format';
@@ -55,6 +55,17 @@ export function budgetOf(job: HiredJob) {
   }
 }
 
+/**
+ * A job's budget for a narrow cell. With its token unknown, it says so in
+ * two words and keeps the raw amount on hover: the full "… base units
+ * (currency not yet read)" wrapped a seventeen-digit number over four
+ * lines of a row.
+ */
+export function JobAmount({ job }: { job: HiredJob }) {
+  if (jobToken(job)) return <>{budgetOf(job)}</>;
+  return <span title={`${job.budgetRaw} base units. The escrow has not said which token.`}>Currency unknown</span>;
+}
+
 export function timeLeft(job: HiredJob, now = Date.now()) {
   const ms = Date.parse(job.expiredAt) - now;
   if (ms <= 0) return 'deadline passed';
@@ -79,7 +90,7 @@ export function JobRow({ job }: { job: HiredJob }) {
         <PhaseLabel job={job} />
         <span className={cn('text-[12px]', next.act ? 'font-medium text-ink' : 'text-ink-3')}>{next.text}</span>
       </span>
-      <span className="t-readout row-start-1 text-right text-[13px] sm:row-start-auto">{budgetOf(job)}</span>
+      <span className="t-readout row-start-1 text-right text-[13px] sm:row-start-auto"><JobAmount job={job} /></span>
       <Icon.ChevronRight size={16} className="hidden text-ink-3 transition-transform group-hover:translate-x-0.5 sm:block" />
     </Link>
   );

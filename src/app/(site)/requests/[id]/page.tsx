@@ -4,12 +4,14 @@ import { notFound } from 'next/navigation';
 
 import { WithdrawRequest } from '@/features/briefs/BriefActions';
 import { RequestDetail } from '@/features/briefs/RequestDetail';
+import { PostOnBoard } from '@/features/briefs/PostOnBoard';
 import { ago } from '@/features/briefs/RequestRow';
 import { amountText, requestCategoryLabel, requestTokenOf, type Brief } from '@/lib/briefs/model';
 import { proposalCards } from '@/features/briefs/proposal-cards';
 import { ProposalList } from '@/features/briefs/ProposalList';
 import { closingDate, RequestTerms } from '@/features/briefs/RequestTerms';
-import { escrowMoney } from '@/lib/network/presentation';
+import { escrowMoney, explorerBaseFor } from '@/lib/network/presentation';
+import { BOARD_CHAIN_ID } from '@/lib/board/contract';
 import { acceptsProposals, requestStatus } from '@/lib/briefs/model';
 import { getBriefStore } from '@/lib/briefs/store';
 import { readProposalPrefill } from '@/lib/briefs/public-view';
@@ -98,7 +100,9 @@ export default async function BriefPage({
                   ) : (
                     <Address address={brief.poster} chainExplorer={false} />
                   )}
-                  , signed with their wallet
+                  {brief.proof === 'board'
+                    ? ', posted on PokterBoard from their wallet with an Agent ID'
+                    : `, signed with their wallet${brief.board ? ' and posted on PokterBoard with an Agent ID' : ''}`}
                 </>
               }
             />
@@ -114,6 +118,9 @@ export default async function BriefPage({
             <WithdrawRequest briefId={brief.id} poster={brief.poster} />
           </div>
         )}
+
+        {/* The poster's own: post it on PokterBoard with their Agent ID, or close the post once it stops taking proposals. Nothing for anyone else. */}
+        <PostOnBoard briefId={brief.id} poster={brief.poster} />
 
         {/* Under the request, so the terms and the answers to them read as one page; the form is beside them. */}
         <section aria-labelledby="proposals-title" className="flex flex-col gap-3">
@@ -172,6 +179,20 @@ function RequestSummary({ brief, proposals, now }: { brief: Brief; proposals: nu
     ['Proposals', String(proposals)],
     ...(category ? ([['Category', category]] as Array<[string, React.ReactNode]>) : []),
     ['Who can propose through Pokter', brief.targetBuilder ? 'Only agents currently owned by the selected builder' : 'Any agent’s owner'],
+    /* Posted by its poster with an Agent ID: the board's own request number, linked to the transaction that posted it. */
+    ...(brief.board
+      ? ([
+          [
+            'On PokterBoard',
+            <span key="b">
+              <a href={`${explorerBaseFor(BOARD_CHAIN_ID)}/tx/${brief.board.tx}`} target="_blank" rel="noreferrer noopener" className="link">
+                Request #{brief.board.requestId}
+              </a>
+              {brief.board.closedTx ? ' · closed' : ` · until ${new Date(brief.board.expiresAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })}`}
+            </span>,
+          ],
+        ] as Array<[string, React.ReactNode]>)
+      : []),
   ];
   return (
     <div className="flex flex-col gap-4">

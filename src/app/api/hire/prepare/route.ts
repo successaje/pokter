@@ -7,6 +7,7 @@ import { parseUnits } from 'viem';
 import { POST as compileBriefRoute } from '@/app/api/hire/compile/route';
 import { POST as quoteForBriefRoute } from '@/app/api/hire/quote/route';
 import { classify } from '@/lib/agents/categories';
+import { chosenProposalForHire, proposalHireProblem } from '@/lib/briefs/proposal-hire';
 import { altanaNetworkFor } from '@/lib/altana/client';
 import { originOf } from '@/lib/api/respond';
 import { handsOverRequest, hireRequestKey, indexedJobForTerms, retryDecision } from '@/lib/assistant/idempotency';
@@ -78,10 +79,26 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   const chainId = Number(body.chainId) as ChainId;
   const tokenId = String(body.tokenId ?? '');
-  const task = String(body.task ?? '').trim();
   if ((chainId !== 56 && chainId !== 97) || !/^\d+$/.test(tokenId)) {
     return NextResponse.json({ error: 'Invalid agent identifier.' }, { status: 400 });
   }
+
+  /*
+   * A hire of the proposal its poster chose on a request (`proposalId`), as
+   * the hire page does from the request's link. The owner's inputs are
+   * still all required, and must agree with the proposal: its request's
+   * task and network, its token, and a ceiling no higher than its price
+   * (`proposalHireProblem`), so the poster funds what they chose and
+   * nothing here can widen it. The job then allows its delivery time.
+   */
+  const fromProposal = typeof body.proposalId === 'string' ? chosenProposalForHire(body.proposalId, chainId, tokenId) : null;
+  if (typeof body.proposalId === 'string' && !fromProposal) {
+    return NextResponse.json(
+      { error: 'That proposal is not the one chosen on its request for this agent, so it cannot be hired from. Nothing was prepared.', layer: 'input', code: 'proposal-not-chosen' },
+      { status: 409 },
+    );
+  }
+  const task = String(body.task ?? '').trim();
   if (!task || task.length > 2000) {
     return NextResponse.json({ error: 'The brief must be between 1 and 2000 characters.' }, { status: 400 });
   }
@@ -181,6 +198,15 @@ export async function POST(request: Request): Promise<NextResponse> {
       { status: 400 },
     );
   }
+  /* Only the poster chose the proposal, so only the poster's wallet funds it. */
+  if (fromProposal && ownerAddress.toLowerCase() !== fromProposal.poster.toLowerCase()) {
+    return NextResponse.json(
+      { error: 'Only the wallet that posted the request can hire from the proposal chosen on it. Nothing was prepared.', layer: 'input', code: 'proposal-not-owner' },
+      { status: 403 },
+    );
+  }
+  const proposalTerms = fromProposal ? proposalHireProblem(fromProposal, { task, escrowChain, maxBudget, ownerToken }) : null;
+  if (proposalTerms) return NextResponse.json({ error: proposalTerms, layer: 'input', code: 'proposal-terms' }, { status: 409 });
   const mandateKey = typeof body.requestId === 'string' ? body.requestId.slice(0, 64) : null;
   const uncertainJobId = typeof body.possiblyFundedJobId === 'string' && /^\d{1,18}$/.test(body.possiblyFundedJobId) ? body.possiblyFundedJobId : null;
 
@@ -460,6 +486,8 @@ export async function POST(request: Request): Promise<NextResponse> {
    * against that job before keeping it.
    */
   approvalUrl.searchParams.set('request', requestKey);
+  /* The page holds the hire to the proposal too, and gives the job its delivery time. */
+  if (fromProposal) approvalUrl.searchParams.set('proposal', fromProposal.proposalId);
 
   if (!handsOverRequest(decision.action)) {
     /*
@@ -558,6 +586,12 @@ export async function POST(request: Request): Promise<NextResponse> {
       { status: 409 },
     );
   }
+  const preparedHire = fromProposal
+    ? {
+        ...prepared.prepared,
+        proposal: { requestId: fromProposal.proposal.requestId, proposalId: fromProposal.proposalId, priceRaw: fromProposal.proposal.priceRaw, deliverDays: fromProposal.proposal.deliverDays },
+      }
+    : prepared.prepared;
 
   /*
    * Recorded under the key, and the first row stands.
@@ -590,7 +624,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     token: quote.currency,
     amountRaw: quote.priceRaw,
     task: payload,
-    request: JSON.stringify(prepared.prepared),
+    request: JSON.stringify(preparedHire),
     /* Kept so the funding can be checked against it: a key reported back
        with somebody else's payment matches nothing. */
     owner: ownerAddress,
@@ -601,7 +635,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   return NextResponse.json({
     requestKey,
     state: 'unsigned-awaiting-owner-approval',
-    prepared: prepared.prepared,
+    prepared: preparedHire,
     firstPrepared: write === 'recorded',
     /* When this purchase was first prepared, where it was prepared before,
        and what it was priced at then. The amount is reported because it is

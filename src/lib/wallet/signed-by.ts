@@ -1,4 +1,4 @@
-import { verifyMessage, type Address, type Hex } from 'viem';
+import { verifyMessage, verifyTypedData, type Address, type Hex, type TypedDataDefinition } from 'viem';
 
 import { registryClient } from '@/lib/registry/onchain';
 
@@ -35,6 +35,29 @@ export async function signedByWallet(chainId: number, owner: Address, message: s
        the local EOA check, which is what this did before. */
   }
   return verifyMessage({ address: owner, message, signature });
+}
+
+/**
+ * Whether a wallet signed this EIP-712 typed data — EOA or contract
+ * account, by the same rules as `signedByWallet`: recovered locally first,
+ * then ERC-1271 for a wallet with code, and never passed on an RPC failure.
+ */
+export async function typedDataSignedByWallet(chainId: number, owner: Address, data: TypedDataDefinition, signature: Hex): Promise<boolean> {
+  const local = () => verifyTypedData({ ...data, address: owner, signature } as Parameters<typeof verifyTypedData>[0]).catch(() => false);
+  if (looksLikeEoaSignature(signature) && await local()) return true;
+  const client = registryClient(chainId);
+  try {
+    if (client) {
+      if (looksLikeEoaSignature(signature)) {
+        const code = await client.getCode({ address: owner });
+        if (!code || code === '0x') return false;
+      }
+      return await client.verifyTypedData({ ...data, address: owner, signature } as Parameters<typeof client.verifyTypedData>[0]);
+    }
+  } catch {
+    /* As above: an RPC failure falls back to the local check. */
+  }
+  return local();
 }
 
 /** An EIP-191 signature is 65 bytes; a contract-wallet signature is not. */

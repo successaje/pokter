@@ -133,6 +133,12 @@ export const PREPARE_HIRE: AssistantToolSpec = {
         maxLength: 64,
         description: 'Only to buy the same work twice on purpose. Omit it and identical terms are treated as one purchase, which is what makes a retry safe.',
       },
+      proposal_id: {
+        type: 'string',
+        pattern: '^[0-9a-fA-F-]{36}$',
+        description:
+          'Only to hire the proposal the OWNER chose on their own request. get_request returns the exact arguments in hireChosen: pass them as they are. The task, network and token must be that request’s and that proposal’s, max_budget no higher than its price, and owner_address the wallet that posted the request; anything else is refused. The job then allows the proposal’s delivery time.',
+      },
       possibly_funded_job_id: {
         type: 'string',
         pattern: '^\\d{1,18}$',

@@ -38,3 +38,15 @@ function jobClient(network: NetworkConfig): JobClient {
 export async function getErc8183Job(network: NetworkConfig, jobId: bigint): Promise<Erc8183Job> {
   return readErc8183Job(jobClient(network), getAddress(correctedErc8183Addresses(network.chainId).commerce) as Address, jobId);
 }
+
+const JOB_TOKEN_ABI = [{ name: 'jobPaymentToken', type: 'function', stateMutability: 'view', inputs: [{ name: 'jobId', type: 'uint256' }], outputs: [{ type: 'address' }] }] as const;
+
+/** The token an escrow job is bound to (`jobPaymentToken`), or null when the escrow does not say or could not be read: never a guess. */
+export async function getErc8183JobPaymentToken(network: NetworkConfig, jobId: bigint): Promise<Address | null> {
+  try {
+    const token = await jobClient(network).readContract({ address: getAddress(correctedErc8183Addresses(network.chainId).commerce) as Address, abi: JOB_TOKEN_ABI, functionName: 'jobPaymentToken', args: [jobId] });
+    return /^0x0{40}$/i.test(token) ? null : getAddress(token);
+  } catch {
+    return null;
+  }
+}

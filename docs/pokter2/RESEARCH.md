@@ -31,7 +31,7 @@ taste.
 | Standard | State | What Pokter does with it |
 | --- | --- | --- |
 | ERC-8004 identity + reputation | Draft EIP, deployed on 56 and 97 | Lists agents, verifies owners, registers new identities |
-| ERC-8004 validation registry | Not deployed on BSC | Nothing. Shown as unavailable |
+| ERC-8004 validation registry | Deployed on 56 and 97 (`getVersion()` 2.0.0, checked 23 Nov 2026) | Nothing yet. Shown as not used |
 | ERC-8183 (BNB "APEX": router + optimistic policy) | Draft EIP, deployed on 56 and 97 | Hire, fund, submit, settle, dispute, reclaim on 97 |
 | x402 / B402 | B402 is live on BSC mainnet | Not integrated. Shown as **planned**, never as supported |
 | A2A agent cards | Widely served | Probing, quotes (`negotiate`), delivery (`notify_funded`) |

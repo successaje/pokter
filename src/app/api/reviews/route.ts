@@ -4,11 +4,10 @@ import { getAddress, isAddress, isHex, type Hex } from 'viem';
 import { signedByWallet, walletCanBeChecked } from '@/lib/wallet/signed-by';
 import { ALTANA_NETWORK, altanaNetworkFor } from '@/lib/altana/client';
 import { jobChainParam } from '@/lib/jobs/href';
-import { decodePokterJobEnvelope } from '@/lib/erc8183/job-envelope';
-import { reviewMessage, validReviewContent, type VerifiedReview } from '@/lib/reviews/model';
+import { ENDED_JOB_STATUSES, reviewableJob, reviewMessage, validReviewContent, type VerifiedReview } from '@/lib/reviews/model';
 import { getReviewStore } from '@/lib/reviews/store';
 import { getErc8183Job } from '@/lib/erc8183/job-read';
-import { getJobStore } from '@/lib/erc8183/store';
+import { jobAgentIdentity } from '@/lib/reviews/job-identity';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 import { logAndPublic } from '@/lib/api/public-error';
 
@@ -47,25 +46,24 @@ export async function POST(request: Request): Promise<NextResponse> {
   // The escrow the job was funded on; older callers only used the default.
   const chainId = jobChainParam(body.chainId === undefined ? undefined : String(body.chainId)) ?? ALTANA_NETWORK.chainId;
 
-  if (getReviewStore().get(chainId, jobId)?.onchainTx) {
+  const stored = getReviewStore().get(chainId, jobId);
+  if (stored?.onchainTx || stored?.boardTx) {
     return NextResponse.json({ error: 'This review is published on chain and can no longer be edited.' }, { status: 409 });
   }
 
   try {
     const job = await getErc8183Job(altanaNetworkFor(chainId), BigInt(jobId));
-    if (job.statusName !== 'COMPLETED') {
-      return NextResponse.json({ error: 'Only completed jobs can be reviewed.' }, { status: 409 });
+    if (!reviewableJob(job.statusName, job.submittedAt)) {
+      const ended = (ENDED_JOB_STATUSES as readonly string[]).includes(job.statusName);
+      return NextResponse.json(
+        { error: ended ? 'Only a job the agent delivered can be reviewed.' : 'A job can be reviewed once it is settled, rejected or refunded.' },
+        { status: 409 },
+      );
     }
     if (getAddress(job.client) !== getAddress(buyer)) {
       return NextResponse.json({ error: 'Only the on-chain buyer can review this job.' }, { status: 403 });
     }
-    // The envelope on chain, or for a job written as the seller's signed quote
-    // alone, Pokter's index (whose identity was checked against the registry).
-    const envelope = decodePokterJobEnvelope(job.description);
-    const indexed = envelope ? null : getJobStore().all().find((j) => j.chainId === chainId && j.jobId === jobId) ?? null;
-    const identity = envelope
-      ? { chainId: envelope.identity.chainId, tokenId: envelope.identity.tokenId }
-      : indexed && { chainId: indexed.agentChainId ?? 56, tokenId: indexed.agentTokenId };
+    const identity = jobAgentIdentity(chainId, jobId, job.description);
     if (!identity || identity.chainId !== agentChainId || identity.tokenId !== agentTokenId) {
       return NextResponse.json({ error: 'The job does not identify this agent.' }, { status: 409 });
     }

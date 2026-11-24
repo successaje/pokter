@@ -138,11 +138,37 @@ export interface BriefContent {
 export interface Brief extends BriefContent {
   id: string;
   poster: Address;
+  /** The poster's wallet signature over `briefMessage`; `0x` when the proof is the board post instead (`proof`). */
   signature: Hex;
+  /**
+   * What shows the poster agreed to these exact terms. `signature`: their
+   * wallet signed `briefMessage`. `board`: their wallet posted the hash of
+   * that text on PokterBoard (`board.tx`), as a wallet that signs no plain
+   * message does, and the transaction is the proof. Absent reads as
+   * `signature`, which every request was before.
+   */
+  proof?: 'signature' | 'board';
   state: BriefState;
   postedAt: string;
   /** Set when a bid is accepted. */
   awardedBidId: string | null;
+  /**
+   * The request as its poster also posted it on PokterBoard, with the wallet
+   * that holds their Agent ID, once Pokter has checked the transaction
+   * (`lib/board/requests.ts`). Null or absent when it is not on the board.
+   */
+  board?: BoardRequestLink | null;
+}
+
+/** A request's post on PokterBoard: the board's own id for it, and the transactions that posted and closed it. */
+export interface BoardRequestLink {
+  /** The board's request id, a decimal string. */
+  requestId: string;
+  tx: Hex;
+  /** When the post stops standing on the board, as an ISO time. */
+  expiresAt: string;
+  /** The poster closed it on the board; null while it stands. */
+  closedTx: Hex | null;
 }
 
 export interface BidContent {

@@ -70,6 +70,14 @@ export interface HiredJob {
   origin?: 'elsewhere';
   /** When the escrow recorded the delivery, for a job made elsewhere; null when nothing was delivered. */
   submittedAt?: string | null;
+  /**
+   * Set when the escrow's job with this number is not this hire: it pays
+   * another agent, or was funded by another wallet (`savedJobMismatch`). A browser that saved a hire under the wrong
+   * number showed that other job's status as this hire's, and could never
+   * read its currency. Its status is then left as saved, never copied from
+   * the other job. Null or absent once the number checks out.
+   */
+  numberMismatch?: { checkedAt: string; provider: Address | null; client: Address | null } | null;
 }
 
 /** What the UI needs to narrate the lifecycle honestly. */

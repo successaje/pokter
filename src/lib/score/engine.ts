@@ -4,6 +4,7 @@ import type { TrackRecord } from '@/lib/history/record';
 import type { LiveReading } from '@/lib/proof/prober';
 import type { ScanAgent, ScanAgentDetail } from '@/lib/scan/types';
 import type { Category } from '@/lib/agents/categories';
+import { BOARD_RATING_MIN_REVIEWERS } from '@/lib/board/contract';
 import {
   DIMENSION_WEIGHTS,
   SCORE_VERSION,
@@ -29,6 +30,12 @@ export interface ScoreInputs {
    * funded past the deadline). Optional for callers that predate it.
    */
   history?: { delivered: number; missed: number };
+  /**
+   * Its rating on PokterBoard: distinct people holding an Agent ID, each
+   * counted once, who paid for its work and rated it. Read from the
+   * contract, so not Pokter's say-so.
+   */
+  buyerRating?: { reviewers: number; average: number } | null;
   /**
    * The request-time probe, when one was taken. Omitted in list contexts, where
    * probing every candidate would cost seconds per page for a sample that adds
@@ -207,29 +214,41 @@ function scoreEfficiency({ record }: ScoreInputs): DimensionScore {
  * publishes neither, and no measurer currently attests to them, so both are
  * reported as unmeasured rather than approximated from something else.
  */
-function scorePerformance({ history }: ScoreInputs): DimensionScore {
+function scorePerformance({ history, buyerRating }: ScoreInputs): DimensionScore {
   /*
    * Doing the paid work it is hired for is the performance a buyer can see.
    * Without it, an agent that answered every probe and missed six of seven
    * paid jobs scored 78: the verdict beside it had been demoted for exactly
    * that, and the score measured none of it.
+   *
+   * Whether the work was any good is what its buyers say. Their rating
+   * counts once enough distinct people holding an Agent ID have given it
+   * on PokterBoard that one opinion cannot swing it, and then it is half
+   * the dimension: an average of 1 star earns nothing of that half, 5 all.
    */
   const resolved = (history?.delivered ?? 0) + (history?.missed ?? 0);
-  if (!history || resolved === 0) {
+  const rated = buyerRating && buyerRating.reviewers >= BOARD_RATING_MIN_REVIEWERS ? buyerRating : null;
+  if ((!history || resolved === 0) && !rated) {
     return unmeasured(
       'performance',
       'No paid job through Pokter escrow has been delivered or missed yet, and realised returns are not published by the registry. Pokter does not estimate performance from unrelated signals.',
     );
   }
   const weight = DIMENSION_WEIGHTS.performance;
+  const delivery = history && resolved > 0 ? history.delivered / resolved : null;
+  const satisfaction = rated ? (rated.average - 1) / 4 : null;
+  const share = delivery !== null && satisfaction !== null ? (delivery + satisfaction) / 2 : (delivery ?? satisfaction ?? 0);
+  const delivered = history && resolved > 0 ? `Delivered ${history.delivered} of ${resolved} paid jobs through Pokter escrow that have reached delivery or their deadline.` : 'No paid job through Pokter escrow has reached delivery or its deadline yet.';
+  const ratedBy = rated ? ` Rated ${rated.average.toFixed(1)}/5 by ${rated.reviewers} people holding an Agent ID on PokterBoard, which counts for half.` : '';
   return {
     dimension: 'performance',
-    earned: weight * (history.delivered / resolved),
+    earned: weight * share,
     weight,
-    explanation: `Delivered ${history.delivered} of ${resolved} paid jobs through Pokter escrow that have reached delivery or their deadline. Realised returns are not measured.`,
+    explanation: `${delivered}${ratedBy} Realised returns are not measured.`,
     inputs: [
-      { label: 'Paid jobs delivered', value: String(history.delivered) },
-      { label: 'Paid jobs missed', value: String(history.missed) },
+      { label: 'Paid jobs delivered', value: String(history?.delivered ?? 0) },
+      { label: 'Paid jobs missed', value: String(history?.missed ?? 0) },
+      ...(rated ? [{ label: 'Rated by Agent ID holders', value: `${rated.average.toFixed(1)}/5 from ${rated.reviewers}` }] : []),
     ],
   };
 }

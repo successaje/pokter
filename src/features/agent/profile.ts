@@ -39,6 +39,7 @@ import type { ElsewhereSummary } from '@/lib/agent/escrow-record';
 import { jobReceipt } from '@/lib/jobs/receipt-link';
 import { getReviewStore } from '@/lib/reviews/store';
 import type { VerifiedReview } from '@/lib/reviews/model';
+import type { BoardRating } from '@/lib/board/ratings';
 import type { ChainId } from '@/lib/scan/types';
 import type { AgentMaturity } from '@/lib/agents/maturity';
 import { dossierLadder } from '@/lib/agents/dossier-ladder';
@@ -158,6 +159,8 @@ export interface AgentProfile {
   courierJobs: number;
   /** The outside wallets that funded `paidWork`, and how far they are from independent. */
   buyers: BuyerCounts;
+  /** Its rating on PokterBoard from distinct people holding an Agent ID, when it has one. */
+  boardRating: BoardRating | null;
   /**
    * The jobs in the record not hired through Pokter, what was left out
    * and why (`escrowRecord`), and how many of them were delivered: Pokter
@@ -476,6 +479,7 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
     paidWork: d.paidWork.history,
     courierJobs: d.paidWork.courierJobs.length,
     buyers: d.buyers,
+    boardRating: d.boardRating,
     elsewhere: {
       ...d.escrowRecord.elsewhere,
       delivered: d.escrowRecord.jobs.filter((job) => job.origin === 'elsewhere' && (job.status === 'SUBMITTED' || job.status === 'COMPLETED')).length,

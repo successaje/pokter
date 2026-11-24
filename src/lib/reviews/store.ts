@@ -4,6 +4,8 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
+import type { BoardEvent } from '@/lib/board/activity';
+
 import type { ReviewReportReason, VerifiedReview } from './model';
 
 export interface ReviewReport {
@@ -57,6 +59,43 @@ class ReviewStore {
       );
       CREATE INDEX IF NOT EXISTS idx_review_reports_status
         ON review_reports (status, created_at DESC);
+      CREATE TABLE IF NOT EXISTS board_ratings (
+        board TEXT NOT NULL,
+        provider TEXT NOT NULL,
+        reviewers INTEGER NOT NULL,
+        stars INTEGER NOT NULL,
+        read_at TEXT NOT NULL,
+        PRIMARY KEY (board, provider)
+      );
+      CREATE TABLE IF NOT EXISTS board_reads (
+        board TEXT PRIMARY KEY,
+        read_at TEXT NOT NULL
+      );
+      /* PokterBoard's events, as board/activity-server.ts scans them: who reviewed what, who posted and closed which request. */
+      CREATE TABLE IF NOT EXISTS board_events (
+        board TEXT NOT NULL,
+        tx TEXT NOT NULL,
+        log_index INTEGER NOT NULL,
+        block_number INTEGER NOT NULL,
+        block_time TEXT,
+        kind TEXT NOT NULL,
+        wallet TEXT,
+        job_id TEXT,
+        provider TEXT,
+        rating INTEGER,
+        flags INTEGER,
+        comment_hash TEXT,
+        request_id TEXT,
+        brief_hash TEXT,
+        expires_at INTEGER,
+        PRIMARY KEY (board, tx, log_index)
+      );
+      /* The next block to scan for the board's events, and when the scan last ran. */
+      CREATE TABLE IF NOT EXISTS board_scan (
+        board TEXT PRIMARY KEY,
+        next_block INTEGER NOT NULL,
+        scanned_at TEXT NOT NULL
+      );
     `);
     for (const statement of [
       "ALTER TABLE reviews ADD COLUMN visibility TEXT NOT NULL DEFAULT 'published'",
@@ -64,6 +103,8 @@ class ReviewStore {
       'ALTER TABLE reviews ADD COLUMN moderation_reason TEXT',
       'ALTER TABLE reviews ADD COLUMN onchain_tx TEXT',
       'ALTER TABLE reviews ADD COLUMN onchain_chain_id INTEGER',
+      'ALTER TABLE reviews ADD COLUMN board_tx TEXT',
+      "ALTER TABLE reviews ADD COLUMN proof TEXT NOT NULL DEFAULT 'signature'",
     ]) {
       try { this.db.exec(statement); }
       catch (error) {
@@ -116,6 +157,134 @@ class ReviewStore {
   /** Record the verified ERC-8004 feedback transaction for a review. */
   setOnchain(chainId: number, jobId: string, transactionHash: string, onchainChainId: number): void {
     this.db.prepare('UPDATE reviews SET onchain_tx=?, onchain_chain_id=? WHERE chain_id=? AND job_id=?').run(transactionHash, onchainChainId, chainId, jobId);
+  }
+
+  /**
+   * A review its buyer wrote on PokterBoard, verified from the chain. It
+   * replaces a signed review of the same job, since the board's record is
+   * the one the agent's rating counts; one already proved by the board is
+   * kept as it is.
+   */
+  saveBoardReview(review: VerifiedReview & { boardTx: string }): void {
+    this.db.prepare(`
+      INSERT INTO reviews
+        (chain_id, job_id, agent_chain_id, agent_token_id, buyer, rating,
+         delivered_as_promised, speed, would_hire_again, comment, signature, updated_at, board_tx, proof)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '0x', ?, ?, 'board')
+      ON CONFLICT(chain_id, job_id) DO UPDATE SET
+        rating=excluded.rating,
+        delivered_as_promised=excluded.delivered_as_promised,
+        speed=excluded.speed,
+        would_hire_again=excluded.would_hire_again,
+        comment=excluded.comment,
+        signature='0x',
+        updated_at=excluded.updated_at,
+        board_tx=excluded.board_tx,
+        proof='board'
+      WHERE reviews.proof <> 'board'
+    `).run(
+      review.chainId, review.jobId, review.agentChainId, review.agentTokenId,
+      review.buyer, review.rating, review.deliveredAsPromised ? 1 : 0,
+      review.speed, review.wouldHireAgain ? 1 : 0, review.comment,
+      review.updatedAt, review.boardTx,
+    );
+  }
+
+  /** Record the verified PokterBoard transaction for a review. */
+  setBoard(chainId: number, jobId: string, transactionHash: string): void {
+    this.db.prepare('UPDATE reviews SET board_tx=? WHERE chain_id=? AND job_id=?').run(transactionHash, chainId, jobId);
+  }
+
+  /**
+   * PokterBoard's ratings of provider wallets, as read from the contract.
+   * Only rated wallets are kept: a wallet's reviewer count never falls, so
+   * a wallet missing here has none.
+   */
+  saveBoardRatings(board: string, rows: Array<{ provider: string; reviewers: number; stars: number }>, readAt: string): void {
+    const insert = this.db.prepare(`
+      INSERT INTO board_ratings (board, provider, reviewers, stars, read_at) VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(board, provider) DO UPDATE SET reviewers=excluded.reviewers, stars=excluded.stars, read_at=excluded.read_at
+    `);
+    this.db.exec('BEGIN');
+    try {
+      for (const row of rows) insert.run(board.toLowerCase(), row.provider.toLowerCase(), row.reviewers, row.stars, readAt);
+      this.db.exec('COMMIT');
+    } catch (error) {
+      this.db.exec('ROLLBACK');
+      throw error;
+    }
+  }
+
+  boardRating(board: string, provider: string): { reviewers: number; stars: number; readAt: string } | null {
+    const row = this.db.prepare('SELECT reviewers, stars, read_at FROM board_ratings WHERE board=? AND provider=?').get(board.toLowerCase(), provider.toLowerCase()) as
+      | { reviewers: number; stars: number; read_at: string }
+      | undefined;
+    return row ? { reviewers: Number(row.reviewers), stars: Number(row.stars), readAt: String(row.read_at) } : null;
+  }
+
+  /** When every agent wallet's board rating was last read. */
+  boardReadAt(board: string): string | null {
+    const row = this.db.prepare('SELECT read_at FROM board_reads WHERE board=?').get(board.toLowerCase()) as { read_at: string } | undefined;
+    return row?.read_at ?? null;
+  }
+
+  /** Board events, kept once each: a rescanned log replaces itself. */
+  saveBoardEvents(board: string, events: readonly BoardEvent[]): void {
+    const insert = this.db.prepare(`
+      INSERT OR REPLACE INTO board_events
+        (board, tx, log_index, block_number, block_time, kind, wallet, job_id, provider, rating, flags, comment_hash, request_id, brief_hash, expires_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    this.db.exec('BEGIN');
+    try {
+      for (const e of events) {
+        insert.run(
+          board.toLowerCase(), e.tx, e.logIndex, e.blockNumber, e.time, e.kind, e.wallet, e.jobId ?? null, e.provider ?? null,
+          e.rating ?? null, e.flags ?? null, e.commentHash ?? null, e.requestId ?? null, e.briefHash ?? null, e.expiresAt ?? null,
+        );
+      }
+      this.db.exec('COMMIT');
+    } catch (error) {
+      this.db.exec('ROLLBACK');
+      throw error;
+    }
+  }
+
+  /** Every event of a board, in chain order. */
+  boardEvents(board: string): BoardEvent[] {
+    const rows = this.db.prepare('SELECT * FROM board_events WHERE board=? ORDER BY block_number, log_index').all(board.toLowerCase()) as Array<Record<string, unknown>>;
+    return rows.map((r) => ({
+      tx: r.tx as `0x${string}`,
+      logIndex: r.log_index as number,
+      blockNumber: r.block_number as number,
+      time: (r.block_time as string | null) ?? null,
+      kind: r.kind as BoardEvent['kind'],
+      wallet: (r.wallet as string | null) ?? null,
+      ...(r.job_id != null ? { jobId: r.job_id as string } : {}),
+      ...(r.provider != null ? { provider: r.provider as string } : {}),
+      ...(r.rating != null ? { rating: r.rating as number } : {}),
+      ...(r.flags != null ? { flags: r.flags as number } : {}),
+      ...(r.comment_hash != null ? { commentHash: r.comment_hash as `0x${string}` } : {}),
+      ...(r.request_id != null ? { requestId: r.request_id as string } : {}),
+      ...(r.brief_hash != null ? { briefHash: r.brief_hash as `0x${string}` } : {}),
+      ...(r.expires_at != null ? { expiresAt: r.expires_at as number } : {}),
+    }));
+  }
+
+  /** Where the scan of a board's events stands: the next block to read, and when it last ran. */
+  boardScan(board: string): { nextBlock: number; scannedAt: string } | null {
+    const row = this.db.prepare('SELECT next_block, scanned_at FROM board_scan WHERE board=?').get(board.toLowerCase()) as { next_block: number; scanned_at: string } | undefined;
+    return row ? { nextBlock: row.next_block, scannedAt: row.scanned_at } : null;
+  }
+
+  setBoardScan(board: string, nextBlock: number, scannedAt: string): void {
+    this.db
+      .prepare('INSERT INTO board_scan (board, next_block, scanned_at) VALUES (?, ?, ?) ON CONFLICT(board) DO UPDATE SET next_block=excluded.next_block, scanned_at=excluded.scanned_at')
+      .run(board.toLowerCase(), nextBlock, scannedAt);
+  }
+
+  setBoardReadAt(board: string, readAt: string): void {
+    this.db.prepare('INSERT INTO board_reads (board, read_at) VALUES (?, ?) ON CONFLICT(board) DO UPDATE SET read_at=excluded.read_at').run(board.toLowerCase(), readAt);
   }
 
   report(input: { chainId: number; jobId: string; reason: ReviewReportReason; detail: string }): number {
@@ -174,6 +343,8 @@ function toReview(row: Record<string, string | number | null>): VerifiedReview {
     visibility: String(row.visibility ?? 'published') as VerifiedReview['visibility'],
     onchainTx: row.onchain_tx ? (String(row.onchain_tx) as VerifiedReview['signature']) : null,
     onchainChainId: row.onchain_chain_id === null || row.onchain_chain_id === undefined ? null : Number(row.onchain_chain_id),
+    boardTx: row.board_tx ? (String(row.board_tx) as VerifiedReview['signature']) : null,
+    proof: row.proof === 'board' ? 'board' : 'signature',
   };
 }
 

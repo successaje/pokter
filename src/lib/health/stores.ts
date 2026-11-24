@@ -52,6 +52,7 @@ export const STORES: readonly StoreDescriptor[] = [
   { name: 'providerWork', variable: 'PROVIDER_DB_PATH', fallback: './data/provider.db' },
   { name: 'x402Calls', variable: 'X402_DB_PATH', fallback: './data/x402.db' },
   { name: 'scoutChats', variable: 'SCOUT_DB_PATH', fallback: './data/scout.db' },
+  { name: 'mcpUsage', variable: 'MCP_USAGE_DB_PATH', fallback: './data/mcp-usage.db' },
 ];
 
 /** Where a store will actually be written, given the current environment. */

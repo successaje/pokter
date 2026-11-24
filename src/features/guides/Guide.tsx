@@ -12,6 +12,7 @@ import { integrationKit } from '@/lib/integration/live';
 import { chainLabel, explorerBaseFor } from '@/lib/network/presentation';
 import { CodeBlock } from '@/ui/Data';
 import { LinkButton } from '@/ui/Button';
+import { windowChains } from './window-chains';
 
 /**
  * The frame every guide shares: the same facts first, in the same order,
@@ -173,9 +174,22 @@ export async function EscrowFee() {
   );
 }
 
-/** How long a buyer has to dispute after delivery, read from each escrow's policy. */
-export async function ReviewWindow() {
-  const chains = integrationKit().escrows.map((e) => e.chainId).sort((a, b) => (a === 56 ? -1 : b === 56 ? 1 : 0));
+/**
+ * How long a buyer has to dispute after delivery, read from each escrow's
+ * policy.
+ *
+ * `chainId` narrows it to one network, for a passage that can only be
+ * about that one. Unnarrowed it names every escrow, which is right where
+ * a reader may be on either — and wrong where they cannot be: PokterBoard
+ * takes reviews of mainnet jobs only, and quoting the testnet window
+ * beside it offered a number that can never apply to what the paragraph
+ * describes.
+ *
+ * Named too, when narrowed, so a figure is never left to be read against
+ * whichever network the reader assumed.
+ */
+export async function ReviewWindow({ chainId: only }: { chainId?: number } = {}) {
+  const chains = windowChains(integrationKit().escrows.map((e) => e.chainId), only);
   const windows = await Promise.all(chains.map(async (chainId) => ({ chainId, seconds: await disputeWindowSeconds(chainId).catch(() => null) })));
   const known = windows.filter((w) => w.seconds !== null);
   if (known.length === 0) return <>the review window the escrow&rsquo;s policy sets (read <code>disputeWindow()</code> on it)</>;

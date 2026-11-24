@@ -31,6 +31,8 @@ import { agentIdentityKey } from '@/lib/agents/distinct';
 import { escrowChainForHire } from '@/lib/network/escrow';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { unusableQuoteReason } from '@/lib/hire/compare-quotes';
+import { callsIn } from '@/lib/mcp/usage';
+import { recordMcpCalls } from '@/lib/mcp/usage-store';
 import { answerMcp, type McpResource, type McpTool } from '@/lib/mcp/server';
 import { discover } from '@/features/discover/search';
 import { parseDiscoverParams } from '@/features/discover/params';
@@ -386,6 +388,7 @@ function tools(request: Request): McpTool[] {
                 maxBudget: args.max_budget,
                 ...(typeof args.payment_token === 'string' ? { paymentToken: args.payment_token } : {}),
                 ...(typeof args.request_id === 'string' ? { requestId: args.request_id } : {}),
+                ...(typeof args.proposal_id === 'string' ? { proposalId: args.proposal_id } : {}),
                 ...(typeof args.possibly_funded_job_id === 'string' ? { possiblyFundedJobId: args.possibly_funded_job_id } : {}),
                 owner: args.owner_address,
               }),
@@ -640,6 +643,13 @@ export async function POST(request: Request): Promise<Response> {
     return NextResponse.json({ jsonrpc: '2.0', id: null, error: { code: -32700, message: 'Parse error: the body is not JSON.' } }, { status: 400, headers: CORS });
   }
   const answer = await answerMcp(body, tools(request), RESOURCES);
+  /*
+   * Which tools were reached for, counted by day. The registry listing is
+   * the one route here where the buyer never loads a page, so the browser
+   * funnel sees none of it; without this the channel cannot be told from
+   * an unused one. Counts only — no arguments, no caller, no time of day.
+   */
+  recordMcpCalls('buyer', callsIn(body, answer));
   // Only notifications: accepted, nothing to say.
   if (answer === null) return new Response(null, { status: 202, headers: CORS });
   return NextResponse.json(answer, { headers: CORS });

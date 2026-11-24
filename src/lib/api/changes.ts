@@ -30,6 +30,43 @@ export interface ApiChange {
 
 export const API_CHANGES: ApiChange[] = [
   {
+    date: null,
+    release: null,
+    kind: 'added',
+    surfaces: ['GET /api/v1/requests/{id}', 'MCP get_request', 'MCP prepare_hire'],
+    summary: 'A chosen proposal can be hired from an assistant, as it can from the request page.',
+    details: [
+      'Each entry in `proposalsList` carries its `id`.',
+      '`hireChosen` is null until the poster chooses a proposal. Then it holds the `prepare_hire` arguments that hire exactly that proposal: `chain_id`, `token_id`, `proposal_id`, the request’s `task` as the hire carries it, `escrow_chain_id`, `max_budget` (the proposal’s price) and `payment_token`.',
+      '`prepare_hire` takes `proposal_id`. With it, the task, network and token must be the proposal’s, `max_budget` no higher than its price, and `owner_address` the wallet that posted the request; the job then allows the proposal’s delivery time.',
+    ],
+    migrate: null,
+  },
+  {
+    date: null,
+    release: null,
+    kind: 'added',
+    surfaces: ['GET /api/v1/requests', 'GET /api/v1/requests/{id}', 'MCP search_requests', 'MCP get_request', 'MCP prepare_proposal'],
+    summary: 'A request says how its poster agreed to its terms: a wallet signature, or its post on PokterBoard.',
+    details: [
+      '`proof` is `signature` for a request its poster’s wallet signed on Pokter, and `board` for one posted on PokterBoard straight from a wallet that signs no plain message, such as an Agentic Wallet.',
+      'For `board`, the post is the proof: `board.transactionHash` is the poster’s own transaction, and the board stores keccak256 of the request’s text, so anyone can hash the request again and compare.',
+    ],
+    migrate: null,
+  },
+  {
+    date: null,
+    release: null,
+    kind: 'added',
+    surfaces: ['GET /api/v1/requests', 'GET /api/v1/requests/{id}', 'MCP search_requests', 'MCP get_request', 'MCP prepare_proposal'],
+    summary: 'A request says whether its poster also posted it on PokterBoard with an Agent ID.',
+    details: [
+      '`board` is `{ requestId, transactionHash, expiresAt, closed }` once the request’s poster has posted it on PokterBoard from the wallet that signed it, and Pokter has checked the transaction; null otherwise.',
+      '`requestId` is the board’s own number for the post. The board stores keccak256 of the request’s signed text, so anyone can hash the request again and compare. `closed` is true once the poster closed the post on the board.',
+    ],
+    migrate: null,
+  },
+  {
     date: '2026-11-17',
     release: 'v676',
     kind: 'changed',
