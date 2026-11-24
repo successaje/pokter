@@ -74,6 +74,8 @@ export interface AgenticTerms {
   owner: Address | null;
   /** The job it became, once funded. */
   jobId: string | null;
+  /** The seller's delivery time before the dispute window: a chosen proposal's days, else the standing window (`deliverySecondsFor`). */
+  deliverySeconds?: number;
 }
 
 export interface AgenticJob {
@@ -262,7 +264,7 @@ export async function nextAgenticCall(input: {
       task: terms.task,
       quote: fresh.quote,
     });
-    const expiredAt = BigInt(Math.floor(now / 1000) + jobLifetimeSeconds(await reader.disputeWindow()));
+    const expiredAt = BigInt(Math.floor(now / 1000) + jobLifetimeSeconds(await reader.disputeWindow(), terms.deliverySeconds));
     const [first] = callsFor(0n, description, expiredAt);
     const counter = await reader.jobCounter();
     const fundBy = fundByFor(fresh.quote.expiresAt);

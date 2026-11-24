@@ -153,6 +153,25 @@ test('the five calls come in order, each read from the chain, and end funded', a
   assert.ok(job.expiredAt > BigInt(Math.floor(T / 1000) + 7 * 86_400), 'its deadline leaves room for the dispute window');
 });
 
+test('a hire from a chosen proposal allows the days that proposal promised before the dispute window', async () => {
+  const deadline = async (deliverySeconds?: number) => {
+    const c = chain();
+    let step = await next(c, { terms: { ...terms(), ...(deliverySeconds ? { deliverySeconds } : {}) } });
+    if (step.state === 'call' && step.step === 'approve') {
+      c.apply(step.call);
+      step = await next(c, { terms: { ...terms(), ...(deliverySeconds ? { deliverySeconds } : {}) } });
+    }
+    assert.ok(step.state === 'call' && step.step === 'create', JSON.stringify(step));
+    if (step.state !== 'call') return 0n;
+    c.apply(step.call);
+    return c.jobs.get(57_301n)!.expiredAt;
+  };
+  const standing = await deadline();
+  const sevenDays = await deadline(7 * 86_400);
+  assert.equal(standing, BigInt(Math.floor(T / 1000) + 7 * 86_400 + 86_400), 'the standing day to deliver');
+  assert.equal(sevenDays - standing, BigInt(6 * 86_400), 'the proposal’s seven');
+});
+
 /* As production's quote route answers: the seller's signed quote in the reference SDK's shape rides along, and becomes the whole description. */
 function anchored(expiresAt = Math.floor(T / 1000) + 600): AgenticQuote {
   const plain = quote();

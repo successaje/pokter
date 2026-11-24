@@ -61,8 +61,20 @@ test('a request is posted only with terms the user gave, shown in full before th
   assert.match(posting, /\/api\/briefs\/board\/call/);
   assert.match(posting, /\/api\/briefs\/board\/record/);
   assert.match(posting, /The request is public only once this answers `recorded`/);
-  // Said before the user writes anything: what this wallet cannot do with the answers yet.
-  assert.ok(posting.indexOf('cannot yet take a choice') < posting.indexOf('Ask the user for each'));
+});
+
+test('a proposal is chosen by the user, with one signature they see first, and hired with the arguments Pokter gives', () => {
+  const choosing = HIRE_SKILL_MD.slice(HIRE_SKILL_MD.indexOf('## 8.'));
+  assert.ok(HIRE_SKILL_MD.indexOf('## 8.') > HIRE_SKILL_MD.indexOf('## 7.'));
+  assert.match(choosing, /never choose for them/);
+  assert.match(choosing, /\/api\/briefs\/REQUEST_ID\/decision/);
+  assert.match(choosing, /Run the answer's `preview` command/);
+  assert.match(choosing, /On a yes, run `baw sign-message execute/);
+  assert.match(choosing, /`signature` and `signatureRecovery` exactly as the wallet returned/);
+  assert.match(choosing, /`hireChosen`/);
+  assert.match(choosing, /Call `prepare_hire` with them\s+as they are, adding `owner_address` WALLET/);
+  assert.match(HIRE_SKILL_MD, /run `baw sign-message execute` only after a\s+yes for that one signature/);
+  assert.doesNotMatch(HIRE_SKILL_MD, /cannot yet take a choice/);
 });
 
 test('the wallet CLI is installed and signed in by the user, never by the assistant', () => {

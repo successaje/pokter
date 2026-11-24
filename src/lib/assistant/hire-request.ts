@@ -131,6 +131,12 @@ export interface PreparedHire {
   agentSaid: string | null;
   agentTextCannot: readonly string[];
   next: string[];
+  /**
+   * The request proposal this hire carries out, when it was prepared from
+   * one (`proposalId`): its task, ceiling and token are the proposal's, and
+   * the job allows its delivery time. Absent for any other hire.
+   */
+  proposal?: { requestId: string; proposalId: string; priceRaw: string; deliverDays: number };
 }
 
 export type PrepareHireResult =

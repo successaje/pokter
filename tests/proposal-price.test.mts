@@ -75,7 +75,7 @@ test('every way of proposing carries the agent’s own signed price, checked bef
 
 test('a choice is changed only by the poster, freshly signed, and never once funded', () => {
   const route = source('src/app/api/briefs/[id]/reopen/route.ts');
-  const order = ['decisionIsFresh(decidedAt)', 'requestHired(brief', 'signedByWallet(brief.chainId', 'store.reopen(id, brief.awardedBidId)'].map((needle) => route.indexOf(needle));
+  const order = ['decisionIsFresh(decidedAt)', 'requestHired(brief', 'posterDecided(brief.chainId', 'store.reopen(id, brief.awardedBidId)'].map((needle) => route.indexOf(needle));
   assert.ok(order.every((at) => at > 0), 'each check is present');
   assert.deepEqual([...order].sort((a, b) => a - b), order, 'in that order');
 });

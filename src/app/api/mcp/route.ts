@@ -386,6 +386,7 @@ function tools(request: Request): McpTool[] {
                 maxBudget: args.max_budget,
                 ...(typeof args.payment_token === 'string' ? { paymentToken: args.payment_token } : {}),
                 ...(typeof args.request_id === 'string' ? { requestId: args.request_id } : {}),
+                ...(typeof args.proposal_id === 'string' ? { proposalId: args.proposal_id } : {}),
                 ...(typeof args.possibly_funded_job_id === 'string' ? { possiblyFundedJobId: args.possibly_funded_job_id } : {}),
                 owner: args.owner_address,
               }),

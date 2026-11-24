@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
-import { getAddress, isHex, type Hex } from 'viem';
+import { getAddress } from 'viem';
 
+import { posterDecided, readDecisionSignature } from '@/lib/briefs/decision-signature';
+import { withdrawTypedData } from '@/lib/briefs/decision-typed';
 import { withdrawMessage } from '@/lib/briefs/model';
 import { getBriefStore } from '@/lib/briefs/store';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
-import { signedByWallet } from '@/lib/wallet/signed-by';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,10 +35,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   } catch {
     return NextResponse.json({ error: 'Expected a JSON body.' }, { status: 400 });
   }
-  const signature = String(body.signature ?? '');
-  if (!isHex(signature)) return NextResponse.json({ error: 'A signature is needed.' }, { status: 400 });
+  /* The plain message, or the same withdrawal as typed data (`format: 'eip712'`), as for an award. */
+  const signed = readDecisionSignature(body);
+  if (!signed) return NextResponse.json({ error: 'A signature is needed.' }, { status: 400 });
 
-  if (!(await signedByWallet(brief.chainId, getAddress(brief.poster), withdrawMessage(id, brief.poster), signature as Hex))) {
+  if (!(await posterDecided(brief.chainId, getAddress(brief.poster), { text: withdrawMessage(id, brief.poster), typed: withdrawTypedData(id, brief.poster) }, signed))) {
     return NextResponse.json({ error: 'Only the wallet that posted this request can withdraw it.' }, { status: 403 });
   }
 

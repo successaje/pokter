@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server';
-import { getAddress, isHex, type Hex } from 'viem';
+import { getAddress } from 'viem';
 
+import { posterDecided, readDecisionSignature } from '@/lib/briefs/decision-signature';
+import { changeChoiceTypedData } from '@/lib/briefs/decision-typed';
 import { requestHired } from '@/lib/briefs/hired-status';
 import { reopenMessage } from '@/lib/briefs/model';
 import { getBriefStore } from '@/lib/briefs/store';
 import { decisionIsFresh } from '@/lib/jobs/answer-publication';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
-import { signedByWallet } from '@/lib/wallet/signed-by';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,9 +36,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   } catch {
     return NextResponse.json({ error: 'Expected a JSON body.' }, { status: 400 });
   }
-  const signature = String(body.signature ?? '');
+  /* The plain message, or the same change as typed data (`format: 'eip712'`), as for an award. */
+  const signed = readDecisionSignature(body);
   const decidedAt = String(body.decidedAt ?? '');
-  if (!isHex(signature) || !decisionIsFresh(decidedAt)) {
+  if (!signed || !decisionIsFresh(decidedAt)) {
     return NextResponse.json({ error: 'The signed change is missing or more than ten minutes old. Sign it again.' }, { status: 400 });
   }
 
@@ -46,7 +48,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   const message = reopenMessage(id, brief.awardedBidId, brief.poster, decidedAt);
-  if (!(await signedByWallet(brief.chainId, getAddress(brief.poster), message, signature as Hex))) {
+  const typed = changeChoiceTypedData(id, brief.awardedBidId, brief.poster, decidedAt);
+  if (!(await posterDecided(brief.chainId, getAddress(brief.poster), { text: message, typed }, signed))) {
     return NextResponse.json({ error: 'Only the wallet that posted this request can change its choice.' }, { status: 403 });
   }
 

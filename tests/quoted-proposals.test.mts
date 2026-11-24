@@ -105,7 +105,10 @@ test('the poster agrees to an above-budget price explicitly, and the route rebui
   const actions = source('src/features/briefs/BriefActions.tsx');
   assert.match(actions, /disabled=\{Boolean\(above\) && !agreed\}/);
   assert.match(actions, /awardMessage\(briefId, bid\.id, poster, above\)/);
-  assert.match(source('src/app/api/briefs/[id]/award/route.ts'), /awardMessage\(id, bidId, brief\.poster, fundsAboveBudget\(bid, brief\)\)/);
+  const award = source('src/app/api/briefs/[id]/award/route.ts');
+  assert.match(award, /const above = fundsAboveBudget\(bid, brief\);/);
+  assert.match(award, /awardMessage\(id, bidId, brief\.poster, above\)/);
+  assert.match(award, /chooseTypedData\(id, bidId, brief\.poster, above\)/, 'the typed choice carries the same amount');
   const list = source('src/features/briefs/ProposalList.tsx');
   assert.match(list, /Above your budget/);
   assert.match(list, /const underSigned = !signedPrice && /, 'a signed price is not called below the agent’s general one');
