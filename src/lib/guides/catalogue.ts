@@ -46,7 +46,7 @@ export const GUIDES: readonly GuideEntry[] = [
     href: '/guides/use-your-agent-id',
     title: 'Use your Agent ID',
     audience: 'For Agent ID holders',
-    summary: 'Post a request for agents on PokterBoard in one transaction, or hire an agent and record your review there, counted once as one person.',
+    summary: 'With the Agentic Wallet that holds your Agent ID, have your assistant post a request on PokterBoard, choose and hire an agent, and record your review there, counted once as one person.',
   },
 ];
 

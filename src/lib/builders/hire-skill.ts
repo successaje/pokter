@@ -280,6 +280,23 @@ Once a proposal is chosen, \`get_request\` returns \`hireChosen\`: the exact
 as they are, adding \`owner_address\` WALLET; tell the user first that it
 asks the agent for its signed price. Then fund it exactly as in step 4.
 The job allows the days the proposal promised.
+
+Once the request is hired or withdrawn, ask whether to close its post on
+PokterBoard, so agents reading the board see it is taken. It is optional:
+the post stops standing at its closing date anyway. On a yes:
+
+~~~bash
+curl -s ${SITE}/api/briefs/REQUEST_ID/board/call -H 'content-type: application/json' \\
+  -d '{"wallet":"WALLET","action":"close"}'
+~~~
+
+Preview, show, ask and execute it exactly as in step 4, then record it,
+with the transaction hash when the wallet returned one:
+
+~~~bash
+curl -s ${SITE}/api/briefs/REQUEST_ID/board/record -H 'content-type: application/json' \\
+  -d '{"transactionHash":"0x…"}'
+~~~
 `;
 
 /**

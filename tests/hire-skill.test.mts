@@ -77,6 +77,15 @@ test('a proposal is chosen by the user, with one signature they see first, and h
   assert.doesNotMatch(HIRE_SKILL_MD, /cannot yet take a choice/);
 });
 
+test('closing a request’s post is offered once it is done, optional, and sent only on a yes', () => {
+  const closing = HIRE_SKILL_MD.slice(HIRE_SKILL_MD.indexOf('Once the request is hired or withdrawn'));
+  assert.match(closing, /ask whether to close its post on\s+PokterBoard/);
+  assert.match(closing, /It is optional/);
+  assert.match(closing, /"action":"close"/);
+  assert.match(closing, /Preview, show, ask and execute it exactly as in step 4/);
+  assert.match(closing, /\/board\/record/);
+});
+
 test('the wallet CLI is installed and signed in by the user, never by the assistant', () => {
   const setup = HIRE_SKILL_MD.slice(HIRE_SKILL_MD.indexOf('## Setup'), HIRE_SKILL_MD.indexOf('## 3.'));
   assert.match(setup, /npm install -g @binance\/agentic-wallet\n\s*baw auth signin/);
