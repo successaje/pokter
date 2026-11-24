@@ -27,7 +27,7 @@ import { useRequestAlerts } from '@/features/briefs/useRequestAlerts';
 import { markRequestAlertRead, markRequestAlertsRead } from '@/lib/briefs/request-alerts';
 import { usePriceAskAlerts } from '@/features/agent/usePriceAskAlerts';
 import { markPriceAskAlertRead, markPriceAskAlertsRead, priceAskHref } from '@/lib/agents/price-ask-alerts';
-import { budgetOf, JobRow, NeedsWallet, PageHeader, PhaseLabel } from './parts';
+import { JobAmount, JobRow, NeedsWallet, PageHeader, PhaseLabel } from './parts';
 import { totalLines } from './totals';
 import { MoneyTotal } from '@/ui/MoneyTotal';
 import { approxTotalView } from '@/lib/money/approx-total';
@@ -545,7 +545,7 @@ export function WalletPage() {
                   </td>
                   <td className="hidden py-3 sm:table-cell">{j.agentName}</td>
                   <td className="py-3">{PHASE[jobPhase(j, now)].label}</td>
-                  <td className="t-readout py-3 text-right">{budgetOf(j)}</td>
+                  <td className="t-readout py-3 text-right"><JobAmount job={j} /></td>
                 </tr>
               ))}
             </tbody>

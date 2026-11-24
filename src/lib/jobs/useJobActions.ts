@@ -10,6 +10,7 @@ import {
 
 import { NATIVE_SYMBOL } from '@/lib/network/presentation';
 import { getErc8183Job } from '@/lib/erc8183/job-read-browser';
+import { savedJobMismatch, unreadJob } from '@/lib/jobs/record-match';
 import { assertRefundEligible } from '@/lib/erc8183/reclaim-check';
 import type { HiredJob } from '@/lib/erc8183/types';
 import { usePasskeySigner, usePasskeyWallet } from '@/lib/wallet/PasskeyProvider';
@@ -130,6 +131,17 @@ export function useJobActions(initial: HiredJob) {
       const startedAt = generation.current;
       const owner = activeWallet.address;
       const current = await getErc8183Job(network, BigInt(job.jobId));
+      /* An empty answer is a node that has not seen the job yet, not a job that is open: nothing is copied from it. */
+      if (unreadJob(current)) return;
+      /* Another job's number: its status is not this hire's, so nothing is copied from it (`savedJobMismatch`). */
+      const mismatch = savedJobMismatch(current, job, new Date().toISOString());
+      if (mismatch) {
+        if (!fromAction && generation.current !== startedAt) return;
+        const flagged: HiredJob = { ...job, numberMismatch: mismatch };
+        setJob(flagged);
+        if (owner) updateRememberedJob(owner, flagged);
+        return;
+      }
       const delivered = current.statusName === 'SUBMITTED' || current.statusName === 'COMPLETED';
       const indexed = !job.paymentToken || (delivered && !job.deliverableUrl) ? await indexedJobDetails(job) : null;
       const deliverableUrl =
@@ -140,6 +152,7 @@ export function useJobActions(initial: HiredJob) {
       if (!fromAction && generation.current !== startedAt) return;
       const updated: HiredJob = {
         ...job,
+        numberMismatch: null,
         paymentToken: job.paymentToken ?? indexed?.paymentToken ?? null,
         status: current.statusName,
         statusCheckedAt: new Date().toISOString(),
@@ -195,8 +208,9 @@ export function useJobActions(initial: HiredJob) {
 
   // An older remembered job may lack its currency or delivery URL. Read both
   // from the chain-backed job lookup without waiting for the status refresh.
-  const needsUrl = (job.status === 'SUBMITTED' || job.status === 'COMPLETED') && !job.deliverableUrl;
-  const needsCurrency = !job.paymentToken;
+  /* Not for a hire saved under another job's number: that job's details are not this hire's. */
+  const needsUrl = !job.numberMismatch && (job.status === 'SUBMITTED' || job.status === 'COMPLETED') && !job.deliverableUrl;
+  const needsCurrency = !job.numberMismatch && !job.paymentToken;
   useEffect(() => {
     if (!needsUrl && !needsCurrency) return;
     let cancelled = false;
