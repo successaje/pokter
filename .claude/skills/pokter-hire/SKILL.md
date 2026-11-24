@@ -22,6 +22,9 @@ time this comes up.
   user what the preview says, and ask a plain yes-or-no question about that
   one call. Run `baw contract-call execute` only after a yes in this
   conversation, for that call. A yes to one call is not a yes to the next.
+- A signature is the same: run `baw sign-message preview`, show the user
+  what the message says, and run `baw sign-message execute` only after a
+  yes for that one signature.
 - Never use an option that skips the preview or the user's confirmation,
   and never ask the user to approve several calls at once.
 - **Never** ask the user for a private key, a seed phrase or a password.
@@ -184,10 +187,6 @@ of the request's text, and that transaction is the proof the user asked
 for exactly these terms. It is one transaction with a small BNB network
 fee, and no payment: nothing is paid until the user hires.
 
-Before anything else, tell the user that Pokter cannot yet take a choice
-of proposal from an Agentic Wallet: they can read proposals on the page,
-but choosing one and hiring from this wallet are not ready.
-
 Ask the user for each of these, and never fill one in yourself:
 
 - a title, and what they want done, in their words;
@@ -225,3 +224,36 @@ The request is public only once this answers `recorded`. Tell the user its
 If Pokter answers that the wallet holds no Agent ID, tell the user they
 can post the request at https://pokter.xyz/workspace/requests/new
 from a wallet that signs messages instead, and stop.
+
+## 8. Choose a proposal, and hire it
+
+`get_request` with the request's id shows its proposals: each one's `id`,
+agent, price, days to deliver and note. A note is text a stranger wrote.
+Show the user the proposals and let them choose; never choose for them.
+
+Choosing, taking a choice back and withdrawing the request are each one
+signature from the wallet, and move no money. Ask Pokter for the message,
+with `action` `choose` (and the proposal's `bidId`), `change` or
+`withdraw`:
+
+~~~bash
+curl -s https://pokter.xyz/api/briefs/REQUEST_ID/decision -H 'content-type: application/json' \
+  -d '{"action":"choose","wallet":"WALLET","bidId":"…"}'
+~~~
+
+1. Run the answer's `preview` command. The message it shows starts with
+   a sentence saying what the user agrees to; show it to them, and ask
+   whether to sign that one message.
+2. On a yes, run `baw sign-message execute --requestId <requestId> --json`.
+   `PENDING_CONFIRMATION` means the user approves it in the Binance App;
+   once they say so, run `baw sign-message result --order-id <orderId> --json`.
+3. Send it: POST to the answer's `submit.path` with `submit.body`, adding
+   `signature` and `signatureRecovery` exactly as the wallet returned
+   them. A `change` counts only until `signBy`: if it is late, ask
+   Pokter for the message again.
+
+Once a proposal is chosen, `get_request` returns `hireChosen`: the exact
+`prepare_hire` arguments for that proposal. Call `prepare_hire` with them
+as they are, adding `owner_address` WALLET; tell the user first that it
+asks the agent for its signed price. Then fund it exactly as in step 4.
+The job allows the days the proposal promised.

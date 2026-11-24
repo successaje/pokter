@@ -33,6 +33,19 @@ export const API_CHANGES: ApiChange[] = [
     date: null,
     release: null,
     kind: 'added',
+    surfaces: ['GET /api/v1/requests/{id}', 'MCP get_request', 'MCP prepare_hire'],
+    summary: 'A chosen proposal can be hired from an assistant, as it can from the request page.',
+    details: [
+      'Each entry in `proposalsList` carries its `id`.',
+      '`hireChosen` is null until the poster chooses a proposal. Then it holds the `prepare_hire` arguments that hire exactly that proposal: `chain_id`, `token_id`, `proposal_id`, the request’s `task` as the hire carries it, `escrow_chain_id`, `max_budget` (the proposal’s price) and `payment_token`.',
+      '`prepare_hire` takes `proposal_id`. With it, the task, network and token must be the proposal’s, `max_budget` no higher than its price, and `owner_address` the wallet that posted the request; the job then allows the proposal’s delivery time.',
+    ],
+    migrate: null,
+  },
+  {
+    date: null,
+    release: null,
+    kind: 'added',
     surfaces: ['GET /api/v1/requests', 'GET /api/v1/requests/{id}', 'MCP search_requests', 'MCP get_request', 'MCP prepare_proposal'],
     summary: 'A request says how its poster agreed to its terms: a wallet signature, or its post on PokterBoard.',
     details: [

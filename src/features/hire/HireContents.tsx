@@ -1,11 +1,10 @@
 import { notFound, redirect } from 'next/navigation';
 
 import { answeredTasksFor } from '@/lib/agent/answered-tasks-sweep';
-import { hireTaskFromRequest, type ProposalForHire } from '@/lib/briefs/model';
-import { getBriefStore } from '@/lib/briefs/store';
+import type { ProposalForHire } from '@/lib/briefs/model';
+import { chosenProposalForHire } from '@/lib/briefs/proposal-hire';
 import { isCampaignLive } from '@/lib/campaign/window';
 import { jobChainParam } from '@/lib/jobs/href';
-import { requestToken } from '@/lib/network/tokens';
 import { getJobStore } from '@/lib/erc8183/store';
 import { currencyEvidence } from '@/lib/hire/currency-choice';
 import { loadProfile } from '@/features/agent/profile';
@@ -152,38 +151,10 @@ export async function HireContents({
   );
 }
 
-/**
- * The proposal a hire link names, if it really is the one chosen on its
- * request and is for this agent. Anything else is ignored rather than
- * refused: the hire still works, only without a price to hold it to.
- */
+/** The proposal a hire link names, when it is the chosen one for this agent (`chosenProposalForHire`); ignored otherwise, so the hire still works without a price to hold it to. */
 function chosenProposal(id: string | undefined, chainId: number, tokenId: string): { proposal: ProposalForHire; task: string } | null {
-  if (!id || !/^[0-9a-f-]{36}$/i.test(id)) return null;
-  const store = getBriefStore();
-  const bid = store.bid(id);
-  if (!bid || bid.agentChainId !== chainId || bid.agentTokenId !== tokenId) return null;
-  const request = store.get(bid.briefId);
-  if (!request || request.awardedBidId !== bid.id) return null;
-  /*
-   * The proposal's money, resolved once here: its own token, else its
-   * request's, else (rows from before either carried one) the chain's $U.
-   * A token Pokter cannot name drops the proposal rather than letting the
-   * hire assume one — the hire then runs without a price to hold it to.
-   */
-  const token = requestToken(request.chainId, bid.paymentToken ?? request.paymentToken);
-  if (!token) return null;
-  return {
-    proposal: {
-      requestId: request.id,
-      requestTitle: request.title,
-      priceU: bid.priceU,
-      priceRaw: bid.priceRaw,
-      paymentToken: token.address,
-      deliverDays: bid.deliverDays,
-      chainId: request.chainId,
-    },
-    task: hireTaskFromRequest(request),
-  };
+  const chosen = chosenProposalForHire(id, chainId, tokenId);
+  return chosen ? { proposal: chosen.proposal, task: chosen.task } : null;
 }
 
 /** A brief from the link, e.g. one an assistant composed through Pokter's MCP server. Prose only, and capped. */

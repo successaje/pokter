@@ -10,6 +10,7 @@ import type { PreparedHire } from '@/lib/assistant/hire-request';
 import { readTransport } from '@/lib/chain/rpc';
 import { publicReadUrls } from '@/lib/chain/transport';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
+import { deliverySecondsFor } from '@/lib/erc8183/deadline';
 import { getJobStore } from '@/lib/erc8183/store';
 import { AGENTIC_CHAIN_ID, nextAgenticCall, type AgenticNext, type AgenticQuote, type AgenticReader, type AgenticTerms } from '@/lib/hire/agentic';
 import { logAndPublic } from '@/lib/api/public-error';
@@ -67,6 +68,8 @@ export async function POST(request: Request): Promise<NextResponse> {
     amountRaw: BigInt(record.amountRaw),
     owner: record.owner && isAddress(record.owner, { strict: false }) ? getAddress(record.owner) : null,
     jobId: record.jobId,
+    /* A hire from a chosen proposal allows the days that proposal promised, as the hire page does. */
+    deliverySeconds: deliverySecondsFor(prepared.proposal?.deliverDays),
   };
   const addresses = correctedErc8183Addresses(AGENTIC_CHAIN_ID);
   const passed: Record<string, string> = Object.fromEntries(
