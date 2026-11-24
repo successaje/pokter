@@ -141,20 +141,32 @@ test('a connected wallet without agents can start from My services', async ({ pa
   expect((await walletCalls(page)).filter((call) => SIGNING_METHODS.includes(call.method))).toEqual([]);
 });
 
-test('Requests & Services menu closes outside, on Escape and after navigation', async ({ page }) => {
+test('the header menus close outside, on Escape and after navigation, and a click never shuts what hovering opened', async ({ page }) => {
   await page.goto('/services');
-  const menu = page.getByRole('button', { name: /Requests & Services/ });
-  await menu.click();
-  await expect(menu).toHaveAttribute('aria-expanded', 'true');
+  const primary = page.getByRole('navigation', { name: 'Primary' });
+  const hire = primary.getByRole('button', { name: 'Hire' });
+  const build = primary.getByRole('button', { name: 'Build' });
+  // Playwright's click hovers first, as a mouse does: the click keeps the panel open.
+  await hire.click();
+  await expect(hire).toHaveAttribute('aria-expanded', 'true');
   await page.mouse.click(1000, 550);
-  await expect(menu).toHaveAttribute('aria-expanded', 'false');
-  await menu.click();
+  await expect(hire).toHaveAttribute('aria-expanded', 'false');
+  await hire.click();
   await page.keyboard.press('Escape');
-  await expect(menu).toHaveAttribute('aria-expanded', 'false');
-  await menu.click();
-  await page.getByRole('link', { name: /Requests Browse work/ }).click();
+  await expect(hire).toHaveAttribute('aria-expanded', 'false');
+  await expect(hire).toBeFocused();
+  // From the keyboard the button toggles.
+  await page.keyboard.press('Enter');
+  await expect(hire).toHaveAttribute('aria-expanded', 'true');
+  await page.keyboard.press('Enter');
+  await expect(hire).toHaveAttribute('aria-expanded', 'false');
+  // Moving to the other menu swaps the panel.
+  await build.hover();
+  await expect(build).toHaveAttribute('aria-expanded', 'true');
+  await expect(hire).toHaveAttribute('aria-expanded', 'false');
+  await page.getByRole('link', { name: /Find paid work/ }).click();
   await expect(page).toHaveURL(/\/requests$/);
-  await expect(menu).toHaveAttribute('aria-expanded', 'false');
+  await expect(build).toHaveAttribute('aria-expanded', 'false');
 });
 
 test('builder, service and request pages fit a phone viewport', async ({ page }) => {
