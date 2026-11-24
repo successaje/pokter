@@ -138,7 +138,16 @@ export interface BriefContent {
 export interface Brief extends BriefContent {
   id: string;
   poster: Address;
+  /** The poster's wallet signature over `briefMessage`; `0x` when the proof is the board post instead (`proof`). */
   signature: Hex;
+  /**
+   * What shows the poster agreed to these exact terms. `signature`: their
+   * wallet signed `briefMessage`. `board`: their wallet posted the hash of
+   * that text on PokterBoard (`board.tx`), as a wallet that signs no plain
+   * message does, and the transaction is the proof. Absent reads as
+   * `signature`, which every request was before.
+   */
+  proof?: 'signature' | 'board';
   state: BriefState;
   postedAt: string;
   /** Set when a bid is accepted. */

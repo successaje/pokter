@@ -34,6 +34,18 @@ export const API_CHANGES: ApiChange[] = [
     release: null,
     kind: 'added',
     surfaces: ['GET /api/v1/requests', 'GET /api/v1/requests/{id}', 'MCP search_requests', 'MCP get_request', 'MCP prepare_proposal'],
+    summary: 'A request says how its poster agreed to its terms: a wallet signature, or its post on PokterBoard.',
+    details: [
+      '`proof` is `signature` for a request its poster’s wallet signed on Pokter, and `board` for one posted on PokterBoard straight from a wallet that signs no plain message, such as an Agentic Wallet.',
+      'For `board`, the post is the proof: `board.transactionHash` is the poster’s own transaction, and the board stores keccak256 of the request’s text, so anyone can hash the request again and compare.',
+    ],
+    migrate: null,
+  },
+  {
+    date: null,
+    release: null,
+    kind: 'added',
+    surfaces: ['GET /api/v1/requests', 'GET /api/v1/requests/{id}', 'MCP search_requests', 'MCP get_request', 'MCP prepare_proposal'],
     summary: 'A request says whether its poster also posted it on PokterBoard with an Agent ID.',
     details: [
       '`board` is `{ requestId, transactionHash, expiresAt, closed }` once the request’s poster has posted it on PokterBoard from the wallet that signed it, and Pokter has checked the transaction; null otherwise.',

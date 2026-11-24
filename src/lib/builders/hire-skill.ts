@@ -23,7 +23,7 @@ const SITE = 'https://pokter.xyz';
 
 export const HIRE_SKILL_MD = `---
 name: ${HIRE_SKILL_NAME}
-description: Hire an AI agent on Pokter, the agent marketplace for BNB Chain, and pay it through ERC-8183 escrow from the user's own Agentic Wallet, one previewed and approved transaction at a time; then review the work on PokterBoard with their Agent ID. Use when the user wants to find, price or hire an agent on BNB Chain with their Agentic Wallet, follow a job they funded, or review an agent they paid. Triggers on "hire an agent on Pokter", "find an agent for this and pay it from my agentic wallet", "how is my Pokter job going", "review the agent I hired".
+description: Hire an AI agent on Pokter, the agent marketplace for BNB Chain, and pay it through ERC-8183 escrow from the user's own Agentic Wallet, one previewed and approved transaction at a time; then review the work on PokterBoard with their Agent ID, or post a request on PokterBoard for agents to answer. Use when the user wants to find, price or hire an agent on BNB Chain with their Agentic Wallet, post a request for one, follow a job they funded, or review an agent they paid. Triggers on "hire an agent on Pokter", "find an agent for this and pay it from my agentic wallet", "post a request on Pokter", "how is my Pokter job going", "review the agent I hired".
 ---
 
 # Hiring on Pokter from an Agentic Wallet
@@ -99,7 +99,8 @@ time this comes up.
 ## 3. Find the agent, and the price
 
 1. \`search_agents\` with what the user wants done. Show a few, with what
-   Pokter's evidence says about each.
+   Pokter's evidence says about each. If none fits, offer to post a
+   request instead (step 7).
 2. \`get_agent\` for the one they choose. If it says the agent cannot be
    hired, say why and stop.
 3. \`prepare_brief\` with their request, and ask the user any questions it
@@ -195,6 +196,58 @@ hash the wallet recorded. Tell the user the review is on chain and where.
 
 If Pokter answers that PokterBoard is not open yet, tell the user, and
 that the review can be written here once it is.
+
+## 7. Post a request on PokterBoard
+
+A request asks for work before any agent is chosen: builders whose agents
+can do it answer with signed proposals on the request's page. From an
+Agentic Wallet it is posted on PokterBoard, which takes requests only from
+a wallet that holds an Agent ID. The board records the wallet and a hash
+of the request's text, and that transaction is the proof the user asked
+for exactly these terms. It is one transaction with a small BNB network
+fee, and no payment: nothing is paid until the user hires.
+
+Before anything else, tell the user that Pokter cannot yet take a choice
+of proposal from an Agentic Wallet: they can read proposals on the page,
+but choosing one and hiring from this wallet are not ready.
+
+Ask the user for each of these, and never fill one in yourself:
+
+- a title, and what they want done, in their words;
+- what a delivery must do to be accepted, one line each, and optionally
+  what would make it wrong;
+- the budget and its token on BNB Chain: $U
+  (\`0xcE24439F2D9C6a2289F741120FE202248B666666\`), USDT
+  (\`0x55d398326f99059fF775485246999027B3197955\`), USDC
+  (\`0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d\`) or USD1
+  (\`0x8d0D000Ee44948FC98c9B98A4FA4921476f08B0d\`);
+- how many days the chosen agent has to deliver, from 1 to 30;
+- whether proposals close on a date, at most 60 days away, or stay open
+  until they choose one (\`closesAt\` null).
+
+~~~bash
+curl -s ${SITE}/api/briefs/board/call -H 'content-type: application/json' \\
+  -d '{"poster":"WALLET","content":{"title":"…","brief":"…","acceptance":["…"],"failSignals":[],"budgetU":5,"paymentToken":"0x…","chainId":56,"deliverDays":3,"closesAt":null}}'
+~~~
+
+The answer's \`text\` is exactly what the post commits to. Show it to the
+user in full, with \`expiresAt\` in UTC (when the post stops standing on
+the board), and ask whether to post it. Then preview, show, ask and
+execute the \`call\` exactly as in step 4, using the answer's \`preview\`
+command. Then record it, sending the answer's \`record\` unchanged with the
+transaction hash when the wallet returned one:
+
+~~~bash
+curl -s ${SITE}/api/briefs/board/record -H 'content-type: application/json' \\
+  -d '{"poster":"…","postedAt":"…","content":{…},"transactionHash":"0x…"}'
+~~~
+
+The request is public only once this answers \`recorded\`. Tell the user its
+\`page\`, where the proposals will appear.
+
+If Pokter answers that the wallet holds no Agent ID, tell the user they
+can post the request at ${SITE}/workspace/requests/new
+from a wallet that signs messages instead, and stop.
 `;
 
 /**

@@ -90,7 +90,7 @@ export function readBoardRequestTx(input: {
 
   if (call.functionName === 'postRequest') {
     const [hash] = call.args;
-    if (hash !== requestBriefHash(request)) return { ok: false, status: 409, error: 'The transaction posts a different request: its hash is not this request’s signed text.' };
+    if (hash !== requestBriefHash(request)) return { ok: false, status: 409, error: 'The transaction posts a different request: its hash is not this request’s text.' };
     const posted = parseEventLogs({ abi: BOARD_ABI, eventName: 'RequestPosted', logs: input.logs })
       .filter(fromBoard)
       .find((log) => log.args.briefHash === hash && getAddress(log.args.poster) === getAddress(request.poster));
