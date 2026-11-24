@@ -100,7 +100,9 @@ export default async function BriefPage({
                   ) : (
                     <Address address={brief.poster} chainExplorer={false} />
                   )}
-                  , signed with their wallet{brief.board ? ' and posted on PokterBoard with an Agent ID' : ''}
+                  {brief.proof === 'board'
+                    ? ', posted on PokterBoard from their wallet with an Agent ID'
+                    : `, signed with their wallet${brief.board ? ' and posted on PokterBoard with an Agent ID' : ''}`}
                 </>
               }
             />

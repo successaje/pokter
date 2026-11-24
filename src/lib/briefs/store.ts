@@ -81,6 +81,8 @@ class BriefStore {
     if (!columns.some((c) => c.name === 'board_tx')) this.db.exec('ALTER TABLE briefs ADD COLUMN board_tx TEXT');
     if (!columns.some((c) => c.name === 'board_expires_at')) this.db.exec('ALTER TABLE briefs ADD COLUMN board_expires_at TEXT');
     if (!columns.some((c) => c.name === 'board_closed_tx')) this.db.exec('ALTER TABLE briefs ADD COLUMN board_closed_tx TEXT');
+    /* 'board' for a request whose board post is its proof, made from a wallet that signs no plain message; null for a signed one. */
+    if (!columns.some((c) => c.name === 'proof')) this.db.exec('ALTER TABLE briefs ADD COLUMN proof TEXT');
     const bidColumns = this.db.prepare('PRAGMA table_info(bids)').all() as Array<{ name: string }>;
     if (!bidColumns.some((c) => c.name === 'payment_token')) this.db.exec('ALTER TABLE bids ADD COLUMN payment_token TEXT');
     if (!bidColumns.some((c) => c.name === 'price_raw')) this.db.exec('ALTER TABLE bids ADD COLUMN price_raw TEXT');
@@ -174,6 +176,7 @@ class BriefStore {
       chainId: row.chain_id as number,
       deliverDays: row.deliver_days as number,
       signature: row.signature as Brief['signature'],
+      proof: row.proof === 'board' ? 'board' : 'signature',
       state: row.state as BriefState,
       postedAt: row.posted_at as string,
       awardedBidId: (row.awarded_bid_id as string | null) ?? null,
@@ -214,11 +217,18 @@ class BriefStore {
     };
   }
 
+  /**
+   * Store a new request. One posted on PokterBoard as its proof arrives with
+   * its board post already checked, and is stored with it in the same row,
+   * so it is never readable without the transaction that shows its poster
+   * agreed to it.
+   */
   add(brief: Brief): void {
+    if (brief.proof === 'board' && !brief.board) throw new Error('A request proven by its board post needs the post.');
     this.db
       .prepare(
-        `INSERT INTO briefs (id, poster, title, brief, acceptance, fail_signals, budget_u, chain_id, deliver_days, signature, state, posted_at, awarded_bid_id, closes_at, category, payment_token, budget_raw, target_builder)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?)`,
+        `INSERT INTO briefs (id, poster, title, brief, acceptance, fail_signals, budget_u, chain_id, deliver_days, signature, state, posted_at, awarded_bid_id, closes_at, category, payment_token, budget_raw, target_builder, proof, board_request_id, board_tx, board_expires_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         brief.id,
@@ -238,6 +248,10 @@ class BriefStore {
         brief.paymentToken ?? null,
         brief.budgetRaw,
         brief.targetBuilder?.toLowerCase() ?? null,
+        brief.proof === 'board' ? 'board' : null,
+        brief.board?.requestId ?? null,
+        brief.board?.tx ?? null,
+        brief.board?.expiresAt ?? null,
       );
   }
 

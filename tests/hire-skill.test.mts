@@ -52,6 +52,19 @@ test('before the job is created, the user hears how many approvals follow and wh
   assert.match(funding, /If the price lapses first, Pokter answers `stopped`: no\s+money has moved/);
 });
 
+test('a request is posted only with terms the user gave, shown in full before the wallet is asked, and public only once recorded', () => {
+  const posting = HIRE_SKILL_MD.slice(HIRE_SKILL_MD.indexOf('## 7.'));
+  assert.ok(posting.length > 0 && HIRE_SKILL_MD.indexOf('## 7.') > HIRE_SKILL_MD.indexOf('## 6.'));
+  assert.match(posting, /Ask the user for each of these, and never fill one in yourself/);
+  assert.match(posting, /The answer's `text` is exactly what the post commits to\. Show it to the\s+user in full/);
+  assert.match(posting, /preview, show, ask and\s+execute the `call` exactly as in step 4/);
+  assert.match(posting, /\/api\/briefs\/board\/call/);
+  assert.match(posting, /\/api\/briefs\/board\/record/);
+  assert.match(posting, /The request is public only once this answers `recorded`/);
+  // Said before the user writes anything: what this wallet cannot do with the answers yet.
+  assert.ok(posting.indexOf('cannot yet take a choice') < posting.indexOf('Ask the user for each'));
+});
+
 test('the wallet CLI is installed and signed in by the user, never by the assistant', () => {
   const setup = HIRE_SKILL_MD.slice(HIRE_SKILL_MD.indexOf('## Setup'), HIRE_SKILL_MD.indexOf('## 3.'));
   assert.match(setup, /npm install -g @binance\/agentic-wallet\n\s*baw auth signin/);
