@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { EscrowFee, Guide, GuideCode, GuideSection, GuideSteps, NetworksAndMoney, NextActions, ReviewWindow, Troubles } from '@/features/guides/Guide';
-import { BOARD_RATING_MIN_REVIEWERS } from '@/lib/board/contract';
+import { BOARD_CHAIN_ID, BOARD_RATING_MIN_REVIEWERS } from '@/lib/board/contract';
 import { BOARD_REQUEST_DAYS } from '@/lib/board/requests';
 import { guide } from '@/lib/guides/catalogue';
 
@@ -56,8 +56,20 @@ export default function UseYourAgentIdGuide() {
           value: (
             <>
               <NetworksAndMoney />
+              {/*
+                Two different facts, and running them together said
+                something untrue. The fee is always mainnet because that
+                is where the contracts are, and a request carries no
+                network at all — `postRequest` takes a brief hash and an
+                expiry. A review does: the board refuses any job not
+                funded on mainnet, so a reader told only about the fee
+                would take a testnet hire to a board that will not record
+                it.
+              */}
               <span className="mt-1 block">
-                PokterBoard and the Agent ID registry are on BNB Chain mainnet, so a board transaction always pays its fee there, whichever network the request or the hire is on.
+                PokterBoard and the Agent ID registry are on BNB Chain mainnet, so a board transaction always pays its
+                fee there, whichever network the request is on. A review is the exception: the board records one only
+                for a job funded on mainnet.
               </span>
             </>
           ),
@@ -109,7 +121,7 @@ export default function UseYourAgentIdGuide() {
               title: 'Or hire an agent and review it',
               body: (
                 <p>
-                  Hire from the same wallet, as in <Link href="/guides/hire-an-agent" className="link">Hire an agent</Link>. Once it delivers and the job is settled, write your review from your workspace and choose <strong>Record on PokterBoard</strong>. The board takes a review only from the wallet that funded the job, after the agent was paid or lost a dispute decided under the escrow&rsquo;s policy; after delivery you have <ReviewWindow /> to dispute.
+                  Hire on BNB Chain mainnet from the same wallet, as in <Link href="/guides/hire-an-agent" className="link">Hire an agent</Link>: the board records a review of a mainnet job only. Once it delivers and the job is settled, write your review from your workspace and choose <strong>Record on PokterBoard</strong>. The board takes a review only from the wallet that funded the job, after the agent was paid or lost a dispute decided under the escrow&rsquo;s policy; after delivery you have <ReviewWindow chainId={BOARD_CHAIN_ID} /> to dispute.
                 </p>
               ),
             },
