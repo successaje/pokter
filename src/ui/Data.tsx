@@ -90,7 +90,7 @@ export function CopyButton({
 export function CodeBlock({ children, wrap = false, label = 'Copy code' }: { children: string; wrap?: boolean; label?: string }) {
   return (
     <div className="relative">
-      <pre className={cn(wrap ? 'whitespace-pre-wrap break-all' : 'overflow-x-auto', 'rounded-[10px] border border-rule bg-sunken p-4 pr-12 text-[12.5px] leading-relaxed text-ink')}>{children}</pre>
+      <pre className={cn(wrap ? 'whitespace-pre-wrap wrap-anywhere' : 'overflow-x-auto', 'rounded-[10px] border border-rule bg-sunken p-4 pr-12 text-[12.5px] leading-relaxed text-ink')}>{children}</pre>
       <CopyButton value={children} label={label} className="absolute right-2 top-2 bg-sunken" />
     </div>
   );
