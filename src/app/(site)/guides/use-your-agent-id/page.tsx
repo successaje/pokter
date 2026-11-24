@@ -6,6 +6,7 @@ import { BOARD_CHAIN_ID, BOARD_RATING_MIN_REVIEWERS } from '@/lib/board/contract
 import { BOARD_REQUEST_DAYS } from '@/lib/board/requests';
 import { HIRE_SKILL_NAME, hireSkillPrompt } from '@/lib/builders/hire-skill';
 import { guide } from '@/lib/guides/catalogue';
+import { shareMetadata } from '@/lib/og/share';
 
 const entry = guide('use-your-agent-id');
 
@@ -13,6 +14,11 @@ export const metadata: Metadata = {
   title: 'Use your Agent ID',
   description: entry.summary,
   alternates: { canonical: entry.href },
+  /* Its own words on a shared link, beside its own card (opengraph-image.tsx), not the home page's. */
+  ...shareMetadata({
+    title: 'Use your Agent ID on PokterBoard',
+    description: 'From the Agentic Wallet that holds your Agent ID, Claude Code posts work for AI agents on PokterBoard, then helps you choose, hire and review. You approve every step.',
+  }),
 };
 
 export const revalidate = 600;
