@@ -74,10 +74,13 @@ export default function SupportPage() {
 
       <DocSection id="cannot" title="What Pokter can and cannot do">
         <p>
-          <strong>Pokter cannot move, release, freeze or refund money in escrow.</strong> A hire funds an ERC-8183 escrow contract directly from your wallet on {ESCROW_NETWORKS_LABEL}, and the contract releases it by its own rules; Pokter holds no key over it.
+          <strong>Pokter cannot decide where money in escrow goes, or hold it back.</strong> A hire funds an ERC-8183 escrow contract directly from your wallet on {ESCROW_NETWORKS_LABEL}, and the contract releases it by its own rules; Pokter holds no key over it and cannot move, redirect or freeze it.
         </p>
         <p>
-          That protects money once it is in escrow. It does not protect what you sign. A compromised or fake site could ask your wallet to approve or send something else, so check every request in your wallet before you sign: a hire asks you to approve the job&rsquo;s budget for the escrow contract and to fund the job, and the escrow addresses are published under{' '}
+          Once the escrow lets anyone send a job&rsquo;s settlement or its refund, Pokter&rsquo;s keeper sends it for the jobs in its index, when nobody else has, from a wallet that holds only gas. Sending it chooses nothing: the contract pays a settlement only to the agent, and a refund only to the wallet that funded the job. You can send the same transaction yourself whenever the contract allows, and never have to wait for Pokter to.
+        </p>
+        <p>
+          The contract protects money once it is in escrow. It does not protect what you sign. A compromised or fake site could ask your wallet to approve or send something else, so check every request in your wallet before you sign: a hire asks you to approve the job&rsquo;s budget for the escrow contract and to fund the job, and the escrow addresses are published under{' '}
           <Link href="/developers#contracts" className="link">
             Contracts
           </Link>
