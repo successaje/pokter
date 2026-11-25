@@ -19,8 +19,9 @@ import { activeGroup, isActive, NAV_DIRECT, NAV_GROUPS, type NavGroup } from './
  * a click anywhere else, leaving it with the mouse, or going to a page. The
  * open state is kept with the page it was opened on, so a navigation closes
  * it without an effect. Each panel follows its own button in the DOM, so Tab
- * goes from a button into its links; both are positioned against the nav,
- * so the panel sits centred under the whole bar.
+ * goes from a button into its links, and is positioned against that button
+ * rather than the nav, so every panel drops from the left edge of the label
+ * it belongs to.
  */
 export function HeaderMenus() {
   const pathname = usePathname() ?? '/';
@@ -86,7 +87,7 @@ export function HeaderMenus() {
         const id = `menu-${group.label.toLowerCase()}`;
         const isOpen = open === group.label;
         return (
-          <div key={group.label} onPointerEnter={(event) => mouse(event) && show(group.label)}>
+          <div key={group.label} className="relative" onPointerEnter={(event) => mouse(event) && show(group.label)}>
             <button
               type="button"
               aria-expanded={isOpen}
@@ -138,9 +139,12 @@ function Panel({ id, group, pathname, animate, onNavigate }: { id: string; group
       initial={animate ? { opacity: 0, y: -4 } : false}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-      className="absolute left-1/2 top-[calc(100%+10px)] z-50 w-[min(42rem,calc(100vw-2rem))] -translate-x-1/2"
+      className={cn(
+        'absolute left-0 top-[calc(100%+10px)] z-50',
+        group.feature ? 'w-[min(40rem,calc(100vw-2rem))]' : 'w-[min(22rem,calc(100vw-2rem))]',
+      )}
     >
-      <div className="grid gap-2 rounded-[14px] border border-rule bg-raised p-2 shadow-xl sm:grid-cols-[1.45fr_1fr]">
+      <div className={cn('grid gap-2 rounded-[14px] border border-rule bg-raised p-2 shadow-xl', group.feature && 'sm:grid-cols-[1.45fr_1fr]')}>
         <ul className="flex flex-col">
           {group.links.map((link) => {
             const here = pathname === link.href;
