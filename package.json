@@ -12,6 +12,7 @@
     "audit:protocol": "tsx scripts/protocol-safety-check.mts",
     "audit:rate-limit": "tsx --conditions=react-server scripts/rate-limit-check.mts",
     "audit:notifications": "tsx scripts/notification-consent-check.mts",
+    "audit:custody": "tsx scripts/custody-check.mts",
     "audit:receipts": "tsx scripts/receipt-audit.mts",
     "audit:proof-coverage": "tsx scripts/audit-proof-coverage.mts",
     "telegram:configure": "tsx --env-file-if-exists=.env.local src/lib/telegram/configure.mts",

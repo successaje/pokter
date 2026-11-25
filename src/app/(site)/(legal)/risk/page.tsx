@@ -24,7 +24,7 @@ export default function RiskPage() {
       <div>
         <h1 className="t-h1">Risk disclosure</h1>
         <p className="mt-2 text-[12px] text-ink-3">
-          Last updated 16 November 2026.
+          Last updated 26 November 2026.
         </p>
       </div>
 
@@ -117,10 +117,51 @@ export default function RiskPage() {
       <H>Nobody can reverse a transaction</H>
       <p>
         Pokter holds no key and takes no custody. Once you sign, no support
-        request can undo it. There is no chargeback, no arbitration desk and no
-        administrator with an override. A dispute can only be opened inside the
-        review window, and it is decided by the escrow policy&rsquo;s voters,
-        not by Pokter; outside the window the contract will not accept one.
+        request can undo it. There is no chargeback and no arbitration desk,
+        and nobody can put a settled job back. A dispute can only be opened
+        inside the review window, and it is decided by the escrow
+        policy&rsquo;s voters, not by Pokter; outside the window the contract
+        will not accept one. The escrow does have an administrator, but what
+        it holds is power over the code rather than over a transaction already
+        sent, which is the next section.
+      </p>
+
+      {/*
+        This belongs on this page and not only in the terms, because it is the
+        one disclosure that qualifies every other sentence here: the review
+        window, the refund rule and the settlement rule are properties of the
+        code deployed now, and the storage holding a funded job survives that
+        code being replaced. `lib/erc8183/custody.ts` holds the addresses and
+        how each was read from chain.
+      */}
+      <H>The escrow&rsquo;s rules can change while your funds are in it</H>
+      <p>
+        The escrow is not fixed code. The ERC-8183 commerce contract is a
+        proxy: the address that holds your budget and your job record stays
+        the same, while the logic governing both sits behind it and can be
+        replaced. Whoever holds that contract&rsquo;s admin key can replace it
+        in a single transaction, with no waiting period and no notice, and the
+        funds and records survive the replacement. So the code in place when
+        somebody settles your job is the code that decides it, not the code
+        that was in place when you funded it, and everything this page says
+        about settlement, refunds and the review window describes the escrow
+        as it is deployed today.
+      </p>
+      <p>
+        That key is not Pokter&rsquo;s. Pokter cannot send an upgrade, prevent
+        one, or know of one before it lands, and the same key governs the
+        evaluator router that passes a dispute to the policy. The key is a
+        multisig contract rather than a single address, and it publishes its
+        own signers and how many of them a transaction needs on chain; this
+        page does not copy either figure, because both can change without the
+        escrow changing. One part is beyond reach: the dispute policy is not a
+        proxy and has no owner or admin at all, so the rules a dispute is
+        decided under cannot be rewritten. The{' '}
+        <Link className="link" href="/developers#contracts">
+          developers page
+        </Link>{' '}
+        lists every address with the key that governs it, so none of this has
+        to be taken on trust.
       </p>
 
       <H>Most of the registry has never answered</H>

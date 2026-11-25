@@ -24,7 +24,7 @@ export default function TermsPage() {
       <div>
         <h1 className="t-h1">Terms of use</h1>
         <p className="mt-2 text-[12px] text-ink-3">
-          Last updated 25 November 2026.
+          Last updated 26 November 2026.
         </p>
       </div>
 
@@ -53,11 +53,20 @@ export default function TermsPage() {
       <p>
         This is a limit, not a disclaimer written to avoid one. If a job goes
         wrong, the escrow contract governs the outcome and Pokter cannot
-        override it. See the{' '}
+        override it.
+      </p>
+      <p>
+        Nor is that contract Pokter&rsquo;s. It is a third party&rsquo;s
+        deployment and an upgradeable one, so the rules a job is settled under
+        are those of the code deployed at the moment it is settled, and the
+        contract&rsquo;s own administrator can replace that code without
+        Pokter&rsquo;s involvement or knowledge. What is written above
+        describes how the escrow behaves today rather than promising how it
+        will behave. The{' '}
         <Link className="link" href="/risk">
           risk disclosure
-        </Link>
-        .
+        </Link>{' '}
+        states what that means for a job you have already funded.
       </p>
 
       <H>What the evidence means, and what it does not</H>
