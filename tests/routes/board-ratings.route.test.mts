@@ -114,3 +114,18 @@ test('the team wallets include the Agentic Wallet Pokter hires and reviews with'
   const { teamAddressSet } = await import('../../src/lib/team/wallets');
   assert.ok(teamAddressSet().has('0x564cbb1c360af36681591f47af469913b6364431'));
 });
+
+test('a card can tell an agent nobody has rated yet from one the board cannot rate', async () => {
+  const { agentBoardStanding } = await import('../../src/lib/board/ratings');
+  process.env.POKTER_BOARD_ADDRESS = BOARD;
+  const NEW = '0x00000000000000000000000000000000000000a6';
+  getQuestStore().saveAgentWallets([{ wallet: NEW, chainId: 56, tokenId: '107', name: 'New' }]);
+  assert.equal(agentBoardStanding({ chain_id: 56, token_id: '101' })?.rating?.reviewers, 2, 'rated');
+  assert.deepEqual(agentBoardStanding({ chain_id: 56, token_id: '107' }), { rating: null }, 'never read yet: rateable, not rated');
+  assert.deepEqual(agentBoardStanding({ chain_id: 56, token_id: '104' }), { rating: null }, 'rated only by Pokter: rateable, not rated');
+  assert.equal(agentBoardStanding({ chain_id: 56, token_id: '102' }), null, 'a shared wallet cannot be rated here');
+  assert.equal(agentBoardStanding({ chain_id: 97, token_id: '105' }), null, 'nor an agent on testnet');
+  assert.equal(agentBoardStanding({ chain_id: 56, token_id: '999' }), null, 'nor one with no known wallet');
+  delete process.env.POKTER_BOARD_ADDRESS;
+  assert.equal(agentBoardStanding({ chain_id: 56, token_id: '101' }), null, 'nor any agent, with no board');
+});

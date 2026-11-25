@@ -1171,9 +1171,10 @@ export default async function AgentPage({ params, searchParams }: { params: Para
               */}
               {p.boardRating && (
                 <p className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[13.5px] text-ink-2">
-                  <Rating value={p.boardRating.average} />
+                  {/* Rounded once, here: the stars print their own figure, so a second one beside them said it twice, the first unrounded. */}
+                  <Rating value={Math.round(p.boardRating.average * 10) / 10} />
                   <span>
-                    <strong className="font-medium text-ink">{p.boardRating.average.toFixed(1)}/5</strong> from {p.boardRating.reviewers} {p.boardRating.reviewers === 1 ? 'person' : 'people'} holding an Agent ID, one rating each, recorded on{' '}
+                    from {p.boardRating.reviewers} {p.boardRating.reviewers === 1 ? 'person' : 'people'} holding an Agent ID, one rating each, recorded on{' '}
                     <a href={`${explorerBaseFor(56)}/address/${p.boardRating.board}#events`} target="_blank" rel="noreferrer noopener" className="link" title="Each holder counts once, for a job they funded and the agent delivered. The contract checks this itself.">
                       PokterBoard
                     </a>

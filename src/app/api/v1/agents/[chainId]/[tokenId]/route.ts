@@ -1,3 +1,4 @@
+import { BOARD_RATING_MIN_REVIEWERS } from '@/lib/board/contract';
 import { getDossier } from '@/lib/marketplace';
 import type { ChainId } from '@/lib/scan/types';
 import { API_VERSION, wirePrice } from '@/lib/api/v1';
@@ -186,6 +187,23 @@ export async function GET(
       provenance: 'calculated',
       source: 'Wallets that funded this agent’s paid work through ERC-8183 escrow, from the jobs Pokter has indexed: not Pokter’s declared wallets, not the seller itself, and not jobs paid to Pokter’s courier. `ownListedAgent` counts those that own an agent listed on Pokter, this one included.',
     },
+
+    /*
+     * What the people holding an Agent ID who paid it said, from
+     * PokterBoard's own totals, as its page shows them. Null when nobody
+     * outside Pokter has rated it there, or the board cannot rate it.
+     */
+    boardRating: dossier.boardRating
+      ? {
+          average: Math.round(dossier.boardRating.average * 10) / 10,
+          reviewers: dossier.boardRating.reviewers,
+          countsTowardScore: dossier.boardRating.reviewers >= BOARD_RATING_MIN_REVIEWERS,
+          board: dossier.boardRating.board,
+          readAt: dossier.boardRating.readAt,
+          provenance: 'attested',
+          source: `One current rating per person holding an Agent ID, for a job they funded through ERC-8183 escrow that the agent delivered; the board checks both itself. Ratings from Pokter’s own wallets are left out. It counts toward the score once ${BOARD_RATING_MIN_REVIEWERS} people have rated.`,
+        }
+      : null,
 
     /*
      * The most recent price check, apart from the price below, which is the

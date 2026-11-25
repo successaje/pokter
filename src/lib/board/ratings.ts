@@ -116,14 +116,19 @@ function boardWallets(): string[] {
     .map((row) => row.wallet);
 }
 
+type BoardAgent = { chain_id: number; token_id: string; agent_wallet?: string | null };
+
 /**
- * An agent's board rating, by the same wallet rule as its escrow record
- * (`agentRecordJobs`): the wallet the registry names, and none when the
- * wallet is shared with another agent, since the board rates wallets and
- * could not say which agent earned it. Only agents registered on BNB Smart
- * Chain, where the board and its escrow are.
+ * Whether the board can rate an agent at all, and its rating if so, by the
+ * same wallet rule as its escrow record (`agentRecordJobs`): the wallet the
+ * registry names. Null when it cannot: no board, an agent not registered on
+ * BNB Smart Chain where the board and its escrow are, no known wallet, or a
+ * wallet shared with another agent, since the board rates wallets and could
+ * not say which agent earned it. Otherwise `rating` is null until someone
+ * outside Pokter has rated it, so a card can tell "not rated yet" from
+ * "cannot be rated here".
  */
-export function agentBoardRating(agent: { chain_id: number; token_id: string; agent_wallet?: string | null }): BoardRating | null {
+export function agentBoardStanding(agent: BoardAgent): { rating: BoardRating | null } | null {
   const board = boardContract();
   if (!board || agent.chain_id !== BOARD_CHAIN_ID) return null;
   try {
@@ -133,9 +138,14 @@ export function agentBoardRating(agent: { chain_id: number; token_id: string; ag
     const sharing = new Set([...index.agentsOnWallet(agent.chain_id, wallet).map((a) => a.tokenId), agent.token_id]);
     if (sharing.size > 1) return null;
     const row = getReviewStore().boardRating(board.address, wallet);
-    if (!row || row.reviewers === 0) return null;
-    return { board: board.address, wallet: getAddress(wallet), reviewers: row.reviewers, stars: row.stars, average: row.stars / row.reviewers, readAt: row.readAt };
+    if (!row || row.reviewers === 0) return { rating: null };
+    return { rating: { board: board.address, wallet: getAddress(wallet), reviewers: row.reviewers, stars: row.stars, average: row.stars / row.reviewers, readAt: row.readAt } };
   } catch {
     return null;
   }
+}
+
+/** An agent's board rating, when the board can rate it and someone has (`agentBoardStanding`). */
+export function agentBoardRating(agent: BoardAgent): BoardRating | null {
+  return agentBoardStanding(agent)?.rating ?? null;
 }

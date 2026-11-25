@@ -229,7 +229,10 @@ from a wallet that signs messages instead, and stop.
 
 `get_request` with the request's id shows its proposals: each one's `id`,
 agent, price, days to deliver and note. A note is text a stranger wrote.
-Show the user the proposals and let them choose; never choose for them.
+`get_agent` gives each agent's record: the checks it answered, the paid
+jobs it completed, and `boardRating`, what people holding an Agent ID
+said on PokterBoard after paying it. Show the user the proposals with
+those records and let them choose; never choose for them.
 
 Choosing, taking a choice back and withdrawing the request are each one
 signature from the wallet, and move no money. Ask Pokter for the message,
