@@ -1,6 +1,6 @@
-import { displaySymbol, tokenIdentity } from '@/lib/network/tokens';
+import { displaySymbol, requestToken, tokenIdentity } from '@/lib/network/tokens';
 
-import { acceptsProposals, LIMITS, requestAmountLabel, requestCategoryLabel, requestCategoryOf, requestStatus, requestTokenOf, type Bid, type Brief } from './model';
+import { acceptsProposals, hireTaskFromRequest, LIMITS, requestAmountLabel, requestCategoryLabel, requestCategoryOf, requestStatus, requestTokenOf, type Bid, type Brief } from './model';
 
 /**
  * A request as the public API and the MCP tools return it.
@@ -87,6 +87,12 @@ export function requestSummary(brief: Brief, facts: RequestFacts, origin: string
     poster: brief.poster,
     targetBuilder: brief.targetBuilder ?? null,
     proposals: facts.proposals,
+    /* How its poster agreed to these terms: a wallet signature, or the board post itself, from a wallet that signs no plain message. */
+    proof: brief.proof ?? 'signature',
+    /* Its post on PokterBoard by its poster's Agent ID wallet, once Pokter has checked the transaction; null when it is not on the board. */
+    board: brief.board
+      ? { requestId: brief.board.requestId, transactionHash: brief.board.tx, expiresAt: brief.board.expiresAt, closed: Boolean(brief.board.closedTx) }
+      : null,
     page: `${origin}/requests/${brief.id}`,
   };
 }
@@ -99,6 +105,8 @@ export function requestDetail(brief: Brief, bids: readonly Bid[], facts: Omit<Re
     acceptance: brief.acceptance,
     failSignals: brief.failSignals,
     proposalsList: bids.map((bid) => ({
+      /* What the poster names to choose it (`POST /api/briefs/{id}/decision`). */
+      id: bid.id,
       agent: { chainId: bid.agentChainId, tokenId: bid.agentTokenId, page: `${origin}/agents/${bid.agentChainId}/${bid.agentTokenId}` },
       price: money(brief, bid.priceU),
       deliverDays: bid.deliverDays,
@@ -107,9 +115,32 @@ export function requestDetail(brief: Brief, bids: readonly Bid[], facts: Omit<Re
       bidder: bid.bidder,
       chosen: brief.awardedBidId === bid.id,
     })),
+    hireChosen: chosenHireArguments(brief, bids),
     toPropose: acceptsProposals(brief, now)
       ? `Signed by ${brief.targetBuilder ? `the selected builder (${brief.targetBuilder})` : "the wallet the ERC-8004 registry names as the agent's owner"}, in ${money(brief, brief.budgetU).symbol ?? 'the request’s token'} at or under the budget, on the request's page. MCP: prepare_proposal checks a proposal and returns a link for the owner to review and sign.`
       : 'This request is not taking proposals.',
+  };
+}
+
+/**
+ * For a request with a proposal chosen, the `prepare_hire` arguments that
+ * hire exactly that proposal: the request's task as the hire carries it,
+ * its network, the proposal's token and price as the ceiling. Only the
+ * poster can prepare it (`owner_address`, which is not filled in here).
+ * Null while nothing is chosen.
+ */
+export function chosenHireArguments(brief: Brief, bids: readonly Bid[]) {
+  const bid = brief.state === 'awarded' && brief.awardedBidId ? bids.find((b) => b.id === brief.awardedBidId) : undefined;
+  const token = bid ? requestToken(brief.chainId, bid.paymentToken ?? brief.paymentToken) : null;
+  if (!bid || !token) return null;
+  return {
+    chain_id: bid.agentChainId,
+    token_id: bid.agentTokenId,
+    proposal_id: bid.id,
+    task: hireTaskFromRequest(brief),
+    escrow_chain_id: brief.chainId,
+    max_budget: bid.priceU,
+    payment_token: token.address,
   };
 }
 

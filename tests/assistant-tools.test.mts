@@ -223,6 +223,7 @@ test('the prepare route calls no spending function, and imports no binding that 
     /* A decision over `network/tokens`, which encodes and sends nothing; walked when added. */
     '@/lib/erc8183/hire-token': ['nonDefaultHireToken'],
     '@/lib/erc8183/store': ['getJobStore'],
+    '@/lib/briefs/proposal-hire': ['chosenProposalForHire', 'proposalHireProblem'],
     '@/lib/registry/live-agent': ['withRegisteredWallet'],
     viem: ['parseUnits'],
   };
@@ -247,6 +248,8 @@ test('the prepare route calls no spending function, and imports no binding that 
     '@/lib/agents/categories',
     '@/lib/altana/client',
     '@/lib/api/respond',
+    /* The chosen proposal a hire carries out, read from the request store. Walked when added: 11 modules (briefs model, store and proposal-price, network tokens and escrow, pricing, budget limits, categories), none spend-capable. */
+    '@/lib/briefs/proposal-hire',
     '@/lib/assistant/idempotency',
     '@/lib/assistant/hire-request',
     '@/lib/assistant/mandate',

@@ -18,6 +18,7 @@ const GROUPS: Array<{ title: string; links: Array<{ href: string; label: string;
       { href: '/compare', label: 'Compare' },
       { href: '/watch', label: 'Venus liquidation alerts' },
       { href: '/proof', label: 'Production proof' },
+      { href: '/board', label: 'PokterBoard' },
       { href: '/rankings', label: 'Outcome rankings' },
       { href: '/leaderboard', label: 'Leaderboard' },
       { href: '/workspace', label: 'Hiring' },

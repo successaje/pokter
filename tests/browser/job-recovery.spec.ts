@@ -9,7 +9,7 @@ import { mockChain } from './support/mock-chain';
 import { installMockWallet, SIGNING_METHODS, walletCalls } from './support/mock-wallet';
 
 const BUYER = '0x89D29fbf9F3B6E727530231438f80d556ff2d905' as const;
-const PROVIDER = '0x93847647d7eb72a69E162117df6a8697dF53EDda';
+const PROVIDER = '0x93847647d7eb72a69E162117df6a8697dF53EDda' as const;
 const JOBS = [
   { chainId: 97, jobId: '990097', name: 'Recovered testnet job', token: '0xc70B8741B8B07A6d61E54fd4B20f22Fa648E5565' },
   { chainId: 56, jobId: '990056', name: 'Recovered mainnet job', token: '0xcE24439F2D9C6a2289F741120FE202248B666666' },
@@ -31,7 +31,7 @@ test('jobs on both escrows return after the buyer clears browser storage and rec
     chainId: 56,
     now: Date.parse('2026-11-01T12:00:00.000Z') / 1000,
     jobs: {
-      '990056': { client: BUYER, status: 'EXPIRED', expiredAt: Date.parse('2026-10-15T16:10:33.000Z') / 1000 },
+      '990056': { client: BUYER, provider: PROVIDER, status: 'EXPIRED', expiredAt: Date.parse('2026-10-15T16:10:33.000Z') / 1000 },
     },
   });
   await page.goto('/workspace/jobs');

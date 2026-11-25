@@ -8,13 +8,15 @@ import { formatElapsed } from '@/lib/ui/format';
  * list, the overview and the job page must all agree on it.
  */
 
-export type JobPhase = 'unfunded' | 'working' | 'review' | 'reclaim' | 'settled' | 'disputed' | 'rejected' | 'refunded' | 'expired';
+export type JobPhase = 'unfunded' | 'working' | 'review' | 'reclaim' | 'settled' | 'disputed' | 'rejected' | 'refunded' | 'expired' | 'mismatch';
 
 /**
  * The job's state in the buyer's terms. On-chain status names are shown
  * too, but this is what decides what the person is asked to do next.
  */
 export function jobPhase(job: HiredJob, now = Date.now()): JobPhase {
+  /* Saved under another job's number (`savedJobMismatch`): no status read for that number is this hire's. */
+  if (job.numberMismatch) return 'mismatch';
   if (job.status === 'OPEN') return 'unfunded';
   /*
    * A disputed delivery waits on the policy's voters, not on the buyer.
@@ -44,6 +46,12 @@ export const PHASE: Record<JobPhase, { label: string; tone: 'ok' | 'watch' | 'in
   rejected: { label: 'Rejected · refunded', tone: 'bad', needsYou: false, next: 'The policy’s voters rejected the delivery, and settling the job refunded the escrow to the wallet that funded it. The agent was not paid.' },
   refunded: { label: 'Refunded', tone: 'none', needsYou: false, next: 'The escrow was returned to your wallet.' },
   expired: { label: 'Expired · refunded', tone: 'none', needsYou: false, next: 'The deadline passed with the job unsettled, and its escrow was reclaimed: nothing was delivered, or a delivery was never settled. The contract marks a job expired when that refund is claimed.' },
+  mismatch: {
+    label: 'Wrong job number',
+    tone: 'watch',
+    needsYou: false,
+    next: 'This browser saved this hire under a job number that, on chain, is a different job: it pays another agent, or was funded by another wallet. So nothing about this hire can be read from it, and its status here is not known. Its real job is the one the funding transaction created.',
+  },
 };
 
 
@@ -71,6 +79,8 @@ export function jobNextStep(job: HiredJob, now = Date.now()): { text: string; ac
       return { text: 'Reclaim your escrow', act: true };
     case 'disputed':
       return { text: 'Voters deciding', act: false };
+    case 'mismatch':
+      return { text: 'Saved under another job’s number', act: false };
     default:
       return { text: 'Nothing to do', act: false };
   }

@@ -13,6 +13,7 @@ import { shortAddress } from '@/lib/ui/format';
 import { AgentAvatar, ProbeStrip } from '@/ui/Agent';
 import { LinkButton } from '@/ui/Button';
 import { Icon } from '@/ui/icons';
+import { BoardRatingLine } from './BoardRatingLine';
 import { AwardBid, ChangeChoice } from './BriefActions';
 import type { ProposalCard } from './proposal-cards';
 import { ago } from './RequestRow';
@@ -26,8 +27,10 @@ const days = (n: number) => (n === 1 ? '1 day' : `${n} days`);
  * much, how soon, how, and what the agent has done before — so a buyer
  * can read across them rather than into each. The record is the agent's
  * catalogue row: whether it answers Pokter's checks, what paid work it
- * has completed, the last price it signed. Where Pokter has no record,
- * the card says that instead of leaving a gap that reads as "fine".
+ * has completed, the last price it signed. Beside it, what the people
+ * holding an Agent ID who paid the agent said on PokterBoard. Where there
+ * is no record or no rating, the card says that instead of leaving a gap
+ * that reads as "fine".
  */
 export function ProposalList({
   cards,
@@ -70,7 +73,7 @@ export function ProposalList({
   return (
     <div className="@container">
       <ul className="grid grid-cols-1 gap-3 @xl:grid-cols-2">
-        {cards.map(({ bid, name, imageUrl, row, bidder, signedPrice }) => {
+        {cards.map(({ bid, name, imageUrl, row, bidder, signedPrice, board }) => {
           const chosen = request.awardedBidId === bid.id;
           const later = bid.deliverDays > request.deliverDays;
           const saving = under(bid.priceRaw);
@@ -132,7 +135,7 @@ export function ProposalList({
                   <p className="whitespace-pre-wrap break-words text-[13.5px] leading-relaxed text-ink-2">{bid.note}</p>
                 ))}
 
-              {/* The agent's record on Pokter, in the same three facts on every card. */}
+              {/* The agent's record, in the same facts on every card; the rating only where the board can rate the agent at all. */}
               {row ? (
                 <ul aria-label="Record on Pokter" className="flex flex-col gap-1 text-[12.5px] text-ink-3">
                   <li className="flex items-center justify-between gap-2">
@@ -156,6 +159,7 @@ export function ProposalList({
                       'No paid jobs yet'
                     )}
                   </li>
+                  {board && <BoardRatingLine board={board} />}
                   <li>
                     {row.priceState === 'signed' && row.priceU !== null ? (
                       /* In the quote's own money, which may not be the request's; an unrecorded currency is said to be unknown. */
@@ -168,7 +172,15 @@ export function ProposalList({
                   </li>
                 </ul>
               ) : (
-                <p className="text-[12.5px] text-ink-3">Not listed on Pokter yet: no record of its checks or paid jobs.</p>
+                <div className="flex flex-col gap-1 text-[12.5px] text-ink-3">
+                  <p>Not listed on Pokter yet: no record of its checks or paid jobs.</p>
+                  {/* The board rates it all the same, from its own escrow jobs: worth saying when someone has. */}
+                  {board && board.kind !== 'none' && (
+                    <ul aria-label="Rating on PokterBoard">
+                      <BoardRatingLine board={board} />
+                    </ul>
+                  )}
+                </div>
               )}
 
               <div className="mt-auto flex flex-col gap-2.5 pt-1">

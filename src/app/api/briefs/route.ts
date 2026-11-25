@@ -1,15 +1,11 @@
 import { NextResponse } from 'next/server';
-import { createHash } from 'node:crypto';
 import { isAddress, isHex, type Address, type Hex } from 'viem';
 
 import { briefMessage, parseBriefContent, type Brief } from '@/lib/briefs/model';
+import { announceRequest, briefIdFor, targetBuilderProblem } from '@/lib/briefs/publish';
 import { getBriefStore } from '@/lib/briefs/store';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 import { signedByWallet, walletCanBeChecked } from '@/lib/wallet/signed-by';
-import { getProfileStore } from '@/lib/profiles/store';
-import { notifyBuilderCustomRequest } from '@/lib/notifications/server';
-import { verifiedOwnedAgents } from '@/lib/profiles/owned-agents';
-import { queuePublicRequestAlert } from '@/lib/telegram/request-alerts';
 
 export const dynamic = 'force-dynamic';
 
@@ -54,11 +50,8 @@ export async function POST(request: Request): Promise<NextResponse> {
   const read = parseBriefContent(body.content);
   if (!read.ok) return NextResponse.json({ error: read.error }, { status: 400 });
   const content = read.content;
-  if (content.targetBuilder) {
-    const target = getProfileStore().get(content.targetBuilder);
-    if (!target?.published || !target.showBuilding) return NextResponse.json({ error: 'This builder is no longer accepting public requests.' }, { status: 409 });
-    if ((await verifiedOwnedAgents(content.targetBuilder)).length === 0) return NextResponse.json({ error: 'This builder has no currently owned agent that can propose. Nothing was posted.' }, { status: 409 });
-  }
+  const targetProblem = await targetBuilderProblem(content);
+  if (targetProblem) return NextResponse.json({ error: targetProblem }, { status: 409 });
   if (!isAddress(poster) || !isHex(signature) || Number.isNaN(Date.parse(postedAt))) {
     return NextResponse.json({ error: 'The brief payload is invalid.' }, { status: 400 });
   }
@@ -77,8 +70,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ error: 'That signature does not match this brief.' }, { status: 403 });
   }
 
-  const digest = createHash('sha256').update(message).digest('hex');
-  const id = `${digest.slice(0, 8)}-${digest.slice(8, 12)}-4${digest.slice(13, 16)}-a${digest.slice(17, 20)}-${digest.slice(20, 32)}`;
+  const id = briefIdFor(message);
   const existing = getBriefStore().get(id);
   if (existing) return NextResponse.json({ brief: existing, duplicate: true }, { status: 200 });
   const brief: Brief = {
@@ -96,7 +88,6 @@ export async function POST(request: Request): Promise<NextResponse> {
     if (prior) return NextResponse.json({ brief: prior, duplicate: true }, { status: 200 });
     throw error;
   }
-  if (content.targetBuilder) await notifyBuilderCustomRequest({ owner: content.targetBuilder, requestId: brief.id, chainId: brief.chainId, title: brief.title }).catch(() => undefined);
-  else { try { queuePublicRequestAlert(brief); } catch { /* A bot alert cannot undo a signed request. */ } }
+  await announceRequest(brief);
   return NextResponse.json({ brief }, { status: 201 });
 }

@@ -2,19 +2,20 @@ import { cn } from '@/lib/ui/cn';
 import { Icon } from './icons';
 
 /**
- * One buyer's rating, drawn as stars.
+ * A rating, drawn as stars: one buyer's, or PokterBoard's average.
  *
- * Stars, here and nowhere else. Pokter does not publish an aggregate
- * score for an agent and this is not a step toward one: a mean of a
- * handful of ratings is the kind of number that looks measured and is
- * not, and the catalogue card says so by carrying no rating at all. What
- * this draws is a single statement by a single wallet that funded a
- * completed job and signed for it — which is a fact, and reads faster as
- * five shapes than as "4/5".
+ * Stars, here and nowhere else. Pokter computes no average of its own:
+ * a mean of a handful of ratings is the kind of number that looks
+ * measured and is not, and the catalogue card says so by carrying no
+ * rating at all. What this draws is either a single statement by a single
+ * wallet that funded a completed job and signed for it, or the board's
+ * own totals, one rating per person holding an Agent ID, always with how
+ * many people gave them. A card compared with others shows the board's
+ * average only once enough people have rated (`cardRating`).
  *
  * The figure stays beside them. Stars alone round away the difference
- * between 4 and 5 for anyone skimming, and the number is what the buyer
- * actually signed.
+ * between 4 and 5 for anyone skimming, and the number is what the buyers
+ * actually gave. It is printed as passed, so an average is rounded first.
  */
 export function Rating({ value, max = 5, className }: { value: number; max?: number; className?: string }) {
   const filled = Math.max(0, Math.min(max, Math.round(value)));

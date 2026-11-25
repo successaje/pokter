@@ -52,6 +52,40 @@ test('before the job is created, the user hears how many approvals follow and wh
   assert.match(funding, /If the price lapses first, Pokter answers `stopped`: no\s+money has moved/);
 });
 
+test('a request is posted only with terms the user gave, shown in full before the wallet is asked, and public only once recorded', () => {
+  const posting = HIRE_SKILL_MD.slice(HIRE_SKILL_MD.indexOf('## 7.'));
+  assert.ok(posting.length > 0 && HIRE_SKILL_MD.indexOf('## 7.') > HIRE_SKILL_MD.indexOf('## 6.'));
+  assert.match(posting, /Ask the user for each of these, and never fill one in yourself/);
+  assert.match(posting, /The answer's `text` is exactly what the post commits to\. Show it to the\s+user in full/);
+  assert.match(posting, /preview, show, ask and\s+execute the `call` exactly as in step 4/);
+  assert.match(posting, /\/api\/briefs\/board\/call/);
+  assert.match(posting, /\/api\/briefs\/board\/record/);
+  assert.match(posting, /The request is public only once this answers `recorded`/);
+});
+
+test('a proposal is chosen by the user, with one signature they see first, and hired with the arguments Pokter gives', () => {
+  const choosing = HIRE_SKILL_MD.slice(HIRE_SKILL_MD.indexOf('## 8.'));
+  assert.ok(HIRE_SKILL_MD.indexOf('## 8.') > HIRE_SKILL_MD.indexOf('## 7.'));
+  assert.match(choosing, /never choose for them/);
+  assert.match(choosing, /\/api\/briefs\/REQUEST_ID\/decision/);
+  assert.match(choosing, /Run the answer's `preview` command/);
+  assert.match(choosing, /On a yes, run `baw sign-message execute/);
+  assert.match(choosing, /`signature` and `signatureRecovery` exactly as the wallet returned/);
+  assert.match(choosing, /`hireChosen`/);
+  assert.match(choosing, /Call `prepare_hire` with them\s+as they are, adding `owner_address` WALLET/);
+  assert.match(HIRE_SKILL_MD, /run `baw sign-message execute` only after a\s+yes for that one signature/);
+  assert.doesNotMatch(HIRE_SKILL_MD, /cannot yet take a choice/);
+});
+
+test('closing a request’s post is offered once it is done, optional, and sent only on a yes', () => {
+  const closing = HIRE_SKILL_MD.slice(HIRE_SKILL_MD.indexOf('Once the request is hired or withdrawn'));
+  assert.match(closing, /ask whether to close its post on\s+PokterBoard/);
+  assert.match(closing, /It is optional/);
+  assert.match(closing, /"action":"close"/);
+  assert.match(closing, /Preview, show, ask and execute it exactly as in step 4/);
+  assert.match(closing, /\/board\/record/);
+});
+
 test('the wallet CLI is installed and signed in by the user, never by the assistant', () => {
   const setup = HIRE_SKILL_MD.slice(HIRE_SKILL_MD.indexOf('## Setup'), HIRE_SKILL_MD.indexOf('## 3.'));
   assert.match(setup, /npm install -g @binance\/agentic-wallet\n\s*baw auth signin/);

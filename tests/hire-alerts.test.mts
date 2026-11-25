@@ -45,6 +45,10 @@ test('the wallets declared to BNB are the wallets watched', () => {
       // Added 2026-10-14. Funded nothing before that date, so no published
       // figure changes retroactively by declaring it.
       '0xdab12cf15f4385188be62bda9f00877af4c1b32f',
+      // Added 2026-11-23: the team's Agentic Wallet. Its first funded job,
+      // #57238, was on 22 November, after Set and Earn closed, so no campaign
+      // figure changes; its hires and reviews are the team's own tests.
+      '0x564cbb1c360af36681591f47af469913b6364431',
     ].sort(),
   );
 });

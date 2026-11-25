@@ -8,6 +8,7 @@ import { shortNetworkLabel } from '@/lib/network/presentation';
 import { Icon } from '@/ui/icons';
 import { CHECK_FRESH_DAYS } from '@/lib/assay/standing';
 import type { Category } from '@/lib/agents/categories';
+import { categoryRank } from './category-order';
 
 /*
  * The catalogue's filters, shared by Discover and the full listing.
@@ -24,18 +25,6 @@ import type { Category } from '@/lib/agents/categories';
 
 const DEAD = 'None under the filters that are on';
 
-/** Broad work first, then related DeFi specialties, with the catch-all last. */
-const CATEGORY_ORDER: Record<Category | 'unclassified', number> = {
-  research: 0,
-  content: 1,
-  trading: 2,
-  'grid-trading': 3,
-  yield: 4,
-  rebalancing: 5,
-  'health-factor': 6,
-  'token-safety': 7,
-  unclassified: 8,
-};
 
 /** Off, and nothing would show if it were on. */
 const dead = (on: boolean, count?: number) => !on && count === 0;
@@ -187,7 +176,7 @@ export function FilterBar({ p, counts, allTasks, filterCounts }: { p: DiscoverPa
         <Pill href={discoverHref({}, p, ['category'])} on={!p.category}>
           All tasks <Tally n={allTasks} on={!p.category} />
         </Pill>
-        {[...counts].sort((a, b) => CATEGORY_ORDER[a.id] - CATEGORY_ORDER[b.id]).map((c) => (
+        {[...counts].sort((a, b) => categoryRank(a.id) - categoryRank(b.id)).map((c) => (
           <Pill key={c.id} href={discoverHref({ category: c.id }, p)} on={p.category === c.id} count={c.count}>
             {c.label} <Tally n={c.count} on={p.category === c.id} />
           </Pill>

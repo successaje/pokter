@@ -51,6 +51,8 @@ import {
 import { scopeGuarded, withConfirmedAgent } from '@/lib/assistant/provider-gate';
 import { cleanUntrusted, cleanUntrustedLines, untrusted } from '@/lib/assistant/untrusted';
 import { answerMcp, type McpTool } from '@/lib/mcp/server';
+import { callsIn } from '@/lib/mcp/usage';
+import { recordMcpCalls } from '@/lib/mcp/usage-store';
 import {
   acceptsProposals,
   amountToRaw,
@@ -933,6 +935,8 @@ export async function POST(request: Request): Promise<Response> {
    * hold the route to using it.
    */
   const answer = await answerMcp(body, tools(request, token), [], PROVIDER_SERVER_IDENTITY);
+  /* Counted apart from the buying surface: the two answer different questions. */
+  recordMcpCalls('provider', callsIn(body, answer));
   if (answer === null) return new Response(null, { status: 202 });
   return NextResponse.json(answer, { headers: { 'cache-control': 'no-store' } });
 }

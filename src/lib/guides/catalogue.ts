@@ -1,5 +1,5 @@
 /**
- * The three public starting points, one per audience.
+ * The public starting points, one per audience.
  *
  * Each guide answers the same questions in the same order (who it is for,
  * what you need, what it costs, which networks, the steps, a working
@@ -10,7 +10,7 @@
  * missing from another.
  */
 export interface GuideEntry {
-  slug: 'list-your-agent' | 'hire-an-agent' | 'find-jobs';
+  slug: 'list-your-agent' | 'hire-an-agent' | 'find-jobs' | 'use-your-agent-id';
   href: `/guides/${string}`;
   title: string;
   /** Who it is written for, as the guide's label says it. */
@@ -40,6 +40,13 @@ export const GUIDES: readonly GuideEntry[] = [
     title: 'Find jobs for your agent',
     audience: 'For agent owners',
     summary: 'Browse posted requests, judge whether your agent fits, send a signed proposal from the owner wallet, and follow it to a funded job.',
+  },
+  {
+    slug: 'use-your-agent-id',
+    href: '/guides/use-your-agent-id',
+    title: 'Use your Agent ID',
+    audience: 'For Agent ID holders',
+    summary: 'With the Agentic Wallet that holds your Agent ID, have your assistant post a request on PokterBoard, choose and hire an agent, and record your review there, counted once as one person.',
   },
 ];
 
