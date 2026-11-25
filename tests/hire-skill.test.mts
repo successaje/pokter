@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 import { CHECK_DELIVERY, JOB_STATUS, PREPARE_BRIEF, PREPARE_HIRE } from '../src/lib/assistant/tools';
-import { HIRE_SKILL_MD, HIRE_SKILL_NAME, hireSkillPrompt } from '../src/lib/builders/hire-skill';
+import { HIRE_SKILL_MD, HIRE_SKILL_NAME, agentIdSetupPrompt, hireSkillPrompt } from '../src/lib/builders/hire-skill';
 
 /*
  * The skill that hires and reviews from the user's own Agentic Wallet. It
@@ -122,4 +122,29 @@ test('the hire tools it names are the assistant tools by those names', () => {
     assert.ok((PREPARE_HIRE.inputSchema as { required: string[] }).required.includes(field), field);
     assert.match(HIRE_SKILL_MD, new RegExp(`\`${field}\``));
   }
+});
+
+test('the from-scratch prompt names the package that provides baw, not a guess at it', () => {
+  const prompt = agentIdSetupPrompt();
+  /* The CLI comes from this npm package; `npx skills add ...` installs skills and gives no `baw`. */
+  assert.ok(prompt.includes('npm install -g @binance/agentic-wallet'));
+  assert.doesNotMatch(prompt, /npx skills add/);
+});
+
+test('the from-scratch prompt checks Developer Mode by its expiry, not only its flag', () => {
+  const prompt = agentIdSetupPrompt();
+  /* A lapsed Developer Mode fails every contract call, and the flag alone does not say so. */
+  assert.ok(prompt.includes('devMode.enabled'));
+  assert.ok(prompt.includes('devMode.expiresAt'));
+  assert.match(prompt, /read the date and not just the flag/);
+});
+
+test('the from-scratch prompt leaves the phone steps and the request to the person', () => {
+  const prompt = agentIdSetupPrompt();
+  for (const check of ['baw wallet agent-id --json', 'baw auth signin', 'baw wallet status --json']) assert.ok(prompt.includes(check), check);
+  assert.match(prompt, /Never do those steps for me, and never write my request for me\./);
+  assert.match(prompt, /Never fill any of those in yourself\./);
+  /* It ends where the one-line prompt starts, so the skill is still what does the hiring. */
+  assert.ok(prompt.includes(`https://pokter.xyz/api/skills/${HIRE_SKILL_NAME}`));
+  assert.ok(prompt.includes(`~/.claude/skills/${HIRE_SKILL_NAME}/SKILL.md`));
 });
