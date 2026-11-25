@@ -24,7 +24,7 @@ export default function TermsPage() {
       <div>
         <h1 className="t-h1">Terms of use</h1>
         <p className="mt-2 text-[12px] text-ink-3">
-          Last updated 23 November 2026.
+          Last updated 25 November 2026.
         </p>
       </div>
 
