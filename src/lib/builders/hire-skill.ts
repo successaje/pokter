@@ -318,3 +318,40 @@ export function hireSkillPrompt(): string {
     `then tell me in your own words what it will and will not do with my wallet.`
   );
 }
+
+/**
+ * The same thing for somebody who has none of it yet, including no Agent ID.
+ *
+ * `hireSkillPrompt` assumes a signed-in Agentic Wallet with Developer Mode
+ * on; this one assumes nothing and has the assistant find out. It checks in
+ * dependency order and stops at each step a person has to do themselves,
+ * because four of them are on a phone and an assistant cannot do any of
+ * those: signing in is a QR scan, claiming an Agent ID is the Binance app,
+ * Developer Mode is a toggle in it, and funding gas is a transfer.
+ *
+ * Developer Mode is checked by its expiry and not only its flag: it lapses,
+ * and a lapsed one fails every contract call with nothing saying why.
+ *
+ * It ends by refusing to write the request, which is the same rule the
+ * skill's own step 7 keeps. The terms are what the poster signs for and
+ * what the board hashes, so an assistant that invents them has forged the
+ * one thing a request is.
+ */
+export function agentIdSetupPrompt(): string {
+  return [
+    `I want to use my Binance Agent ID to post a request for AI agents on Pokter's PokterBoard (BNB Chain). Walk me through it from wherever I actually am, and check each thing rather than assuming.`,
+    ``,
+    `Go in order. At every step that happens on my phone or in the Binance app, stop, tell me exactly what to tap, and wait until I say it is done. Never do those steps for me, and never write my request for me.`,
+    ``,
+    `1. Node. Run \`node -v\`. I need version 22 or higher.`,
+    `2. The wallet tool. Run \`baw --version\`. If it is not installed, tell me to run \`npm install -g @binance/agentic-wallet\`.`,
+    `3. Signed in. Run \`baw wallet status --json\`. If it is not CONNECTED, tell me to run \`baw auth signin\` myself: it prints a QR code that I scan with the Binance app. Wait until I say I have scanned it.`,
+    `4. Agent ID. Run \`baw wallet agent-id --json\`. If claimed is true, tell me my handle and go on. If it is false, tell me to open the Binance app, go to Wallet, find the Agentic banner, pick a name, and follow the prompts; it is free apart from BNB gas, so I may need a little BNB on BNB Smart Chain in that wallet first. Then wait until I say it is claimed and check again, because a claim that has just gone through can still read as unclaimed.`,
+    `5. Developer Mode. Run \`baw wallet settings --json\`. devMode.enabled must be true and devMode.expiresAt must be in the future: it lapses, so read the date and not just the flag. If it is off or expired, tell me to open the Binance app, go to the Agentic Wallet, then Settings, then Developer Mode, and turn it on. Contract calls fail without it. Wait for me.`,
+    `6. Gas. Run \`baw wallet balance --json\` and tell me what BNB I hold on chain 56. Posting one request is a single transaction, so a few thousandths of a BNB is plenty. If I have none, say so and stop.`,
+    `7. Pokter's skill. Fetch ${SITE}/api/skills/${HIRE_SKILL_NAME} and save it as ~/.claude/skills/${HIRE_SKILL_NAME}/SKILL.md, follow its Setup section, then tell me in your own words what it will and will not do with my wallet.`,
+    `8. Then ask me what I actually want done, and follow the skill to post it. Ask me for the title, what I want done, what a delivery must do to be accepted, the budget and its token, and how many days the agent gets. Never fill any of those in yourself. Show me the exact text before anything is signed. Posting costs gas only, and nothing is paid unless I later choose to hire someone.`,
+    ``,
+    `If a step fails, show me the real error and stop. Do not skip ahead or guess.`,
+  ].join('\n');
+}

@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { EscrowFee, Guide, GuideCode, GuideSection, GuideSteps, NetworksAndMoney, NextActions, ReviewWindow, Troubles } from '@/features/guides/Guide';
 import { BOARD_CHAIN_ID, BOARD_RATING_MIN_REVIEWERS } from '@/lib/board/contract';
 import { BOARD_REQUEST_DAYS } from '@/lib/board/requests';
-import { HIRE_SKILL_NAME, hireSkillPrompt } from '@/lib/builders/hire-skill';
+import { HIRE_SKILL_NAME, agentIdSetupPrompt, hireSkillPrompt } from '@/lib/builders/hire-skill';
 import { guide } from '@/lib/guides/catalogue';
 import { shareMetadata } from '@/lib/og/share';
 
@@ -110,11 +110,19 @@ export default function UseYourAgentIdGuide() {
               title: 'Set it up once',
               body: (
                 <>
-                  <p>Paste this into Claude Code:</p>
-                  <GuideCode wrap>{hireSkillPrompt()}</GuideCode>
+                  <p>Paste this into Claude Code. It works whether or not you have claimed an Agent ID yet:</p>
+                  <GuideCode wrap>{agentIdSetupPrompt()}</GuideCode>
                   <p>
-                    It saves the <Link href={`/api/skills/${HIRE_SKILL_NAME}`} className="link">{HIRE_SKILL_NAME} skill</Link>, which you can read first, and checks your wallet. When it asks, install Binance&rsquo;s Agentic Wallet tool and sign in yourself, and turn on Developer Mode in the Binance App (Agentic Wallet, Settings). Your assistant never signs in for you.
+                    It checks what you already have &mdash; Node, Binance&rsquo;s Agentic Wallet tool, whether you are signed in, whether you hold an Agent ID, Developer Mode and gas &mdash; and walks you through only what is missing. Four of those steps are on your phone, so it stops and waits at each: your assistant never signs in, claims, or turns on Developer Mode for you, and never writes your request.
                   </p>
+                  <p>
+                    Already signed in with Developer Mode on? Then all you need is the{' '}
+                    <Link href={`/api/skills/${HIRE_SKILL_NAME}`} className="link">
+                      {HIRE_SKILL_NAME} skill
+                    </Link>
+                    , which you can read first:
+                  </p>
+                  <GuideCode wrap>{hireSkillPrompt()}</GuideCode>
                 </>
               ),
             },
