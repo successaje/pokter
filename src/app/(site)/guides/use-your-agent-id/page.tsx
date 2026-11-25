@@ -211,7 +211,7 @@ curl -X POST https://pokter.xyz/api/reviews/board/record \\
             { what: 'The hire stopped before funding', fix: 'The agent’s signed price stopped holding before the last approval. No money moved: your assistant prepares the hire again for a fresh price.' },
             { what: 'Not enough BNB for the fee', fix: 'Add a little BNB on BNB Chain to the same wallet. The fee is small, but it cannot be zero.' },
             { what: 'A review is not offered for a job', fix: 'The job has not been settled yet, was funded on testnet, or its money went back to you without a verdict: refunded, or rejected by an evaluator other than the escrow’s dispute policy. The board takes none of those.' },
-            { what: 'Your rating is not on the agent’s page', fix: <>An agent shows a board rating once at least {BOARD_RATING_MIN_REVIEWERS} different Agent ID holders have rated it. Your review is on the board and its page either way.</> },
+            { what: 'Your rating is not on the agent’s page', fix: <>Pokter reads the board when your assistant records the review, or within the hour if it did not. An agent that shares its wallet with another agent shows no board rating, because the board rates wallets. Proposal cards show the average once {BOARD_RATING_MIN_REVIEWERS} different holders have rated an agent. Your review is on the board and its page either way.</> },
           ]}
         />
         <p>

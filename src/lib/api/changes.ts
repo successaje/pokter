@@ -33,6 +33,18 @@ export const API_CHANGES: ApiChange[] = [
     date: null,
     release: null,
     kind: 'added',
+    surfaces: ['GET /api/v1/agents/{chainId}/{tokenId}', 'MCP get_agent'],
+    summary: 'An agent’s record carries its rating on PokterBoard.',
+    details: [
+      '`boardRating` is `{ average, reviewers, countsTowardScore, board, readAt, provenance, source }` once someone holding an Agent ID, outside Pokter, has rated the agent on PokterBoard; null before that, and for an agent the board cannot rate: one not registered on BNB Chain, or whose wallet another agent shares.',
+      '`average` is rounded to one decimal place. `countsTowardScore` is true once at least 3 people have rated it, as the score counts it.',
+    ],
+    migrate: null,
+  },
+  {
+    date: null,
+    release: null,
+    kind: 'added',
     surfaces: ['GET /api/v1/requests/{id}', 'MCP get_request', 'MCP prepare_hire'],
     summary: 'A chosen proposal can be hired from an assistant, as it can from the request page.',
     details: [
