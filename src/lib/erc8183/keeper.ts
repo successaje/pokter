@@ -17,7 +17,7 @@ import { disputeWindowSeconds } from './dispute-window';
 import { readErc8183Job } from './get-job';
 import { jobAmountLabel } from './job-amount';
 import { keeperAccountFrom, keeperConfig, type KeeperAction, type KeeperChain, type KeeperMode } from './keeper-plan';
-import { keeperSummary, runKeeperChain, type KeeperChainOutcome } from './keeper-run';
+import { keeperLogLine, keeperSummary, runKeeperChain, type KeeperChainOutcome } from './keeper-run';
 import { getJobStore } from './store';
 
 /**
@@ -212,8 +212,10 @@ export async function runKeeper({ deadlineAt }: { deadlineAt?: number } = {}): P
       chains.push({ chainId, mode, checked: 0, unread: 0, waiting: 0, due: 0, outcomes: [], stopped: null, error: (failure as Error).message.split('\n')[0] });
     }
   }
-  const outcome: KeeperOutcome = { mode, wallet: account?.address ?? null, chains, summary: keeperSummary(chains) };
-  if (outcome.summary) console.log(`[keeper] ${outcome.summary}`);
+  const outcome: KeeperOutcome = { mode, wallet: account?.address ?? null, chains, error, summary: keeperSummary(chains) };
+  /* A key that cannot be used is reported in `dry` too: see keeperLogLine. */
+  const line = keeperLogLine({ error, wallet: outcome.wallet, summary: outcome.summary });
+  if (line) console.log(`[keeper] ${line}`);
   await alertIfNeeded(outcome, deadlineAt);
   return outcome;
 }

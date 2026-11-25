@@ -241,6 +241,25 @@ export async function runKeeperChain(deps: KeeperChainDeps, options: KeeperRunOp
  * Empty when nothing was due anywhere, so a quiet run adds nothing to the
  * scheduler's line.
  */
+/**
+ * The `[keeper]` line for one run, or '' to say nothing.
+ *
+ * Silent when there is a usable key and nothing was due, because a sweep
+ * runs every ten minutes and a line each time is noise nobody reads. A key
+ * that cannot be used is the exception: it is reported on every run, in
+ * `dry` as well as `on`, because it is otherwise invisible until the switch
+ * is thrown, and the run it is thrown on is the one that matters.
+ *
+ * The wallet rides along only when there is something to say, so a line
+ * that reports work also says which wallet did it. The address is public
+ * the moment it sends; the key never appears.
+ */
+export function keeperLogLine(input: { error?: string; wallet?: string | null; summary: string }): string {
+  const body = [input.error, input.summary].filter((part): part is string => Boolean(part)).join('; ');
+  if (!body) return '';
+  return input.wallet ? `${input.wallet} ${body}` : body;
+}
+
 export function keeperSummary(chains: readonly KeeperChainOutcome[]): string {
   const parts = chains
     .map((chain) => {

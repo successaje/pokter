@@ -2,10 +2,11 @@ import { NextResponse } from 'next/server';
 import { accessSync, constants } from 'node:fs';
 import { dirname } from 'node:path';
 
-import { keeperConfig } from '@/lib/erc8183/keeper-plan';
+import { keeperConfig, keeperKeyState } from '@/lib/erc8183/keeper-plan';
 import { readVitals } from '@/lib/health/vitals';
 import { lastSaturation, recordSaturation } from '@/lib/health/saturation-store';
 import { STORES, isDurable, storePath } from '@/lib/health/stores';
+import { operatorAddress } from '@/lib/team/server';
 
 export const dynamic = 'force-dynamic';
 
@@ -151,8 +152,14 @@ export function GET(): NextResponse {
          * Whether the keeper sends, simulates or is off, and on which escrow
          * chains, so switching it on can be checked from outside without
          * reading logs. From the environment too; it never says which wallet.
+         *
+         * `key` says whether KEEPER_KEY can be used, never what it is. A dry
+         * run cannot answer that question — it simulates from a stand-in
+         * address whether the key is good, bad or absent — so without this
+         * an unusable key stays hidden until the keeper is switched on, on
+         * the one run where a job is waiting for it.
          */
-        keeper: keeperConfig(process.env),
+        keeper: { ...keeperConfig(process.env), key: keeperKeyState(process.env.KEEPER_KEY, operatorAddress()) },
         lastStartedAt: vitals.lastRunStartedAt,
         lastFinishedAt: vitals.lastSweepFinishedAt,
         gates: false,

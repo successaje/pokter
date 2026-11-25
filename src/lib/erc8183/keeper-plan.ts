@@ -67,6 +67,32 @@ export function keeperConfig(env: Readonly<Record<string, string | undefined>>):
 }
 
 /**
+ * Whether `KEEPER_KEY` can be used, as one word, without disclosing it.
+ *
+ * Set apart from the account so the answer can be reported where the key
+ * itself must not go. A dry run cannot answer it: the error below is read
+ * only when the keeper is `on`, and a dry run with an unusable key
+ * simulates from the same stand-in address as a dry run with no key at
+ * all, so the two are indistinguishable until the day it is switched on.
+ * `schedulerState` reports its own missing secret the same way.
+ */
+export type KeeperKeyState = 'ok' | 'missing' | 'invalid' | 'operator';
+
+const KEY_ERRORS: Record<Exclude<KeeperKeyState, 'ok'>, string> = {
+  missing: 'KEEPER_KEY is not set',
+  invalid: 'KEEPER_KEY is not a 32-byte hex key with its 0x prefix',
+  operator: 'KEEPER_KEY is the operator key; the keeper needs a wallet of its own',
+};
+
+export function keeperKeyState(key: string | undefined, operator: string | null): KeeperKeyState {
+  const trimmed = key?.trim();
+  if (!trimmed) return 'missing';
+  if (!/^0x[0-9a-fA-F]{64}$/.test(trimmed)) return 'invalid';
+  if (operator && getAddress(operator) === privateKeyToAccount(trimmed as Hex).address) return 'operator';
+  return 'ok';
+}
+
+/**
  * The keeper's wallet, from `KEEPER_KEY`, or why there is none.
  *
  * A wallet of its own that holds nothing but gas. The escrow pays a
@@ -74,16 +100,14 @@ export function keeperConfig(env: Readonly<Record<string, string | undefined>>):
  * this key decides nothing about where money goes. It must not be the
  * operator key: that key also sends from the server, and two senders on
  * one nonce drop each other's transactions.
+ *
+ * Classified by `keeperKeyState`, so what health reports and what the
+ * keeper refuses can never disagree.
  */
 export function keeperAccountFrom(key: string | undefined, operator: string | null): { account: PrivateKeyAccount } | { account: null; error: string } {
-  const trimmed = key?.trim();
-  if (!trimmed) return { account: null, error: 'KEEPER_KEY is not set' };
-  if (!/^0x[0-9a-fA-F]{64}$/.test(trimmed)) return { account: null, error: 'KEEPER_KEY is not a 32-byte hex key with its 0x prefix' };
-  const account = privateKeyToAccount(trimmed as Hex);
-  if (operator && getAddress(operator) === account.address) {
-    return { account: null, error: 'KEEPER_KEY is the operator key; the keeper needs a wallet of its own' };
-  }
-  return { account };
+  const state = keeperKeyState(key, operator);
+  if (state !== 'ok') return { account: null, error: KEY_ERRORS[state] };
+  return { account: privateKeyToAccount(key!.trim() as Hex) };
 }
 
 export interface KeeperJobFacts {
