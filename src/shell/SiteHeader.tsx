@@ -2,36 +2,31 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { IS_TESTNET, MAINNET_ESCROW } from '@/lib/network/presentation';
 import { cn } from '@/lib/ui/cn';
 import { Icon } from '@/ui/icons';
 import { Sheet } from '@/ui/Sheet';
+import { HeaderMenus } from './HeaderMenus';
 import { HeaderSearch } from './HeaderSearch';
 import { Wordmark } from './Logo';
-import { PRIMARY_NAV } from './nav';
+import { isActive, NAV_DIRECT, NAV_GROUPS } from './nav';
 import { ThemeSegmented, ThemeToggle } from './ThemeControl';
 import { LazyHeaderWallet } from './wallet/LazyHeaderWallet';
 
 
-function isActive(pathname: string, href: string) {
-  return pathname === href || pathname.startsWith(`${href}/`);
-}
-
 /**
- * The site header, on every page including Hiring and Building. Six
- * destinations, search, the account control, and nothing else; How it
- * works is in the footer. It always has its hairline, and tightens and
- * blurs what is behind it once the page scrolls.
+ * The site header, on every page including Hiring and Building. Two menus
+ * and one link (Hire, Build, Proof; see `nav.ts`), search, the account
+ * control, and nothing else; How it works is in the footer. It always has
+ * its hairline, and tightens and blurs what is behind it once the page
+ * scrolls.
  */
 export function SiteHeader() {
   const pathname = usePathname() ?? '/';
   const [scrolled, setScrolled] = useState(false);
   const [menu, setMenu] = useState(false);
-  const [marketMenu, setMarketMenu] = useState<string | null>(null);
-  const marketOpen = marketMenu === pathname;
-  const marketRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -39,25 +34,6 @@ export function SiteHeader() {
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
-
-  useEffect(() => {
-    if (!marketOpen) return;
-    const outside = (event: PointerEvent) => {
-      if (!marketRef.current?.contains(event.target as Node)) setMarketMenu(null);
-    };
-    const escape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setMarketMenu(null);
-        marketRef.current?.querySelector('button')?.focus();
-      }
-    };
-    document.addEventListener('pointerdown', outside);
-    document.addEventListener('keydown', escape);
-    return () => {
-      document.removeEventListener('pointerdown', outside);
-      document.removeEventListener('keydown', escape);
-    };
-  }, [marketOpen]);
 
   return (
     <>
@@ -92,33 +68,9 @@ export function SiteHeader() {
             </span>
           )}
 
-          <nav aria-label="Primary" className="ml-4 hidden items-center gap-1 lg:flex">
-            {PRIMARY_NAV.filter((item) => item.href !== '/requests').map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                aria-current={isActive(pathname, item.href) ? 'page' : undefined}
-                className={cn(
-                  'rounded-[8px] px-3 py-2 text-sm font-medium transition-colors',
-                  item.href === '/discover' && 'order-[-2]',
-                  isActive(pathname, item.href) ? 'text-ink' : 'text-ink-3 hover:text-ink',
-                )}
-              >
-                {item.label}
-              </Link>
-            ))}
-            <div ref={marketRef} className="relative order-[-1] ml-0">
-              <button type="button" aria-expanded={marketOpen} aria-controls="marketplace-menu" aria-haspopup="true" onClick={() => setMarketMenu((open) => open === pathname ? null : pathname)} className={cn('rounded-[8px] px-3 py-2 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink', ['/requests', '/services'].some((path) => isActive(pathname, path)) ? 'text-ink' : 'text-ink-3 hover:text-ink')}>
-                Requests &amp; Services <Icon.ChevronDown size={13} className={cn('ml-1 inline-block transition-transform', marketOpen && 'rotate-180')} aria-hidden />
-              </button>
-              {marketOpen && <div id="marketplace-menu" className="absolute left-0 top-full z-50 mt-2 w-64 rounded-[12px] border border-rule bg-raised p-2 shadow-xl">
-                <Link href="/requests" onClick={() => setMarketMenu(null)} className="block rounded-[8px] px-3 py-2.5 text-sm hover:bg-sunken focus:bg-sunken"><strong className="block">Requests</strong><span className="text-xs text-ink-3">Browse work and post a request</span></Link>
-                <Link href="/services" onClick={() => setMarketMenu(null)} className="block rounded-[8px] px-3 py-2.5 text-sm hover:bg-sunken focus:bg-sunken"><strong className="block">Services</strong><span className="text-xs text-ink-3">Specific offers from agents</span></Link>
-              </div>}
-            </div>
-          </nav>
+          <HeaderMenus />
 
-          <div className="ml-auto flex items-center gap-1.5">
+          <div className="ml-auto flex items-center gap-1.5 lg:ml-0">
             <ThemeToggle className="hidden lg:grid" />
             {/* Search, then the account. The workspace is in the account menu ("My workspace"), so it is no longer a third control here. */}
             <HeaderSearch />
@@ -139,17 +91,45 @@ export function SiteHeader() {
       <Sheet open={menu} onClose={() => setMenu(false)} variant="drawer" title="Menu">
         <div onClick={(e) => (e.target as HTMLElement).closest('a') && setMenu(false)}>
         <nav aria-label="Mobile" className="flex flex-col">
-          {[{ href: '/', label: 'Home' }, ...PRIMARY_NAV.filter((item) => item.href !== '/requests')].map((item) => (
+          <Link href="/" className={cn('flex items-center justify-between border-b border-rule py-4 text-lg font-medium', pathname === '/' ? 'text-ink' : 'text-ink-2')}>
+            Home
+            <Icon.ChevronRight className="text-ink-3" />
+          </Link>
+          {/* Proof right under Home: one tap away here too, as it is one click on desktop. */}
+          {NAV_DIRECT.map((item) => (
             <Link
               key={item.href}
               href={item.href}
-              className={cn('flex items-center justify-between border-b border-rule py-4 text-lg font-medium', isActive(pathname, item.href) && item.href !== '/' ? 'text-ink' : 'text-ink-2')}
+              className={cn('flex items-center justify-between border-b border-rule py-4 text-lg font-medium', isActive(pathname, item.href) ? 'text-ink' : 'text-ink-2')}
             >
               {item.label}
               <Icon.ChevronRight className="text-ink-3" />
             </Link>
           ))}
-          <div className="mt-3 border-t border-rule pt-3"><span className="t-label">Requests &amp; Services</span><Link href="/requests" className="flex justify-between border-b border-rule py-3 text-lg">Browse requests <Icon.ChevronRight className="text-ink-3" /></Link><Link href="/workspace/requests/new" className="flex justify-between border-b border-rule py-3 text-lg">Post work <Icon.ChevronRight className="text-ink-3" /></Link><Link href="/services" className="flex justify-between border-b border-rule py-3 text-lg">Browse services <Icon.ChevronRight className="text-ink-3" /></Link></div>
+          {NAV_GROUPS.map((group) => (
+            <div key={group.label} className="mt-5">
+              <span className="t-label">{group.label}</span>
+              {/*
+                * The panel's feature card is a link like any other here: on
+                * desktop it is a tile beside the list, and a destination that
+                * existed only on desktop would be one phones could not reach.
+                * Your hires is dropped instead, because Your space below
+                * already leads to the workspace.
+                */}
+              {[...group.links, ...(group.feature ? [{ href: group.feature.href, label: group.feature.title }] : [])]
+                .filter((link) => link.href !== '/workspace')
+                .map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={cn('flex items-center justify-between border-b border-rule py-3 text-lg', isActive(pathname, link.href) ? 'text-ink' : 'text-ink-2')}
+                >
+                  {link.label}
+                  <Icon.ChevronRight className="text-ink-3" />
+                </Link>
+              ))}
+            </div>
+          ))}
         </nav>
         <div className="mt-6 flex flex-col gap-2">
           <span className="t-label">Your space</span>
