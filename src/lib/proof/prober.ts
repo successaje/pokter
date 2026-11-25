@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { awaitsAgent, MCP_PROTOCOL_VERSION, probeIsEvidence, probeTarget, uncallableStatus } from '@/lib/proof/probe-target';
+import { AWAITING_AGENT_DETAIL, awaitsAgent, MCP_PROTOCOL_VERSION, probeIsEvidence, probeTarget, uncallableStatus } from '@/lib/proof/probe-target';
 
 export { MCP_PROTOCOL_VERSION, probeTarget };
 
@@ -399,7 +399,7 @@ async function probeAt(
       if (!isAgentCard(body)) {
         return {
           result: awaitsAgent(body)
-            ? { ok: false, latencyMs, status: response.status, detail: 'Endpoint is a listing with no agent bound to it yet.', awaitingAgent: true, at }
+            ? { ok: false, latencyMs, status: response.status, detail: AWAITING_AGENT_DETAIL, awaitingAgent: true, at }
             : {
                 ok: false,
                 latencyMs,

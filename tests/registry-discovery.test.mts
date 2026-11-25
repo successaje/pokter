@@ -75,7 +75,7 @@ test('the pass is bounded, keeps its tries out of the probe history, and runs la
   assert.match(route, /budget\.step\(\s*'discovery',/);
   assert.ok(route.indexOf("budget.step(\n      'discovery'") > route.indexOf("budget.step('stuckJobs'"), 'after the steps that alert anyone');
   assert.match(code('lib/history/scheduler.ts'), / · discovery /);
-  assert.match(code('app/(site)/methodology/page.tsx'), /New registrations are found as they arrive, not by scanning the registry\./);
+  assert.match(code('app/(site)/methodology/page.tsx'), /New registrations are found as they arrive\. Each sweep reads what was registered/);
   /* "1 answered and are measured": each count agrees with its verb. */
   const methodology = code('app/(site)/methodology/page.tsx');
   assert.match(methodology, /answered and \{d\.promoted === 1 \? 'is' : 'are'\} measured/);
@@ -129,7 +129,9 @@ test('a listing with no agent bound to it yet is tried weekly, four times, not l
   }
 
   const prober = code('lib/proof/prober.ts');
-  assert.match(prober, /result: awaitsAgent\(body\)\s*\? \{ ok: false, latencyMs, status: response\.status, detail: 'Endpoint is a listing with no agent bound to it yet\.', awaitingAgent: true, at \}/);
+  assert.match(prober, /result: awaitsAgent\(body\)\s*\? \{ ok: false, latencyMs, status: response\.status, detail: AWAITING_AGENT_DETAIL, awaitingAgent: true, at \}/);
+  const { AWAITING_AGENT_DETAIL } = await import('../src/lib/proof/probe-target');
+  assert.equal(AWAITING_AGENT_DETAIL, 'Endpoint is a listing with no agent bound to it yet.', 'the text stored on every such row so far: changing it turns those rows back into failures');
   assert.match(code('lib/history/scheduler.ts'), /\$\{d\.waiting \? `, \$\{d\.waiting\} waiting for an agent` : ''\}/);
   assert.match(code('app/(site)/methodology/page.tsx'), /One whose endpoint is a listing with no agent bound to it yet is tried again weekly, four times, in case its owner binds one\./);
 });

@@ -65,7 +65,7 @@ export interface AgentSummary {
   /** `route` is always 'escrow': every price here is an ERC-8183 escrow quote, never a pay-per-call price. Added; nothing else changed. */
   price: Measured<(WirePrice & { quotedAt: string; expiresAt: string | null; current: boolean | null; payable: boolean | null; route: 'escrow' }) | null>;
   availability: Measured<number | null>;
-  probes: Measured<{ total: number; answered: number; observedDays: number }>;
+  probes: Measured<{ total: number; answered: number; observedDays: number; awaitingAgent: boolean }>;
   attestations: Measured<number>;
   /**
    * Declared, not observed, and the declaration has nowhere to point.
@@ -150,9 +150,10 @@ export function toAgentSummary(
         total: record.totalProbes,
         answered: record.totalAnswered,
         observedDays: record.observedDays,
+        awaitingAgent: record.awaitingAgent === true,
       },
       'pokter-measured',
-      'Pokter probes only. Third-party probe counts are not included.',
+      'Pokter probes only. Third-party probe counts are not included. A probe that found a platform listing with no agent bound to it is not counted, since there is no agent to measure; `awaitingAgent` is true when the latest check found one.',
     ),
     attestations: measured(
       listing.attestationCount,

@@ -60,6 +60,17 @@ export interface CategoryMeta {
   accent: string;
 }
 
+/**
+ * How many listings per category, per chain, the catalogue shows: Discover,
+ * search, the public agents API and the home page all read this deep.
+ *
+ * Also how deep the sweep reads (`SWEEP_PER_CATEGORY`), and that is the
+ * point of keeping it here. The sweep took twelve a category while the
+ * catalogue showed up to four hundred, so agents with working addresses sat
+ * on Discover with no probe on record at all.
+ */
+export const CATALOGUE_PER_CATEGORY = 400;
+
 /*
  * What a buyer gets, not what the strategy is called.
  *

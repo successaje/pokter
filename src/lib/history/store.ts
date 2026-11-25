@@ -132,12 +132,27 @@ export interface ProbeStore {
   setDiscoveryCursor(chainId: number, newestCreatedAt: string): void;
   /** Queues newly seen registrations; one already queued, promoted or dropped is left as it is. Returns how many were added. */
   enqueueDiscovered(rows: { chainId: number; tokenId: string; registeredAt: string | null }[], now?: string): number;
-  /** Queued agents due a try on a chain, longest waiting first. */
+  /** Queued new registrations due a try on a chain, longest waiting first. Backfilled ones have their own (`dueBackfill`). */
   dueDiscoveries(chainId: number, now: string, limit: number): { chainId: number; tokenId: string; attempts: number }[];
-  recordDiscoveryAttempt(input: { chainId: number; tokenId: string; state: string; attempts: number; nextAttemptAt: string | null; outcome: string; at: string }): void;
-  /** Discovered agents that answered: part of the roster from then on. */
+  /** `host` is the address host the try would call, kept so the backfill can sample a host before calling all of it. */
+  recordDiscoveryAttempt(input: { chainId: number; tokenId: string; state: string; attempts: number; nextAttemptAt: string | null; outcome: string; at: string; host?: string | null }): void;
+  /** Discovered agents that answered, new or backfilled: part of the roster from then on. */
   discoveredAgents(): { chainId: number; tokenId: string }[];
+  /** New registrations only: the backfill reports its own (`backfillCounts`). */
   discoveryCounts(chainId: number): { queued: number; promoted: number; dropped: number; cursor: string | null };
+  /** How far each backfill pass on a chain has read (see discovery.ts); a pass never started has no row. */
+  backfillPasses(chainId: number): { pass: string; cursor: string | null; done: boolean; pages: number }[];
+  /** Records a page read: where the next one starts, and whether this pass reached the end. */
+  saveBackfillPage(chainId: number, pass: string, cursor: string | null, done: boolean): void;
+  /** Queues older registrations; any already in the queue, new or backfilled, are left as they are. Returns how many were added. */
+  enqueueBackfill(rows: { chainId: number; tokenId: string; registeredAt: string | null }[], now?: string): number;
+  /** Backfilled registrations still waiting for their one try. */
+  backfillWaiting(chainId: number): number;
+  /** The next backfilled registrations to try, oldest registration first. */
+  dueBackfill(chainId: number, limit: number): { chainId: number; tokenId: string; attempts: number }[];
+  /** Backfill tries per address host, and how many answered; sampled-out rows are not tries. */
+  backfillHostStats(chainId: number): Map<string, { tried: number; answered: number }>;
+  backfillCounts(chainId: number): { queued: number; promoted: number; dropped: number; sampledOut: number; pages: number; passesDone: number; started: boolean };
   /** Every MCP probe row, with whether it is already corrected, for planning corrections. */
   correctableMcpRows(): CorrectableProbe[];
   /** Marks rows as Pokter's measurement error. Idempotent; returns how many were newly marked. */
@@ -304,6 +319,17 @@ const SCHEMA = `
   );
 
   CREATE INDEX IF NOT EXISTS idx_discovery_due ON discovery_queue (chain_id, state, next_attempt_at);
+
+  -- How far each backfill pass has read the registry, by the indexer's cursor.
+  CREATE TABLE IF NOT EXISTS registry_backfill (
+    chain_id INTEGER NOT NULL,
+    pass     TEXT    NOT NULL,
+    cursor   TEXT,
+    done     INTEGER NOT NULL DEFAULT 0,
+    pages    INTEGER NOT NULL DEFAULT 0,
+    read_at  TEXT,
+    PRIMARY KEY (chain_id, pass)
+  );
 `;
 
 interface ProbeRow {
@@ -372,6 +398,9 @@ class SqliteProbeStore implements ProbeStore {
       'ALTER TABLE probes ADD COLUMN adapter TEXT',
       /* A table made before `payable` existed crashed every hire page that read it. Old rows read as unpayable, the safe direction. */
       'ALTER TABLE brief_quotes ADD COLUMN payable INTEGER NOT NULL DEFAULT 0',
+      /* Every row before the backfill came from discovery of new registrations. */
+      "ALTER TABLE discovery_queue ADD COLUMN source TEXT NOT NULL DEFAULT 'new'",
+      'ALTER TABLE discovery_queue ADD COLUMN host TEXT',
     ]) {
       try {
         this.db.exec(statement);
@@ -381,6 +410,8 @@ class SqliteProbeStore implements ProbeStore {
         }
       }
     }
+    /* After the columns it names exist. */
+    this.db.exec('CREATE INDEX IF NOT EXISTS idx_discovery_source ON discovery_queue (chain_id, source, state)');
   }
 
   record(probes: ProbeRecord[]): void {
@@ -708,20 +739,20 @@ class SqliteProbeStore implements ProbeStore {
     const rows = this.db
       .prepare(
         `SELECT chain_id, token_id, attempts FROM discovery_queue
-         WHERE chain_id = ? AND state = 'queued' AND next_attempt_at <= ?
+         WHERE chain_id = ? AND source = 'new' AND state = 'queued' AND next_attempt_at <= ?
          ORDER BY next_attempt_at, first_seen LIMIT ?`,
       )
       .all(chainId, now, limit) as unknown as { chain_id: number; token_id: string; attempts: number }[];
     return rows.map((r) => ({ chainId: r.chain_id, tokenId: r.token_id, attempts: r.attempts }));
   }
 
-  recordDiscoveryAttempt(input: { chainId: number; tokenId: string; state: string; attempts: number; nextAttemptAt: string | null; outcome: string; at: string }): void {
+  recordDiscoveryAttempt(input: { chainId: number; tokenId: string; state: string; attempts: number; nextAttemptAt: string | null; outcome: string; at: string; host?: string | null }): void {
     this.db
       .prepare(
-        `UPDATE discovery_queue SET state = ?, attempts = ?, next_attempt_at = COALESCE(?, next_attempt_at), last_attempt_at = ?, last_outcome = ?
+        `UPDATE discovery_queue SET state = ?, attempts = ?, next_attempt_at = COALESCE(?, next_attempt_at), last_attempt_at = ?, last_outcome = ?, host = COALESCE(?, host)
          WHERE chain_id = ? AND token_id = ?`,
       )
-      .run(input.state, input.attempts, input.nextAttemptAt, input.at, input.outcome, input.chainId, input.tokenId);
+      .run(input.state, input.attempts, input.nextAttemptAt, input.at, input.outcome, input.host ?? null, input.chainId, input.tokenId);
   }
 
   discoveredAgents(): { chainId: number; tokenId: string }[] {
@@ -733,10 +764,95 @@ class SqliteProbeStore implements ProbeStore {
 
   discoveryCounts(chainId: number): { queued: number; promoted: number; dropped: number; cursor: string | null } {
     const rows = this.db
-      .prepare('SELECT state, COUNT(*) AS n FROM discovery_queue WHERE chain_id = ? GROUP BY state')
+      .prepare("SELECT state, COUNT(*) AS n FROM discovery_queue WHERE chain_id = ? AND source = 'new' GROUP BY state")
       .all(chainId) as unknown as { state: string; n: number }[];
     const count = (state: string) => Number(rows.find((r) => r.state === state)?.n ?? 0);
     return { queued: count('queued'), promoted: count('promoted'), dropped: count('dropped'), cursor: this.discoveryCursor(chainId) };
+  }
+
+  backfillPasses(chainId: number): { pass: string; cursor: string | null; done: boolean; pages: number }[] {
+    const rows = this.db
+      .prepare('SELECT pass, cursor, done, pages FROM registry_backfill WHERE chain_id = ?')
+      .all(chainId) as unknown as { pass: string; cursor: string | null; done: number; pages: number }[];
+    return rows.map((r) => ({ pass: r.pass, cursor: r.cursor, done: r.done === 1, pages: Number(r.pages) }));
+  }
+
+  saveBackfillPage(chainId: number, pass: string, cursor: string | null, done: boolean): void {
+    this.db
+      .prepare(
+        `INSERT INTO registry_backfill (chain_id, pass, cursor, done, pages, read_at) VALUES (?, ?, ?, ?, 1, ?)
+         ON CONFLICT (chain_id, pass) DO UPDATE SET cursor = excluded.cursor, done = excluded.done, pages = pages + 1, read_at = excluded.read_at`,
+      )
+      .run(chainId, pass, cursor, done ? 1 : 0, new Date().toISOString());
+  }
+
+  enqueueBackfill(rows: { chainId: number; tokenId: string; registeredAt: string | null }[], now = new Date().toISOString()): number {
+    if (rows.length === 0) return 0;
+    const insert = this.db.prepare(
+      `INSERT OR IGNORE INTO discovery_queue (chain_id, token_id, registered_at, first_seen, attempts, next_attempt_at, state, source)
+       VALUES (?, ?, ?, ?, 0, ?, 'queued', 'backfill')`,
+    );
+    let added = 0;
+    this.db.exec('BEGIN');
+    try {
+      for (const row of rows) added += Number(insert.run(row.chainId, row.tokenId, row.registeredAt, now, now).changes);
+      this.db.exec('COMMIT');
+    } catch (error) {
+      this.db.exec('ROLLBACK');
+      throw error;
+    }
+    return added;
+  }
+
+  backfillWaiting(chainId: number): number {
+    const row = this.db
+      .prepare("SELECT COUNT(*) AS n FROM discovery_queue WHERE chain_id = ? AND source = 'backfill' AND state = 'queued'")
+      .get(chainId) as { n: number } | undefined;
+    return Number(row?.n ?? 0);
+  }
+
+  dueBackfill(chainId: number, limit: number): { chainId: number; tokenId: string; attempts: number }[] {
+    const rows = this.db
+      .prepare(
+        `SELECT chain_id, token_id, attempts FROM discovery_queue
+         WHERE chain_id = ? AND source = 'backfill' AND state = 'queued'
+         ORDER BY registered_at, first_seen LIMIT ?`,
+      )
+      .all(chainId, limit) as unknown as { chain_id: number; token_id: string; attempts: number }[];
+    return rows.map((r) => ({ chainId: r.chain_id, tokenId: r.token_id, attempts: r.attempts }));
+  }
+
+  backfillHostStats(chainId: number): Map<string, { tried: number; answered: number }> {
+    const rows = this.db
+      .prepare(
+        `SELECT host, COUNT(*) AS tried, SUM(CASE WHEN last_outcome = 'answered' THEN 1 ELSE 0 END) AS answered
+           FROM discovery_queue
+          WHERE chain_id = ? AND source = 'backfill' AND host IS NOT NULL AND last_outcome IS NOT NULL AND last_outcome != 'host-sampled'
+          GROUP BY host`,
+      )
+      .all(chainId) as unknown as { host: string; tried: number; answered: number }[];
+    return new Map(rows.map((r) => [r.host, { tried: Number(r.tried), answered: Number(r.answered) }]));
+  }
+
+  backfillCounts(chainId: number): { queued: number; promoted: number; dropped: number; sampledOut: number; pages: number; passesDone: number; started: boolean } {
+    const rows = this.db
+      .prepare(
+        `SELECT state, last_outcome = 'host-sampled' AS sampled, COUNT(*) AS n FROM discovery_queue
+          WHERE chain_id = ? AND source = 'backfill' GROUP BY state, sampled`,
+      )
+      .all(chainId) as unknown as { state: string; sampled: number | null; n: number }[];
+    const count = (state: string, sampled?: boolean) =>
+      rows.filter((r) => r.state === state && (sampled === undefined || (r.sampled === 1) === sampled)).reduce((sum, r) => sum + Number(r.n), 0);
+    const passes = this.backfillPasses(chainId);
+    return {
+      queued: count('queued'),
+      promoted: count('promoted'),
+      dropped: count('dropped', false),
+      sampledOut: count('dropped', true),
+      pages: passes.reduce((sum, p) => sum + p.pages, 0),
+      passesDone: passes.filter((p) => p.done).length,
+      started: passes.length > 0,
+    };
   }
 
   recent(limit: number): ProbeRecord[] {

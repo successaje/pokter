@@ -18,7 +18,7 @@ import {
 } from './schedule';
 import { POKTER_TERMS, requestQuote } from '@/lib/erc8183/quote';
 import { sampleBrief } from '@/lib/erc8183/sample-enquiry';
-import { classify } from '@/lib/agents/categories';
+import { CATALOGUE_PER_CATEGORY, classify } from '@/lib/agents/categories';
 import {
   getProbeStore,
   type ProbeRecord,
@@ -31,7 +31,26 @@ import { getQuestStore } from '@/lib/quest/store';
 import { PROBE_ADAPTER } from '@/lib/proof/probe-target';
 import type { QuoteFailure } from '@/lib/hire/failure';
 import { withRegisteredWallet } from '@/lib/registry/live-agent';
-import { advanceCursor, afterDiscoveryAttempt, declaresCallableProtocol, DISCOVERY_MAX_PAGES, DISCOVERY_PAGE, DISCOVERY_QUOTA, discoveryResult, newerThanCursor, type DiscoveryResult } from './discovery';
+import {
+  advanceCursor,
+  afterBackfillAttempt,
+  afterDiscoveryAttempt,
+  BACKFILL_LOOKUPS,
+  BACKFILL_PAGE,
+  BACKFILL_QUEUE_FLOOR,
+  BACKFILL_TRIES,
+  declaresCallableProtocol,
+  DISCOVERY_MAX_PAGES,
+  DISCOVERY_PAGE,
+  DISCOVERY_QUOTA,
+  discoveryResult,
+  endpointHost,
+  hostSampledOut,
+  newerThanCursor,
+  nextBackfillPass,
+  type BackfillPass,
+  type DiscoveryResult,
+} from './discovery';
 
 export interface SweepOptions {
   chainId?: ChainId;
@@ -211,13 +230,20 @@ async function buildRoster(
 /**
  * How many agents per category the sweep measures.
  *
- * Matched to what the category pages actually list. When this was six and the
+ * Matched to what the catalogue actually lists. When this was six and the
  * pages showed twelve, half of every category was displayed but never
  * measured — including attested agents that were plainly live, which then read
  * as having no track record. An agent the product is willing to show is an
  * agent the product should be willing to check.
+ *
+ * It then stayed at twelve while Discover and the public API grew to list
+ * `CATALOGUE_PER_CATEGORY`, and the same gap opened again: on 25 November
+ * fifteen listed agents with a working https address had never been probed.
+ * One constant now sets both. The category reads cost the same at either
+ * depth, since the limit only cuts the ranked result; the batch per run
+ * (`SWEEP_MAX_AGENTS`) is unchanged, and agents with no reading go first.
  */
-export const SWEEP_PER_CATEGORY = 12;
+export const SWEEP_PER_CATEGORY = CATALOGUE_PER_CATEGORY;
 
 /*
  * Registry agents pulled in per sweep, beyond the listed ones.
@@ -539,5 +565,127 @@ export async function runDiscovery(
     if (result === 'no-agent-yet' && next.state === 'queued') outcome.waiting += 1;
     store.recordDiscoveryAttempt({ chainId, tokenId: entry.tokenId, state: next.state, attempts: next.attempts, nextAttemptAt: next.nextAttemptAt, outcome: result, at: new Date().toISOString() });
   });
+  return outcome;
+}
+
+export interface BackfillOutcome {
+  chainId: number;
+  /** The pass a page was read from this run, or null when none was read. */
+  pass: BackfillPass | null;
+  /** Registrations on that page, and of them, queued: Pokter had not measured or queued them. */
+  read: number;
+  queued: number;
+  /** Probed this run, and what came of it. */
+  tried: number;
+  promoted: number;
+  dropped: number;
+  /** Left untried because their host was sampled and rarely answered (`hostSampledOut`). */
+  sampledOut: number;
+  /** Looked up when the run's time ran out. */
+  unreached: number;
+  /** Every pass read to its end and nothing left waiting: the backfill is finished on this chain. */
+  complete: boolean;
+}
+
+/**
+ * One backfill pass for a chain (see discovery.ts): read a page of older
+ * registrations while the queue is short, then try a few of them once.
+ *
+ * Shares discovery's queue, so a registration is never queued twice, an
+ * answering one joins the roster through `discoveredAgents`, and a try is
+ * kept out of the probe history exactly as discovery's are. What differs is
+ * the order (oldest registration first), the single try, and the host
+ * sample, which is what keeps one platform's tens of thousands of listings
+ * from taking every try for weeks.
+ *
+ * Bounded by its caller's deadline, checked before each lookup. A lookup the
+ * indexer fails costs the registration nothing; it is looked up again next
+ * run. Nothing is read or tried once time is up.
+ */
+export async function runRegistryBackfill(
+  chainId: ChainId,
+  { deadlineAt, signal }: { deadlineAt: number; signal?: AbortSignal },
+  deps: Partial<DiscoveryDeps> = {},
+): Promise<BackfillOutcome> {
+  const { listAgents: list = listAgents, getAgent: lookup = getAgent, probeAgent: probe = probeAgent, store = getProbeStore() } = deps;
+  const outcome: BackfillOutcome = { chainId, pass: null, read: 0, queued: 0, tried: 0, promoted: 0, dropped: 0, sampledOut: 0, unreached: 0, complete: false };
+  const timeLeft = () => !signal?.aborted && Date.now() < deadlineAt;
+
+  const passes = store.backfillPasses(chainId);
+  const pass = nextBackfillPass(new Set(passes.filter((p) => p.done).map((p) => p.pass)));
+  if (pass && timeLeft() && store.backfillWaiting(chainId) < BACKFILL_QUEUE_FLOOR) {
+    const cursor = passes.find((p) => p.pass === pass)?.cursor ?? undefined;
+    const page = await list({
+      chainId,
+      limit: BACKFILL_PAGE,
+      sortBy: 'created_at',
+      sortOrder: 'asc',
+      cursor,
+      hasA2a: pass === 'a2a' ? true : undefined,
+      hasMcp: pass === 'mcp' ? true : undefined,
+    }).catch(() => null);
+    /* A page that failed leaves the cursor where it was: the next run reads it again. */
+    if (page) {
+      outcome.pass = pass;
+      outcome.read = page.items.length;
+      const measured = new Set(store.trackedAgents().filter((a) => a.chainId === chainId).map((a) => a.tokenId));
+      outcome.queued = store.enqueueBackfill(
+        page.items
+          .filter((agent) => !measured.has(agent.token_id))
+          .map((agent) => ({ chainId, tokenId: agent.token_id, registeredAt: agent.created_at })),
+      );
+      const next = page.next_cursor ?? null;
+      store.saveBackfillPage(chainId, pass, next ?? cursor ?? null, page.has_more !== true || next === null);
+    }
+  }
+
+  /*
+   * Three at a time, as discovery tries its own: a lookup is an indexer read
+   * of under a second, and twenty-four in a row would spend the step before
+   * the first probe. The probe cap is taken before the probe is awaited, so
+   * concurrency cannot overrun it; a host's count can run a try or two past
+   * its sample before it is judged, which the sample size absorbs.
+   */
+  const hosts = store.backfillHostStats(chainId);
+  await mapWithConcurrency(store.dueBackfill(chainId, BACKFILL_LOOKUPS), 3, async (entry) => {
+    if (!timeLeft()) {
+      outcome.unreached += 1;
+      return;
+    }
+    /* The rest wait for the next run, still queued. */
+    if (outcome.tried >= BACKFILL_TRIES) return;
+    const agent = await lookup(chainId, entry.tokenId).catch(() => null);
+    if (!agent) return;
+    const target = probeTarget(agent);
+    const host = target ? endpointHost(target.endpoint) : null;
+    const at = new Date().toISOString();
+    const attempts = entry.attempts + 1;
+    if (!target) {
+      store.recordDiscoveryAttempt({ chainId, tokenId: entry.tokenId, state: 'dropped', attempts, nextAttemptAt: null, outcome: 'no-endpoint', at });
+      outcome.dropped += 1;
+      return;
+    }
+    if (host && hostSampledOut(hosts.get(host))) {
+      store.recordDiscoveryAttempt({ chainId, tokenId: entry.tokenId, state: 'dropped', attempts, nextAttemptAt: null, outcome: 'host-sampled', at, host });
+      outcome.sampledOut += 1;
+      return;
+    }
+    if (outcome.tried >= BACKFILL_TRIES || !timeLeft()) return;
+    outcome.tried += 1;
+    const result: DiscoveryResult = discoveryResult(await probe(agent, { samples: 1, signal }).catch(() => null));
+    /* Our own cancellation says nothing about the agent: it keeps its one try. */
+    if (result === 'no-answer' && signal?.aborted) return;
+    const { state } = afterBackfillAttempt(result);
+    store.recordDiscoveryAttempt({ chainId, tokenId: entry.tokenId, state, attempts, nextAttemptAt: null, outcome: result, at, host });
+    if (host) {
+      const seen = hosts.get(host) ?? { tried: 0, answered: 0 };
+      hosts.set(host, { tried: seen.tried + 1, answered: seen.answered + (result === 'answered' ? 1 : 0) });
+    }
+    if (state === 'promoted') outcome.promoted += 1;
+    else outcome.dropped += 1;
+  });
+
+  const after = store.backfillPasses(chainId);
+  outcome.complete = nextBackfillPass(new Set(after.filter((p) => p.done).map((p) => p.pass))) === null && store.backfillWaiting(chainId) === 0;
   return outcome;
 }

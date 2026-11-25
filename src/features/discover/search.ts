@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { CATEGORIES, CATEGORY_BY_ID, GENERAL_CATEGORY_LABEL, type Category } from '@/lib/agents/categories';
+import { CATALOGUE_PER_CATEGORY, CATEGORIES, CATEGORY_BY_ID, GENERAL_CATEGORY_LABEL, type Category } from '@/lib/agents/categories';
 import { isPromotableAgent } from '@/lib/agents/eligibility';
 import { catalogueCounts } from '@/lib/agents/catalogue-counts';
 import { distinctAgentCount, mainnetFirstPerAgent } from '@/lib/agents/distinct';
@@ -92,7 +92,7 @@ function haystack(entry: SearchableAgent) {
  * Every result carries the reason it matched, in words.
  */
 export async function discover(params: DiscoverParams): Promise<DiscoverResult> {
-  const { entries, unreachable, incomplete } = await listSearchableWithStatus({ limit: 400 });
+  const { entries, unreachable, incomplete } = await listSearchableWithStatus({ limit: CATALOGUE_PER_CATEGORY });
   const promotable = entries.filter((entry) => isPromotableAgent(entry.listing.agent));
 
   const q = params.q.trim();

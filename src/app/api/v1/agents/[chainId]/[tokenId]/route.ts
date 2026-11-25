@@ -271,9 +271,10 @@ export async function GET(
       observedDays: record.observedDays,
       firstSeen: record.firstSeen,
       lastSeen: record.lastSeen,
+      awaitingAgent: record.awaitingAgent === true,
       medianResponseMs: live?.medianMs ?? null,
       capabilities: live?.capabilities ?? [],
-      note: 'Pokter probes only, from scheduled sweeps. Liveness is not correctness.',
+      note: 'Pokter probes only, from scheduled sweeps. Liveness is not correctness. Probes that found a platform listing with no agent bound to it are not counted; awaitingAgent is true when the latest check found one.',
     },
 
     /*

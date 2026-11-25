@@ -179,6 +179,11 @@ export interface ListAgentsOptions {
   sortBy?: 'total_score' | 'created_at' | 'total_feedbacks';
   sortOrder?: 'asc' | 'desc';
   ownerAddress?: string;
+  /** The previous page's `next_cursor`, for walking past the 10,000-row offset limit. Replaces `offset`. */
+  cursor?: string;
+  /** Only registrations with an A2A endpoint, or with an MCP server, as the indexer reads them. */
+  hasA2a?: boolean;
+  hasMcp?: boolean;
 }
 
 export function listAgents({
@@ -189,15 +194,21 @@ export function listAgents({
   sortBy = 'total_score',
   sortOrder = 'desc',
   ownerAddress,
+  cursor,
+  hasA2a,
+  hasMcp,
 }: ListAgentsOptions = {}): Promise<ScanPage<ScanAgent>> {
   return scanFetch<ScanPage<ScanAgent>>('/agents', {
     chain_id: chainId,
     limit,
-    offset,
+    offset: cursor ? undefined : offset,
+    cursor,
     search,
     sort_by: sortBy,
     sort_order: sortOrder,
     owner_address: ownerAddress,
+    has_a2a: hasA2a,
+    has_mcp: hasMcp,
   });
 }
 

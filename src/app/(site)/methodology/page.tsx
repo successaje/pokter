@@ -19,6 +19,7 @@ import { VerdictGlyph } from '@/ui/Verdict';
 import { LADDER, RELIABLE_MIN_RATE, RELIABLE_OBSERVED_DAYS, RELIABLE_TERMINAL_JOBS } from '@/lib/agents/maturity';
 import { MIN_CATEGORY_CONTENDERS, MIN_OUTCOME_BUYERS, MIN_OUTCOME_COMPLETIONS, MIN_OUTCOME_TERMINAL } from '@/lib/rankings/outcomes';
 import { getProbeStore } from '@/lib/history/store';
+import { BACKFILL_HOST_MIN_SHARE, BACKFILL_HOST_SAMPLE, BACKFILL_PASSES } from '@/lib/history/discovery';
 import { CHECK_FRESH_DAYS } from '@/lib/assay/standing';
 
 export const metadata: Metadata = {
@@ -42,6 +43,15 @@ export default async function MethodologyPage() {
     try {
       const store = getProbeStore();
       return ([[56, 'BNB Chain'], [97, 'BNB Testnet']] as const).map(([chainId, label]) => ({ label, ...store.discoveryCounts(chainId) })).filter((d) => d.cursor !== null);
+    } catch {
+      return null;
+    }
+  })();
+  /* The backfill's counts (runRegistryBackfill); a chain whose backfill has not started says nothing. */
+  const backfill = (() => {
+    try {
+      const store = getProbeStore();
+      return ([[56, 'BNB Chain'], [97, 'BNB Testnet']] as const).map(([chainId, label]) => ({ label, ...store.backfillCounts(chainId) })).filter((d) => d.started);
     } catch {
       return null;
     }
@@ -199,10 +209,10 @@ export default async function MethodologyPage() {
       </DocSection>
 
       <DocSection id="probes" title="Probing">
-        <p>Scheduled sweeps call each listed agent&rsquo;s declared endpoint: an A2A agent-card fetch or an MCP handshake. A probe passes only on a valid protocol response, not on any HTTP reply. Results accumulate into 24-hour, 7-day and 30-day windows, daily buckets and the longest outage.</p>
+        <p>Scheduled sweeps call each listed agent&rsquo;s declared endpoint: an A2A agent-card fetch or an MCP handshake. A probe passes only on a valid protocol response, not on any HTTP reply. Results accumulate into 24-hour, 7-day and 30-day windows, daily buckets and the longest outage. A probe that finds a platform listing with no agent bound to it counts neither way, because there is no agent to have answered or failed: the listing reads as not measured, with no agent connected yet, until its owner binds one.</p>
         <p>Probes are made from Pokter&rsquo;s servers with https required, credentials refused, DNS pinned, private networks refused, redirects not followed, and a response size cap, so an agent&rsquo;s endpoint cannot turn a probe into a request somewhere else.</p>
         <p>
-          New registrations are found as they arrive, not by scanning the registry. Each sweep reads what was registered on each chain since it last looked, queues the registrations that declare A2A or MCP, and tries a few of them with one probe each. One that answers is measured like any other agent from then on. One whose endpoint answers that it cannot be called, because it needs credentials or is not an agent endpoint, is left alone at once. One whose endpoint is a listing with no agent bound to it yet is tried again weekly, four times, in case its owner binds one. One that does not answer is tried again after an hour, six hours, a day, three days and then weekly, and is left alone after about four weeks. Either way it stays findable by name or ID.
+          New registrations are found as they arrive. Each sweep reads what was registered on each chain since it last looked, queues the registrations that declare A2A or MCP, and tries a few of them with one probe each. One that answers is measured like any other agent from then on. One whose endpoint answers that it cannot be called, because it needs credentials or is not an agent endpoint, is left alone at once. One whose endpoint is a listing with no agent bound to it yet is tried again weekly, four times, in case its owner binds one. One that does not answer is tried again after an hour, six hours, a day, three days and then weekly, and is left alone after about four weeks. Either way it stays findable by name or ID.
           {discovery && discovery.length > 0 && (
             <>
               {' '}
@@ -210,6 +220,21 @@ export default async function MethodologyPage() {
                 <span key={d.label}>
                   {i > 0 ? '; ' : 'So far: '}
                   on {d.label}, {d.promoted.toLocaleString('en-US')} answered and {d.promoted === 1 ? 'is' : 'are'} measured, {d.queued.toLocaleString('en-US')} {d.queued === 1 ? 'is' : 'are'} waiting, {d.dropped.toLocaleString('en-US')} {d.dropped === 1 ? 'was' : 'were'} left alone
+                </span>
+              ))}
+              .
+            </>
+          )}
+        </p>
+        <p>
+          Registrations from before that began, on 27 October 2026, are read once, oldest first: those the registry lists with an A2A endpoint, then those with an MCP server. Each one Pokter has not already measured is tried with a single probe, a few per sweep. One that answers is measured from then on; any other result leaves it alone after that try. Most of these registrations sit behind a few hosts that publish a listing for every user, so once Pokter has tried {BACKFILL_HOST_SAMPLE} behind one host, a host where under {Math.round(BACKFILL_HOST_MIN_SHARE * 100)}% answered has the rest of its registrations recorded as sampled rather than called.
+          {backfill && backfill.length > 0 && (
+            <>
+              {' '}
+              {backfill.map((d, i) => (
+                <span key={d.label}>
+                  {i > 0 ? '; ' : 'So far: '}
+                  on {d.label}, {d.promoted.toLocaleString('en-US')} answered and {d.promoted === 1 ? 'is' : 'are'} measured, {d.dropped.toLocaleString('en-US')} {d.dropped === 1 ? 'was' : 'were'} tried and left alone, {d.sampledOut.toLocaleString('en-US')} {d.sampledOut === 1 ? 'was' : 'were'} sampled out, {d.queued.toLocaleString('en-US')} {d.queued === 1 ? 'is' : 'are'} waiting{d.passesDone === BACKFILL_PASSES.length && d.queued === 0 ? ', and the backfill is complete' : ''}
                 </span>
               ))}
               .

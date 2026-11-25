@@ -171,6 +171,7 @@ export function startSweepScheduler(): void {
         cutShort?: boolean; standDown?: string; error?: string;
         budget?: { skipped?: string[]; timedOut?: string[]; failed?: string[]; criticalMissed?: string[]; usedMs?: number; budgetMs?: number; reservedMs?: number; steps?: Array<{ label: string; ms: number }> };
         discovery?: Array<{ chainId: number; read: number; queued: number; tried: number; promoted: number; dropped: number; waiting?: number; gap: boolean } | null> | null;
+        registryBackfill?: Array<{ chainId: number; read: number; queued: number; tried: number; promoted: number; sampledOut: number; complete: boolean } | null> | null;
       };
       // Coverage per run matters now that a run is a batch: `agents of
       // rosterSize` is how to see the roster being worked through, and
@@ -194,6 +195,11 @@ export function startSweepScheduler(): void {
       const discovered = found.length
         ? ` · discovery ${found.map((d) => `${d.chainId}: ${d.read} new, ${d.queued} queued, ${d.tried} tried, ${d.promoted} answered${d.dropped ? `, ${d.dropped} dropped` : ''}${d.waiting ? `, ${d.waiting} waiting for an agent` : ''}${d.gap ? ', gap' : ''}`).join('; ')}`
         : '';
+      /* Older registrations, per chain (runRegistryBackfill); silent once a chain's backfill is complete. */
+      const backfilled = (body.registryBackfill ?? []).filter((d): d is NonNullable<typeof d> => d !== null && !(d.complete && d.tried === 0 && d.read === 0));
+      const backfill = backfilled.length
+        ? ` · backfill ${backfilled.map((d) => `${d.chainId}: ${d.read} read, ${d.queued} queued, ${d.tried} tried, ${d.promoted} answered${d.sampledOut ? `, ${d.sampledOut} sampled out` : ''}${d.complete ? ', complete' : ''}`).join('; ')}`
+        : '';
       /*
        * A run that lost a critical step did not do its job, and `200` must
        * stop reading as proof that it did. On 21 October a run reported 200
@@ -207,7 +213,7 @@ export function startSweepScheduler(): void {
        * retry a run that mostly succeeded.
        */
       const missed = body.budget?.criticalMissed ?? [];
-      const line = `[sweep-scheduler] ${response.status} ${body.standDown ? `stood down (${body.standDown})` : (body.error ?? measured) + tail + discovered}`;
+      const line = `[sweep-scheduler] ${response.status} ${body.standDown ? `stood down (${body.standDown})` : (body.error ?? measured) + tail + discovered + backfill}`;
       if (missed.length > 0) {
         console.error(`${line} · MAINTENANCE INCOMPLETE: ${missed.join(', ')}`);
       } else {

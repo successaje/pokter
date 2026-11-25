@@ -1,4 +1,5 @@
 import { CHECK_FRESH_DAYS, checkStanding } from '@/lib/assay/standing';
+import { isAwaitingAgentProbe } from '@/lib/proof/probe-target';
 
 /*
  * Plain-language readings for the compare rows, from data Pokter holds.
@@ -18,6 +19,8 @@ export function endpointReading(probe: { ok: boolean; latencyMs: number | null; 
   if (!probe) return 'Not probed yet';
   const over = probe.protocol ? ` over ${probe.protocol.toUpperCase()}` : '';
   if (probe.ok) return `Answered${probe.latencyMs !== null ? ` in ${probe.latencyMs} ms` : ''}${over}`;
+  /* The address did answer, with a listing that has no agent behind it: "did not answer" would be false about the address and about an agent that is not there. */
+  if (isAwaitingAgentProbe(probe)) return `No agent connected yet: the address answers${over} with a listing that has no agent bound to it`;
   const why = probe.detail.trim().split(/[.;\n]/)[0]?.slice(0, 80);
   /* A detail that only says it did not answer adds nothing to "Did not answer". */
   return `Did not answer${over}${why && !/^no (answer|response)$/i.test(why.trim()) ? `: ${why}` : ''}`;

@@ -130,3 +130,70 @@ export function afterDiscoveryAttempt(
   if (wait === undefined) return { state: 'dropped', attempts, nextAttemptAt: null };
   return { state: 'queued', attempts, nextAttemptAt: new Date(now + wait).toISOString() };
 }
+
+/**
+ * Registrations from before discovery began, each tried once.
+ *
+ * Discovery starts from the newest registration and reads forward, so every
+ * agent registered before 27 October 2026 reached the roster only through a
+ * category search or the registry's own score, and below its top hundred
+ * that score is the same for nearly everyone. On 25 November Pokter had
+ * called 441 agents of 388,334 mainnet registrations and could not say how
+ * many real ones the rest held.
+ *
+ * The backfill answers that once. It walks the registry oldest first, in
+ * two passes the indexer filters server-side (registrations with an A2A
+ * endpoint, then with an MCP server; 50,246 and 8,753 on mainnet that day),
+ * queues each one Pokter has not measured, and tries it with one probe. One
+ * that answers is promoted and measured like any other agent; anything else
+ * is left alone after that try, because it has been registered for weeks
+ * and a retry schedule built for new arrivals would spend months on it.
+ *
+ * Most of those registrations sit behind a few hosts that publish one
+ * listing per user, so the backfill samples a host before calling all of
+ * it (`hostSampledOut`): after `BACKFILL_HOST_SAMPLE` tries, a host where
+ * fewer than one in ten answered has the rest of its registrations recorded
+ * as sampled, not called.
+ */
+export const BACKFILL_PASSES = ['a2a', 'mcp'] as const;
+export type BackfillPass = (typeof BACKFILL_PASSES)[number];
+/** Registrations read per page, oldest first, by the indexer's cursor. */
+export const BACKFILL_PAGE = 100;
+/** A page is read only while fewer than this many backfilled registrations wait, so the queue stays one page deep. */
+export const BACKFILL_QUEUE_FLOOR = 100;
+/** Queued registrations looked up per chain per run: an indexer read each, not a call to the agent. */
+export const BACKFILL_LOOKUPS = 24;
+/** Of those, how many may be probed: the calls to someone else's endpoint. */
+export const BACKFILL_TRIES = 8;
+/** Tries behind one host before its answer rate decides anything. */
+export const BACKFILL_HOST_SAMPLE = 40;
+/** The share that must answer, once sampled, for the rest of a host's registrations to be tried. */
+export const BACKFILL_HOST_MIN_SHARE = 0.1;
+
+/** The first pass not yet read to its end, in order, or null when every pass is done. */
+export function nextBackfillPass(done: ReadonlySet<string>): BackfillPass | null {
+  return BACKFILL_PASSES.find((pass) => !done.has(pass)) ?? null;
+}
+
+/** One try decides it: an answer promotes it, anything else leaves it alone. */
+export function afterBackfillAttempt(result: DiscoveryResult): { state: Exclude<DiscoveryState, 'queued'> } {
+  return { state: result === 'answered' ? 'promoted' : 'dropped' };
+}
+
+/**
+ * Whether a host has been sampled enough, and answered too rarely, to stop
+ * calling the rest of its registrations. Counted over backfill tries only.
+ */
+export function hostSampledOut(stats: { tried: number; answered: number } | undefined): boolean {
+  if (!stats || stats.tried < BACKFILL_HOST_SAMPLE) return false;
+  return stats.answered / stats.tried < BACKFILL_HOST_MIN_SHARE;
+}
+
+/** The host a probe would call, lower-cased, or null when the address does not parse. */
+export function endpointHost(endpoint: string): string | null {
+  try {
+    return new URL(endpoint).host.toLowerCase() || null;
+  } catch {
+    return null;
+  }
+}

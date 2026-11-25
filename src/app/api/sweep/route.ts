@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { jobPaymentTokenOnChain } from '@/lib/erc8183/job-onchain';
 
-import { runDiscovery, runSweep } from '@/lib/history/sweep';
+import { runDiscovery, runRegistryBackfill, runSweep } from '@/lib/history/sweep';
 import { runBudget } from '@/lib/history/budget';
 import { mapWithConcurrency } from '@/lib/concurrency';
 import { noteRunStarted } from '@/lib/health/vitals';
@@ -82,6 +82,8 @@ const BOARD_RATINGS_STEP_MS = 10_000;
 const BOARD_ACTIVITY_STEP_MS = 10_000;
 /* The escrow's jobs from before the index began, a share per run until job 1; what does not fit waits. */
 const ESCROW_HISTORY_STEP_MS = 20_000;
+/* Older registrations, tried once each: a registry page now and then, a couple of dozen lookups and a few probes per chain. */
+const REGISTRY_BACKFILL_STEP_MS = 20_000;
 
 /* One row per wallet: agents that share a wallet would otherwise have it read once for each of them. */
 function oncePerWallet<T>(rows: T[], key: (row: T) => string): T[] {
@@ -800,6 +802,23 @@ export async function POST(request: Request): Promise<NextResponse> {
         )
       : null;
 
+    /*
+     * Registrations from before discovery began (`runRegistryBackfill` in
+     * lib/history/sweep.ts), oldest first, each tried once, until every
+     * one with an A2A or MCP address has been seen. Last of all and from
+     * what the run has spare, because nothing waits on it: a run short of
+     * time sheds it, and the stored cursor and queue carry on next time.
+     * Testnet first, the shorter walk.
+     */
+    const registryBackfill = await budget.step(
+      'registryBackfill',
+      () => {
+        const deadlineAt = Date.now() + Math.min(REGISTRY_BACKFILL_STEP_MS, budget.spendable()) - 2_000;
+        return mapWithConcurrency([BSC_TESTNET, BSC_MAINNET] as const, 1, (chain) => runRegistryBackfill(chain, { deadlineAt, signal }).catch(() => null));
+      },
+      { maxMs: REGISTRY_BACKFILL_STEP_MS },
+    );
+
     return NextResponse.json({
       ...outcome,
       /*
@@ -837,6 +856,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       tradingAlerts,
       relayTests,
       discovery,
+      registryBackfill,
       funders,
       healthFactorChecks,
       categoryChecks,

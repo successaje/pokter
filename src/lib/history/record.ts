@@ -1,4 +1,5 @@
 import type { ProbeRecord } from './store';
+import { isAwaitingAgentProbe } from '@/lib/proof/probe-target';
 
 /** Uptime measured over one time window. */
 export interface Window {
@@ -38,6 +39,15 @@ export interface TrackRecord {
   longestOutage: Outage | null;
   /** Days between the first and last probe — how long we have actually watched. */
   observedDays: number;
+  /**
+   * The latest probe found a listing with no agent bound to it yet.
+   *
+   * Every figure above leaves those probes out (see `buildTrackRecord`), so
+   * an agent whose platform lists it without an agent reads as not measured
+   * rather than failing, and this says why. Optional so a record built by
+   * hand needs no change; `buildTrackRecord` always sets it.
+   */
+  awaitingAgent?: boolean;
 }
 
 const WINDOWS: { label: string; days: number }[] = [
@@ -133,14 +143,25 @@ function findLongestOutage(ascending: ProbeRecord[]): Outage | null {
   return longest;
 }
 
-/** Build the full record from stored probes. Input order is not assumed. */
+/**
+ * Build the full record from stored probes. Input order is not assumed.
+ *
+ * A probe that found a listing with no agent bound to it is left out of
+ * every figure: it is a reading of the address, not of an agent, and there
+ * is no agent to have failed. On 25 November platform listings in that state
+ * were labelled "Failing" after hundreds of such probes each. The latest
+ * probe decides `awaitingAgent`, so once the owner binds an agent the next
+ * reading is an ordinary measurement and the record says so.
+ */
 export function buildTrackRecord(
   probes: ProbeRecord[],
   now: Date = new Date(),
 ): TrackRecord {
-  const ascending = [...probes].sort((a, b) =>
+  const sorted = [...probes].sort((a, b) =>
     a.probedAt.localeCompare(b.probedAt),
   );
+  const latest = sorted[sorted.length - 1];
+  const ascending = sorted.filter((probe) => !isAwaitingAgentProbe(probe));
 
   const firstSeen = ascending[0]?.probedAt ?? null;
   const lastSeen = ascending[ascending.length - 1]?.probedAt ?? null;
@@ -157,5 +178,6 @@ export function buildTrackRecord(
     totalAnswered: ascending.filter((p) => p.ok).length,
     longestOutage: findLongestOutage(ascending),
     observedDays: Math.max(0, observedMs / 86_400_000),
+    awaitingAgent: latest !== undefined && isAwaitingAgentProbe(latest),
   };
 }
