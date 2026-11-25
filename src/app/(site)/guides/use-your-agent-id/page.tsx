@@ -29,10 +29,11 @@ export const revalidate = 600;
  * as one person's. The board's address is the deployed one; everything the
  * chain decides (fee, review window, networks, tokens) is read, not typed.
  *
- * It leads with the assistant, because that is where Agent IDs are: one is
- * claimed for an Agentic Wallet, which is driven from the command line and
- * cannot connect to a page. The browser path is second, for an Agent ID held
- * by a wallet that can, and the raw calls third, for any other assistant.
+ * It leads with the assistant, because that is the only place an Agent ID
+ * can act from: one is claimed for an Agentic Wallet, and that wallet is
+ * driven from the command line and connects to no page at all. So there is
+ * no browser path to offer, only the raw calls after it for any other
+ * assistant.
  */
 const BOARD = '0xF9c882896424e7aA2CD71334FC8D8E95025E69C0';
 
