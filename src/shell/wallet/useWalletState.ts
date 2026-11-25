@@ -160,8 +160,24 @@ export function useWalletState() {
     connecting,
     connectError: connectError?.message ?? null,
     resetConnect,
-    connectInjected: () => injected && connect({ connector: injected, chainId: ESCROW_CHAIN.id }),
-    connectWalletConnect: () => walletConnect && connect({ connector: walletConnect, chainId: ESCROW_CHAIN.id }),
+    /*
+     * Connecting leaves the wallet on the chain it is already on.
+     *
+     * Both calls used to pass `ESCROW_CHAIN.id`, so connecting moved the
+     * wallet to the one chain `NEXT_PUBLIC_ALTANA_NETWORK` names — testnet
+     * in production. A wallet sitting on BNB Chain mainnet was switched off
+     * it by the act of connecting, before the person had asked for
+     * anything, and a request written afterwards was a testnet request.
+     * `selectableChains` already removed that assumption from switching;
+     * this is the same assumption left behind in connecting.
+     *
+     * Nothing downstream needs the pinning: `balanceScope` reports a wallet
+     * on any other chain as `off-escrow-chain` and the shell offers the
+     * switch, and every action that needs a particular chain (funding a
+     * hire, posting or reviewing on the board, x402) switches to it itself.
+     */
+    connectInjected: () => injected && connect({ connector: injected }),
+    connectWalletConnect: () => walletConnect && connect({ connector: walletConnect }),
     switching,
     switchError: switchError?.message ?? null,
     switchToEscrowChain: () => switchChain({ chainId: ESCROW_CHAIN.id }),
