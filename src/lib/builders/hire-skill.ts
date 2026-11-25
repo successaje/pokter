@@ -332,6 +332,11 @@ export function hireSkillPrompt(): string {
  * Developer Mode is checked by its expiry and not only its flag: it lapses,
  * and a lapsed one fails every contract call with nothing saying why.
  *
+ * Step 4's path is Binance's own, from the Agent ID Hackathon announcement
+ * of 18 November 2026: "Can only be claimed within the Binance App: Wallet
+ * > homepage banner > Agent ID". It is their screen, so it is quoted from
+ * them rather than described from memory.
+ *
  * It ends by refusing to write the request, which is the same rule the
  * skill's own step 7 keeps. The terms are what the poster signs for and
  * what the board hashes, so an assistant that invents them has forged the
@@ -346,7 +351,7 @@ export function agentIdSetupPrompt(): string {
     `1. Node. Run \`node -v\`. I need version 22 or higher.`,
     `2. The wallet tool. Run \`baw --version\`. If it is not installed, tell me to run \`npm install -g @binance/agentic-wallet\`.`,
     `3. Signed in. Run \`baw wallet status --json\`. If it is not CONNECTED, tell me to run \`baw auth signin\` myself: it prints a QR code that I scan with the Binance app. Wait until I say I have scanned it.`,
-    `4. Agent ID. Run \`baw wallet agent-id --json\`. If claimed is true, tell me my handle and go on. If it is false, tell me to open the Binance app, go to Wallet, find the Agentic banner, pick a name, and follow the prompts; it is free apart from BNB gas, so I may need a little BNB on BNB Smart Chain in that wallet first. Then wait until I say it is claimed and check again, because a claim that has just gone through can still read as unclaimed.`,
+    `4. Agent ID. Run \`baw wallet agent-id --json\`. If claimed is true, tell me my handle and go on. If it is false, tell me that an Agent ID can only be claimed inside the Binance app, under Wallet, then the homepage banner, then Agent ID, where I pick a name and follow the prompts; it is free apart from BNB gas, so I may need a little BNB on BNB Smart Chain in that wallet first. Then wait until I say it is claimed and check again, because a claim that has just gone through can still read as unclaimed.`,
     `5. Developer Mode. Run \`baw wallet settings --json\`. devMode.enabled must be true and devMode.expiresAt must be in the future: it lapses, so read the date and not just the flag. If it is off or expired, tell me to open the Binance app, go to the Agentic Wallet, then Settings, then Developer Mode, and turn it on. Contract calls fail without it. Wait for me.`,
     `6. Gas. Run \`baw wallet balance --json\` and tell me what BNB I hold on chain 56. Posting one request is a single transaction, so a few thousandths of a BNB is plenty. If I have none, say so and stop.`,
     `7. Pokter's skill. Fetch ${SITE}/api/skills/${HIRE_SKILL_NAME} and save it as ~/.claude/skills/${HIRE_SKILL_NAME}/SKILL.md, follow its Setup section, then tell me in your own words what it will and will not do with my wallet.`,
