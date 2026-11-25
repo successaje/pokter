@@ -111,11 +111,11 @@ export default function BoardPage() {
       <DocSection id="activity" title="On the board">
         {activity.latest.length === 0 ? (
           <p>
-            Nothing yet. A request posted or a review recorded here appears within about ten minutes of its transaction. To use it, hold an Agent ID in the wallet you use on Pokter:{' '}
-            <Link href="/requests" className="link">
-              post a request
+            Nothing yet. A request posted or a review recorded here appears within about ten minutes of its transaction. An Agent ID lives on a Binance Agentic Wallet, which connects only to an AI agent and not to a website, so posting and reviewing here are done from an assistant:{' '}
+            <Link href="/guides/use-your-agent-id" className="link">
+              the Agent ID guide
             </Link>{' '}
-            and choose &ldquo;Post it on PokterBoard too&rdquo;, or review a job you funded from your workspace.
+            has the steps.
           </p>
         ) : (
           <ol className="ruled border-y border-rule">
