@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
 
 import { cn } from '@/lib/ui/cn';
@@ -20,8 +20,9 @@ import { activeGroup, isActive, NAV_DIRECT, NAV_GROUPS, type NavGroup } from './
  * open state is kept with the page it was opened on, so a navigation closes
  * it without an effect. Each panel follows its own button in the DOM, so Tab
  * goes from a button into its links, and is positioned against that button
- * rather than the nav, so every panel drops from the left edge of the label
- * it belongs to.
+ * rather than the nav, so a panel drops from the left edge of the label it
+ * belongs to — pulled left only by however much it would otherwise hang off
+ * the window. See `Panel` for why neither edge alone can do it.
  */
 export function HeaderMenus() {
   const pathname = usePathname() ?? '/';
@@ -132,15 +133,49 @@ export function HeaderMenus() {
   );
 }
 
+/** Clear of the window's edge, so a panel never sits flush against it. */
+const GUTTER = 16;
+
+/**
+ * A panel hangs from its label's left edge, and slides left only as far as
+ * it must to stay on screen.
+ *
+ * Choosing an edge cannot work on its own. A 640px panel left-aligned under
+ * Hire runs off the right of a 1024px window; right-aligned under the same
+ * label it runs off the left, because the label sits barely 400px in. So the
+ * offset is measured rather than chosen: start at the label, pull back by
+ * the overhang, and stop at the left gutter. Measured in a layout effect, so
+ * it is placed before the browser paints it.
+ */
 function Panel({ id, group, pathname, animate, onNavigate }: { id: string; group: NavGroup; pathname: string; animate: boolean; onNavigate: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [left, setLeft] = useState(0);
+
+  useLayoutEffect(() => {
+    const place = () => {
+      const panel = ref.current;
+      const label = panel?.parentElement;
+      if (!panel || !label) return;
+      const from = label.getBoundingClientRect().left;
+      const overhang = from + panel.offsetWidth + GUTTER - window.innerWidth;
+      /* Never past the left gutter: on a narrow window the panel is as wide as the room there is. */
+      setLeft(Math.max(GUTTER - from, overhang > 0 ? -overhang : 0));
+    };
+    place();
+    window.addEventListener('resize', place);
+    return () => window.removeEventListener('resize', place);
+  }, []);
+
   return (
     <motion.div
+      ref={ref}
+      style={{ left }}
       id={id}
       initial={animate ? { opacity: 0, y: -4 } : false}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
       className={cn(
-        'absolute left-0 top-[calc(100%+10px)] z-50',
+        'absolute top-[calc(100%+10px)] z-50',
         group.feature ? 'w-[min(40rem,calc(100vw-2rem))]' : 'w-[min(22rem,calc(100vw-2rem))]',
       )}
     >

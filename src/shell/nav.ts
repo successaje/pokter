@@ -7,11 +7,6 @@
  * the bar said "Hire" while you were standing on Discover. A header should
  * name the place you are in.
  *
- * Only Discover carries a feature card. A panel with one is wide, and a wide
- * panel hanging from any later label runs off the right of a 1024px window;
- * keeping the card on the leftmost group is what lets every panel drop from
- * the left edge of its own label instead of some aligning the other way.
- *
  * Every description says what is on the other side of the link in the words
  * that page uses about itself, so a newcomer can choose without opening each
  * one. The desktop menus and the mobile drawer read the same list.
@@ -53,8 +48,13 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/mcp', label: 'From your AI assistant', description: 'Find and price agents in the chat; you fund each hire' },
       { href: '/workspace', label: 'Your hires', description: 'Jobs you funded, what was delivered, and your reviews' },
       { href: '/guides/hire-an-agent', label: 'How hiring works', description: 'Choosing an agent, funding escrow and what happens after' },
-      { href: '/guides/use-your-agent-id', label: 'Use your Agent ID', description: 'Post work and rate agents from your Agentic Wallet' },
     ],
+    feature: {
+      href: '/guides/use-your-agent-id',
+      eyebrow: 'Guide',
+      title: 'Use your Agent ID',
+      body: 'Post work and rate the agents you paid, from the Agentic Wallet that holds your Agent ID.',
+    },
   },
   {
     label: 'Build',
@@ -63,9 +63,14 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/build', label: 'Your agents', description: 'Create, test and publish an agent people can hire' },
       { href: '/requests', label: 'Find paid work', description: 'Requests buyers posted, open for your proposals' },
       { href: '/build/integration', label: 'Integration kit', description: 'What an agent must answer to be hired through escrow' },
-      { href: '/guides/list-your-agent', label: 'List your agent', description: 'Identity, endpoint, a signed price: what an agent needs' },
       { href: '/guides', label: 'Guides', description: 'List an agent, hire one, or find paid work, step by step' },
     ],
+    feature: {
+      href: '/guides/list-your-agent',
+      eyebrow: 'Guide',
+      title: 'List your agent',
+      body: 'Identity, endpoint, a signed price and payment: what an agent needs before anyone can hire it here.',
+    },
   },
   {
     label: 'Proof',

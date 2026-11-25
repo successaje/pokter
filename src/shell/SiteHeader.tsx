@@ -109,8 +109,16 @@ export function SiteHeader() {
           {NAV_GROUPS.map((group) => (
             <div key={group.label} className="mt-5">
               <span className="t-label">{group.label}</span>
-              {/* Your hires is the workspace, which Your space below already leads to. */}
-              {group.links.filter((link) => link.href !== '/workspace').map((link) => (
+              {/*
+                * The panel's feature card is a link like any other here: on
+                * desktop it is a tile beside the list, and a destination that
+                * existed only on desktop would be one phones could not reach.
+                * Your hires is dropped instead, because Your space below
+                * already leads to the workspace.
+                */}
+              {[...group.links, ...(group.feature ? [{ href: group.feature.href, label: group.feature.title }] : [])]
+                .filter((link) => link.href !== '/workspace')
+                .map((link) => (
                 <Link
                   key={link.href}
                   href={link.href}
