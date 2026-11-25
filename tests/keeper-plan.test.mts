@@ -3,7 +3,7 @@ import { test } from 'node:test';
 
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 
-import { keeperAccountFrom, keeperConfig, planKeeperJob } from '../src/lib/erc8183/keeper-plan';
+import { keeperAccountFrom, keeperConfig, keeperKeyState, planKeeperJob } from '../src/lib/erc8183/keeper-plan';
 
 /*
  * The keeper's rules. Each decides where real escrow goes, so each refusal
@@ -41,6 +41,43 @@ test('the keeper signs only with a wallet of its own', () => {
    */
   const operator = privateKeyToAccount(key).address.toLowerCase();
   assert.match((keeperAccountFrom(key, operator) as { error: string }).error, /operator key/);
+});
+
+test('whether the key can be used is answerable without the key', () => {
+  /*
+   * The question a dry run cannot answer. `from` falls back to a stand-in
+   * sender whenever there is no usable account, and the error is read only
+   * when the keeper is `on`, so a typo in the secret looks exactly like a
+   * correct one until the day it is switched on. This is what health
+   * reports instead, and it must never be the key or the address.
+   */
+  const key = generatePrivateKey();
+  assert.equal(keeperKeyState(key, null), 'ok');
+  assert.equal(keeperKeyState(` ${key} `, null), 'ok', 'a pasted key with whitespace is still usable');
+  assert.equal(keeperKeyState(undefined, null), 'missing');
+  assert.equal(keeperKeyState('   ', null), 'missing');
+  assert.equal(keeperKeyState(key.slice(2), null), 'invalid', 'no 0x prefix');
+  assert.equal(keeperKeyState(`${key}ab`, null), 'invalid', 'too long');
+  assert.equal(keeperKeyState(privateKeyToAccount(key).address, null), 'invalid', 'an address pasted in place of the key');
+  assert.equal(keeperKeyState(key, privateKeyToAccount(key).address.toLowerCase()), 'operator');
+
+  for (const state of ['ok', 'missing', 'invalid', 'operator']) {
+    assert.ok(!String(state).startsWith('0x'), 'the state is a word, never an address or a key');
+  }
+});
+
+test('the state and the refusal cannot disagree', () => {
+  /*
+   * Health reads the state and the keeper reads the account. Were they
+   * classified apart, health could report a usable key for one the keeper
+   * then refuses, which is worse than reporting nothing.
+   */
+  const key = generatePrivateKey();
+  const operator = privateKeyToAccount(key).address;
+  for (const [value, op] of [[key, null], [undefined, null], [key.slice(2), null], [key, operator]] as const) {
+    const usable = keeperAccountFrom(value, op).account !== null;
+    assert.equal(usable, keeperKeyState(value, op) === 'ok', `disagreed on ${String(value).slice(0, 10)}`);
+  }
 });
 
 test('a delivery waits for its review window, then is settled', () => {

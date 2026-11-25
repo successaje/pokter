@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import type { KeeperAction, KeeperJobFacts } from '../src/lib/erc8183/keeper-plan';
-import { describeRefusal, keeperSummary, runKeeperChain, type KeeperChainDeps } from '../src/lib/erc8183/keeper-run';
+import { describeRefusal, keeperLogLine, keeperSummary, runKeeperChain, type KeeperChainDeps } from '../src/lib/erc8183/keeper-run';
 import { classifyStageResult } from '../src/lib/history/stage-classify';
 
 /*
@@ -196,3 +196,27 @@ test('the sweep records a keeper that could not do its work as failed', async ()
   const fine = await runKeeperChain(fakeChain({ '1': undelivered(60) }).deps, ON);
   assert.equal(classifyStageResult('keeper', { mode: 'on', chains: [fine] }), null);
 });
+
+test('an unusable key is reported every run; a healthy quiet run says nothing', () => {
+  /*
+   * The line is the only place a bad key can surface before the keeper is
+   * switched on, so it must appear with nothing else to report. The quiet
+   * case must stay quiet: a sweep runs every ten minutes, and a line each
+   * time is noise that teaches people to skim past the one that matters.
+   */
+  assert.equal(keeperLogLine({ summary: '' }), '', 'nothing due and nothing wrong is silence');
+  assert.equal(keeperLogLine({ wallet: '0xWALLET', summary: '' }), '', 'a healthy key alone is not news');
+  assert.equal(keeperLogLine({ error: 'KEEPER_KEY is not set', summary: '' }), 'KEEPER_KEY is not set');
+  assert.equal(
+    keeperLogLine({ error: 'KEEPER_KEY is not set', summary: '56: 1 would settle' }),
+    'KEEPER_KEY is not set; 56: 1 would settle',
+    'the fault comes before the work, so it is not lost at the end of a long line',
+  );
+});
+
+test('a line that reports work says which wallet did it', () => {
+  assert.equal(keeperLogLine({ wallet: '0xWALLET', summary: '56: 1 settled' }), '0xWALLET 56: 1 settled');
+  const line = keeperLogLine({ wallet: '0xWALLET', summary: '56: 1 settled' });
+  assert.ok(!line.includes('KEEPER_KEY'), 'the key never reaches the log, only the address it derives');
+});
+
