@@ -262,6 +262,8 @@ test('the prepare route calls no spending function, and imports no binding that 
     '@/lib/erc8183/store',
     '@/lib/hire/budget-limits',
     '@/lib/hire/brief-compiler',
+    /* The price request prepare_hire sends: builds an object, imports nothing. Walked when added (0 modules). */
+    '@/lib/hire/prepare-quote',
     '@/lib/mcp/agent-card',
     '@/lib/network/tokens',
     /* Reads the registry's agent wallet: a public client, an https fetch, no signer. Walked when added (18 modules, none spend-capable). */

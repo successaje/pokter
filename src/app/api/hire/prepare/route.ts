@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { defaultHireToken, escrowMoney, paymentTokenAt } from '@/lib/network/tokens';
+import { prepareQuoteRequest } from '@/lib/hire/prepare-quote';
 import { nonDefaultHireToken } from '@/lib/erc8183/hire-token';
 import { parseUnits } from 'viem';
 
@@ -308,7 +309,7 @@ export async function POST(request: Request): Promise<NextResponse> {
    * be checked under criteria it was never quoted against.
    */
   const quoted = await quoteForBriefRoute(
-    inner('/api/hire/quote', { chainId, tokenId, task: payload, category: hireCategory }),
+    inner('/api/hire/quote', prepareQuoteRequest({ chainId, tokenId, task: payload, category: hireCategory, escrowChainId: escrowChain, ownerToken })),
   );
   const quotedBody = (await quoted.json()) as {
     quote?: { negotiationHash: string; priceRaw: string; currency: string; signer: string; expiresAt: string | null; domain: { chainId: number; verifyingContract: string } | null };
