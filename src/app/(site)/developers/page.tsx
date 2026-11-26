@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { CATEGORIES } from '@/lib/agents/categories';
 import { VOCABULARY } from '@/lib/search/query';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
+import { escrowCustody, registryCustody } from '@/lib/erc8183/custody';
 import { enabledEscrowChains } from '@/lib/network/escrow';
 import { VERDICT_LABEL } from '@/lib/proof/engine';
 import { chainLabel, explorerBaseFor } from '@/lib/network/presentation';
@@ -13,6 +14,7 @@ import { API_CHANGES } from '@/lib/api/changes';
 import { apiEndpoints } from '@/lib/api/endpoints';
 import { API_VERSION } from '@/lib/api/v1';
 import { GUIDES, guide } from '@/lib/guides/catalogue';
+import { shortAddress } from '@/lib/ui/format';
 
 export const metadata: Metadata = {
   title: 'Developers',
@@ -39,9 +41,17 @@ function Code({ children }: { children: string }) {
 }
 
 export default function Developers() {
-  // Every escrow hires are funded on, each with its own contracts: a judge
-  // or builder looking for the mainnet address should find it here.
-  const escrows = enabledEscrowChains().map((chainId) => ({ chainId, addresses: correctedErc8183Addresses(chainId) }));
+  // Every escrow hires are funded on, each with its own contracts and with who
+  // can replace each one: an address alone does not say whether the code behind
+  // it is fixed.
+  const escrows = enabledEscrowChains().map((chainId) => {
+    const addresses = correctedErc8183Addresses(chainId);
+    return {
+      chainId,
+      addresses,
+      custody: [...escrowCustody(chainId, addresses), registryCustody(chainId, addresses)],
+    };
+  });
   return (
     <Doc
       label="Developers"
@@ -175,23 +185,37 @@ export default function Developers() {
           Hires made through Pokter are funded on {escrows.map((e) => chainLabel(e.chainId)).join(' or ')}: an agent that signs its price in a token one of
           these escrows settles in is hired there.
         </p>
-        {escrows.map(({ chainId, addresses }) => (
+        {escrows.map(({ chainId, addresses, custody }) => (
           <div key={chainId} className="flex flex-col gap-2">
             <h3 className="text-sm font-semibold">
               {chainLabel(chainId)} <span className="t-readout font-normal text-ink-3">chain {chainId}</span>
             </h3>
             <dl className="ruled border-y border-rule text-[13.5px]">
               {[
-                ['ERC-8183 commerce', addresses.commerce],
-                ['Evaluator router', addresses.router],
-                ['Optimistic policy', addresses.policy],
-                ['Payment token ($U)', addresses.paymentToken],
-              ].map(([k, v]) => (
-                <div key={k} className="flex flex-col gap-1 py-3 sm:flex-row sm:justify-between">
-                  <dt>{k}</dt>
-                  <dd className="t-readout break-all text-ink">
-                    <a href={`${explorerBaseFor(chainId)}/address/${v}`} className="link" target="_blank" rel="noreferrer noopener">
-                      {v}
+                ...custody,
+                /* The payment token carries no custody line: it is BNB Chain's own
+                   peg contract, outside what the escrow deployment governs, and a
+                   claim about who controls it is not ours to make here. */
+                { name: 'Payment token ($U)', address: addresses.paymentToken, admin: undefined },
+              ].map(({ name, address, admin }) => (
+                <div key={name} className="flex flex-col gap-1 py-3 sm:flex-row sm:justify-between sm:gap-6">
+                  <dt className="flex flex-col gap-0.5">
+                    {name}
+                    {admin === undefined ? null : admin === null ? (
+                      <span className="text-[12px] text-ink-3">No owner or admin: the deployed code cannot be replaced.</span>
+                    ) : (
+                      <span className="text-[12px] text-ink-3">
+                        Proxy. Code replaceable by{' '}
+                        <a href={`${explorerBaseFor(chainId)}/address/${admin}`} className="link t-readout" target="_blank" rel="noreferrer noopener">
+                          {shortAddress(admin)}
+                        </a>
+                        , a multisig that states its own signers and threshold on chain.
+                      </span>
+                    )}
+                  </dt>
+                  <dd className="t-readout break-all text-ink sm:shrink-0">
+                    <a href={`${explorerBaseFor(chainId)}/address/${address}`} className="link" target="_blank" rel="noreferrer noopener">
+                      {address}
                     </a>
                   </dd>
                 </div>
@@ -200,6 +224,11 @@ export default function Developers() {
           </div>
         ))}
         <p>ERC-8004 and ERC-8183 are draft EIPs. Pokter tracks the deployments BNB Chain publishes and pins addresses where an SDK lagged behind them.</p>
+        <p>
+          The commerce contract, the evaluator router and the registry are proxies, so each address is permanent and the code behind it is not. An upgrade takes effect in the transaction that
+          sends it and applies to jobs already funded, because the funds and the job records live in the proxy&rsquo;s own storage. The{' '}
+          <Link href="/risk" className="link">risk disclosure</Link> states what that means for a buyer.
+        </p>
       </DocSection>
 
       <DocSection id="studio" title="BNB Agent Studio">
