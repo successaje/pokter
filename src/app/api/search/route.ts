@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { getJobStore } from '@/lib/erc8183/store';
 import { getQuestStore } from '@/lib/quest/store';
 import { listSearchableWithStatus } from '@/lib/marketplace';
+import { CATALOGUE_PER_CATEGORY } from '@/lib/agents/categories';
 import { headerSuggestions, parseHeaderQuery, type SuggestAgent, type SuggestJob } from '@/lib/search/header-query';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 
@@ -29,7 +30,7 @@ export async function GET(request: Request): Promise<NextResponse> {
   if (query.kind === 'empty') return NextResponse.json({ suggestions: [] });
 
   /* Already built for the pages; a failed build suggests nothing rather than failing the box. */
-  const { entries } = await listSearchableWithStatus({ limit: 400 }).catch(() => ({ entries: [] }));
+  const { entries } = await listSearchableWithStatus({ limit: CATALOGUE_PER_CATEGORY }).catch(() => ({ entries: [] }));
   /* Registered wallets, kept by the capability sweep, and read only when an address was typed. */
   const wallets =
     query.kind === 'address' ? new Map(getQuestStore().allAgentWallets().map((row) => [`${row.chainId}:${row.tokenId}`, row.wallet])) : null;

@@ -2,7 +2,7 @@ import { isPromotableAgent } from '@/lib/agents/eligibility';
 import { listSearchable, searchByName } from '@/lib/marketplace';
 import { matchesQuery, offersDirectHire, verdictFor } from '@/lib/search/match';
 import { parseQuery } from '@/lib/search/query';
-import { CATEGORIES } from '@/lib/agents/categories';
+import { CATALOGUE_PER_CATEGORY, CATEGORIES } from '@/lib/agents/categories';
 import { page, toAgentSummary } from '@/lib/api/v1';
 import { apiError, apiJson, apiOptions, apiRateLimit, originOf } from '@/lib/api/respond';
 import { unknownParams } from '@/lib/api/params';
@@ -75,7 +75,7 @@ export async function GET(request: Request) {
    * demos whose own names say they are not the real thing. Reading a shallower
    * list here made `is:hireable` count different agents from the home page.
    */
-  const all = await listSearchable({ limit: 400 });
+  const all = await listSearchable({ limit: CATALOGUE_PER_CATEGORY });
 
   /*
    * No agent in the pool whose name matches: ask the registry by name, as

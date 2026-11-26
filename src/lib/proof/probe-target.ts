@@ -101,3 +101,24 @@ export function awaitsAgent(body: Record<string, unknown>): boolean {
   const endpoint = body.endpoint;
   return typeof body.status === 'string' && body.status.toUpperCase() === 'UNBOUND' && (endpoint === null || endpoint === undefined || endpoint === '');
 }
+
+/**
+ * The detail a probe records when the address answered with such a listing.
+ *
+ * Stored on the probe row, and the only mark a stored row carries that it
+ * was this case, so the record (`buildTrackRecord`) reads it back by this
+ * exact text. Changing the wording would turn every earlier row of this kind
+ * back into a failure.
+ */
+export const AWAITING_AGENT_DETAIL = 'Endpoint is a listing with no agent bound to it yet.';
+
+/**
+ * Whether a stored probe found a listing with no agent bound to it.
+ *
+ * Such a probe is a true reading of the address and says nothing about an
+ * agent, because there is none to answer: counting it as a failure is what
+ * labelled platform listings "Failing" after hundreds of probes of nothing.
+ */
+export function isAwaitingAgentProbe(probe: { ok: boolean; detail: string }): boolean {
+  return !probe.ok && probe.detail === AWAITING_AGENT_DETAIL;
+}

@@ -28,6 +28,8 @@ export interface FindRow {
   /** 0..1 over everything measured, or null when never called. */
   rate: number | null;
   probes: number;
+  /** The address's latest reply was a platform listing with no agent bound to it, so there is nothing to measure. */
+  awaitingAgent?: boolean;
   cells: StripCell[];
   medianMs: number | null;
   /** Days since the last answered check; null when never answered. */
@@ -126,6 +128,7 @@ export function toFindRow(
     verdict: verdictFor(entry),
     rate: record.totalProbes > 0 ? record.totalAnswered / record.totalProbes : null,
     probes: record.totalProbes,
+    awaitingAgent: record.awaitingAgent === true,
     cells: stripCells(record, 14, now),
     medianMs: month?.medianMs ?? null,
     sinceAnswer: daysSinceLastAnswer(record, now),

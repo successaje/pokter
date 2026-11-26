@@ -83,6 +83,13 @@ export interface ScanPage<T> {
   total: number;
   limit: number;
   offset: number;
+  /**
+   * Where the next page starts, for a full walk: offsets stop at 10,000,
+   * and the registry is larger. Returned for created_at and token_id
+   * sorting; absent on endpoints that do not page this way.
+   */
+  next_cursor?: string | null;
+  has_more?: boolean;
 }
 
 /**
