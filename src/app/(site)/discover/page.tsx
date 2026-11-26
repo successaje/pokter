@@ -14,7 +14,7 @@ import { discoverHref, PAGE_SIZE, parseDiscoverParams } from '@/features/discove
 import { discover } from '@/features/discover/search';
 import { CatalogueTools } from '@/features/discover/CatalogueTools';
 import { RequestRow } from '@/features/briefs/RequestRow';
-import { requestRows } from '@/features/briefs/request-rows';
+import { requestRows, withPosterAgentIds } from '@/features/briefs/request-rows';
 import { FilterBar } from '@/features/discover/FilterBar';
 import { deliveryTimes, DELIVERY_LOOKUP_CONCURRENCY } from '@/lib/agent/delivery-times';
 import { mapWithConcurrency } from '@/lib/concurrency';
@@ -126,7 +126,8 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
     .filter((r) => r.taking)
     .sort((x, y) => Date.parse(y.postedAt) - Date.parse(x.postedAt));
   const openTotal = open.length;
-  const openRequests = open.slice(0, 4);
+  /* Named only for the few shown. */
+  const openRequests = await withPosterAgentIds(open.slice(0, 4));
   const serviceCandidates = getServiceStore().list({ limit: 8 }).items;
   const serviceOwners = await Promise.all(serviceCandidates.map((service) => registryOwner(service.chainId, service.tokenId).catch(() => null)));
   const services = serviceCandidates.filter((service, i) => serviceOwners[i]?.toLowerCase() === service.builder.toLowerCase()).slice(0, 3);

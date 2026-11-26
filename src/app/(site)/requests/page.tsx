@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 
 import { RequestsBoard } from '@/features/briefs/RequestsBoard';
-import { requestRows } from '@/features/briefs/request-rows';
+import { requestRows, withPosterAgentIds } from '@/features/briefs/request-rows';
 import { shareMetadata } from '@/lib/og/share';
 import { redirect } from 'next/navigation';
 import { LinkButton } from '@/ui/Button';
@@ -32,7 +32,7 @@ export default async function RequestsPage({ searchParams }: { searchParams: Pro
   if ((await searchParams).post === '1') redirect('/workspace/requests/new');
 
   const now = renderedAt();
-  const requests = requestRows(now);
+  const requests = await withPosterAgentIds(requestRows(now));
   const networks = [...new Set(requests.map((r) => r.chainId))].sort((a, b) => b - a);
 
   return (

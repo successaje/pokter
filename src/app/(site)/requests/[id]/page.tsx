@@ -12,6 +12,7 @@ import { ProposalList } from '@/features/briefs/ProposalList';
 import { closingDate, RequestTerms } from '@/features/briefs/RequestTerms';
 import { escrowMoney, explorerBaseFor } from '@/lib/network/presentation';
 import { BOARD_CHAIN_ID } from '@/lib/board/contract';
+import { agentIdHandles } from '@/lib/board/server';
 import { acceptsProposals, requestStatus } from '@/lib/briefs/model';
 import { getBriefStore } from '@/lib/briefs/store';
 import { readProposalPrefill } from '@/lib/briefs/public-view';
@@ -19,6 +20,7 @@ import { hireForChosenProposal } from '@/lib/briefs/hired';
 import { displaySymbol, tokenIdentity } from '@/lib/network/tokens';
 import { getJobStore } from '@/lib/erc8183/store';
 import { Address } from '@/ui/Data';
+import { AgentIdName } from '@/ui/AgentIdName';
 import { AvatarImage } from '@/ui/AvatarImage';
 import { avatarUrl } from '@/lib/ui/avatar-art';
 import { publicIdentity } from '@/lib/profiles/identity';
@@ -54,6 +56,8 @@ export default async function BriefPage({
   const bids = store.bidsFor(id);
   const taking = acceptsProposals(brief);
   const poster = publicIdentity(brief.poster);
+  /* A published profile is the name its owner chose here; without one, the handle of the Agent ID the wallet holds, if any. */
+  const posterHandle = poster ? null : ((await agentIdHandles([brief.poster])).get(brief.poster.toLowerCase()) ?? null);
   const targetProfile = brief.targetBuilder ? getProfileStore().get(brief.targetBuilder) : null;
   const targetName = targetProfile?.published ? targetProfile.displayName || `@${targetProfile.handle}` : 'the selected builder';
   const chosenBid = brief.awardedBidId ? bids.find((bid) => bid.id === brief.awardedBidId) : undefined;
@@ -97,12 +101,22 @@ export default async function BriefPage({
                       <AvatarImage src={poster.avatar} fallback={avatarUrl(brief.poster.toLowerCase())} name={poster.name} size={20} className="rounded-full" eager />
                       {poster.name}
                     </Link>
+                  ) : posterHandle ? (
+                    <>
+                      {/* The name first, and the address beside it, so the wallet that signed stays one look away. */}
+                      <AgentIdName wallet={brief.poster} handle={posterHandle} />{' '}
+                      <Address address={brief.poster} chainExplorer={false} className="align-middle text-ink-3" />
+                    </>
                   ) : (
                     <Address address={brief.poster} chainExplorer={false} />
                   )}
-                  {brief.proof === 'board'
-                    ? ', posted on PokterBoard from their wallet with an Agent ID'
-                    : `, signed with their wallet${brief.board ? ' and posted on PokterBoard with an Agent ID' : ''}`}
+                  {posterHandle
+                    ? brief.proof === 'board'
+                      ? ', posted on PokterBoard from that wallet'
+                      : `, signed with that wallet${brief.board ? ' and posted on PokterBoard' : ''}`
+                    : brief.proof === 'board'
+                      ? ', posted on PokterBoard from their wallet with an Agent ID'
+                      : `, signed with their wallet${brief.board ? ' and posted on PokterBoard with an Agent ID' : ''}`}
                 </>
               }
             />

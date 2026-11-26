@@ -13,6 +13,8 @@ export interface RequestRowData extends Pick<BriefContent, 'title' | 'brief' | '
   poster: string;
   /** The poster's published name and picture; absent while their profile is private. */
   posterIdentity?: { name: string; avatar: string | null } | null;
+  /** The handle of the poster's Agent ID, when it has one and no published profile. */
+  posterAgentId?: string | null;
   postedAt: string;
   proposals: number;
   state: 'open' | 'awarded' | 'cancelled';
@@ -40,7 +42,7 @@ export function RequestRow({ request, now, preview = false, board = false }: { r
   const status = requestStatus(request, now);
   /* The state is the pill; the meta line keeps only the deadline, and only while it still matters. */
   const meta = [
-    `${preview ? 'Posted just now' : `Posted ${ago(request.postedAt, now)}`}${request.posterIdentity ? ` by ${request.posterIdentity.name}` : ''}`,
+    `${preview ? 'Posted just now' : `Posted ${ago(request.postedAt, now)}`}${request.posterIdentity ? ` by ${request.posterIdentity.name}` : request.posterAgentId ? ` by ${request.posterAgentId}` : ''}`,
     request.proposals === 1 ? '1 proposal' : `${request.proposals} proposals`,
     status.tone === 'open' && request.closesAt ? closesIn(request.closesAt, now) : null,
   ].filter(Boolean);

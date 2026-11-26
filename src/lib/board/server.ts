@@ -7,7 +7,7 @@ import { readTransport } from '@/lib/chain/rpc';
 import { publicReadUrls } from '@/lib/chain/transport';
 import { historyClient } from '@/lib/erc8183/history-client';
 import type { VerifiedReview } from '@/lib/reviews/model';
-import { AGENT_ID_ABI, AGENT_ID_REGISTRY, BOARD_ABI, BOARD_CHAIN_ID, BOARD_REFUSAL, boardReviewCall } from './contract';
+import { AGENT_ID_ABI, AGENT_ID_REGISTRY, agentIdHandle, BOARD_ABI, BOARD_CHAIN_ID, BOARD_REFUSAL, boardReviewCall } from './contract';
 
 /**
  * The deployed board, from `POKTER_BOARD_ADDRESS`, and the block it was
@@ -50,6 +50,60 @@ export async function holdsAgentId(wallet: Address, reader: Pick<BoardReader, 'r
   const holds = balance > 0n;
   holders.set(key, { holds, until: now + (holds ? HOLDER_TTL_MS : NON_HOLDER_TTL_MS) });
   return holds;
+}
+
+/*
+ * A wallet's Agent ID handle, for showing it by name beside what it posted
+ * or reviewed. A handle cannot move to another wallet, so one found is kept
+ * a day; a wallet without one is asked again after an hour, since a name
+ * shown late costs nothing.
+ */
+const HANDLE_TTL_MS = 24 * 3_600_000;
+const NO_HANDLE_TTL_MS = 3_600_000;
+const handles = new Map<string, { handle: string | null; until: number }>();
+
+/**
+ * The Agent ID handles of these wallets, keyed by lowercased wallet; a
+ * wallet without one, or not read in time, is absent and shows as its
+ * address.
+ *
+ * Reads only the wallets asked about, together (the client batches them
+ * into one call), and waits at most `timeoutMs`: a read still running then
+ * finishes in the background and is kept for the next page. A failed read
+ * is not kept, so it is tried again next time.
+ */
+export async function agentIdHandles(
+  wallets: readonly string[],
+  { reader = boardClient(), timeoutMs = 2_000, now = Date.now() }: { reader?: Pick<BoardReader, 'readContract'>; timeoutMs?: number; now?: number } = {},
+): Promise<Map<string, string>> {
+  const found = new Map<string, string>();
+  const due: string[] = [];
+  for (const wallet of new Set(wallets.map((w) => w.toLowerCase()))) {
+    if (!isAddress(wallet)) continue;
+    const known = handles.get(wallet);
+    if (known && known.until > now) {
+      if (known.handle) found.set(wallet, known.handle);
+    } else due.push(wallet);
+  }
+  if (due.length === 0) return found;
+  const reads = Promise.all(
+    due.map(async (wallet) => {
+      try {
+        const handle = agentIdHandle(await reader.readContract({ address: AGENT_ID_REGISTRY, abi: AGENT_ID_ABI, functionName: 'handleOf', args: [getAddress(wallet)] }));
+        handles.set(wallet, { handle, until: now + (handle ? HANDLE_TTL_MS : NO_HANDLE_TTL_MS) });
+      } catch {
+        /* Not kept: asked again next time. */
+      }
+    }),
+  );
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  await Promise.race([reads, new Promise<void>((resolve) => (timer = setTimeout(resolve, timeoutMs)))]);
+  clearTimeout(timer);
+  for (const wallet of due) {
+    const handle = handles.get(wallet)?.handle;
+    if (handle) found.set(wallet, handle);
+  }
+  return found;
 }
 
 /**
