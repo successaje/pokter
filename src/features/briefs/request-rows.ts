@@ -4,6 +4,7 @@ import { acceptsProposals } from '@/lib/briefs/model';
 import { hireForChosenProposal } from '@/lib/briefs/hired';
 import { getBriefStore } from '@/lib/briefs/store';
 import { getJobStore } from '@/lib/erc8183/store';
+import { agentIdHandles } from '@/lib/board/server';
 import { publicIdentities } from '@/lib/profiles/identity';
 import type { RequestRowData } from './RequestRow';
 
@@ -46,4 +47,18 @@ export function requestRows(now: number): Array<RequestRowData & { taking: boole
     taking: acceptsProposals(b, now),
     hired: hired(b),
   }));
+}
+
+/**
+ * The same rows, with each poster that has no published profile named by
+ * the handle of the Agent ID its wallet holds. For lists that show who
+ * posted; read for those posters only and waited on briefly, so one not
+ * read in time is named on a later visit.
+ */
+export async function withPosterAgentIds<T extends RequestRowData>(rows: T[]): Promise<T[]> {
+  const handles = await agentIdHandles(rows.filter((row) => !row.posterIdentity).map((row) => row.poster));
+  return rows.map((row) => {
+    const handle = row.posterIdentity ? undefined : handles.get(row.poster.toLowerCase());
+    return handle ? { ...row, posterAgentId: handle } : row;
+  });
 }

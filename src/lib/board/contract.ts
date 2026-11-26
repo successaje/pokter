@@ -28,7 +28,25 @@ export const AGENT_ID_REGISTRY: Address = '0x60B9262456dE011F7d15a54CdD8c48bAaa8
  */
 export const BOARD_RATING_MIN_REVIEWERS = 3;
 
-export const AGENT_ID_ABI = parseAbi(['function balanceOf(address owner) view returns (uint256)']);
+/*
+ * `handleOf` reads one way only, from a wallet to the handle it claimed.
+ * The registry also maps a handle to its owner; Pokter never calls that,
+ * so nothing here can find a wallet from a name.
+ */
+export const AGENT_ID_ABI = parseAbi(['function balanceOf(address owner) view returns (uint256)', 'function handleOf(address owner) view returns (string)']);
+
+/**
+ * The handle the registry returned, if it is one Pokter can show.
+ *
+ * The registry accepts 3 to 20 lowercase letters and digits (checked
+ * against its `isValidHandle` on 26 November 2026), and answers an empty
+ * string for a wallet without an Agent ID. Anything else is not shown, so
+ * a changed registry cannot put look-alike or unexpected text where a
+ * wallet's name goes; the address is shown instead.
+ */
+export function agentIdHandle(raw: unknown): string | null {
+  return typeof raw === 'string' && /^[a-z0-9]{3,20}$/.test(raw) ? raw : null;
+}
 
 export const BOARD_ABI = parseAbi([
   'function review(uint256 jobId, uint8 rating, uint8 flags, bytes32 commentHash)',

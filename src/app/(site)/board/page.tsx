@@ -4,11 +4,13 @@ import Link from 'next/link';
 import { Doc, DocSection } from '@/features/content/Doc';
 import { boardActivityNow } from '@/lib/board/activity-server';
 import { BOARD_CHAIN_ID } from '@/lib/board/contract';
+import { agentIdHandles } from '@/lib/board/server';
 import { getBriefStore } from '@/lib/briefs/store';
 import { ago } from '@/lib/compare/rows';
 import { getJobStore } from '@/lib/erc8183/store';
 import { explorerBaseFor } from '@/lib/network/presentation';
 import { getQuestStore } from '@/lib/quest/store';
+import { AgentIdName } from '@/ui/AgentIdName';
 import { Rating } from '@/ui/Rating';
 
 export const dynamic = 'force-dynamic';
@@ -32,8 +34,10 @@ function renderedAt(): number {
  * board's own events (`board/activity-server.ts`). Pokter's own wallets are
  * counted apart and marked, never as holders.
  */
-export default function BoardPage() {
+export default async function BoardPage() {
   const activity = boardActivityNow();
+  /* Every wallet here holds an Agent ID, or the board would have refused it: each is shown by its handle once read. */
+  const handles = activity ? await agentIdHandles(activity.latest.slice(0, 50).flatMap((event) => (event.wallet ? [event.wallet] : []))) : new Map<string, string>();
   const explorer = explorerBaseFor(BOARD_CHAIN_ID);
   const now = renderedAt();
 
@@ -122,6 +126,7 @@ export default function BoardPage() {
             {activity.latest.slice(0, 50).map((event) => {
               const agent = event.kind === 'review' && event.jobId && event.provider ? agentOf(event.jobId, event.provider) : null;
               const pokterRequest = event.requestId ? requestPage.get(event.requestId) : undefined;
+              const handle = event.wallet ? handles.get(event.wallet.toLowerCase()) : undefined;
               return (
                 <li key={`${event.tx}:${event.logIndex}`} className="flex flex-col gap-1.5 py-4 text-[14px]">
                   <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -138,7 +143,12 @@ export default function BoardPage() {
                     {event.team && <span className="text-[12px] font-medium text-ink-2">Pokter team</span>}
                   </span>
                   <span className="flex flex-wrap items-center gap-x-3 text-[12.5px] text-ink-3">
-                    {event.wallet && <span className="t-readout">{short(event.wallet)}</span>}
+                    {event.wallet &&
+                      (handle ? (
+                        <AgentIdName wallet={event.wallet} handle={handle} />
+                      ) : (
+                        <span className="t-readout">{short(event.wallet)}</span>
+                      ))}
                     {event.time && <span>{ago(event.time, now)}</span>}
                     {agent && (
                       <Link href={agent.href} className="link">
