@@ -20,6 +20,9 @@ import { dirname } from 'node:path';
 
 const DB_PATH = process.env.RATE_LIMIT_DB_PATH ?? './data/rate-limit.db';
 
+/** How long a row whose window was never recorded is kept: a day, the longest window in use. */
+const UNKNOWN_WINDOW_MS = 86_400_000;
+
 let database: DatabaseSync | null = null;
 
 function db(): DatabaseSync {
@@ -31,20 +34,44 @@ function db(): DatabaseSync {
     CREATE TABLE IF NOT EXISTS windows (
       key TEXT PRIMARY KEY,
       started_at INTEGER NOT NULL,
-      count INTEGER NOT NULL
+      count INTEGER NOT NULL,
+      window_ms INTEGER NOT NULL DEFAULT ${UNKNOWN_WINDOW_MS}
     )
   `);
+  /*
+   * Tables made before each row knew its window. A row from then is kept a
+   * day, the longest window any caller uses, because nothing says it was
+   * shorter; its next use records the real one.
+   */
+  const columns = database.prepare('PRAGMA table_info(windows)').all() as Array<{ name: string }>;
+  if (!columns.some((column) => column.name === 'window_ms')) {
+    try {
+      database.exec(`ALTER TABLE windows ADD COLUMN window_ms INTEGER NOT NULL DEFAULT ${UNKNOWN_WINDOW_MS}`);
+    } catch (error) {
+      /* Another process on the volume (a sweep script) added it first. */
+      if (!/duplicate column/i.test(String(error))) throw error;
+    }
+  }
   return database;
 }
 
-/** Rows older than this are dead weight; cleared opportunistically. */
-const PRUNE_AFTER_MS = 3_600_000;
+/** How often closed windows are cleared, opportunistically, on the next request. */
+const PRUNE_EVERY_MS = 3_600_000;
 let lastPrunedAt = 0;
 
+/*
+ * A row is dead weight once its own window has closed, and not before.
+ *
+ * This deleted every row older than an hour, whatever its window. The gas
+ * sponsor's per-day limits (two top-ups a wallet, six a client, four
+ * hundred in all) were then cleared at the first prune after their first
+ * hour, so they held for one to two hours rather than a day, and the
+ * operator wallet could be asked for a day's top-ups that often.
+ */
 function prune(now: number): void {
-  if (now - lastPrunedAt < PRUNE_AFTER_MS) return;
+  if (now - lastPrunedAt < PRUNE_EVERY_MS) return;
   lastPrunedAt = now;
-  db().prepare('DELETE FROM windows WHERE started_at < ?').run(now - PRUNE_AFTER_MS);
+  db().prepare('DELETE FROM windows WHERE started_at + window_ms <= ?').run(now);
 }
 
 export function consumeRateLimit(
@@ -63,7 +90,7 @@ export function consumeRateLimit(
    */
   const current = handle
     .prepare(
-      `INSERT INTO windows (key, started_at, count) VALUES (?, ?, 1)
+      `INSERT INTO windows (key, started_at, count, window_ms) VALUES (?, ?, 1, ?)
        ON CONFLICT(key) DO UPDATE SET
          count = CASE
            WHEN ? - started_at >= ? THEN 1
@@ -72,10 +99,11 @@ export function consumeRateLimit(
          started_at = CASE
            WHEN ? - started_at >= ? THEN ?
            ELSE started_at
-         END
+         END,
+         window_ms = excluded.window_ms
        RETURNING started_at, count`,
     )
-    .get(key, now, now, windowMs, now, windowMs, now) as {
+    .get(key, now, windowMs, now, windowMs, now, windowMs, now) as {
     started_at: number;
     count: number;
   };
