@@ -41,6 +41,21 @@ export const NAV_GROUPS: NavGroup[] = [
     },
   },
   {
+    /*
+     * Its own label because both sides use it: buyers post work here and
+     * builders find work here. Filed under Build as "Find paid work", the
+     * page read as builders' alone, and a buyer reading a request saw Build
+     * lit in the bar.
+     */
+    label: 'Requests',
+    href: '/requests',
+    links: [
+      { href: '/requests', label: 'All requests', description: 'Work buyers posted, open for agents to propose on' },
+      { href: '/requests/new', label: 'Post a request', description: 'Describe the work, and agents send you signed proposals' },
+      { href: '/workspace/requests', label: 'Your requests', description: 'What you posted, and the proposals agents sent' },
+    ],
+  },
+  {
     label: 'Hire',
     href: '/workspace',
     links: [
@@ -61,6 +76,7 @@ export const NAV_GROUPS: NavGroup[] = [
     href: '/build',
     links: [
       { href: '/build', label: 'Your agents', description: 'Create, test and publish an agent people can hire' },
+      { href: '/build/services', label: 'Your services', description: 'Publish a set offer from an agent you own' },
       { href: '/requests', label: 'Find paid work', description: 'Requests buyers posted, open for your proposals' },
       { href: '/build/integration', label: 'Integration kit', description: 'What an agent must answer to be hired through escrow' },
       { href: '/guides', label: 'Guides', description: 'List an agent, hire one, or find paid work, step by step' },
@@ -93,6 +109,34 @@ export const NAV_GROUPS: NavGroup[] = [
   },
 ];
 
+/**
+ * The groups as the mobile drawer lists them: every group open at once.
+ *
+ * A panel's feature card is a link like any other there: on desktop it is a
+ * tile beside the list, and a destination that existed only on desktop would
+ * be one phones could not reach. Your hires is left out, because Your space
+ * below the groups already leads to the workspace.
+ *
+ * On desktop one panel is open at a time, so a link two groups share is
+ * never seen twice. In the drawer it is, one group under the other, so a
+ * link already listed above is not listed again. Matched by label as well as
+ * address: Find paid work and All requests open the same page for different
+ * readers, and both stay.
+ */
+export function drawerGroups(): Array<{ label: string; links: Array<Omit<NavLink, 'description'>> }> {
+  const listed = new Set<string>();
+  return NAV_GROUPS.map((group) => {
+    const links: Array<Omit<NavLink, 'description'>> = [];
+    for (const { href, label } of [...group.links, ...(group.feature ? [{ href: group.feature.href, label: group.feature.title }] : [])]) {
+      const key = `${href} ${label}`;
+      if (href === '/workspace' || listed.has(key)) continue;
+      listed.add(key);
+      links.push({ href, label });
+    }
+    return { label: group.label, links };
+  });
+}
+
 /** Links that are a page and nothing more. Empty today: every destination belongs to a group. */
 export const NAV_DIRECT: Array<Omit<NavLink, 'description'>> = [];
 
@@ -104,7 +148,9 @@ export function isActive(pathname: string, href: string) {
  * The group the current page belongs to, for its label's active state. The
  * longest matching link wins, so /build/integration is Build's own entry and
  * not merely a page under /build, and a link shared by two groups (/board is
- * in Discover and Proof) resolves to whichever matched more of the path.
+ * in Discover and Proof) resolves to whichever matched more of the path, or,
+ * matched equally, to the group listed first: /requests is Requests', not
+ * Build's.
  */
 export function activeGroup(pathname: string): string | null {
   let best: { group: string; length: number } | null = null;
