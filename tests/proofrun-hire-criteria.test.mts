@@ -118,7 +118,7 @@ test('the quote route composes criteria when the caller sends none', () => {
 
 test('a prepared hire is quoted with the category it will be checked under', () => {
   const route = source('app/api/hire/prepare/route.ts');
-  assert.match(route, /inner\('\/api\/hire\/quote', \{ chainId, tokenId, task: payload, category: hireCategory \}\)/);
+  assert.match(route, /inner\('\/api\/hire\/quote', prepareQuoteRequest\(\{ chainId, tokenId, task: payload, category: hireCategory, escrowChainId: escrowChain, ownerToken \}\)\)/);
   /* And the envelope records the same value, so the check reads it back. */
   assert.match(route, /category: hireCategory,/);
 });
