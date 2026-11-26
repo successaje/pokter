@@ -198,8 +198,8 @@ test('a request from before tokens reads as its chain’s $U', () => {
 test('an alert names the request’s money', () => {
   const request = { id: 'r', title: 'T', poster: POSTER, state: 'open' as const, category: 'yield', budgetU: 2, chainId: 56, postedAt: AT };
   const agents = [{ chainId: 56, tokenId: '1', name: 'A', categoryId: 'yield' }];
-  assert.match(alertCopy({ request: { ...request, paymentToken: USDT56 }, agents }).body, /up to 2\.00 Binance-Peg USDT\./);
-  assert.match(alertCopy({ request, agents }).body, /up to 2\.00 \$U\./);
+  assert.match(alertCopy({ request: { ...request, paymentToken: USDT56 }, agents, on: 'category' }).body, /up to 2\.00 Binance-Peg USDT\./);
+  assert.match(alertCopy({ request, agents, on: 'category' }).body, /up to 2\.00 \$U\./);
 });
 
 /* The hire a chosen proposal became, held to the proposal's money. */

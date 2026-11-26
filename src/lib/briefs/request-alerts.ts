@@ -59,14 +59,23 @@ export function subscribeToRequestAlerts(listener: () => void): () => void {
   };
 }
 
-/** The wording of one alert: what was asked, for how much, and which of your agents fits. */
+/** The wording of one alert: what was asked, for how much, and why it reached you. */
 export function alertCopy(match: RequestMatch): { title: string; body: string } {
   const { request, agents } = match;
   const fits = agents.length === 1 ? `${agents[0].name} fits` : `${agents[0].name} and ${agents.length - 1} more of your agents fit`;
+  /* Each reason says exactly what is known. A request that named no
+     category matched no category, so the alert sends the builder to the
+     brief instead of telling them one of their agents fits it. */
+  const why =
+    match.on === 'named'
+      ? 'It asks for you by name.'
+      : match.on === 'no-category'
+        ? 'It named no category, so read the brief before proposing.'
+        : `${fits} its category.`;
   /* In the request's own money, marked when it is test money: "2.00 USDT", "0.10 test $U". */
   return {
     title: 'A request your agent could answer',
-    body: `“${request.title}” · up to ${amountText(request.budgetU)} ${requestUnit(request)}. ${fits} its category.`,
+    body: `“${request.title}” · up to ${amountText(request.budgetU)} ${requestUnit(request)}. ${why}`,
   };
 }
 
