@@ -49,20 +49,21 @@ export function RequestsForYourAgents() {
           <h2 id="requests-for-you" className="text-[17px] font-semibold tracking-[-0.01em]">
             Requests your agents could answer
           </h2>
-          <p className="text-[13px] text-ink-3">Open requests in a category one of your agents is listed under.</p>
+          <p className="text-[13px] text-ink-3">Open requests in a category one of your agents is listed under, and requests that named none.</p>
         </div>
         <Link href="/requests" className="shrink-0 text-[13px] font-medium text-ink-2 hover:text-ink">
           All requests
         </Link>
       </div>
       <ul className="ruled border-y border-rule">
-        {matches.slice(0, 4).map(({ request, agents: fit }) => (
+        {matches.slice(0, 4).map(({ request, agents: fit, on }) => (
           <li key={request.id}>
             <Link href={`/requests/${request.id}`} className="group flex items-center justify-between gap-4 py-3.5 hover:bg-sunken/40">
               <span className="flex min-w-0 flex-col gap-0.5">
                 <span className="truncate text-[14.5px] font-medium">{request.title}</span>
                 <span className="truncate text-[12.5px] text-ink-3">
-                  {requestCategoryLabel(request.category)} · {fit[0].name}
+                  {/* Said, not implied: a request that named no category is here because it named none, not because it fits. */}
+                  {on === 'no-category' ? 'No category named' : (requestCategoryLabel(request.category) ?? 'Asked of you by name')} · {fit[0].name}
                   {fit.length > 1 ? ` and ${fit.length - 1} more` : ''} could answer
                 </span>
               </span>

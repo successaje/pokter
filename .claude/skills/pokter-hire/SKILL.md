@@ -199,11 +199,19 @@ Ask the user for each of these, and never fill one in yourself:
   (`0x8d0D000Ee44948FC98c9B98A4FA4921476f08B0d`);
 - how many days the chosen agent has to deliver, from 1 to 30;
 - whether proposals close on a date, at most 60 days away, or stay open
-  until they choose one (`closesAt` null).
+  until they choose one (`closesAt` null);
+- which category the work falls under, from `rebalancing`,
+  `grid-trading`, `yield`, `health-factor`, `token-safety`,
+  `research`, `trading`, `content`, or `none` for something else.
+  A named category puts the request in front of the builders whose agents
+  are listed under it, which is how a request reaches someone without the
+  user going looking. Say that when asking, and take their answer: the
+  category is part of what the post commits to, so it is theirs to choose
+  and not yours to infer.
 
 ~~~bash
 curl -s https://pokter.xyz/api/briefs/board/call -H 'content-type: application/json' \
-  -d '{"poster":"WALLET","content":{"title":"…","brief":"…","acceptance":["…"],"failSignals":[],"budgetU":5,"paymentToken":"0x…","chainId":56,"deliverDays":3,"closesAt":null}}'
+  -d '{"poster":"WALLET","content":{"title":"…","brief":"…","acceptance":["…"],"failSignals":[],"budgetU":5,"paymentToken":"0x…","chainId":56,"deliverDays":3,"closesAt":null,"category":"token-safety"}}'
 ~~~
 
 The answer's `text` is exactly what the post commits to. Show it to the

@@ -63,6 +63,8 @@ import {
   requestTokenOf,
   PROPOSAL_SIGNING_WINDOW_MS,
 } from '@/lib/briefs/model';
+import { NO_CATEGORY } from '@/lib/agents/categories';
+import { matchRequests } from '@/lib/briefs/matching';
 import { getBriefStore } from '@/lib/briefs/store';
 import { aboveBudget, proposalPriceFlexible, typedPriceProblem } from '@/lib/briefs/proposal-price';
 import { jobAmountLabel, jobToken } from '@/lib/erc8183/job-amount';
@@ -135,6 +137,28 @@ const moneyOf = (chainId: number, token: Pick<PaymentToken, 'symbol'> | null) =>
 /** A token as a tool result names it: by address, with the symbol and the scale its raw amounts are in. */
 const tokenOf = (token: PaymentToken | null) =>
   token ? { address: token.address, symbol: displaySymbol(token), decimals: token.decimals } : null;
+
+/**
+ * Why none of this wallet's agents was matched to a request.
+ *
+ * Only the first of these refuses a proposal. The proposal route checks
+ * the request's token, the agent's own signed price, the signature and
+ * the owner the registry names, and never a category — so an unmatched
+ * category is a reason to read the brief, not a closed door, and saying
+ * otherwise talked assistants out of work they could have done.
+ */
+function whyUnmatched(brief: { targetBuilder?: string | null }, category: string | null, agentsOwned: number): string {
+  if (brief.targetBuilder) {
+    return 'This request was asked of another builder by name, and the proposal route takes a proposal only from them. A proposal for it would be refused.';
+  }
+  if (agentsOwned === 0) {
+    return 'The registry names this wallet the owner of no agent, so there is nothing to propose with. provider_status says what it read.';
+  }
+  if (category === NO_CATEGORY) {
+    return 'This request chose “Something else”, so it is matched to no agent’s category. A proposal is not refused for that: read the brief and judge the fit yourself.';
+  }
+  return `No agent of this wallet is listed under the request’s category (${requestCategoryLabel(category) ?? category}), and only an agent in it is matched to it. A proposal is not refused for that; an agent’s listing is changed on Pokter, not here.`;
+}
 
 function tools(request: Request, token: AutomationTokenRecord): McpTool[] {
   const owner = getAddress(token.ownerAddress) as Address;
@@ -293,6 +317,17 @@ function tools(request: Request, token: AutomationTokenRecord): McpTool[] {
       const query = typeof args.query === 'string' ? args.query.trim().toLowerCase().slice(0, 200) : '';
       const limit = Math.min(Math.max(Number(args.limit) || 10, 1), 25);
 
+      /* One matching rule for the alerts, the Building panel and this tool.
+         It was written out a second time here, and the copy drifted into
+         telling assistants a proposal would be refused for a request that
+         named no category — which nothing refuses. The matcher names an
+         agent in the alerts it writes, so it takes a name; an agent the
+         registry gives none is still matched, and this tool reports its
+         name from the fleet, as missing rather than blank. */
+      const nameOf = (chainId: number, tokenId: string) => fleet.agents.find((a) => a.chainId === chainId && a.tokenId === tokenId)?.name ?? null;
+      const matchable = fleet.agents.map((a) => ({ chainId: a.chainId, tokenId: a.tokenId, name: a.name ?? '', categoryId: a.categoryId }));
+      const matches = matchRequests(all, matchable, owner);
+
       const rows = all
         .filter((brief) => brief.poster.toLowerCase() !== owner.toLowerCase())
         .filter((brief) => (wantChain ? brief.chainId === wantChain : true))
@@ -302,24 +337,26 @@ function tools(request: Request, token: AutomationTokenRecord): McpTool[] {
           query ? `${brief.title} ${brief.brief}`.toLowerCase().includes(query) : true,
         )
         .map((brief) => {
+          const match = matches.find((m) => m.request.id === brief.id);
           const category = requestCategoryOf(brief.category);
-          const fit = category ? fleet.agents.filter((a) => a.categoryId === category) : [];
+          const fit = match?.agents ?? [];
           const standing = fit
             .map((agent) => briefs.bidFor(brief.id, agent.chainId, agent.tokenId))
             .find((bid) => bid && bid.bidder.toLowerCase() === owner.toLowerCase());
-          return { brief, category, fit, standing };
+          return { brief, category, fit, standing, on: match?.on ?? null };
         })
-        .filter((row) => (everything ? true : row.fit.length > 0));
+        .filter((row) => (everything ? true : row.on !== null));
 
       return {
         data: {
-          /* Said rather than implied: the match is on a category both sides
-             declared, which is the one claim neither side can make about
-             the other. An empty list means no open request named a category
-             one of these agents is listed under — not that nothing fits. */
+          /* Said rather than implied: a category match is on a category
+             both sides declared, which is the one claim neither side can
+             make about the other, and a request that named none is marked
+             as that rather than passed off as a fit. An empty list means
+             no open request reached either bar — not that nothing fits. */
           matchedOn: everything
-            ? 'Every open request someone else posted, whether or not an agent of this wallet is listed under its category. Each row says what blocks a proposal.'
-            : 'Open requests whose category one of this wallet’s agents is listed under, and which this wallet did not post. Pass all_categories to see the rest.',
+            ? 'Every open request someone else posted, whether or not an agent of this wallet is listed under its category. Each row says what stands between it and a proposal.'
+            : 'Open requests this wallet did not post whose category one of its agents is listed under, and requests that named no category at all, which match every agent and say so. Pass all_categories to see the rest.',
           ...(fleet.catalogueUnavailable.length && !everything
             ? {
                 warning: `The agent catalogue on ${fleet.catalogueUnavailable
@@ -329,7 +366,7 @@ function tools(request: Request, token: AutomationTokenRecord): McpTool[] {
             : {}),
           ...ownershipNotes(fleet),
           total: rows.length,
-          requests: rows.slice(0, limit).map(({ brief, category, fit, standing }) => ({
+          requests: rows.slice(0, limit).map(({ brief, category, fit, standing, on }) => ({
             id: brief.id,
             /* The budget in the request's token: whole units, base units at its decimals, and the token itself. A proposal must be in this token. */
             budgetU: brief.budgetU,
@@ -344,12 +381,16 @@ function tools(request: Request, token: AutomationTokenRecord): McpTool[] {
             poster: brief.poster,
             category: requestCategoryLabel(brief.category),
             page: new URL(`/requests/${brief.id}`, origin).href,
-            eligibleAgents: fit.map((a) => ({ chainId: a.chainId, tokenId: a.tokenId, name: a.name })),
-            ...(fit.length === 0
+            eligibleAgents: fit.map((a) => ({ chainId: a.chainId, tokenId: a.tokenId, name: nameOf(a.chainId, a.tokenId) })),
+            /* Only a request asked of somebody else is refused: the
+               proposal route checks the token, the price, the signature
+               and the registry's owner, and never a category. The rest
+               say what did not match, which is not the same thing. */
+            ...(on === null ? { blocked: whyUnmatched(brief, category, fleet.agents.length) } : {}),
+            ...(on === 'no-category'
               ? {
-                  blocked: category
-                    ? `No agent of this wallet is listed under the request’s category (${requestCategoryLabel(brief.category) ?? category}), and only an agent in it will be matched. Changing an agent’s listing is done on Pokter, not here.`
-                    : 'This request named no category Pokter recognises, so it matches no agent. A proposal for it would be refused.',
+                  noCategory:
+                    'This request named no category, so every agent of this wallet is eligible for it rather than matched to it. Read the brief and judge the fit before proposing. Every request posted from PokterBoard is like this, because posting from a wallet collects no category.',
                 }
               : {}),
             ...(standing
