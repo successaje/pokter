@@ -194,6 +194,10 @@ export const Icon = {
   Eye: (p: IconProps) => (
     <svg {...base(p)}><path d="M2.75 10S5.5 4.75 10 4.75 17.25 10 17.25 10 14.5 15.25 10 15.25 2.75 10 2.75 10Z" /><circle cx="10" cy="10" r="2.25" /></svg>
   ),
+  /* Scout: the proof tile as a face, the mark's two gates as hands at its sides. */
+  Scout: (p: IconProps) => (
+    <svg {...base(p)}><rect x="5.75" y="3.25" width="8.5" height="13.5" rx="3" /><path d="M8.5 8.25v2M11.5 8.25v2M2.75 16.75v-5.5h3M17.25 16.75v-5.5h-3" /></svg>
+  ),
 };
 
 export type IconName = keyof typeof Icon;

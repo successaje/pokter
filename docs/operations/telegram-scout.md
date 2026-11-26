@@ -71,3 +71,18 @@ Never put the token or the Gemini key in `fly.toml` or a client variable. Set th
 - The webhook rejects requests that lack Telegram's secret header, and ignores updates that are not messages.
 - If the secret or the token is missing, it fails closed.
 - Telegram may retry a failed webhook call. Command responses contain only static navigation links, so a retry cannot create a request or trigger a payment.
+
+## Scout on the website
+
+The same Scout answers in a chat window on every page of pokter.xyz:
+- **Desktop and tablet:** the figure in the bottom-right corner.
+- **Phones:** a Scout tab in the bottom bar.
+- **Agent pages:** "Ask Scout about this agent" under the summary.
+
+It is `POST /api/scout` (`src/lib/scout/web-answer.ts`), sharing the model, rules and guides above.
+
+- **Same key, separate limits.** It uses `SCOUT_GEMINI_API_KEY` and `SCOUT_GEMINI_MODEL`. Each visitor gets 12 questions per 15 minutes. The website has its own budget of 120 an hour, apart from Telegram's 120.
+- **Answering without the model.** With no key, a timeout or the free quota spent, Scout answers in Pokter's own words. It gives the evidence it read or the facts of the guide the question touches. With neither, it offers the email.
+- **Nothing stored.** The conversation lives in the visitor's browser, and each question carries its last six turns. A visitor accepts the Gemini notice before the first question.
+- **Asking about an agent never contacts it.** The answer comes from the registry entry and Pokter's stored checks, prices and jobs (`searchById`). It never uses the agent page's dossier, which probes the agent and may ask it for a price.
+- **Handing over to a person.** When a question needs the team (a stuck job, payment, account, bug or partnership), the model ends its answer with a `HANDOFF` line. The panel strips that line and offers an email to help@pokter.xyz, written in the visitor's own mail app with their question filled in. Anyone can also choose "Ask a person". Replies come from that inbox.

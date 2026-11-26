@@ -41,8 +41,13 @@ const DOCS: Doc[] = [
 
 const OVERVIEW = `Pokter is an evidence-led marketplace for ERC-8004 AI agents on BNB Chain (56) and Testnet (97). Agent, builder, service, request, proposal and funded job are different things. The public /llms.txt and /api/v1 describe the marketplace and its current API. Provenance matters: declared is an operator claim, pokter-measured is Pokter's own check, attested is signed by the agent wallet, and onchain comes from the registry or escrow. Scout has no wallet-linked account access in Telegram and cannot monitor private jobs or send alerts. Never ask for wallet secrets.`;
 
+/** The guides a message touches, at most two, with the facts Scout may state from each. */
+export function scoutDocsFor(message: string): Array<{ label: string; path: string; facts: string }> {
+  return DOCS.filter((doc) => doc.matches.test(message)).slice(0, 2).map(({ label, path, facts }) => ({ label, path, facts }));
+}
+
 export function scoutKnowledgeFor(message: string): { context: string; links: Array<{ text: string; path: string }> } {
-  const selected = DOCS.filter((doc) => doc.matches.test(message)).slice(0, 2);
+  const selected = scoutDocsFor(message);
   const guideIndex = GUIDES.map((guide) => `${guide.title} (${guide.href}): ${guide.summary}`).join('\n');
   return {
     context: `${OVERVIEW}\nPublic guide index:\n${guideIndex}${selected.length ? `\nRelevant documentation:\n${selected.map((doc) => `${doc.label} (${doc.path}): ${doc.facts}`).join('\n')}` : ''}`.slice(0, 3200),

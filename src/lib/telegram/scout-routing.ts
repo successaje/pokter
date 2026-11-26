@@ -26,3 +26,11 @@ export function shouldSearchAgents(text: string): boolean {
   if (isConversationQuestion(text) || isMoreAgentsFollowUp(text)) return false;
   return /\b(?:find|search|show me|recommend|suggest|browse|looking for|who can|agents? (?:for|to|that|who)|(?:need|want) (?:an? |some )?agents?\b|(?:need|want|looking)\b.{0,80}\b(?:research|trade|trading|build|monitor|check|write|create|analyse|analyze|manage))\b/i.test(text);
 }
+
+/**
+ * A message that names or carries a wallet secret. Refused before any model
+ * sees it, in Telegram and on the website alike: Scout never needs one.
+ */
+export function holdsWalletSecret(text: string): boolean {
+  return /\b(seed phrase|recovery phrase|private key)\b/i.test(text) || /\b0x[a-fA-F0-9]{64}\b/.test(text);
+}

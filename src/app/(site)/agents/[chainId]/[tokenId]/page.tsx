@@ -26,6 +26,7 @@ import { HirePanel, MobileHireBar } from '@/features/agent/HirePanel';
 import { loadProfile, type AgentProfile } from '@/features/agent/profile';
 import { buyerNote } from '@/lib/agent/buyers';
 import { TrialPanel } from '@/features/agent/TrialPanel';
+import { AskScoutButton } from '@/features/scout/AskScoutButton';
 import { AgentTabBar, AgentTabHint, AgentTabPanel } from '@/features/agent/AgentTabs';
 import { ReportReview } from '@/features/agent/ReportReview';
 import { LatencyTrend } from '@/features/studio/OpsCharts';
@@ -672,6 +673,7 @@ export default async function AgentPage({ params, searchParams }: { params: Para
             </div>
           </div>
           <p className="t-lede mt-6 max-w-3xl">{p.summary}</p>
+          <AskScoutButton chainId={p.chainId} tokenId={p.tokenId} name={p.name} className="mt-4" />
           <Suspense>
             <EmailLinkNotice kind="agents" className="mt-6 max-w-3xl" />
           </Suspense>

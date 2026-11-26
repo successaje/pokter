@@ -84,7 +84,7 @@ export function HirePanel({ profile }: { profile: AgentProfile }) {
    */
   const unreachable = profile.hireBlocker?.code === 'no-endpoint' && !profile.hireBlocker.transient;
   return (
-    <aside aria-label="Hire this agent" className="flex flex-col overflow-hidden rounded-[16px] border border-rule bg-raised shadow-lift">
+    <aside aria-label="Hire this agent" data-scout-avoid className="flex flex-col overflow-hidden rounded-[16px] border border-rule bg-raised shadow-lift">
       <div className="flex flex-col gap-1 px-5 pb-4 pt-5">
         <span className="t-label">Price per job</span>
         <span className="t-readout text-[1.75rem] leading-tight tracking-[-0.03em]">{price.headline}</span>
