@@ -11,7 +11,7 @@ import { Sheet } from '@/ui/Sheet';
 import { HeaderMenus } from './HeaderMenus';
 import { HeaderSearch } from './HeaderSearch';
 import { Wordmark } from './Logo';
-import { isActive, NAV_DIRECT, NAV_GROUPS } from './nav';
+import { drawerGroups, isActive, NAV_DIRECT } from './nav';
 import { ThemeSegmented, ThemeToggle } from './ThemeControl';
 import { LazyHeaderWallet } from './wallet/LazyHeaderWallet';
 
@@ -106,19 +106,10 @@ export function SiteHeader() {
               <Icon.ChevronRight className="text-ink-3" />
             </Link>
           ))}
-          {NAV_GROUPS.map((group) => (
+          {drawerGroups().map((group) => (
             <div key={group.label} className="mt-5">
               <span className="t-label">{group.label}</span>
-              {/*
-                * The panel's feature card is a link like any other here: on
-                * desktop it is a tile beside the list, and a destination that
-                * existed only on desktop would be one phones could not reach.
-                * Your hires is dropped instead, because Your space below
-                * already leads to the workspace.
-                */}
-              {[...group.links, ...(group.feature ? [{ href: group.feature.href, label: group.feature.title }] : [])]
-                .filter((link) => link.href !== '/workspace')
-                .map((link) => (
+              {group.links.map((link) => (
                 <Link
                   key={link.href}
                   href={link.href}
