@@ -28,7 +28,7 @@ export interface FindRow {
   /** 0..1 over everything measured, or null when never called. */
   rate: number | null;
   probes: number;
-  /** Its latest check found a platform listing with no agent bound to it, so there is nothing to measure yet. */
+  /** The address's latest reply was a platform listing with no agent bound to it, so there is nothing to measure. */
   awaitingAgent?: boolean;
   cells: StripCell[];
   medianMs: number | null;

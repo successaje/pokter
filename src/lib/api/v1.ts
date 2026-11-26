@@ -153,7 +153,7 @@ export function toAgentSummary(
         awaitingAgent: record.awaitingAgent === true,
       },
       'pokter-measured',
-      'Pokter probes only. Third-party probe counts are not included. A probe that found a platform listing with no agent bound to it is not counted, since there is no agent to measure; `awaitingAgent` is true when the latest check found one.',
+      'Pokter probes only. Third-party probe counts are not included. While the latest reply from the address is a platform listing with no agent bound to it, `awaitingAgent` is true and nothing is counted, since there is no agent to measure. Once it answers as an agent, its probes count again, apart from the listing replies.',
     ),
     attestations: measured(
       listing.attestationCount,

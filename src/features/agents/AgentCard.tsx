@@ -63,8 +63,8 @@ export function agentHref(row: Pick<FindRow, 'chainId' | 'tokenId'>) {
 }
 
 export function availabilityText(row: FindRow): { text: string; tone: 'ok' | 'watch' | 'bad' | 'none' } {
-  /* Checked, and its platform lists it with no agent bound: "not probed" would be untrue, and "never answered" blames an agent that does not exist yet. */
-  if (row.probes === 0 && row.awaitingAgent) return { text: 'No agent connected yet', tone: 'none' };
+  /* Checked, and its platform lists it with no agent bound: "not probed" would be untrue, and "never answered" blames an agent that is not there. */
+  if (row.awaitingAgent) return { text: 'No agent connected', tone: 'none' };
   if (row.probes === 0) return { text: 'Not probed yet', tone: 'none' };
   if (row.rate === 0) return { text: 'Has never answered', tone: 'bad' };
   if (row.answeringToday) return { text: `Answering · ${Math.round((row.rate ?? 0) * 100)}% replied`, tone: (row.rate ?? 0) >= 0.9 ? 'ok' : 'watch' };
@@ -76,7 +76,7 @@ const DOT = { ok: 'bg-ok', watch: 'bg-watch', bad: 'bg-bad', none: 'bg-rule-stro
 
 /** The second line of the Replies reading: when it last answered, said in words. */
 function replyState(row: FindRow): string {
-  if (row.probes === 0 && row.awaitingAgent) return 'no agent connected yet';
+  if (row.awaitingAgent) return 'no agent connected';
   if (row.probes === 0) return 'not checked yet';
   if (row.rate === 0) return 'never answered';
   if (row.answeringToday) return 'answering today';

@@ -41,7 +41,7 @@ test('the public API reports the state beside the probe counts', () => {
   };
   assert.deepEqual({ total: summary.probes.value.total, awaitingAgent: summary.probes.value.awaitingAgent }, { total: 0, awaitingAgent: true });
   assert.equal(summary.availability.value, null);
-  assert.match(summary.probes.source, /no agent bound to it is not counted/);
+  assert.match(summary.probes.source, /`awaitingAgent` is true and nothing is counted/);
 });
 
 test('the sweep measures as deep as the catalogue lists', () => {

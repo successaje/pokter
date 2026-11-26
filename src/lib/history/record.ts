@@ -40,12 +40,12 @@ export interface TrackRecord {
   /** Days between the first and last probe — how long we have actually watched. */
   observedDays: number;
   /**
-   * The latest probe found a listing with no agent bound to it yet.
+   * The address's latest reply was a listing with no agent bound to it.
    *
-   * Every figure above leaves those probes out (see `buildTrackRecord`), so
-   * an agent whose platform lists it without an agent reads as not measured
-   * rather than failing, and this says why. Optional so a record built by
-   * hand needs no change; `buildTrackRecord` always sets it.
+   * While it holds, every figure above is empty (see `buildTrackRecord`), so
+   * the listing reads as not measured rather than failing, and this says
+   * why. Optional so a record built by hand needs no change;
+   * `buildTrackRecord` always sets it.
    */
   awaitingAgent?: boolean;
 }
@@ -144,14 +144,35 @@ function findLongestOutage(ascending: ProbeRecord[]): Outage | null {
 }
 
 /**
+ * Whether the address still answers with a listing that has no agent bound.
+ *
+ * Decided by the latest probe the address replied to. A probe that got no
+ * reply, or a server error, says nothing about whether an agent has been
+ * bound, so it is passed over: the listing's host timing out on a few probes
+ * in a hundred must not flip the label to failing until the next check.
+ */
+function awaitsBoundAgent(ascending: ProbeRecord[]): boolean {
+  for (let i = ascending.length - 1; i >= 0; i -= 1) {
+    const probe = ascending[i];
+    if (!probe.ok && (probe.status === null || probe.status >= 500)) continue;
+    return isAwaitingAgentProbe(probe);
+  }
+  return false;
+}
+
+/**
  * Build the full record from stored probes. Input order is not assumed.
  *
- * A probe that found a listing with no agent bound to it is left out of
- * every figure: it is a reading of the address, not of an agent, and there
- * is no agent to have failed. On 25 November platform listings in that state
- * were labelled "Failing" after hundreds of such probes each. The latest
- * probe decides `awaitingAgent`, so once the owner binds an agent the next
- * reading is an ordinary measurement and the record says so.
+ * While the address's latest reply is a listing with no agent bound to it,
+ * nothing is counted: there is no agent to have answered or failed. Leaving
+ * out only the listing replies was not enough: replayed on 26 November, all
+ * 22 listed agents in that state still read "Failing" from what else their
+ * history held, timeouts of the listing's host and the same listing recorded
+ * under older wording before 28 October, when the prober learned to
+ * recognise it.
+ *
+ * Once the address answers as an agent, its probes count again, all but the
+ * listing replies, which were never readings of an agent.
  */
 export function buildTrackRecord(
   probes: ProbeRecord[],
@@ -160,8 +181,8 @@ export function buildTrackRecord(
   const sorted = [...probes].sort((a, b) =>
     a.probedAt.localeCompare(b.probedAt),
   );
-  const latest = sorted[sorted.length - 1];
-  const ascending = sorted.filter((probe) => !isAwaitingAgentProbe(probe));
+  const awaitingAgent = awaitsBoundAgent(sorted);
+  const ascending = awaitingAgent ? [] : sorted.filter((probe) => !isAwaitingAgentProbe(probe));
 
   const firstSeen = ascending[0]?.probedAt ?? null;
   const lastSeen = ascending[ascending.length - 1]?.probedAt ?? null;
@@ -178,6 +199,6 @@ export function buildTrackRecord(
     totalAnswered: ascending.filter((p) => p.ok).length,
     longestOutage: findLongestOutage(ascending),
     observedDays: Math.max(0, observedMs / 86_400_000),
-    awaitingAgent: latest !== undefined && isAwaitingAgentProbe(latest),
+    awaitingAgent,
   };
 }

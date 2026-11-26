@@ -274,7 +274,7 @@ export async function GET(
       awaitingAgent: record.awaitingAgent === true,
       medianResponseMs: live?.medianMs ?? null,
       capabilities: live?.capabilities ?? [],
-      note: 'Pokter probes only, from scheduled sweeps. Liveness is not correctness. Probes that found a platform listing with no agent bound to it are not counted; awaitingAgent is true when the latest check found one.',
+      note: 'Pokter probes only, from scheduled sweeps. Liveness is not correctness. While the latest reply from the address is a platform listing with no agent bound to it, awaitingAgent is true and nothing is counted; once it answers as an agent, its probes count again, apart from the listing replies.',
     },
 
     /*
