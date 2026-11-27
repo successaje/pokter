@@ -13,8 +13,11 @@ import { enabledHireTokens, offeredTokens, type HireTokenSet, type PaymentToken 
  * - browser wallet, one atomic batch (`wallet_sendCalls`): no. The same calls,
  *   but the batch path has not been run end to end for another token, so it
  *   is switched off for them and the hire falls back to one at a time.
- * - passkey wallet: no. It funds through the SDK's `hireErc8183Agent`, which
- *   only creates `$U` jobs.
+ * - passkey wallet: only with `NEXT_PUBLIC_PASSKEY_TOKEN_HIRES=on`. A $U hire
+ *   goes through the SDK's `hireErc8183Agent`, which only creates `$U` jobs;
+ *   another token is funded with the same five calls as the browser wallet,
+ *   sent as one passkey batch. That has not been run end to end yet, so it
+ *   is off by default, as the browser batch is for these tokens.
  * - server hire (`hireAgent`): yes, given the signed token and amount. No
  *   public route passes them.
  * - prepared hire (`prepare_hire`): yes, when the owner names the token.
@@ -24,10 +27,15 @@ import { enabledHireTokens, offeredTokens, type HireTokenSet, type PaymentToken 
  */
 export type HirePath = 'browser-wallet' | 'browser-wallet-batch' | 'passkey-wallet' | 'server-hire' | 'prepared-hire' | 'requests-board';
 
+/** Whether a passkey wallet may fund a token other than $U: on for testing that path, off until it has been run end to end. */
+export const PASSKEY_TOKEN_HIRES = process.env.NEXT_PUBLIC_PASSKEY_TOKEN_HIRES === 'on';
+
 export const HIRE_PATHS: Record<HirePath, { label: string; otherTokens: boolean; why: string }> = {
   'browser-wallet': { label: 'Browser wallet, one transaction at a time', otherTokens: true, why: 'Builds createJobWithToken and approves exactly the signed amount in that token.' },
   'browser-wallet-batch': { label: 'Browser wallet, one atomic batch', otherTokens: false, why: 'Not yet exercised end to end for another token; such hires are sent one transaction at a time.' },
-  'passkey-wallet': { label: 'Passkey wallet', otherTokens: false, why: 'Funds through the SDK, which only creates $U jobs.' },
+  'passkey-wallet': PASSKEY_TOKEN_HIRES
+    ? { label: 'Passkey wallet', otherTokens: true, why: 'Builds createJobWithToken and approves exactly the signed amount, as one passkey batch. On for testing (NEXT_PUBLIC_PASSKEY_TOKEN_HIRES).' }
+    : { label: 'Passkey wallet', otherTokens: false, why: 'Funds $U through the SDK. Another token waits until its batch has been run end to end.' },
   'server-hire': { label: 'Server hire (operator)', otherTokens: true, why: 'Funds the signed token and amount when both are passed.' },
   'prepared-hire': { label: 'Prepared hire (prepare_hire)', otherTokens: true, why: 'Only when the owner names the token; the ceiling is then counted in it.' },
   'requests-board': { label: 'Requests board and proposals', otherTokens: true, why: 'The request names its token; a proposal is signed in the same token, compared in raw units, and hired through a browser wallet.' },

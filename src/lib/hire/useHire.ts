@@ -22,7 +22,8 @@ import { WALLET_NETWORK, walletClient, walletNetworkFor } from '@/lib/wallet/pas
 import { passkeyActsOn } from '@/lib/wallet/passkey-networks';
 import { rememberJob } from '@/lib/wallet/activity';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
-import { nonDefaultHireToken } from '@/lib/erc8183/hire-calls';
+import { assertEscrowSupportsToken, buildTokenHireCalls, confirmJobToken, nonDefaultHireToken } from '@/lib/erc8183/hire-calls';
+import { pathFundsToken } from '@/lib/network/hire-paths';
 import { displaySymbol, offeredTokens, type PaymentToken } from '@/lib/network/tokens';
 import { planCommission, type CommissionPlan } from '@/lib/hire/commission-plan';
 import { AttemptOwnershipLost, DeadlineNotRecorded, finishableJob, fundingCoordinator, promptMovesMoney, reconcileAttempt, type AttemptSession, type BeginInput, type FundingAttempt, type KeyValue, type LockManagerLike, type UnreadableRecord } from '@/lib/hire/funding-journal';
@@ -32,7 +33,7 @@ import {
   encodePokterJobEnvelope,
   type PokterJobQuote,
 } from '@/lib/erc8183/job-envelope';
-import { DELIVERY_WINDOW_SECONDS } from '@/lib/erc8183/deadline';
+import { DELIVERY_WINDOW_SECONDS, jobLifetimeSeconds } from '@/lib/erc8183/deadline';
 import { walletActionError } from '@/lib/wallet/errors';
 import { materialQuoteChange } from './quote-change';
 import { HireFailure, isWalletRejection, type FailureLayer } from '@/lib/hire/failure';
@@ -1514,16 +1515,17 @@ export function useHire({
 
       if (!wallet || !signer) throw new Error('A passkey wallet is required.');
       /*
-       * The passkey wallet funds through the SDK's `hireErc8183Agent`, which
-       * builds a $U job. Rather than let a USDT price reach it and become a
-       * $U job the seller never priced, it is refused here by name.
+       * A $U hire funds through the SDK's `hireErc8183Agent`, which builds a
+       * $U job. Another token is funded below with Pokter's own token-aware
+       * calls where that path is switched on (`network/hire-paths`).
+       * Otherwise it is refused here by name, rather than let a USDT price
+       * reach the SDK and become a $U job the seller never priced.
        */
-      if (signedQuote && nonDefaultHireToken(escrowChainId, signedQuote.intent.currency)) {
+      const passkeyToken = signedQuote ? nonDefaultHireToken(escrowChainId, signedQuote.intent.currency) : null;
+      if (passkeyToken && !pathFundsToken('passkey-wallet', passkeyToken)) {
+        const symbol = displaySymbol(passkeyToken);
         throw new HireFailure(
-          (() => {
-            const symbol = displaySymbol(nonDefaultHireToken(escrowChainId, signedQuote.intent.currency)!);
-            return `${agent.name} priced this in ${symbol}, and the passkey wallet funds $U only. Nothing was sent. Connect a browser wallet to fund a ${symbol} hire.`;
-          })(),
+          `${agent.name} priced this in ${symbol}, and the passkey wallet funds $U only. Nothing was sent. Connect a browser wallet to fund a ${symbol} hire.`,
           'payment',
           'token-not-supported-by-wallet',
         );
@@ -1533,7 +1535,8 @@ export function useHire({
       }
       /* Everything below is on the hire's own network: a passkey set up on both holds separate balances on each. */
       const NATIVE_SYMBOL = nativeSymbolFor(escrowChainId);
-      if (!budgetValid) throw new Error(`The budget must be between ${BUDGET_MIN} and ${BUDGET_MAX} $U.`);
+      /* A token hire funds the signed amount, which the plan has already checked; the $U budget is not used. */
+      if (!passkeyToken && !budgetValid) throw new Error(`The budget must be between ${BUDGET_MIN} and ${BUDGET_MAX} $U.`);
       if (!task.trim()) throw new Error('Describe the work before funding escrow.');
       const committedTask = encodePokterJobEnvelope({
         identityChainId: agent.chainId,
@@ -1545,6 +1548,116 @@ export function useHire({
         task: sending,
         quote: signedQuote ?? undefined,
       });
+
+      if (passkeyToken && signedQuote) {
+        /*
+         * The signed token, for exactly the signed amount: the five calls the
+         * browser wallet sends (`buildTokenHireCalls`), here as one passkey
+         * batch, which lands whole or not at all. No swap, because Pokter
+         * swaps only into $U, so a buyer short of the token is told before
+         * any prompt. No gas top-up either: the sponsor covers wallets that
+         * hold $U for a job.
+         */
+        const symbol = displaySymbol(passkeyToken);
+        const addresses = correctedErc8183Addresses(escrowChainId);
+        const token = passkeyToken.address as `0x${string}`;
+        const amount = BigInt(signedQuote.intent.amountRaw);
+        const read = readClient(escrowChainId);
+        await assertEscrowSupportsToken(read as never, addresses.commerce as `0x${string}`, token);
+        const held = await walletClient().balances({ wallet: wallet.address, tokens: [token], chainId: escrowChainId });
+        const heldRaw = held.tokens?.[0]?.ok ? held.tokens[0].raw : 0n;
+        if (heldRaw < amount) {
+          throw new HireFailure(
+            `${agent.name}'s signed price is ${formatUnits(amount, passkeyToken.decimals)} ${symbol}, and this wallet holds ${formatUnits(heldRaw, passkeyToken.decimals)} ${symbol} on ${chainLabel(escrowChainId)}. Nothing was sent. Send ${symbol} to this wallet on ${chainLabel(escrowChainId)}, then fund the hire.`,
+            'payment',
+            'insufficient-token',
+          );
+        }
+        if (held.native < MIN_TRANSACTION_GAS) {
+          throw new Error(
+            `You need ${NATIVE_SYMBOL} for this action. This wallet holds ${formatEther(held.native)} ${NATIVE_SYMBOL} on ${chainLabel(escrowChainId)}, ` +
+              `and funding escrow needs at least ${formatEther(MIN_TRANSACTION_GAS)} ${NATIVE_SYMBOL} for the network fee.`,
+          );
+        }
+        const tokenDisputeWindow = await readDisputeWindow(escrowChainId).catch(() => null);
+        if (tokenDisputeWindow === null) {
+          throw new HireFailure('Pokter could not read the escrow’s dispute window, so it cannot know this payment’s deadline. Nothing was sent; try again in a moment.', 'network', 'deadline-unknown', true);
+        }
+        /* Written by Pokter, as for a browser wallet: delivery time plus the dispute window. */
+        const expiredAt = BigInt(Math.floor(Date.now() / 1000) + jobLifetimeSeconds(tokenDisputeWindow, deliverySeconds));
+        const counter = await read
+          .readContract({ address: addresses.commerce as `0x${string}`, abi: [{ name: 'jobCounter', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] }] as const, functionName: 'jobCounter' })
+          .catch(() => null);
+        if (counter === null) {
+          throw new HireFailure('Pokter could not read the escrow’s next job number, which this payment is built around. Nothing was sent; try again in a moment.', 'network', 'counter-unknown', true);
+        }
+        /*
+         * The calls name the job they create. If another job takes that
+         * number first, registering and funding it fail and the whole batch
+         * reverts: nothing is paid, and the buyer can try again.
+         */
+        const predictedJobId = counter + 1n;
+        const calls = buildTokenHireCalls({
+          chainId: escrowChainId,
+          addresses: addresses as never,
+          jobId: predictedJobId,
+          provider: providerAddress as `0x${string}`,
+          description: committedTask,
+          budget: amount,
+          expiredAt,
+          token,
+        });
+        const hired = await fundOwned(wallet.address, {
+          provider: providerAddress as string,
+          agent: { chainId: agent.chainId, tokenId: agent.tokenId, name: agent.name },
+          task: sending,
+          description: committedTask,
+          token,
+          amountRaw: amount.toString(),
+          predictedJobId: predictedJobId.toString(),
+          fundableUntil: Number(expiredAt),
+        }, async (session) => {
+          /* One prompt: created, registered, priced, approved and funded together, or none of it. */
+          session.beforePrompt('batch');
+          const outcome = await walletClient().execute({ wallet: { address: wallet.address }, signer, calls, chainId: escrowChainId });
+          /*
+           * Landed whole, so the predicted job is this one. Read back that it
+           * is this wallet's and which token it holds before saying so; an
+           * unreadable answer records the job with its token unknown, for the
+           * sweep, never as a failed hire that invites a second payment.
+           */
+          const created = await getErc8183Job(walletNetworkFor(escrowChainId), predictedJobId).catch(() => null);
+          if (created && created.client.toLowerCase() !== wallet.address.toLowerCase()) {
+            throw new Error(`The escrow's job ${predictedJobId} belongs to another wallet. Pokter is checking the chain for this payment.`);
+          }
+          const tokenConfirmed = (await confirmJobToken(read as never, addresses.commerce as `0x${string}`, predictedJobId, token)) === 'confirmed';
+          const record = fundedJobRecord({
+            id: crypto.randomUUID(),
+            jobId: predictedJobId,
+            chainId: escrowChainId,
+            agent: { chainId: agent.chainId, tokenId: agent.tokenId, name: agent.name },
+            providerLabel: provider?.label,
+            provider: providerAddress as `0x${string}`,
+            task: sending,
+            budgetRaw: amount,
+            paymentToken: token,
+            tokenConfirmed,
+            expiredAt,
+            hireTxHash: (outcome as { transactionHash?: `0x${string}` }).transactionHash ?? null,
+            at: new Date().toISOString(),
+          });
+          rememberJob(wallet.address, record);
+          session.close();
+          return record;
+        });
+        // Not awaited: its retries must not hold up the seller's notice, which indexes too.
+        void indexFundedJob(hired);
+        setJob(hired);
+        forgetBrief(agent);
+        setState('hired');
+        await notifySeller(hired);
+        return;
+      }
 
       const budgetRaw = parseUnits(String(budget), 18);
       const { paymentToken } = correctedErc8183Addresses(escrowChainId);

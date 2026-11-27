@@ -13,6 +13,7 @@ import { FAUCETS, chainLabel, explorerBaseFor, shortNetworkLabel } from '@/lib/n
 import { jobHref } from '@/lib/jobs/href';
 import { useGasSponsorship } from '@/lib/wallet/sponsor-client';
 import { PASSKEY_ACTION_CHAINS, PASSKEY_SETUP_CHAINS, type PasskeyChainId } from '@/lib/wallet/passkey-networks';
+import { PASSKEY_TOKEN_HIRES } from '@/lib/network/hire-paths';
 import { cn } from '@/lib/ui/cn';
 import { shortAddress } from '@/lib/ui/format';
 import { formatBudget, formatQuotedRaw } from '@/lib/erc8183/pricing';
@@ -344,7 +345,7 @@ export function HireFlow(props: HireFlowProps) {
   const passkeyBlocked =
     !passkeyOpenHere
       ? `This hire is paid${escrowChainId === 56 ? ' with real funds' : ''} on ${networkLabel}, and a passkey wallet acts on ${PASSKEY_ACTION_CHAINS.map(chainLabel).join(' and ')} only. Use a browser or phone wallet.`
-      : signedTokenPrice
+      : signedTokenPrice && !PASSKEY_TOKEN_HIRES
         ? `A passkey wallet funds $U only, and this hire is in ${priceSymbol}. Use a browser or phone wallet.`
         : null;
   /* The signed amount exactly as signed, from its raw units: never a float that could round. */
