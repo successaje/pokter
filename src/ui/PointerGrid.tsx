@@ -8,9 +8,10 @@ import { cn } from '@/lib/ui/cn';
  * Graph paper that answers the pointer.
  *
  * The sheet's blank paper, made to respond the way the page's subject does:
- * near the pointer the lattice shows through, the squares it crosses light
- * and fade like calls going out, and a square it rests on for a moment
- * answers, in the signal colour, and then lets go. It is the same gesture in
+ * the squares the pointer crosses darken and fade like calls going out, and
+ * a square it rests on for a moment answers, in the signal colour, and then
+ * lets go. Nothing round the pointer is lit: a glow and a lens that showed
+ * the lattice through were tried and taken out, the trail says enough. It is the same gesture in
  * the hero, behind the board's blank cells and in the footer, so the page
  * has one way of being alive rather than three.
  *
@@ -123,8 +124,6 @@ export function PointerGrid({ cell = 24, className, trailAlpha = 0.11, answerAlp
       const rect = el.getBoundingClientRect();
       const x = event.clientX - rect.left;
       const y = event.clientY - rect.top;
-      el.style.setProperty('--mx', `${x}px`);
-      el.style.setProperty('--my', `${y}px`);
       if (!sized) size();
       const col = Math.floor(x / cell);
       const row = Math.floor(y / cell);
@@ -143,12 +142,8 @@ export function PointerGrid({ cell = 24, className, trailAlpha = 0.11, answerAlp
       }
       wake();
     };
-    const onEnter = () => {
-      readColours();
-      el.dataset.on = 'true';
-    };
+    const onEnter = () => readColours();
     const onLeave = () => {
-      delete el.dataset.on;
       resting = null;
       window.clearTimeout(dwellTimer);
     };
@@ -167,10 +162,7 @@ export function PointerGrid({ cell = 24, className, trailAlpha = 0.11, answerAlp
   }, [cell, trailAlpha, answerAlpha]);
 
   return (
-    <div ref={root} aria-hidden className={cn('pointer-grid pointer-events-none absolute inset-0 overflow-hidden', className)} style={{ ['--cell' as string]: `${cell}px` }}>
-      {/* A light under the pointer, where the host gives it a colour, then the lattice shown through round it. */}
-      <div className="pointer-grid-glow absolute inset-0" />
-      <div className="pointer-grid-lens absolute inset-0" />
+    <div ref={root} aria-hidden className={cn('pointer-events-none absolute inset-0 overflow-hidden', className)}>
       <canvas ref={canvas} className="absolute inset-0 size-full" />
     </div>
   );

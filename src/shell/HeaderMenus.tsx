@@ -24,7 +24,7 @@ import { activeGroup, isActive, NAV_DIRECT, NAV_GROUPS, type NavGroup } from './
  * belongs to — pulled left only by however much it would otherwise hang off
  * the window. See `Panel` for why neither edge alone can do it.
  */
-export function HeaderMenus() {
+export function HeaderMenus({ className }: { className?: string }) {
   const pathname = usePathname() ?? '/';
   const reduce = useReducedMotion();
   const navRef = useRef<HTMLElement>(null);
@@ -81,7 +81,7 @@ export function HeaderMenus() {
     <nav
       ref={navRef}
       aria-label="Primary"
-      className="relative mx-auto hidden items-center gap-1 lg:flex"
+      className={cn('relative hidden items-center gap-1 lg:flex', className)}
       onPointerLeave={(event) => mouse(event) && closeSoon()}
     >
       {NAV_GROUPS.map((group) => {
