@@ -152,7 +152,6 @@ export default async function HomePage() {
         className="relative flex min-h-[calc(100svh-8rem-1px)] flex-col justify-center overflow-hidden md:min-h-[calc(100svh-4rem-1px)]"
         aria-labelledby="hero-title"
         data-grid-host
-        style={{ ['--grid-glow' as string]: 'color-mix(in oklab, var(--signal) 13%, transparent)' }}
       >
         <HeroField />
         <SheetRails />
@@ -732,7 +731,6 @@ export default async function HomePage() {
         className="relative overflow-hidden"
         aria-labelledby="cta-title"
         data-grid-host
-        style={{ ['--grid-glow' as string]: 'color-mix(in oklab, var(--signal) 12%, transparent)' }}
       >
         <div aria-hidden className="graph-paper absolute inset-0 [mask-image:radial-gradient(ellipse_60%_70%_at_50%_50%,black,transparent_75%)]" />
         <PointerGrid className="[mask-image:radial-gradient(ellipse_70%_80%_at_50%_50%,black,transparent_85%)]" />
