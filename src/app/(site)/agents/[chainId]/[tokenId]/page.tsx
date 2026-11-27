@@ -513,8 +513,8 @@ function ClaimVsObserved({ p }: { p: AgentProfile }) {
                 <ul className="flex flex-col gap-0.5 pl-3 empty:hidden">
                   {p.evidence.gaps.slice(0, 3).map((gap) => (
                     <li key={gap.fields.join(',')}>
-                      <span className="t-readout">{gap.fields.slice(0, 4).join(', ')}</span>
-                      {gap.fields.length > 4 ? ` and ${gap.fields.length - 4} more` : ''}
+                      {/* Every field, not a sample: a measurer who fixes four of six is still unscored. `attestationGaps` bounds the list at ten names. */}
+                      <span className="t-readout">{gap.fields.join(', ')}</span>
                       {p.evidence.unscored > gap.count || p.evidence.gaps.length > 1 ? ` · ${gap.count}` : ''}
                     </li>
                   ))}
