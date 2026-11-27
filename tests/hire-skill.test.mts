@@ -3,7 +3,8 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 import { CHECK_DELIVERY, JOB_STATUS, PREPARE_BRIEF, PREPARE_HIRE } from '../src/lib/assistant/tools';
-import { HIRE_SKILL_MD, HIRE_SKILL_NAME, agentIdSetupPrompt, hireSkillPrompt } from '../src/lib/builders/hire-skill';
+import { HIRE_SKILL_MD, HIRE_SKILL_MONEY, HIRE_SKILL_NAME, agentIdSetupPrompt, hireSkillPrompt } from '../src/lib/builders/hire-skill';
+import { paymentTokenAt } from '../src/lib/network/tokens';
 
 /*
  * The skill that hires and reviews from the user's own Agentic Wallet. It
@@ -121,6 +122,34 @@ test('the hire tools it names are the assistant tools by those names', () => {
   for (const field of ['escrow_chain_id', 'owner_address', 'max_budget']) {
     assert.ok((PREPARE_HIRE.inputSchema as { required: string[] }).required.includes(field), field);
     assert.match(HIRE_SKILL_MD, new RegExp(`\`${field}\``));
+  }
+});
+
+/*
+ * A hire can be funded in money other than the escrow's own $U, and for a
+ * while the skill never asked which: the capability was in `prepare_hire`
+ * and in the Agentic Wallet's funding calls, so every hire from an Agent ID
+ * went in $U because nothing offered the choice.
+ *
+ * `payment_token` is in the published schema only while a non-default token
+ * is turned on, so the schema's own properties are not what is checked here.
+ * What is checked is that every currency the skill offers is one the escrow
+ * on 56 can actually take.
+ */
+test('it asks which currency before it prepares a hire, and offers only money the escrow can fund', () => {
+  assert.match(HIRE_SKILL_MD, /Ask the user which currency they will pay in, and never\s+choose one for them/);
+  assert.match(HIRE_SKILL_MD, /`payment_token`/);
+  /* `max_budget` counts in it whatever the flag, so the skill and the tool say the same thing either way. */
+  const schema = PREPARE_HIRE.inputSchema as { required: string[]; properties: Record<string, { description?: string }> };
+  assert.match(schema.properties.max_budget.description ?? '', /payment_token/);
+  assert.ok(!schema.required.includes('payment_token'), 'a $U hire passes none');
+
+  for (const { label, address } of HIRE_SKILL_MONEY) {
+    const token = paymentTokenAt(56, address);
+    assert.ok(token, `${label} ${address} is not a token Pokter has verified on chain 56`);
+    /* The escrow's own token, or one whose whole job lifecycle has been run in it against the deployed escrow. */
+    assert.ok(token.offered || (token.hireEligible && token.escrowSupported), `${label} is offered by the skill but cannot be funded on 56`);
+    assert.ok(HIRE_SKILL_MD.includes('`' + address + '`'), `${label} is named with its contract`);
   }
 });
 
