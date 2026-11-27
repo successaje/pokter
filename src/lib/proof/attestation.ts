@@ -56,6 +56,8 @@ export interface Attestation {
   createdAt: string | null;
   /** True when the body contains Pokter's minimum reproducible measurement fields. */
   verified: boolean;
+  /** The fields that stopped it being scored, empty when `verified`. */
+  missing: string[];
 }
 
 const DATA_URI_PREFIX = 'data:application/json;base64,';
@@ -112,20 +114,38 @@ export function normaliseValue(
   return Math.min(1, Math.max(0, numeric / scale));
 }
 
+/**
+ * Which of Pokter's minimum measurement fields a body does not satisfy, named
+ * as the schema names them so an author can map a gap to a key they control.
+ *
+ * This is the only place the rule is written. `isScorableAttestationBody` is
+ * defined as "no gaps", so a receipt can never be refused for a reason the
+ * page cannot name, and the two can never drift apart.
+ */
+export function attestationGaps(body: AttestationBody | null): string[] {
+  if (!body) return ['agentRegistry', 'agentId', 'createdAt', 'tag1', 'reasoning', 'method'];
+  const gaps: string[] = [];
+  const str = (value: unknown, max: number) => typeof value === 'string' && value.trim().length > 0 && value.length <= max;
+
+  if (typeof body.agentRegistry !== 'string' || !AGENT_REGISTRY_PATTERN.test(body.agentRegistry)) gaps.push('agentRegistry');
+  if (!Number.isInteger(body.agentId) || (body.agentId ?? -1) < 0) gaps.push('agentId');
+  if (typeof body.createdAt !== 'string' || !Number.isFinite(Date.parse(body.createdAt))) gaps.push('createdAt');
+  if (!str(body.tag1, 80)) gaps.push('tag1');
+  if (!str(body.reasoning, 2_000)) gaps.push('reasoning');
+
+  const method = body.method;
+  if (!method) return [...gaps, 'method'];
+  if (!Number.isInteger(method.probes) || (method.probes ?? 0) < 1) gaps.push('method.probes');
+  if (!Number.isInteger(method.answered) || (method.answered ?? -1) < 0 || (method.answered ?? 0) > (method.probes ?? 0)) gaps.push('method.answered');
+  if (typeof method.windowDays !== 'number' || !Number.isFinite(method.windowDays) || method.windowDays < 0) gaps.push('method.windowDays');
+  if (!str(method.vantage, 200)) gaps.push('method.vantage');
+  if (!Array.isArray(method.knownDefects) || method.knownDefects.length > 20 || method.knownDefects.some((item) => !str(item, 300))) gaps.push('method.knownDefects');
+  return gaps;
+}
+
 /** Minimum body needed before Pokter treats a feedback receipt as a measurement. */
 export function isScorableAttestationBody(body: AttestationBody | null): body is AttestationBody & { tag1: string; method: AttestationMethod } {
-  if (!body || typeof body.tag1 !== 'string' || body.tag1.trim().length === 0 || body.tag1.length > 80) return false;
-  if (typeof body.agentRegistry !== 'string' || !AGENT_REGISTRY_PATTERN.test(body.agentRegistry)) return false;
-  if (!Number.isInteger(body.agentId) || (body.agentId ?? -1) < 0) return false;
-  if (typeof body.createdAt !== 'string' || !Number.isFinite(Date.parse(body.createdAt))) return false;
-  if (typeof body.reasoning !== 'string' || body.reasoning.trim().length === 0 || body.reasoning.length > 2_000) return false;
-  const method = body.method;
-  if (!method || !Number.isInteger(method.probes) || (method.probes ?? 0) < 1) return false;
-  if (!Number.isInteger(method.answered) || (method.answered ?? -1) < 0 || (method.answered ?? 0) > (method.probes ?? 0)) return false;
-  if (typeof method.windowDays !== 'number' || !Number.isFinite(method.windowDays) || method.windowDays < 0) return false;
-  if (typeof method.vantage !== 'string' || method.vantage.trim().length === 0 || method.vantage.length > 200) return false;
-  if (!Array.isArray(method.knownDefects) || method.knownDefects.length > 20 || method.knownDefects.some((item) => typeof item !== 'string' || item.trim().length === 0 || item.length > 300)) return false;
-  return true;
+  return attestationGaps(body).length === 0;
 }
 
 /** Join a raw feedback row to its decoded attestation. */
@@ -152,5 +172,6 @@ export function toAttestation(feedback: ScanFeedback, author?: ResolvedAttestati
     method: body?.method ?? null,
     createdAt: body?.createdAt ?? feedback.created_at ?? null,
     verified: isScorableAttestationBody(body),
+    missing: attestationGaps(body),
   };
 }

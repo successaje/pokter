@@ -64,5 +64,6 @@ export function toSweepAttestation(
     },
     createdAt: record.lastSeen,
     verified: true,
+    missing: [],
   };
 }

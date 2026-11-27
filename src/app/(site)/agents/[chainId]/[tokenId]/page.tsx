@@ -504,7 +504,26 @@ function ClaimVsObserved({ p }: { p: AgentProfile }) {
               <span className="t-readout">{p.evidence.total}</span> attestation{p.evidence.total === 1 ? '' : 's'}, <span className="t-readout">{p.evidence.scorable}</span> scorable
             </li>
             <li>{p.evidence.independentAuthors.length > 0 ? `Independent authors: ${p.evidence.independentAuthors.slice(0, 3).map(shortAddress).join(', ')}` : 'No independently verified author wallet'}</li>
-            {p.evidence.unscored > 0 && <li className="text-ink-3">{p.evidence.unscored} could not be scored</li>}
+            {p.evidence.unscored > 0 && (
+              <li className="flex flex-col gap-1 text-ink-3">
+                {/* A whole body with no on-chain value is unscored and lacks no field, so it has nothing to name. */}
+                <span>
+                  {p.evidence.unscored} could not be scored{p.evidence.gaps.length > 0 ? ', for want of:' : ''}
+                </span>
+                <ul className="flex flex-col gap-0.5 pl-3 empty:hidden">
+                  {p.evidence.gaps.slice(0, 3).map((gap) => (
+                    <li key={gap.fields.join(',')}>
+                      <span className="t-readout">{gap.fields.slice(0, 4).join(', ')}</span>
+                      {gap.fields.length > 4 ? ` and ${gap.fields.length - 4} more` : ''}
+                      {p.evidence.unscored > gap.count || p.evidence.gaps.length > 1 ? ` · ${gap.count}` : ''}
+                    </li>
+                  ))}
+                </ul>
+                <Link href="/evaluators" className="link">
+                  What a receipt needs to count
+                </Link>
+              </li>
+            )}
           </ul>
         )}
       </div>
