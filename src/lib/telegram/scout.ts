@@ -52,7 +52,8 @@ export async function findAgents(query: string, category?: string, responsive = 
     import('@/app/api/v1/agents/route'), import('@/lib/profiles/evidence'),
   ]);
   const url = new URL('https://pokter.xyz/api/v1/agents');
-  url.searchParams.set('limit', responsive ? '100' : '3');
+  /* The route lists by registry number, so three from its front were the oldest testnet registrations: Scout ranks a wider page itself. */
+  url.searchParams.set('limit', '100');
   const searchQuery = [query.slice(0, 120), responsive ? 'is:responsive' : ''].filter(Boolean).join(' ');
   if (searchQuery) url.searchParams.set('q', searchQuery);
   if (category) url.searchParams.set('category', category);
@@ -62,9 +63,11 @@ export async function findAgents(query: string, category?: string, responsive = 
   if (!data.items.length) return reply(responsive
     ? `I found no ${category ? `${CATEGORIES.find((c) => c.id === category)?.label ?? category} ` : ''}agents that answered a Pokter check in the last 24 hours. That does not prove none are operating; try again later or inspect Discover.`
     : 'I found no agents for that task in Pokter’s current catalogue. Try broader words or browse Discover.', [[link('Browse Discover', publicPage('/discover'))]]);
-  const ranked = responsive ? [...data.items].sort((a, b) => Number(b.hirable === true) - Number(a.hirable === true)
+  /* Ready to hire first, then the ones that answer Pokter's checks, the most measured, and mainnet before testnet. */
+  const ranked = [...data.items].sort((a, b) => Number(b.hirable === true) - Number(a.hirable === true)
     || (b.availability.value ?? 0) - (a.availability.value ?? 0)
-    || b.probes.value.total - a.probes.value.total).slice(0, 3) : data.items;
+    || b.probes.value.total - a.probes.value.total
+    || Number(b.chainId === 56) - Number(a.chainId === 56)).slice(0, 3);
   const lines = ranked.map((a, index) => {
     const probes = a.probes.value;
     const evidence = probes.total ? `${probes.answered}/${probes.total} Pokter checks answered` : 'No Pokter checks recorded';
@@ -200,7 +203,8 @@ export function scoutActiveCategory(text: string, lastCategory?: string | null):
 }
 
 export async function marketEvidence(text: string): Promise<BotReply> {
-  const plainQuery = (value: string) => value.replace(/\b(can|could|you|i|want|need|looking|find|show|me|available|published|for|about|please|any|are|there|a|an|the|with|to)\b/gi, ' ').replace(/[^a-z0-9\s-]/gi, ' ').trim();
+  /* The words of the task, without the question around it: "what agents can I hire for audits" searches "audits". */
+  const plainQuery = (value: string) => value.replace(/\b(can|could|you|i|want|need|looking|find|show|me|available|published|for|about|please|any|are|there|a|an|the|with|to|what|which|who|is|of|on|in|hire|hiring|regarding|recommend|suggest|search|best|good|top|some|tell|more|like|one|this)\b/gi, ' ').replace(/[^a-z0-9\s-]/gi, ' ').trim();
   if (/\b(services?|offers?)\b/i.test(text)) {
     const query = plainQuery(text.replace(/\b(services?|offers?)\b/gi, ' '));
     return exploreServices(query);

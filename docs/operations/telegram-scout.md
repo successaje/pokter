@@ -84,5 +84,10 @@ It is `POST /api/scout` (`src/lib/scout/web-answer.ts`), sharing the model, rule
 - **Same key, separate limits.** It uses `SCOUT_GEMINI_API_KEY` and `SCOUT_GEMINI_MODEL`. Each visitor gets 12 questions per 15 minutes. The website has its own budget of 120 an hour, apart from Telegram's 120.
 - **Answering without the model.** With no key, a timeout or the free quota spent, Scout answers in Pokter's own words. It gives the evidence it read or the facts of the guide the question touches. With neither, it offers the email.
 - **Nothing stored.** The conversation lives in the visitor's browser, and each question carries its last six turns. A visitor accepts the Gemini notice before the first question.
+- **Looking agents up.** The website reads questions the way people ask them (`src/lib/scout/web-routing.ts`), wider than Telegram's fixed phrasings:
+  - "Tell me more about BrinkWatch", "What does X do?" or "Is X reliable?" looks the name up in the catalogue Discover searches. It matches strictly, from the start of an agent's name, and finds every network it is registered on.
+  - "What agents can I hire for yield?" searches the catalogue, as `/find` does.
+  - A capitalised name that matches nothing is answered as not listed, with a Discover search to try.
+  - The model is told which links appear under its answer, and it gets an empty record when nothing was looked up, so it cannot point to a link that is not there.
 - **Asking about an agent never contacts it.** The answer comes from the registry entry and Pokter's stored checks, prices and jobs (`searchById`). It never uses the agent page's dossier, which probes the agent and may ask it for a price.
 - **Handing over to a person.** When a question needs the team (a stuck job, payment, account, bug or partnership), the model ends its answer with a `HANDOFF` line. The panel strips that line and offers an email to help@pokter.xyz, written in the visitor's own mail app with their question filled in. Anyone can also choose "Ask a person". Replies come from that inbox.

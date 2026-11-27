@@ -21,6 +21,10 @@ export async function generateScoutAnswer(input: {
   signal?: AbortSignal;
   /** Rules for one channel, after the shared ones: the website adds its handoff. */
   channelInstructions?: string;
+  /** The labels of the links shown under the answer, so the model points only to pages the reader can see. */
+  links?: string[];
+  /** What `pokter_evidence` says when nothing was looked up. The website sends none, so the model has no phrase to repeat. */
+  emptyEvidence?: string;
 }): Promise<string> {
   const response = await fetch('https://generativelanguage.googleapis.com/v1beta/interactions', {
     method: 'POST',
@@ -31,8 +35,9 @@ export async function generateScoutAnswer(input: {
       input: JSON.stringify({
         recent_turns: input.turns.slice(-6),
         user_message: input.message.slice(0, 1200),
-        pokter_evidence: input.evidence.slice(0, 3500) || 'No agent evidence was retrieved for this turn.',
+        pokter_evidence: input.evidence.slice(0, 3500) || (input.emptyEvidence ?? 'No agent evidence was retrieved for this turn.'),
         pokter_docs: input.docs?.slice(0, 3200) ?? '',
+        ...(input.links ? { links_below_answer: input.links } : {}),
       }),
       generation_config: { max_output_tokens: 350 },
       store: false,
