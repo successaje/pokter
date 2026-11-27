@@ -15,13 +15,20 @@ import { drawerGroups, isActive, NAV_DIRECT } from './nav';
 import { ThemeSegmented, ThemeToggle } from './ThemeControl';
 import { LazyHeaderWallet } from './wallet/LazyHeaderWallet';
 
+/** The surface every pill in the row shares: raised, hairline, a soft lift. Opaque enough to read over content without a blur. */
+const PILL = 'rounded-full border border-rule bg-[color-mix(in_oklab,var(--raised)_94%,transparent)] shadow-[0_1px_2px_rgb(0_0_0/0.04),0_10px_28px_-14px_rgb(0_0_0/0.22)]';
 
 /**
- * The site header, on every page including Hiring and Building. Two menus
- * and one link (Hire, Build, Proof; see `nav.ts`), search, the account
- * control, and nothing else; How it works is in the footer. It always has
- * its hairline, and tightens and blurs what is behind it once the page
- * scrolls.
+ * The site header, on every page including Hiring and Building. Four menus
+ * and one link (Discover, Requests, Hire, Build, Proof; see `nav.ts`),
+ * search, the account control, and nothing else; How it works is in the
+ * footer.
+ *
+ * It floats: no bar and no rule, only its pieces over the page. The mark
+ * stands on its own, the navigation sits in one pill, theme and search in a
+ * smaller one, and the account control keeps its square corners. Once the
+ * page scrolls, the row stands on the page colour so the bare mark stays
+ * readable over content.
  */
 export function SiteHeader() {
   const pathname = usePathname() ?? '/';
@@ -42,15 +49,18 @@ export function SiteHeader() {
       </a>
       <header
         className={cn(
-          'sticky top-0 z-40 transition-[background-color,border-color,height] duration-300 ease-out',
-          /* The rule is always drawn: hidden at the top of some pages and shown on others, it read as the header flickering. */
-          'border-b border-rule',
-          scrolled ? 'bg-[color-mix(in_oklab,var(--paper)_88%,transparent)] backdrop-blur-md' : 'bg-paper',
+          'sticky top-0 z-40 transition-[background-color] duration-300 ease-out',
+          /*
+            Once scrolled, the row stands on the page colour, so text never shows through behind the bare mark, and
+            content softens for a few pixels below it instead of being cut. No backdrop filter here or on the pills:
+            it would make them the box the phone search and account menu are placed in.
+          */
+          scrolled && 'bg-paper after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-2 after:bg-[linear-gradient(to_bottom,var(--paper),transparent)]',
         )}
       >
         {/* A narrower gap on phones: with a wallet connected, 24px here was part of a 13px overflow at 375px. */}
         <div className={cn('frame flex items-center gap-3 transition-[height] duration-300 ease-out sm:gap-6', scrolled ? 'h-14' : 'h-16')}>
-          <Wordmark />
+          <Wordmark className="shrink-0" />
           {/*
             Shown only while every hire really is test money.
 
@@ -68,22 +78,26 @@ export function SiteHeader() {
             </span>
           )}
 
-          <HeaderMenus />
+          {/* The long pill: it runs from the mark to the controls, its labels spaced along it. */}
+          <HeaderMenus className={cn(PILL, 'h-10 flex-1 justify-evenly px-2')} />
 
-          <div className="ml-auto flex items-center gap-1.5 lg:ml-0">
-            <ThemeToggle className="hidden lg:grid" />
-            {/* Search, then the account. The workspace is in the account menu ("My workspace"), so it is no longer a third control here. */}
-            <HeaderSearch />
+          <div className="ml-auto flex items-center gap-2 lg:ml-0">
+            <div className={cn(PILL, 'flex h-10 items-center gap-0.5 px-1 [&_button]:rounded-full')}>
+              <ThemeToggle className="hidden lg:grid" />
+              <span aria-hidden className="hidden size-1 rounded-full bg-rule-strong lg:block" />
+              <HeaderSearch />
+              <button
+                type="button"
+                onClick={() => setMenu(true)}
+                className="grid size-9 place-items-center text-ink lg:hidden"
+                aria-label="Open menu"
+                aria-expanded={menu}
+              >
+                <Icon.Menu size={19} />
+              </button>
+            </div>
+            {/* The account control keeps its square corners: it is the one thing in the row that acts. */}
             <LazyHeaderWallet />
-            <button
-              type="button"
-              onClick={() => setMenu(true)}
-              className="grid size-10 place-items-center rounded-[8px] text-ink lg:hidden"
-              aria-label="Open menu"
-              aria-expanded={menu}
-            >
-              <Icon.Menu size={20} />
-            </button>
           </div>
         </div>
       </header>
