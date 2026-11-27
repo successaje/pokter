@@ -15,6 +15,9 @@ import type { AssayRun } from '../src/lib/assay/types';
 
 const code = (path: string) => readFileSync(new URL(`../src/${path}`, import.meta.url), 'utf8');
 const RAN = '2026-10-28T16:18:00.000Z';
+
+/* The checks are read at a fixed time: on the clock's own today, these fixtures grew past the freshness window and read as no longer counting. */
+const NOW = Date.parse('2026-10-29T08:00:00Z');
 const run = (suite: string, results: AssayRun['results'], extra: Partial<AssayRun> = {}): AssayRun => ({
   suite, status: 'checked', detail: null, passed: results.filter((r) => r.pass).length, total: results.length, ranAt: RAN, via: 'paid-hire', results, ...extra,
 });
@@ -26,7 +29,7 @@ test('a health factor row compares Pokter’s reading with the answer, by how fa
   const c = answerComparison(run('hf-venus-1', [
     result(account, { healthFactor: 1.5, borrowLimitRatio: 1.3, liquidatable: false, block: '127900000', readAt: '2026-10-28T16:10:00.000Z' }, { healthFactor: 1.503, unbounded: false, liquidatable: false }, true, 'correct'),
     result('0x000000000000000000000000000000000000dead', { before: { healthFactor: null, block: '127000000' }, after: { healthFactor: null } }, { healthFactor: null, unbounded: true, liquidatable: false }, true, 'correct', null),
-  ]))!;
+  ]), NOW)!;
   assert.equal(c.kind, 'health-factor');
   assert.equal(c.network, 'BNB Chain');
   assert.match(c.tolerance, /^Within 2% of Pokter’s reading, taken within 15 minutes of the delivery$/);
@@ -41,7 +44,7 @@ test('a health factor row compares Pokter’s reading with the answer, by how fa
 });
 
 test('a reading taken before and after a direct reply is shown once when it did not move, and both when it did', () => {
-  const both = (before: number, after: number) => answerComparison(run('hf-venus-1', [result('0x62fe00000000000000000000000000000000887b', { before: { healthFactor: before }, after: { healthFactor: after } }, { healthFactor: after, unbounded: false, liquidatable: false }, true, 'correct')], { via: 'free-call' }))!.rows[0];
+  const both = (before: number, after: number) => answerComparison(run('hf-venus-1', [result('0x62fe00000000000000000000000000000000887b', { before: { healthFactor: before }, after: { healthFactor: after } }, { healthFactor: after, unbounded: false, liquidatable: false }, true, 'correct')], { via: 'free-call' }), NOW)!.rows[0];
   assert.equal(both(5.769, 5.769).reference, '5.769');
   assert.equal(both(1.2, 1.25).reference, '1.200 before · 1.250 after');
   assert.equal(both(1.2, 1.25).difference, '0.00%', 'the closest reading counts, as the grader does');
@@ -52,7 +55,7 @@ test('a position row names the status each side gave and the block Pokter read, 
     result('#7674122', { status: 'in-range', block: '127912345', readAt: RAN }, { status: 'in-range' }, true, 'correct'),
     result('#7674188', { status: 'out-of-range' }, { status: 'in-range' }, false, 'wrong'),
     result('#7674190', { status: 'closed', block: '127912345' }, null, false, 'unanswered'),
-  ]))!;
+  ]), NOW)!;
   assert.equal(c.kind, 'position-range');
   assert.deepEqual(c.rows.map((r) => [r.reference, r.answer, r.difference, r.result.label, r.block]), [
     ['In range', 'In range', 'None', 'Matched', '127912345'],
@@ -67,7 +70,7 @@ test('a scenario row compares each field the brief fixes, within the grader’s 
   const expected = scenario.expected as Record<string, number | string>;
   const close = Object.fromEntries(Object.entries(expected).map(([k, v]) => [k, typeof v === 'number' ? v + Math.max(0.01, Math.abs(v) * 0.005) / 2 : v]));
   const off = { ...expected, levels: Number(expected.levels) + 1, pair: 'ETH/USDT' };
-  const c = answerComparison(run(suite.id, [result(scenario.id, expected, close, true, 'correct'), result(`${scenario.id}-b`, expected, off, false, 'wrong'), result('missing', expected, null, false, 'unreadable')]))!;
+  const c = answerComparison(run(suite.id, [result(scenario.id, expected, close, true, 'correct'), result(`${scenario.id}-b`, expected, off, false, 'wrong'), result('missing', expected, null, false, 'unreadable')]), NOW)!;
   assert.equal(c.kind, 'scenario');
   assert.equal(c.rows[0].task, scenario.brief.text);
   assert.equal(c.rows[0].difference, 'None', 'inside the tolerance is no difference');
@@ -78,12 +81,12 @@ test('a scenario row compares each field the brief fixes, within the grader’s 
 });
 
 test('a passed check says what it covers, and a run with nothing to compare has no comparison', () => {
-  const c = answerComparison(run('v3-range-1', [result('#1', { status: 'in-range' }, { status: 'in-range' }, true, 'correct')]))!;
+  const c = answerComparison(run('v3-range-1', [result('#1', { status: 'in-range' }, { status: 'in-range' }, true, 'correct')]), NOW)!;
   assert.equal(c.scope, 'This covers the 1 position listed, when they were graded. It does not show the agent is right on every question.');
-  assert.equal(answerComparison(null), null);
-  assert.equal(answerComparison(run('v3-range-1', [], { status: 'paid-only' })), null);
-  assert.equal(answerComparison(run('v3-range-1', [])), null);
-  const unscored = answerComparison(run('v3-range-1', [result('#1', { status: 'in-range' }, null, false, 'not-comparable')]))!;
+  assert.equal(answerComparison(null, NOW), null);
+  assert.equal(answerComparison(run('v3-range-1', [], { status: 'paid-only' }), NOW), null);
+  assert.equal(answerComparison(run('v3-range-1', []), NOW), null);
+  const unscored = answerComparison(run('v3-range-1', [result('#1', { status: 'in-range' }, null, false, 'not-comparable')]), NOW)!;
   assert.equal(unscored.rows[0].result.label, 'Not comparable', 'set aside, not accused of a wrong answer');
 });
 
@@ -111,7 +114,7 @@ test('a verdict is compared by its class, as the grader reads it, and the answer
     result(fail.id, { verdict: 'FAIL' }, { verdict: 'Avoid' }, true, 'correct'),
     result(caution.id, { verdict: 'CAUTION' }, { verdict: 'Caution' }, true, 'correct'),
     result('wrong', { verdict: 'CAUTION' }, { verdict: 'safe' }, false, 'wrong'),
-  ]))!;
+  ]), NOW)!;
   assert.deepEqual(c.rows.map((r) => [r.answer, r.difference, r.result.label]), [
     ['verdict Avoid (read as FAIL)', 'None', 'Matched'],
     ['verdict Caution', 'None', 'Matched'],
