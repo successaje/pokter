@@ -2,12 +2,14 @@
 
 import { encodeFunctionData, erc20Abi, type Address, type Hex } from 'viem';
 
-import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
-import { WALLET_NETWORK, walletClient } from '@/lib/wallet/passkey';
+import { paymentTokenAt } from '@/lib/network/tokens';
+import { walletClient } from '@/lib/wallet/passkey';
 import type { SendableToken } from '@/lib/wallet/send-rules';
 
 export interface SendPlan {
   token: SendableToken;
+  /** For a token send: which token. Must be one Pokter offers on the chain; native ignores it. */
+  tokenAddress?: Address;
   to: Address;
   /** Raw units of the token being sent. */
   amount: bigint;
@@ -25,13 +27,24 @@ export async function sendFromPasskey(input: {
   wallet: { address: Address };
   signer: unknown;
   plan: SendPlan;
+  /** The network the balance is on. The wallet must act there (`passkeyActsOn`); the page offers only those. */
+  chainId: number;
 }): Promise<Hex> {
-  const { paymentToken } = correctedErc8183Addresses(WALLET_NETWORK.chainId);
+  /*
+   * Any token Pokter knows on this network, not only $U: a passkey works
+   * only on pokter.xyz, so money paid into it in USDT, USDC or USD1 can
+   * leave only through here. Known, not "offered for hiring": a token
+   * switched off for hires must still be withdrawable. An address outside
+   * the list is refused, not sent: this moves money, and only what it can
+   * name.
+   */
+  const token = input.plan.token === 'native' || !input.plan.tokenAddress ? null : paymentTokenAt(input.chainId, input.plan.tokenAddress);
+  if (input.plan.token !== 'native' && !token) throw new Error('That token is not one Pokter knows on this network. Nothing was sent.');
   const call =
-    input.plan.token === 'native'
+    !token
       ? { to: input.plan.to, value: input.plan.amount }
       : {
-          to: paymentToken as Address,
+          to: token.address as Address,
           data: encodeFunctionData({
             abi: erc20Abi,
             functionName: 'transfer',
@@ -43,7 +56,7 @@ export async function sendFromPasskey(input: {
     wallet: { address: input.wallet.address },
     signer: input.signer as never,
     calls: [call],
-    chainId: WALLET_NETWORK.chainId,
+    chainId: input.chainId,
   });
   const hash = (outcome as { transactionHash?: Hex }).transactionHash;
   if (!hash) {

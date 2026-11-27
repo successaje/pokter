@@ -67,3 +67,9 @@ test('a wallet at or under the reserve can send no native at all', () => {
   assert.equal(sendableNative(GAS_RESERVE), 0n);
   assert.equal(sendableNative(0n), 0n);
 });
+
+test('an amount is read in the chosen token’s own decimals', () => {
+  assert.equal(parseAmount('1.5', 6), 1_500_000n);
+  assert.equal(parseAmount('1.5', 18), parseEther('1.5'));
+  assert.equal(parseAmount('0.0000001', 6), 0n, 'finer than the token can hold reads as nothing, not a crash');
+});

@@ -303,6 +303,9 @@ price in it, but Pokter funds jobs in $U alone, so a USDT price shows as priced
 and not hireable.
 
 **The passkey wallet is testnet only.** A mainnet hire needs a browser wallet.
+The code can set a passkey up on both networks and act on each job's own
+network (`src/lib/wallet/passkey-networks.ts`), but production leaves the
+settings below unset until the mainnet test hire in the passkey plan passes.
 
 **Agents outside the five categories are not measured.** The sweep covers the
 categories and the top of the registry; any other agent's page can still say,
@@ -415,6 +418,9 @@ All optional for local browsing. Server-only unless marked public.
 | `SCAN_BASE_URL` | Overrides the 8004scan API base |
 | `NEXT_PUBLIC_ALTANA_NETWORK` | Public. Must agree with `ALTANA_NETWORK`; the server refuses to start otherwise |
 | `NEXT_PUBLIC_PASSKEY_RP_ID` | Public. The passkey relying-party id; a build arg |
+| `NEXT_PUBLIC_PASSKEY_SETUP_CHAINS` | Public. The networks a new passkey wallet is set up on, e.g. `97,56`. Fixed for each wallet's life: Altana discards the key that sets a network up. Unset means the `NEXT_PUBLIC_ALTANA_NETWORK` network alone. Not yet a Dockerfile build arg |
+| `NEXT_PUBLIC_PASSKEY_CHAINS` | Public. The networks a passkey wallet may act on; a wallet acts only where it was also set up. Unset means the `NEXT_PUBLIC_ALTANA_NETWORK` network alone. Not yet a Dockerfile build arg |
+| `NEXT_PUBLIC_PASSKEY_TOKEN_HIRES` | Public. `on` lets a passkey wallet fund a hire in USDT, USDC or USD1, as one batch of Pokter's own token calls. Off until that path has been run end to end. Not yet a Dockerfile build arg |
 | `BSC_MAINNET_RPC_URL` | Your own mainnet node. It replaces publicnode for the assay's Venus and PancakeSwap v3 reads, trading, registry, x402 and escrow history reads. The escrow index and the server's job reads ask it first, with BNB Chain's public nodes behind it |
 | `NEXT_PUBLIC_ESCROW_CHAINS` | Which escrows hires may be funded on, e.g. `97,56`. Unset means testnet only. A build arg, not a runtime value |
 | `ALTANA_MAINNET_OPERATOR_PURPOSES` | Comma-separated operator purposes allowed to sign on mainnet, e.g. `evidence-agent`. Nothing signs on mainnet without it |

@@ -5,12 +5,12 @@ import { useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { formatUnits, parseUnits, type Address } from 'viem';
 
-import { CHAIN_ID, FAUCETS, NATIVE_SYMBOL, NETWORK_LABEL, chainLabel, escrowMoney, nativeSymbolFor } from '@/lib/network/presentation';
+import { CHAIN_ID, FAUCETS, NETWORK_LABEL, chainLabel, escrowMoney, nativeSymbolFor, shortNetworkLabel } from '@/lib/network/presentation';
 import { cn } from '@/lib/ui/cn';
 import { markAllNotificationsRead, markNotificationRead } from '@/lib/wallet/notifications';
 import { markSavedAgentAlertsRead, toggleSavedAgent } from '@/lib/wallet/saved-agents';
 import { sendFromPasskey } from '@/lib/wallet/send';
-import { describeSendProblem, parseAmount, sendableNative, type SendableToken } from '@/lib/wallet/send-rules';
+import { describeSendProblem, parseAmount, sendableNative } from '@/lib/wallet/send-rules';
 import { usePasskeySigner } from '@/lib/wallet/PasskeyProvider';
 import { useActiveWallet } from '@/lib/wallet/active';
 import { useWalletState } from '@/shell/wallet/useWalletState';
@@ -350,32 +350,42 @@ function ReadSyncRow({ sync }: { sync: ReturnType<typeof useReadSync> }) {
 
 /* ───────────────────────── Wallet ───────────────────────── */
 
-/* Sends $U or gas. `paymentDecimals` is the registry's for $U on this chain, not a literal. */
-function SendForm({ native, payment, paymentDecimals, onSent }: { native: bigint; payment: bigint; paymentDecimals: number; onSent: () => void }) {
+/*
+ * Sends any token the wallet holds on the network shown, or its gas. A
+ * passkey works only on pokter.xyz, so this is the only way money paid into
+ * it, in any token, leaves. Each token in its own decimals, from the registry.
+ */
+function SendForm({ onSent }: { onSent: () => void }) {
   const w = useWalletState();
   const signer = usePasskeySigner();
-  const [token, setToken] = useState<SendableToken>('payment');
+  const chainId = w.balances.chainId;
+  const tokens = w.balances.tokens;
+  const [choice, setChoice] = useState<string>(() => tokens.find((t) => t.isDefault)?.address ?? 'native');
   const [to, setTo] = useState('');
   const [amount, setAmount] = useState('');
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const raw = parseAmount(amount);
-  const problem = describeSendProblem({ token, to, amount: raw, nativeBalance: native, paymentBalance: payment, nativeSymbol: NATIVE_SYMBOL, paymentSymbol: '$U' });
-  const most = token === 'native' ? sendableNative(native) : payment;
-  const mostDecimals = token === 'native' ? 18 : paymentDecimals;
+  const selected = choice === 'native' ? null : (tokens.find((t) => t.address === choice) ?? null);
+  const native = w.balances.native !== null ? parseUnits(String(w.balances.native), 18) : 0n;
+  const nativeSymbol = nativeSymbolFor(chainId);
+  const symbol = selected ? selected.symbol : nativeSymbol;
+  const decimals = selected ? selected.decimals : 18;
+  const raw = parseAmount(amount, decimals);
+  const problem = describeSendProblem({ token: selected ? 'payment' : 'native', to, amount: raw, nativeBalance: native, paymentBalance: selected?.raw ?? 0n, nativeSymbol, paymentSymbol: symbol });
+  const most = selected ? (selected.raw ?? 0n) : sendableNative(native);
 
   return (
     <div className="flex flex-col gap-4">
-      <Segmented label="Token" value={token} onChange={setToken} options={[{ value: 'payment', label: '$U' }, { value: 'native', label: NATIVE_SYMBOL }]} />
-      <Field label="To address" hint="Double-check it. Transfers cannot be reversed.">
+      <Segmented label="Token" value={choice} onChange={(value) => { setChoice(value); setAmount(''); }} options={[...tokens.map((t) => ({ value: t.address as string, label: t.symbol })), { value: 'native', label: nativeSymbol }]} />
+      <Field label="To address" hint={`Double-check it, and that it can receive on ${chainId === null ? 'this network' : chainLabel(chainId)}. Transfers cannot be reversed.`}>
         {(props) => <Input {...props} value={to} onChange={(e) => setTo(e.target.value)} placeholder="0x…" className="t-readout" autoComplete="off" spellCheck={false} />}
       </Field>
-      <Field label="Amount" hint={`Up to ${Number(formatUnits(most, mostDecimals)).toLocaleString('en-US', { maximumFractionDigits: 5 })}${token === 'native' ? ' (a little is kept for the fee)' : ''}`}>
+      <Field label="Amount" hint={`Up to ${Number(formatUnits(most, decimals)).toLocaleString('en-US', { maximumFractionDigits: 5 })}${selected ? '' : ' (a little is kept for the fee)'}`}>
         {(props) => (
           <div className="flex gap-2">
             <Input {...props} inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" className="t-readout" />
-            <Button intent="secondary" onClick={() => setAmount(formatUnits(most, mostDecimals))}>
+            <Button intent="secondary" onClick={() => setAmount(formatUnits(most, decimals))}>
               Max
             </Button>
           </div>
@@ -390,12 +400,17 @@ function SendForm({ native, payment, paymentDecimals, onSent }: { native: bigint
       )}
       <Button
         onClick={async () => {
-          if (!w.passkey.wallet) return;
+          if (!w.passkey.wallet || chainId === null) return;
           setBusy(true);
           setError(null);
           setSent(null);
           try {
-            const hash = await sendFromPasskey({ wallet: { address: w.passkey.wallet.address }, signer, plan: { token, to: to.trim() as Address, amount: raw } });
+            const hash = await sendFromPasskey({
+              wallet: { address: w.passkey.wallet.address },
+              signer,
+              plan: { token: selected ? 'payment' : 'native', tokenAddress: selected?.address, to: to.trim() as Address, amount: raw },
+              chainId,
+            });
             setSent(hash);
             setAmount('');
             onSent();
@@ -405,11 +420,11 @@ function SendForm({ native, payment, paymentDecimals, onSent }: { native: bigint
             setBusy(false);
           }
         }}
-        disabled={Boolean(problem) || !to || !amount}
+        disabled={Boolean(problem) || !to || !amount || chainId === null}
         busy={busy}
         className="self-start"
       >
-        Send {amount || ''} {token === 'native' ? NATIVE_SYMBOL : '$U'}
+        Send {amount || ''} {symbol}
       </Button>
     </div>
   );
@@ -434,8 +449,6 @@ export function WalletPage() {
   // been read is counted as such rather than as $U.
   const sum = (filter: JobPhase[]) => totalLines(phases.filter(({ p }) => filter.includes(p)).map(({ j }) => j));
   const fmt = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 4 });
-  /* The send form moves $U and gas only; its decimals come from the registry entry. */
-  const sendable = w.balances.tokens.find((t) => t.isDefault) ?? null;
   /*
    * Said for the network these balances are on, not the site's default.
    * The site default is still testnet (the passkey wallet's network), so a
@@ -450,6 +463,12 @@ export function WalletPage() {
   return (
     <>
       <PageHeader title="Wallet and payments" description={`What this wallet holds on ${w.balances.chainId === null ? NETWORK_LABEL : chainLabel(w.balances.chainId)}, the network it is on now, and where your job payments went on each network.`} />
+      {/* A passkey has no network of its own to be "on": one set up on both chooses which balances to show. Hidden until a second network is opened. */}
+      {w.mode === 'passkey' && w.passkeyChains.length > 1 && w.balances.chainId !== null && (
+        <div className="mb-6">
+          <Segmented label="Network" value={String(w.balances.chainId)} onChange={(value) => w.choosePasskeyChain(Number(value) as 56 | 97)} options={w.passkeyChains.map((id) => ({ value: String(id), label: shortNetworkLabel(id) }))} />
+        </div>
+      )}
       {testFunds && <Notice tone="neutral" className="mb-6">{escrowMoney(97).note}</Notice>}
 
       <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -499,14 +518,10 @@ export function WalletPage() {
         </p>
       )}
 
-      {send && w.mode === 'passkey' && sendable && (
+      {send && w.mode === 'passkey' && w.balances.chainId !== null && (
         <section className="mt-6 max-w-md rounded-[14px] border border-rule bg-raised p-5">
-          <SendForm
-            native={w.balances.native !== null ? parseUnits(String(w.balances.native), 18) : 0n}
-            payment={sendable.raw ?? 0n}
-            paymentDecimals={sendable.decimals}
-            onSent={w.refreshBalances}
-          />
+          {/* Keyed by network, so a token chosen on one network is never sent on the other. */}
+          <SendForm key={w.balances.chainId} onSent={w.refreshBalances} />
         </section>
       )}
 

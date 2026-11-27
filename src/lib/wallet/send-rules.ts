@@ -62,9 +62,10 @@ export function sendableNative(nativeBalance: bigint): bigint {
   return nativeBalance > GAS_RESERVE ? nativeBalance - GAS_RESERVE : 0n;
 }
 
-export function parseAmount(value: string): bigint {
+/** An amount typed in a token's own units; 18 decimals unless the token says otherwise. */
+export function parseAmount(value: string, decimals = 18): bigint {
   try {
-    return parseUnits(value.trim() || '0', 18);
+    return parseUnits(value.trim() || '0', decimals);
   } catch {
     return 0n;
   }
