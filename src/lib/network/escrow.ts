@@ -43,6 +43,22 @@ export function enabledEscrowChains(raw: string | undefined = process.env.NEXT_P
   return unique.length > 0 ? unique : [97];
 }
 
+/**
+ * The network Pokter starts on when it has to pick one: a new request's
+ * budget, and the switch offered to a wallet on a network no hire settles
+ * on. Mainnet whenever its escrow is open, because that is where hires spend
+ * real money and where Pokter is meant to be used; testnet only when it is
+ * the one escrow there is.
+ *
+ * Not `NEXT_PUBLIC_ALTANA_NETWORK`. That names the passkey wallet's one
+ * network, which is still testnet, and it was the default here: a request
+ * form opened on Testnet, and a wallet on another chain was asked to
+ * switch to BNB Testnet, on a site live on BNB Chain.
+ */
+export function defaultEscrowChain(enabled: EscrowChainId[] = enabledEscrowChains()): EscrowChainId {
+  return enabled.includes(56) ? 56 : (enabled[0] ?? 97);
+}
+
 export function isEscrowChain(chainId: number, enabled: EscrowChainId[] = enabledEscrowChains()): chainId is EscrowChainId {
   return (enabled as number[]).includes(chainId);
 }

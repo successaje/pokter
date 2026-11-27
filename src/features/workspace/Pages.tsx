@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { formatUnits, parseUnits, type Address } from 'viem';
 
-import { FAUCETS, IS_TESTNET, NATIVE_SYMBOL, NETWORK_LABEL, PAYMENT_VALUE_NOTE, chainLabel } from '@/lib/network/presentation';
+import { CHAIN_ID, FAUCETS, NATIVE_SYMBOL, NETWORK_LABEL, chainLabel, escrowMoney, nativeSymbolFor } from '@/lib/network/presentation';
 import { cn } from '@/lib/ui/cn';
 import { markAllNotificationsRead, markNotificationRead } from '@/lib/wallet/notifications';
 import { markSavedAgentAlertsRead, toggleSavedAgent } from '@/lib/wallet/saved-agents';
@@ -436,10 +436,21 @@ export function WalletPage() {
   const fmt = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 4 });
   /* The send form moves $U and gas only; its decimals come from the registry entry. */
   const sendable = w.balances.tokens.find((t) => t.isDefault) ?? null;
+  /*
+   * Said for the network these balances are on, not the site's default.
+   * The site default is still testnet (the passkey wallet's network), so a
+   * wallet on BNB Chain was told its real funds were "Test tokens — no real
+   * value", its BNB was labelled tBNB, and it was offered test faucets.
+   * Balances with no known network (a wallet off every escrow chain) claim
+   * neither, as `escrowMoney` does.
+   */
+  const shownOn = w.balances.chainId ?? (w.mode === 'passkey' ? CHAIN_ID : null);
+  const testFunds = shownOn === 97;
+  const native = nativeSymbolFor(shownOn);
   return (
     <>
       <PageHeader title="Wallet and payments" description={`What this wallet holds on ${w.balances.chainId === null ? NETWORK_LABEL : chainLabel(w.balances.chainId)}, the network it is on now, and where your job payments went on each network.`} />
-      {IS_TESTNET && <Notice tone="neutral" className="mb-6">{PAYMENT_VALUE_NOTE}</Notice>}
+      {testFunds && <Notice tone="neutral" className="mb-6">{escrowMoney(97).note}</Notice>}
 
       <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div className="flex flex-col gap-2 rounded-[14px] border border-rule bg-raised p-5 sm:col-span-1">
@@ -456,7 +467,7 @@ export function WalletPage() {
           </div>
         ))}
         <div className="flex flex-col gap-1 rounded-[14px] border border-rule bg-raised p-5">
-          <span className="t-label">{NATIVE_SYMBOL}</span>
+          <span className="t-label">{native}</span>
           <span className="t-readout text-2xl">{w.balances.native === null ? '—' : fmt(w.balances.native)}</span>
           <span className="text-[12px] text-ink-3">Pays network fees</span>
         </div>
@@ -471,18 +482,18 @@ export function WalletPage() {
             Send tokens
           </Button>
         )}
-        {IS_TESTNET && FAUCETS && (
+        {testFunds && FAUCETS && (
           <>
             <LinkButton href={FAUCETS.paymentTokenBot?.url ?? FAUCETS.paymentToken} target="_blank" intent="ghost" size="s" trailing={<Icon.ArrowUpRight size={13} />}>
               Get test $U
             </LinkButton>
             <LinkButton href={FAUCETS.native} target="_blank" intent="ghost" size="s" trailing={<Icon.ArrowUpRight size={13} />}>
-              Get test {NATIVE_SYMBOL}
+              Get test {native}
             </LinkButton>
           </>
         )}
       </div>
-      {IS_TESTNET && FAUCETS?.paymentTokenBot && (
+      {testFunds && FAUCETS?.paymentTokenBot && (
         <p className="mt-2 text-[12.5px] text-ink-3">
           The bot takes a sentence. Send it: <span className="t-readout break-all">{FAUCETS.paymentTokenBot.bothAsk.replace('ADDRESS', w.address)}</span>
         </p>

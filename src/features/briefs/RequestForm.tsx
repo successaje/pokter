@@ -8,7 +8,8 @@ import { useAccount } from 'wagmi';
 import { amountWithinLimits, budgetLimitsFor } from '@/lib/hire/budget-limits';
 import { amountToRaw, briefMessage, listProblem, REQUEST_CATEGORIES, type BriefContent } from '@/lib/briefs/model';
 import { CLOSING_OPTIONS, DELIVERY_OPTIONS, type RequestDraft as Draft } from '@/lib/briefs/request-draft';
-import { escrowMoney, shortNetworkLabel } from '@/lib/network/presentation';
+import { defaultEscrowChain, type EscrowChainId } from '@/lib/network/escrow';
+import { chainLabel, escrowMoney, shortNetworkLabel } from '@/lib/network/presentation';
 import { defaultHireToken, displaySymbol, hireTokenAt, offeredTokens, tokenIdentity, tokenName, type PaymentToken } from '@/lib/network/tokens';
 import { cn } from '@/lib/ui/cn';
 import { useActiveSigner } from '@/lib/wallet/use-active-signer';
@@ -58,10 +59,12 @@ export function RequestForm({ networks, initialTitle = '', copy = null, target =
   const { switchChainAsync } = useLiveSwitchChain();
   const postingAddress = isConnected && browserAddress ? browserAddress : address;
 
-  const empty: Draft = { title: initialTitle, brief: '', acceptance: '', failSignals: '', budget: '', chainId: networks[0] ?? 97, paymentToken: null, deliverDays: 3, closesInDays: 0, category: null };
+  /* Mainnet when it is offered, as the network choice lists it: a new request was opening on Testnet. */
+  const startOn = defaultEscrowChain(networks.filter((id): id is EscrowChainId => id === 56 || id === 97));
+  const empty: Draft = { title: initialTitle, brief: '', acceptance: '', failSignals: '', budget: '', chainId: startOn, paymentToken: null, deliverDays: 3, closesInDays: 0, category: null };
   /* A network or token turned off since the draft was written is dropped rather than kept unpayable. */
   const usable = (d: Draft): Draft => {
-    const chainId = networks.includes(d.chainId) ? d.chainId : (networks[0] ?? 97);
+    const chainId = networks.includes(d.chainId) ? d.chainId : startOn;
     return { ...d, chainId, paymentToken: d.paymentToken && hireTokenAt(chainId, d.paymentToken) ? d.paymentToken : null };
   };
   const [draft, setDraft] = useState<Draft>(() => (copy ? usable({ ...empty, ...copy.draft }) : empty));
@@ -368,6 +371,12 @@ export function RequestForm({ networks, initialTitle = '', copy = null, target =
               </span>{' '}
               {token?.disclosure ? `${symbol} here is ${token.disclosure}. ` : ''}
               Up to {limits?.max} {symbol} per job. Builders propose in the same token; you fund only the one you choose.
+              {/* Said here, where the network is chosen, rather than only as an error after signing is asked for. */}
+              {!isConnected && canSign && draft.chainId !== WALLET_NETWORK.chainId && (
+                <span className="mt-1 block font-medium text-watch">
+                  Your passkey wallet signs on {chainLabel(WALLET_NETWORK.chainId)} only. Choose {shortNetworkLabel(WALLET_NETWORK.chainId)}, or connect a browser wallet to post on {chainLabel(draft.chainId)}.
+                </span>
+              )}
             </>
           }
         >

@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useCallback, useState } from 'react';
 
 import { campaignTimeLeft, isCampaignLive } from '@/lib/campaign/window';
-import { FAUCETS, IS_TESTNET, NATIVE_SYMBOL, NETWORK_LABEL, chainLabel, shortNetworkLabel } from '@/lib/network/presentation';
+import { FAUCETS, IS_TESTNET, NATIVE_SYMBOL, NETWORK_LABEL, chainLabel, nativeSymbolFor, shortNetworkLabel } from '@/lib/network/presentation';
 import { cn } from '@/lib/ui/cn';
 import { shortAddress } from '@/lib/ui/format';
 import { useDismissibleLayer } from '@/lib/ui/useDismissibleLayer';
@@ -71,7 +71,7 @@ export function AccountButton({ compact }: { compact?: boolean }) {
    */
   const extraTokens = w.balances.tokens.filter((t) => !t.isDefault && t.amount !== null && t.amount > 0);
   /* The fee token of the chain these balances were read on, not the site's: BNB Chain's gas is BNB even on a testnet build. */
-  const native = w.balances.chainId === 56 ? 'BNB' : w.balances.chainId === 97 ? 'tBNB' : NATIVE_SYMBOL;
+  const native = nativeSymbolFor(w.balances.chainId);
   const testChain = (w.balances.chainId ?? (IS_TESTNET ? 97 : 56)) === 97;
   const network = w.balances.chainId === null ? NETWORK_LABEL : chainLabel(w.balances.chainId);
   const toggleDetails = () =>

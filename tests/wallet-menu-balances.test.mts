@@ -19,7 +19,8 @@ test('the balances fold to one line, and opening them is a real disclosure that 
 });
 
 test('the fee token is the one of the chain the balances were read on', () => {
-  assert.match(menu, /const native = w\.balances\.chainId === 56 \? 'BNB' : w\.balances\.chainId === 97 \? 'tBNB' : NATIVE_SYMBOL;/);
+  /* BNB on 56 and tBNB on 97, from one helper (tests/escrow-money.test.mts), shared with the wallet page. */
+  assert.match(menu, /const native = nativeSymbolFor\(w\.balances\.chainId\);/);
   assert.match(menu, /\{amount\(w\.balances\.native, 4\)\} <span className="text-ink-3">\{native\}<\/span>/);
   assert.match(menu, /\{testChain && FAUCETS &&/, 'test faucets only for balances read on the test network');
 });

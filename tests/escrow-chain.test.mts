@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  defaultEscrowChain,
   enabledEscrowChains,
   escrowChainForCurrency,
   escrowChainForHire,
@@ -97,4 +98,16 @@ test('a card has a hire network only when some escrow can settle the price', () 
   assert.equal(escrowChainForHire(MAINNET_U, [97]), null);
   // No signed price at all still has a home, and it is never mainnet.
   assert.equal(escrowChainForHire(undefined, [97, 56]), 97);
+});
+
+test('Pokter starts on mainnet once its escrow is open, whichever order the list is in', () => {
+  assert.equal(defaultEscrowChain(enabledEscrowChains('97,56')), 56);
+  assert.equal(defaultEscrowChain(enabledEscrowChains('56,97')), 56);
+  assert.equal(defaultEscrowChain(enabledEscrowChains('56')), 56);
+});
+
+test('testnet is the default only while it is the one escrow', () => {
+  assert.equal(defaultEscrowChain(enabledEscrowChains('97')), 97);
+  assert.equal(defaultEscrowChain(enabledEscrowChains(undefined)), 97);
+  assert.equal(defaultEscrowChain([]), 97);
 });

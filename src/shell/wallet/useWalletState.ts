@@ -7,6 +7,7 @@ import { useAccount, useConnect, useDisconnect } from 'wagmi';
 import { displaySymbol, offeredTokens } from '@/lib/network/tokens';
 import { useActiveWallet } from '@/lib/wallet/active';
 import { ESCROW_CHAIN, walletConnectConfigured } from '@/lib/wallet/config';
+import { defaultEscrowChain } from '@/lib/network/escrow';
 import { externalBalances, hasInjectedWallet } from '@/lib/wallet/external';
 import { WALLET_NETWORK, walletClient } from '@/lib/wallet/passkey';
 import { balanceScope, selectableChains, switchAllowed } from '@/lib/wallet/balance-scope';
@@ -180,7 +181,13 @@ export function useWalletState() {
     connectWalletConnect: () => walletConnect && connect({ connector: walletConnect }),
     switching,
     switchError: switchError?.message ?? null,
-    switchToEscrowChain: () => switchChain({ chainId: ESCROW_CHAIN.id }),
+    /*
+     * For a wallet on a network no hire settles on. The default escrow chain
+     * (mainnet once it is open), named by the same value the button reads,
+     * so the label and the switch cannot disagree.
+     */
+    defaultChain: defaultEscrowChain(),
+    switchToDefaultChain: () => switchChain({ chainId: defaultEscrowChain() }),
     /** The networks a hire can settle on, offered as a choice. */
     escrowChains: selectableChains(),
     /*

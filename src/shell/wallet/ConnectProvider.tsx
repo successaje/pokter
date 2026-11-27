@@ -108,14 +108,22 @@ function ConnectSheet({ open, reason, passkeyUnavailable, onClose, onReopen }: {
       {w.wrongChain && w.externalConnected ? (
         <div className="flex flex-col gap-4">
           <Notice tone="watch" title={`${w.connectorName ?? 'Your wallet'} is on ${w.externalChainName ?? 'another network'}`}>
-            Pokter&rsquo;s default network is {NETWORK_LABEL}. A hire funded on another network asks you to switch when you
-            fund it. Switching only changes the network your wallet points at; it moves no funds.
+            Hires on Pokter are funded on {chainLabel(w.defaultChain)}
+            {w.escrowChains.includes(97) && w.defaultChain !== 97 ? ', or on BNB Testnet with test tokens' : ''}. Each hire asks for
+            its own network when you fund it. Switching only changes the network your wallet points at; it moves no funds.
           </Notice>
           {w.switchError && <Notice tone="bad" title="The switch was not completed">{w.switchError}</Notice>}
           <div className="flex flex-wrap gap-2">
-            <Button onClick={w.switchToEscrowChain} busy={w.switching}>
-              Switch to {NETWORK_LABEL}
+            <Button onClick={w.switchToDefaultChain} busy={w.switching}>
+              Switch to {chainLabel(w.defaultChain)}
             </Button>
+            {w.escrowChains
+              .filter((chainId) => chainId !== w.defaultChain)
+              .map((chainId) => (
+                <Button key={chainId} intent="secondary" onClick={() => w.switchToChain(chainId)} disabled={w.switching}>
+                  Use {chainLabel(chainId)}
+                </Button>
+              ))}
             <Button intent="ghost" onClick={w.disconnectExternal}>
               Disconnect
             </Button>
