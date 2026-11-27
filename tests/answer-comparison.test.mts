@@ -15,6 +15,13 @@ import type { AssayRun } from '../src/lib/assay/types';
 
 const code = (path: string) => readFileSync(new URL(`../src/${path}`, import.meta.url), 'utf8');
 const RAN = '2026-10-28T16:18:00.000Z';
+/*
+ * Read at a fixed moment, inside `RAN`'s freshness window: a full pass
+ * older than `CHECK_FRESH_DAYS` has a staleness line appended to its
+ * summary, so any summary asserted here against the wall clock would
+ * fail 30 days after `RAN` on a date rather than on a change.
+ */
+const READ_AT = Date.parse('2026-10-29T08:00:00Z');
 const run = (suite: string, results: AssayRun['results'], extra: Partial<AssayRun> = {}): AssayRun => ({
   suite, status: 'checked', detail: null, passed: results.filter((r) => r.pass).length, total: results.length, ranAt: RAN, via: 'paid-hire', results, ...extra,
 });
@@ -26,7 +33,7 @@ test('a health factor row compares Pokter’s reading with the answer, by how fa
   const c = answerComparison(run('hf-venus-1', [
     result(account, { healthFactor: 1.5, borrowLimitRatio: 1.3, liquidatable: false, block: '127900000', readAt: '2026-10-28T16:10:00.000Z' }, { healthFactor: 1.503, unbounded: false, liquidatable: false }, true, 'correct'),
     result('0x000000000000000000000000000000000000dead', { before: { healthFactor: null, block: '127000000' }, after: { healthFactor: null } }, { healthFactor: null, unbounded: true, liquidatable: false }, true, 'correct', null),
-  ]))!;
+  ]), READ_AT)!;
   assert.equal(c.kind, 'health-factor');
   assert.equal(c.network, 'BNB Chain');
   assert.match(c.tolerance, /^Within 2% of Pokter’s reading, taken within 15 minutes of the delivery$/);
