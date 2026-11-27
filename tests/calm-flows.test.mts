@@ -91,7 +91,9 @@ test('a passkey wallet is offered only where it can fund the hire, and says whic
   assert.doesNotMatch(sheet, /Pokter covers the fee for hires/);
   assert.match(sheet, /\$\{sponsored \? ', and Pokter tops up its network fee when it runs short' : ''\}/);
   const hire = code('features/hire/HireFlow.tsx');
-  assert.match(hire, /escrowChainId !== WALLET_NETWORK\.chainId\s*\?\s*`This hire is paid with real funds on/);
+  /* Open where passkeys act and new wallets are set up (passkey-networks.ts), real funds named on mainnet. */
+  assert.match(hire, /const passkeyOpenHere = PASSKEY_ACTION_CHAINS\.includes\(escrowChainId as PasskeyChainId\) && PASSKEY_SETUP_CHAINS\.includes\(escrowChainId as PasskeyChainId\);/);
+  assert.match(hire, /!passkeyOpenHere\s*\?\s*`This hire is paid\$\{escrowChainId === 56 \? ' with real funds' : ''\} on/);
   assert.equal((hire.match(/passkeyBlocked \? \{ passkeyUnavailable: passkeyBlocked \} : undefined/g) ?? []).length, 2, 'both connect buttons on the hire close the passkey option');
   assert.doesNotMatch(code('app/(site)/agents/[chainId]/[tokenId]/page.tsx'), /Covered by Pokter for passkey wallets where available/);
 });

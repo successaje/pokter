@@ -9,14 +9,16 @@ import {
   useSyncExternalStore,
 } from 'react';
 
+import { PASSKEY_SETUP_CHAINS, type PasskeyChainId } from '@/lib/wallet/passkey-networks';
 import {
-  WALLET_NETWORK, passkeyRpId,
+  passkeyRpId,
   clearStoredWallet,
   getServerWallet,
   getStoredWallet,
   passkeysSupported,
   saveStoredWallet,
   signerFor,
+  setupClient,
   subscribeToWallet,
   walletClient,
   type StoredWallet,
@@ -81,7 +83,13 @@ export function PasskeyProvider({ children }: { children: React.ReactNode }) {
     setBusy('creating');
     setError(null);
     try {
-      const result = await walletClient().createPasskeyWallet({
+      /*
+       * Set up on every network in PASSKEY_SETUP_CHAINS, now or never: the
+       * key that signs a network's setup is discarded when this returns. If
+       * any network's setup fails the SDK throws and nothing is recorded,
+       * as before, so a wallet is never recorded on a network it lacks.
+       */
+      const result = await setupClient().createPasskeyWallet({
         name: 'Pokter',
         // Persist the exact relying-party domain with the credential so later
         // signatures and recovery do not depend on an implicit SDK default.
@@ -90,6 +98,7 @@ export function PasskeyProvider({ children }: { children: React.ReactNode }) {
       const stored: StoredWallet = {
         address: result.address,
         credential: result.signer.credential,
+        chains: [...PASSKEY_SETUP_CHAINS],
       };
       saveStoredWallet(stored);
     } catch (caught) {
@@ -109,13 +118,19 @@ export function PasskeyProvider({ children }: { children: React.ReactNode }) {
     setBusy('recovering');
     setError(null);
     try {
-      const result = await walletClient().recoverFromPasskey({
-        chainId: WALLET_NETWORK.chainId,
-        rpId: passkeyRpId(),
-      });
+      const { result, chainId } = await recoverOnSomeNetwork();
+      /*
+       * Recorded on the network that recovered it, and only that one. A
+       * wallet made on both networks may never have acted on the second, and
+       * nothing read here can tell it apart from a wallet that was never set
+       * up there: recording a network it lacks would invite funds to an
+       * address nobody can move them from. Acting elsewhere waits until that
+       * can be read (Altana question 6 in the passkey plan).
+       */
       const stored: StoredWallet = {
         address: result.address,
         credential: result.signer.credential,
+        chains: [chainId],
       };
       saveStoredWallet(stored);
     } catch (caught) {
@@ -143,6 +158,27 @@ export function PasskeyProvider({ children }: { children: React.ReactNode }) {
   return (
     <PasskeyContext.Provider value={value}>{children}</PasskeyContext.Provider>
   );
+}
+
+/**
+ * Recovery reads a network's key store, which holds a wallet's passkey only
+ * once the wallet has acted there. The build's network is asked first, as
+ * before; another setup network only when that one has no key for it, so a
+ * wallet that has acted on the first is found with one prompt.
+ */
+async function recoverOnSomeNetwork() {
+  let lastError: unknown = null;
+  for (const chainId of PASSKEY_SETUP_CHAINS as PasskeyChainId[]) {
+    try {
+      const result = await walletClient().recoverFromPasskey({ chainId, rpId: passkeyRpId() });
+      return { result, chainId };
+    } catch (caught) {
+      lastError = caught;
+      /* Only "nothing registered here" moves on; a dismissed prompt or a network failure stops. */
+      if (!/no keys registered/i.test((caught as Error)?.message ?? '')) throw caught;
+    }
+  }
+  throw lastError;
 }
 
 /** Signer for the connected wallet, or null when there is none. */

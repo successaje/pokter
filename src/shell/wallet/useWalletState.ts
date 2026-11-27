@@ -4,12 +4,14 @@ import { useQuery } from '@tanstack/react-query';
 import { formatEther, formatUnits, type Address } from 'viem';
 import { useAccount, useConnect, useDisconnect } from 'wagmi';
 
-import { displaySymbol, offeredTokens } from '@/lib/network/tokens';
+import { displaySymbol, knownTokens, offeredTokens } from '@/lib/network/tokens';
 import { useActiveWallet } from '@/lib/wallet/active';
 import { ESCROW_CHAIN, walletConnectConfigured } from '@/lib/wallet/config';
 import { defaultEscrowChain } from '@/lib/network/escrow';
 import { externalBalances, hasInjectedWallet } from '@/lib/wallet/external';
-import { WALLET_NETWORK, walletClient } from '@/lib/wallet/passkey';
+import { walletClient } from '@/lib/wallet/passkey';
+import { passkeyActionChains } from '@/lib/wallet/passkey-networks';
+import { choosePasskeyChain, usePasskeyViewChain } from '@/lib/wallet/passkey-view';
 import { balanceScope, selectableChains, switchAllowed } from '@/lib/wallet/balance-scope';
 import { usePasskeyWallet } from '@/lib/wallet/PasskeyProvider';
 import { useHydrated } from '@/lib/ui/use-hydrated';
@@ -75,12 +77,15 @@ export function useWalletState() {
   const injected = injectedAvailable ? (connectors.find((c) => c.id === 'injected') ?? null) : null;
   const walletConnect = connectors.find((c) => c.id === 'walletConnect') ?? null;
 
-  const passkeyTokens = offeredTokens(WALLET_NETWORK.chainId);
+  /* A passkey set up on both networks holds separate balances on each; this is the one shown. */
+  const passkeyChain = usePasskeyViewChain(passkey.wallet);
+  /* Every token Pokter knows there, not only those offered for hires: a passkey's money can leave only through this page. */
+  const passkeyTokens = knownTokens(passkeyChain);
 
   const passkeyBalances = useQuery({
-    queryKey: ['wallet-balances', 'passkey', passkey.wallet?.address, passkeyTokens.map((t) => t.address).join(',')],
+    queryKey: ['wallet-balances', 'passkey', passkey.wallet?.address, passkeyChain, passkeyTokens.map((t) => t.address).join(',')],
     queryFn: async () => {
-      const result = await walletClient().balances({ wallet: passkey.wallet!.address, tokens: passkeyTokens.map((t) => t.address) });
+      const result = await walletClient().balances({ wallet: passkey.wallet!.address, tokens: passkeyTokens.map((t) => t.address), chainId: passkeyChain });
       /* One entry per requested token, in order. Scaled by the registry's decimals, not the one the contract call returned. */
       const raws = passkeyTokens.map((_, i) => {
         const read = result.tokens?.[i];
@@ -120,11 +125,11 @@ export function useWalletState() {
 
   const source = active.mode === 'passkey' ? passkeyBalances : active.mode === 'external' ? externalBalance : null;
   /*
-   * A passkey account is a smart account on one network by construction, so
-   * its balances are scoped by the wallet rather than by what an injected
-   * wallet happens to be pointing at.
+   * A passkey account has no "current network" an injected wallet would
+   * report: its balances are read on the network chosen among those it acts
+   * on (`usePasskeyViewChain`), never on what a browser wallet points at.
    */
-  const balanceChainId = active.mode === 'passkey' ? WALLET_NETWORK.chainId : scope.readable ? scope.chainId : null;
+  const balanceChainId = active.mode === 'passkey' ? passkeyChain : scope.readable ? scope.chainId : null;
   const tokenList = active.mode === 'passkey' ? passkeyTokens : externalTokens;
   const raws = source?.data?.raws ?? [];
   const tokens: TokenBalance[] = balanceChainId === null ? [] : tokenList.map((t, i) => {
@@ -190,6 +195,9 @@ export function useWalletState() {
     switchToDefaultChain: () => switchChain({ chainId: defaultEscrowChain() }),
     /** The networks a hire can settle on, offered as a choice. */
     escrowChains: selectableChains(),
+    /** The networks the passkey wallet acts on; more than one only once a second is opened. */
+    passkeyChains: passkeyActionChains(passkey.wallet),
+    choosePasskeyChain,
     /*
      * An explicit choice, refused for a chain no hire could settle on. The
      * wallet still has to accept it: a selection here is a request, and

@@ -5,7 +5,7 @@ import { useAccount } from 'wagmi';
 
 import { usePasskeyWallet } from '@/lib/wallet/PasskeyProvider';
 import { isEscrowChain } from '@/lib/network/escrow';
-import { WALLET_NETWORK } from '@/lib/wallet/passkey';
+import { passkeyActsOn } from '@/lib/wallet/passkey-networks';
 
 export type WalletMode = 'passkey' | 'external';
 
@@ -16,9 +16,9 @@ export interface ActiveWallet {
   /** A browser wallet is connected but pointed at the wrong network. */
   wrongChain: boolean;
   /**
-   * The passkey wallet exists but cannot act on this escrow chain. It acts
-   * only on the site's default network (see `walletNetworkFor`), so a
-   * mainnet hire needs a browser wallet.
+   * The passkey wallet exists but cannot act on this escrow chain: it was
+   * not set up there, or the site has not opened passkeys there
+   * (`passkeyActsOn`). A hire there needs a browser wallet.
    */
   passkeyUnsupported: boolean;
 }
@@ -46,7 +46,8 @@ export function useActiveWallet(escrowChainId?: number): ActiveWallet {
   const wrongChain = Boolean(
     isConnected && (escrowChainId === undefined ? !chain || !isEscrowChain(chain.id) : chain?.id !== escrowChainId),
   );
-  const passkeyUnsupported = Boolean(passkey.wallet) && escrowChainId !== undefined && escrowChainId !== WALLET_NETWORK.chainId;
+  /* A passkey acts on a network it was set up on and the site has opened (`passkeyActsOn`). */
+  const passkeyUnsupported = Boolean(passkey.wallet) && escrowChainId !== undefined && !passkeyActsOn(passkey.wallet, escrowChainId);
 
   if (isConnected && address && !wrongChain) {
     return { mode: 'external', address, wrongChain: false, passkeyUnsupported };

@@ -7,6 +7,7 @@ import {
   BNB_TESTNET,
   type PasskeyCredential,
 } from '@altananetwork/sdk';
+import { PASSKEY_SETUP_CHAINS, storedPasskeyChains, type PasskeyChainId } from './passkey-networks';
 
 /**
  * Passkey wallets.
@@ -21,29 +22,54 @@ import {
  * key itself never leaves the device, so a stolen localStorage entry is inert.
  */
 
+/*
+ * Still "v1": a record now also says which networks the wallet was set up on,
+ * and a record without that field is read as the legacy network alone (see
+ * `storedPasskeyChains`). Renaming the key would have lost every wallet.
+ */
 const STORAGE_KEY = 'pokter.passkey.v1';
 
-/** Which chain the wallet acts on. Mirrors the server's ALTANA_NETWORK. */
+/**
+ * The build's passkey network: the client's default, and the one network
+ * every wallet made before networks were recorded was set up on. Mirrors the
+ * server's ALTANA_NETWORK. A wallet's own networks are `StoredWallet.chains`.
+ */
 export const WALLET_NETWORK =
   process.env.NEXT_PUBLIC_ALTANA_NETWORK === 'bnb' ? BNB : BNB_TESTNET;
 
 export interface StoredWallet {
   address: `0x${string}`;
   credential: PasskeyCredential;
-}
-
-export function walletClient() {
-  return createClient({ chains: [WALLET_NETWORK] });
+  /** The networks this wallet was set up on when it was made. Fixed for its life. */
+  chains: PasskeyChainId[];
 }
 
 /**
- * The Altana network for an escrow chain, for reads and browser-wallet
- * transactions on a job funded there. The passkey wallet itself still acts
- * only on `WALLET_NETWORK`: Altana's testnet is a separate account stack, and
- * nothing yet establishes that a passkey wallet has the same address on both.
+ * The Altana network for a chain: for reads, for browser-wallet transactions,
+ * and for a passkey wallet acting on a network it was set up on.
  */
 export function walletNetworkFor(chainId: number) {
   return chainId === 56 ? BNB : BNB_TESTNET;
+}
+
+/**
+ * The client a passkey wallet acts through. It knows both networks; every
+ * call names its chain, and one left unnamed goes to the build's network, as
+ * before. Knowing a network sets nothing up there: that happens only at
+ * creation (`setupClient`), and whether a wallet may act on a network is
+ * `passkeyActsOn`.
+ */
+export function walletClient() {
+  return createClient({ chains: [BNB_TESTNET, BNB], defaultChainId: WALLET_NETWORK.chainId });
+}
+
+/**
+ * The client a new wallet is created through. Altana sets a passkey wallet up
+ * on every network its client names, and on no other ever after, so this
+ * names exactly `PASSKEY_SETUP_CHAINS`.
+ */
+export function setupClient() {
+  return createClient({ chains: PASSKEY_SETUP_CHAINS.map(walletNetworkFor), defaultChainId: PASSKEY_SETUP_CHAINS[0] });
 }
 
 /**
@@ -91,8 +117,8 @@ export function getStoredWallet(): StoredWallet | null {
 
   if (raw) {
     try {
-      const parsed = JSON.parse(raw) as StoredWallet;
-      if (parsed?.address && parsed?.credential) cachedValue = parsed;
+      const parsed = JSON.parse(raw) as Omit<StoredWallet, 'chains'> & { chains?: unknown };
+      if (parsed?.address && parsed?.credential) cachedValue = { ...parsed, chains: storedPasskeyChains(parsed.chains) };
     } catch {
       /* a corrupted entry reads as no wallet */
     }

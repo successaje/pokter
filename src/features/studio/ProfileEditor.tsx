@@ -136,7 +136,7 @@ export function ProfileEditor({ chainId, tokenId }: { chainId: RegistryChainId; 
         onProgress: (s) => setStep(String(s)),
         signer:
           ownedByPasskey && passkeyWallet && passkeySigner
-            ? passkeyRegistrySigner({ wallet: { address: passkeyWallet.address }, signer: passkeySigner, chainId })
+            ? passkeyRegistrySigner({ wallet: passkeyWallet, signer: passkeySigner, chainId })
             : undefined,
       });
       setFile(next);
