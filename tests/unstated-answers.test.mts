@@ -9,9 +9,6 @@ import { HF_SUITE_ID } from '../src/lib/assay/health-factor';
 import type { AssayRun } from '../src/lib/assay/types';
 import { checkReading } from '../src/lib/compare/rows';
 
-/* The checks are read at a fixed time: on the clock's own today, these fixtures grew past the freshness window and read as no longer counting. */
-const NOW = Date.parse('2026-10-29T08:00:00Z');
-
 /*
  * An answer that states none of what a check compares is not graded.
  *
@@ -80,6 +77,16 @@ const recorded: AssayRun = {
   })),
 };
 
+/*
+ * Read at a fixed moment, inside the run's own freshness window.
+ *
+ * `answerComparison` appends a staleness line to the summary of a full
+ * pass older than `CHECK_FRESH_DAYS`, so against the wall clock these
+ * assertions hold only for 30 days after `recorded.ranAt` and then fail
+ * on a date rather than on a change.
+ */
+const READ_AT = Date.parse('2026-10-29T08:00:00Z');
+
 test('a run recorded before the rule reads with it: nothing graded, nothing failed', () => {
   const read = setAsideUnstated(recorded);
   assert.equal(read.total, 0);
@@ -101,7 +108,7 @@ test('only answers that state nothing are set aside, and only on scenario checks
 });
 
 test('the comparison says nothing was graded, labels each row, and shows the reply', () => {
-  const comparison = answerComparison(setAsideUnstated(recorded), NOW)!;
+  const comparison = answerComparison(setAsideUnstated(recorded), READ_AT)!;
   assert.equal(comparison.summary.tone, 'none', 'not the red of a failure');
   assert.match(comparison.summary.text, /none could be graded/);
   assert.match(comparison.scope, /says nothing either way/);
@@ -115,7 +122,7 @@ test('the comparison says nothing was graded, labels each row, and shows the rep
 test('beside graded answers, the ones set aside are counted apart', () => {
   const [first, ...rest] = recorded.results;
   const run: AssayRun = { ...recorded, passed: 1, results: [{ ...first, observed: YIELD, pass: true, outcome: 'correct' }, ...rest] };
-  const comparison = answerComparison(setAsideUnstated(run), NOW)!;
+  const comparison = answerComparison(setAsideUnstated(run), READ_AT)!;
   assert.equal(comparison.summary.text, 'Matched 1 of 1 published scenario; 2 more not graded, stating none of what the check compares.');
   assert.equal(comparison.summary.tone, 'ok');
 });

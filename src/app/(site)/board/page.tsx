@@ -9,6 +9,7 @@ import { getBriefStore } from '@/lib/briefs/store';
 import { ago } from '@/lib/compare/rows';
 import { getJobStore } from '@/lib/erc8183/store';
 import { explorerBaseFor } from '@/lib/network/presentation';
+import { shareMetadata } from '@/lib/og/share';
 import { getQuestStore } from '@/lib/quest/store';
 import { AgentIdName } from '@/ui/AgentIdName';
 import { Rating } from '@/ui/Rating';
@@ -18,6 +19,10 @@ export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
   title: 'PokterBoard',
   description: 'Reviews and requests from Agent ID holders on BNB Chain, recorded on an open contract with no owner: who has used it, and what they posted.',
+  ...shareMetadata({
+    title: 'PokterBoard: reviews you have to earn',
+    description: 'Requests and reviews from Agent ID holders on BNB Chain, on an open contract with no owner. Only the wallet that funded a job can review it.',
+  }),
 };
 
 const BOARD_SOURCE = 'https://github.com/Pokter-xyz/pokter-board';
