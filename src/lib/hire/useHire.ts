@@ -10,7 +10,7 @@ import { getErc8183DeliverableUrl, hireErc8183Agent } from '@altananetwork/sdk';
 import { getErc8183Job } from '@/lib/erc8183/job-read-browser';
 import { ensureGas, SponsorshipRefused } from '@/lib/wallet/sponsor-client';
 
-import { FAUCETS, NATIVE_SYMBOL } from '@/lib/network/presentation';
+import { FAUCETS, nativeSymbolFor } from '@/lib/network/presentation';
 import { browserRpcUrls } from '@/lib/wallet/browser-rpc';
 import { clearBriefForFullPage, forgetBrief, readBriefForFullPage, recallBrief, rememberBrief } from './brief-memory';
 import { checkExampleWallets, replaceWallet } from './example-wallet';
@@ -19,6 +19,7 @@ import { buildSwapCalls, quoteBnbForPaymentToken, type SwapQuote } from '@/lib/p
 import type { HiredJob } from '@/lib/erc8183/types';
 import { usePasskeySigner, usePasskeyWallet } from '@/lib/wallet/PasskeyProvider';
 import { WALLET_NETWORK, walletClient, walletNetworkFor } from '@/lib/wallet/passkey';
+import { passkeyActsOn } from '@/lib/wallet/passkey-networks';
 import { rememberJob } from '@/lib/wallet/activity';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { nonDefaultHireToken } from '@/lib/erc8183/hire-calls';
@@ -1527,9 +1528,11 @@ export function useHire({
           'token-not-supported-by-wallet',
         );
       }
-      if (escrowChainId !== WALLET_NETWORK.chainId) {
-        throw new Error(`This hire is funded on ${chainLabel(escrowChainId)}, where the passkey wallet does not act yet. Connect a browser wallet to fund it.`);
+      if (!passkeyActsOn(wallet, escrowChainId)) {
+        throw new Error(`This hire is funded on ${chainLabel(escrowChainId)}, where this passkey wallet does not act. Connect a browser wallet to fund it.`);
       }
+      /* Everything below is on the hire's own network: a passkey set up on both holds separate balances on each. */
+      const NATIVE_SYMBOL = nativeSymbolFor(escrowChainId);
       if (!budgetValid) throw new Error(`The budget must be between ${BUDGET_MIN} and ${BUDGET_MAX} $U.`);
       if (!task.trim()) throw new Error('Describe the work before funding escrow.');
       const committedTask = encodePokterJobEnvelope({
@@ -1544,8 +1547,8 @@ export function useHire({
       });
 
       const budgetRaw = parseUnits(String(budget), 18);
-      const { paymentToken } = correctedErc8183Addresses(WALLET_NETWORK.chainId);
-      const balances = await walletClient().balances({ wallet: wallet.address, tokens: [paymentToken] });
+      const { paymentToken } = correctedErc8183Addresses(escrowChainId);
+      const balances = await walletClient().balances({ wallet: wallet.address, tokens: [paymentToken], chainId: escrowChainId });
       const paymentBalance = balances.tokens?.[0];
       const held = paymentBalance?.ok ? paymentBalance.raw : 0n;
 
@@ -1555,7 +1558,12 @@ export function useHire({
        * the buyer sees one prompt. When sponsorship is refused, the message
        * says what it used to say: how much BNB this wallet holds and needs.
        */
-      if (balances.native < MIN_TRANSACTION_GAS && held >= budgetRaw) {
+      /*
+       * Pokter tops up gas on the build's network only (the sponsor runs on
+       * the server's ALTANA_NETWORK, which WALLET_NETWORK mirrors). On any
+       * other network the wallet pays its own fee.
+       */
+      if (balances.native < MIN_TRANSACTION_GAS && held >= budgetRaw && escrowChainId === WALLET_NETWORK.chainId) {
         setStage('sponsoring');
         try {
           await ensureGas(wallet.address, MIN_TRANSACTION_GAS, balances.native);
@@ -1614,7 +1622,7 @@ export function useHire({
           wallet: { address: wallet.address },
           signer,
           calls: buildSwapCalls(quote, paymentToken, wallet.address),
-          chainId: WALLET_NETWORK.chainId,
+          chainId: escrowChainId,
         });
         acquired = shortfall;
         setStage('hiring');
@@ -1662,14 +1670,14 @@ export function useHire({
           { address: wallet.address },
           signer,
           { provider: providerAddress as `0x${string}`, task: committedTask, budget: budgetRaw, deadlineSeconds: deliverySeconds },
-          { network: WALLET_NETWORK },
+          { network: walletNetworkFor(escrowChainId) },
         );
         const now = new Date().toISOString();
         const record: HiredJob = {
           id: crypto.randomUUID(),
           jobId: outcome.jobId.toString(),
-          chainId: WALLET_NETWORK.chainId,
-          isTestnet: WALLET_NETWORK.chainId === 97,
+          chainId: escrowChainId,
+          isTestnet: escrowChainId === 97,
           agentChainId: agent.chainId,
           agentTokenId: agent.tokenId,
           agentName: agent.name,
@@ -1678,7 +1686,7 @@ export function useHire({
           task: sending,
           budgetRaw: outcome.budget.toString(),
           /* `hireErc8183Agent` encodes `createJob`, which binds the job to the escrow default. */
-          paymentToken: correctedErc8183Addresses(WALLET_NETWORK.chainId).paymentToken as `0x${string}`,
+          paymentToken: correctedErc8183Addresses(escrowChainId).paymentToken as `0x${string}`,
           expiredAt: new Date(Number(outcome.expiredAt) * 1000).toISOString(),
           hiredAt: now,
           hireTxHash: outcome.transactionHash ?? null,

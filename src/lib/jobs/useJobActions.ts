@@ -8,13 +8,14 @@ import {
   settleErc8183Job,
 } from '@altananetwork/sdk';
 
-import { NATIVE_SYMBOL } from '@/lib/network/presentation';
+import { nativeSymbolFor } from '@/lib/network/presentation';
 import { getErc8183Job } from '@/lib/erc8183/job-read-browser';
 import { savedJobMismatch, unreadJob } from '@/lib/jobs/record-match';
 import { assertRefundEligible } from '@/lib/erc8183/reclaim-check';
 import type { HiredJob } from '@/lib/erc8183/types';
 import { usePasskeySigner, usePasskeyWallet } from '@/lib/wallet/PasskeyProvider';
-import { WALLET_NETWORK, walletClient, walletNetworkFor } from '@/lib/wallet/passkey';
+import { walletClient, walletNetworkFor } from '@/lib/wallet/passkey';
+import { passkeyActsOn } from '@/lib/wallet/passkey-networks';
 import { updateRememberedJob } from '@/lib/wallet/activity';
 import { walletActionError } from '@/lib/wallet/errors';
 import { useActiveWallet } from '@/lib/wallet/active';
@@ -231,11 +232,12 @@ export function useJobActions(initial: HiredJob) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [needsUrl, needsCurrency, job.jobId, job.chainId]);
 
+  /* Gas on the job's own network: a passkey set up on both holds a separate balance on each. */
   async function requireGas(purpose: string) {
     if (!wallet) throw new Error('The passkey signer is unavailable.');
-    const balances = await walletClient().balances({ wallet: wallet.address });
+    const balances = await walletClient().balances({ wallet: wallet.address, chainId: job.chainId });
     if (balances.native < MIN_TRANSACTION_GAS) {
-      throw new Error(`Your passkey wallet needs at least 0.002 ${NATIVE_SYMBOL} to ${purpose}.`);
+      throw new Error(`Your passkey wallet needs at least 0.002 ${nativeSymbolFor(job.chainId)} to ${purpose}.`);
     }
   }
 
@@ -257,7 +259,7 @@ export function useJobActions(initial: HiredJob) {
         return;
       }
       if (!activeWallet.address) throw new Error('Connect the wallet that funded this job.');
-      if (activeWallet.mode === 'passkey' && job.chainId !== WALLET_NETWORK.chainId) {
+      if (activeWallet.mode === 'passkey' && !passkeyActsOn(wallet, job.chainId)) {
         throw new Error('This job is on a network the passkey wallet does not act on. Connect the browser wallet that funded it.');
       }
       let settleTxHash = job.settleTxHash;
@@ -282,7 +284,7 @@ export function useJobActions(initial: HiredJob) {
             { address: wallet.address },
             signer,
             { jobId: BigInt(job.jobId), action },
-            { network: WALLET_NETWORK },
+            { network },
           );
           transactionHash = outcome.transactionHash ?? null;
         }
@@ -302,7 +304,8 @@ export function useJobActions(initial: HiredJob) {
           const outcome = await walletClient().execute({
             wallet: { address: wallet.address },
             signer,
-            calls: [buildClaimRefundCall(WALLET_NETWORK.chainId, BigInt(job.jobId))],
+            calls: [buildClaimRefundCall(job.chainId, BigInt(job.jobId))],
+            chainId: job.chainId,
           });
           reclaimTxHash = outcome.transactionHash ?? null;
         }

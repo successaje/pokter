@@ -444,7 +444,7 @@ export function useAgentDraft(initial?: StoredDraft | null, onBound?: (draftId: 
         recovery: compatible,
         signer:
           passkeyCanPublish && passkeyWallet && passkeySigner
-            ? passkeyRegistrySigner({ wallet: { address: passkeyWallet.address }, signer: passkeySigner, chainId: network })
+            ? passkeyRegistrySigner({ wallet: passkeyWallet, signer: passkeySigner, chainId: network })
             : undefined,
         onProgress: (p) => {
           setProgress(p);

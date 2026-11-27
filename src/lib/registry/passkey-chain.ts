@@ -1,8 +1,9 @@
 /**
  * Whether a passkey wallet can publish on a given identity chain.
  *
- * The passkey client is built for one network and can only sign for that
- * one. Learning this inside the SDK, mid-registration, after the first
+ * A passkey wallet acts only on the networks it was set up on and the site
+ * has opened (`passkeyActionChains`). Learning this inside the SDK,
+ * mid-registration, after the first
  * transaction has already minted an identity, is the expensive way to find
  * out — so it is decided here, before anything is signed, and returned as
  * the sentence to show rather than a bare false.
@@ -13,12 +14,13 @@
  */
 export function passkeyChainRefusal(
   requestedChainId: number,
-  walletChainId: number,
+  walletChainIds: readonly number[],
 ): string | null {
-  if (requestedChainId === walletChainId) return null;
+  if (walletChainIds.includes(requestedChainId)) return null;
   const name = (chainId: number) => (chainId === 56 ? 'BNB Chain' : 'BNB Testnet');
+  const where = walletChainIds.length ? `on ${walletChainIds.map(name).join(' and ')} only` : 'nowhere on this site yet';
   return (
-    `A passkey wallet publishes on ${name(walletChainId)} only. ` +
+    `This passkey wallet publishes ${where}. ` +
     `Connect a browser wallet to publish on ${name(requestedChainId)}.`
   );
 }

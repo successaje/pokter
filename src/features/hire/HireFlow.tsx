@@ -12,7 +12,7 @@ import { currencyChoices, type CurrencyChoices, type CurrencyEvidence } from '@/
 import { FAUCETS, chainLabel, explorerBaseFor, shortNetworkLabel } from '@/lib/network/presentation';
 import { jobHref } from '@/lib/jobs/href';
 import { useGasSponsorship } from '@/lib/wallet/sponsor-client';
-import { WALLET_NETWORK } from '@/lib/wallet/passkey';
+import { PASSKEY_ACTION_CHAINS, PASSKEY_SETUP_CHAINS, type PasskeyChainId } from '@/lib/wallet/passkey-networks';
 import { cn } from '@/lib/ui/cn';
 import { shortAddress } from '@/lib/ui/format';
 import { formatBudget, formatQuotedRaw } from '@/lib/erc8183/pricing';
@@ -334,12 +334,16 @@ export function HireFlow(props: HireFlowProps) {
   /*
    * Why the passkey option is closed for this hire, said in the connect
    * sheet before anyone makes a wallet that cannot fund it. A passkey
-   * wallet acts only on WALLET_NETWORK and funds only $U; a mainnet $U hire
-   * used to offer it, and the buyer learnt otherwise after creating one.
+   * wallet acts only where it is set up and the site has opened passkeys
+   * (passkey-networks.ts), and funds only $U; a mainnet $U hire used to
+   * offer it, and the buyer learnt otherwise after creating one. A wallet
+   * that already exists but lacks this network is refused at funding, by
+   * the same rule.
    */
+  const passkeyOpenHere = PASSKEY_ACTION_CHAINS.includes(escrowChainId as PasskeyChainId) && PASSKEY_SETUP_CHAINS.includes(escrowChainId as PasskeyChainId);
   const passkeyBlocked =
-    escrowChainId !== WALLET_NETWORK.chainId
-      ? `This hire is paid with real funds on ${networkLabel}, and a passkey wallet acts only on ${chainLabel(WALLET_NETWORK.chainId)}. Use a browser or phone wallet.`
+    !passkeyOpenHere
+      ? `This hire is paid${escrowChainId === 56 ? ' with real funds' : ''} on ${networkLabel}, and a passkey wallet acts on ${PASSKEY_ACTION_CHAINS.map(chainLabel).join(' and ')} only. Use a browser or phone wallet.`
       : signedTokenPrice
         ? `A passkey wallet funds $U only, and this hire is in ${priceSymbol}. Use a browser or phone wallet.`
         : null;

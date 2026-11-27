@@ -2,7 +2,8 @@
 
 import type { Address, Hex } from 'viem';
 
-import { WALLET_NETWORK, walletClient } from '@/lib/wallet/passkey';
+import { walletClient } from '@/lib/wallet/passkey';
+import { passkeyActionChains } from '@/lib/wallet/passkey-networks';
 import type { RegistryChainId, RegistrySigner } from './register';
 import { passkeyChainRefusal } from './passkey-chain';
 
@@ -22,17 +23,18 @@ import { passkeyChainRefusal } from './passkey-chain';
  * browser closes between the two.
  */
 export function passkeyRegistrySigner(input: {
-  wallet: { address: Address };
+  /* `chains`: the networks the wallet was set up on (`StoredWallet.chains`). */
+  wallet: { address: Address; chains: readonly number[] };
   signer: unknown;
   chainId: RegistryChainId;
 }): RegistrySigner {
   /*
-   * The passkey client is built for one network, so it can only sign for
-   * the chain it was configured with. Saying that plainly beats letting the
-   * send fail somewhere inside the SDK with a message about the wrong
-   * chain id, which is what a silent mismatch would produce.
+   * A passkey wallet signs only on the networks it was set up on and the
+   * site has opened. Saying that plainly beats letting the send fail
+   * somewhere inside the SDK with a message about the wrong chain id, which
+   * is what a silent mismatch would produce.
    */
-  const refusal = passkeyChainRefusal(input.chainId, WALLET_NETWORK.chainId);
+  const refusal = passkeyChainRefusal(input.chainId, passkeyActionChains(input.wallet));
   if (refusal) throw new Error(refusal);
 
   return {
@@ -44,7 +46,7 @@ export function passkeyRegistrySigner(input: {
         wallet: { address: input.wallet.address },
         signer: input.signer as never,
         calls: [{ to: call.to, data: call.data }],
-        chainId: WALLET_NETWORK.chainId,
+        chainId: input.chainId,
       });
       const hash = (outcome as { transactionHash?: Hex }).transactionHash;
       if (!hash) {
