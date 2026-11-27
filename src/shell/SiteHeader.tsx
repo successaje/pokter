@@ -15,8 +15,12 @@ import { drawerGroups, isActive, NAV_DIRECT } from './nav';
 import { ThemeSegmented, ThemeToggle } from './ThemeControl';
 import { LazyHeaderWallet } from './wallet/LazyHeaderWallet';
 
-/** The surface every pill in the row shares: raised, hairline, a soft lift. Opaque enough to read over content without a blur. */
-const PILL = 'rounded-full border border-rule bg-[color-mix(in_oklab,var(--raised)_94%,transparent)] shadow-[0_1px_2px_rgb(0_0_0/0.04),0_10px_28px_-14px_rgb(0_0_0/0.22)]';
+/** The surface every pill in the row shares: raised and hairlined, opaque enough to read over content without a blur. */
+const PILL = 'rounded-full border border-rule bg-[color-mix(in_oklab,var(--raised)_94%,transparent)] transition-shadow duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]';
+/** Added once the page scrolls: the pills lift off the content passing under them. */
+const LIFT = 'shadow-[0_1px_2px_rgb(0_0_0/0.04),0_10px_28px_-14px_rgb(0_0_0/0.22)]';
+/** How far the row draws in once the page scrolls, from the frame's 1240px. */
+const GATHERED = 1080;
 
 /**
  * The site header, on every page including Hiring and Building. Four menus
@@ -26,9 +30,13 @@ const PILL = 'rounded-full border border-rule bg-[color-mix(in_oklab,var(--raise
  *
  * It floats: no bar and no rule, only its pieces over the page. The mark
  * stands on its own, the navigation sits in one pill, theme and search in a
- * smaller one, and the account control keeps its square corners. Once the
- * page scrolls, the row stands on the page colour so the bare mark stays
- * readable over content.
+ * smaller one, and the account control keeps its square corners.
+ *
+ * Scrolling is what moves it. The bar this replaced tightened as the page
+ * scrolled; with no bar, an 8px change in height alone cannot be seen, so the
+ * row also draws in towards the middle and the pills lift, and both settle
+ * back at the top. The row stands on the page colour once scrolled, so the
+ * bare mark stays readable over content.
  */
 export function SiteHeader() {
   const pathname = usePathname() ?? '/';
@@ -59,7 +67,11 @@ export function SiteHeader() {
         )}
       >
         {/* A narrower gap on phones: with a wallet connected, 24px here was part of a 13px overflow at 375px. */}
-        <div className={cn('frame flex items-center gap-3 transition-[height] duration-300 ease-out sm:gap-6', scrolled ? 'h-14' : 'h-16')}>
+        {/* The frame's width is set in unlayered CSS, so the gathered width goes inline, where it wins, rather than as a utility. */}
+        <div
+          className={cn('frame flex items-center gap-3 transition-[height,max-width] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] sm:gap-6', scrolled ? 'h-14' : 'h-16')}
+          style={scrolled ? { maxWidth: GATHERED } : undefined}
+        >
           <Wordmark className="shrink-0" />
           {/*
             Shown only while every hire really is test money.
@@ -79,10 +91,10 @@ export function SiteHeader() {
           )}
 
           {/* The navigation pill hugs its labels and sits centred between the mark and the controls. */}
-          <HeaderMenus className={cn(PILL, 'mx-auto h-10 px-1.5')} />
+          <HeaderMenus className={cn(PILL, scrolled && LIFT, 'mx-auto h-10 px-1.5')} />
 
           <div className="ml-auto flex items-center gap-2 lg:ml-0">
-            <div className={cn(PILL, 'flex h-10 items-center gap-0.5 px-1 [&_button]:rounded-full')}>
+            <div className={cn(PILL, scrolled && LIFT, 'flex h-10 items-center gap-0.5 px-1 [&_button]:rounded-full')}>
               <ThemeToggle className="hidden lg:grid" />
               <span aria-hidden className="hidden size-1 rounded-full bg-rule-strong lg:block" />
               <HeaderSearch />
