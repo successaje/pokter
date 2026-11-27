@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { escrowMoney } from '../src/lib/network/presentation';
+import { escrowMoney, nativeSymbolFor } from '../src/lib/network/presentation';
 
 /*
  * Whether a hire spends real money, per agent.
@@ -39,4 +39,9 @@ test('an unrecognised chain reassures nobody', () => {
   assert.equal(money.money, null);
   assert.ok(!/test tokens|real funds/i.test(money.note), money.note);
   assert.match(money.note, /chain 1/);
+});
+
+test('gas is BNB on BNB Chain and tBNB on the testnet, whatever the site’s default', () => {
+  assert.equal(nativeSymbolFor(56), 'BNB');
+  assert.equal(nativeSymbolFor(97), 'tBNB');
 });

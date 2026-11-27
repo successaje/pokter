@@ -126,7 +126,7 @@ export function AccountPage() {
             {w.externalConnected ? (
               <div className="flex gap-2">
                 {w.wrongChain && (
-                  <Button size="s" onClick={w.switchToEscrowChain} busy={w.switching}>
+                  <Button size="s" onClick={w.switchToDefaultChain} busy={w.switching}>
                     Switch network
                   </Button>
                 )}

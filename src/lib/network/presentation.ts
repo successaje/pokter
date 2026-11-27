@@ -20,6 +20,15 @@ export const CHAIN_ID = IS_TESTNET ? 97 : 56;
 /** What the user is actually spending. Never hardcode this. */
 export const NATIVE_SYMBOL = IS_TESTNET ? 'tBNB' : 'BNB';
 
+/**
+ * The native token on one chain. A balance read from a wallet on BNB Chain
+ * is BNB, whatever the site's default network: `NATIVE_SYMBOL` alone
+ * labelled a mainnet wallet's gas "tBNB".
+ */
+export function nativeSymbolFor(chainId: number | null): string {
+  return chainId === 56 ? 'BNB' : chainId === 97 ? 'tBNB' : NATIVE_SYMBOL;
+}
+
 /*
  * Named the way BNB Chain names itself. "BSC testnet" is accurate and is what
  * the tooling says, but the chain's own branding is BNB Chain, and a header
