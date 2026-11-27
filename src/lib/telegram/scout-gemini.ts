@@ -19,13 +19,15 @@ export async function generateScoutAnswer(input: {
   docs?: string;
   apiKey: string;
   signal?: AbortSignal;
+  /** Rules for one channel, after the shared ones: the website adds its handoff. */
+  channelInstructions?: string;
 }): Promise<string> {
   const response = await fetch('https://generativelanguage.googleapis.com/v1beta/interactions', {
     method: 'POST',
     headers: { 'x-goog-api-key': input.apiKey, 'content-type': 'application/json', 'Api-Revision': '2026-05-20' },
     body: JSON.stringify({
       model: process.env.SCOUT_GEMINI_MODEL || 'gemini-3.5-flash-lite',
-      system_instruction: INSTRUCTIONS,
+      system_instruction: input.channelInstructions ? `${INSTRUCTIONS}\n${input.channelInstructions}` : INSTRUCTIONS,
       input: JSON.stringify({
         recent_turns: input.turns.slice(-6),
         user_message: input.message.slice(0, 1200),

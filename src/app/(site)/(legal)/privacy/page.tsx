@@ -43,6 +43,9 @@ export default function PrivacyPage() {
           <strong>Scout in Telegram:</strong> if you opt into AI chat, Pokter makes the last six short turns and recent public evidence available to Scout for 24 hours. Send /forget in Scout to remove that chat and turn AI off immediately.
         </li>
         <li>
+          <strong>Scout on this website:</strong> the conversation is kept in your browser, not on Pokter&rsquo;s servers. Each question goes out with up to six recent turns to be answered, and New chat clears it.
+        </li>
+        <li>
           <strong>Optional Scout alerts:</strong> if you turn on public request alerts, Pokter stores your Telegram chat id to send newly posted open requests. /alerts off removes the subscription and its alert history. /forget clears AI chat separately.
         </li>
         <li>
@@ -99,6 +102,9 @@ export default function PrivacyPage() {
         <li>
           <strong>Scout AI chat:</strong> after you tap Enable AI chat, recent private Telegram messages, Scout&rsquo;s replies and the public Pokter evidence used for the answer are available to Scout for 24 hours. The Telegram chat id is kept only in this local record for conversation continuity and rate limits. /forget deletes the conversation and turns AI off; expired rows are removed when the store is next used.
         </li>
+        <li id="scout">
+          <strong>Scout chat on this website:</strong> Pokter keeps no copy of the conversation. After you accept Scout&rsquo;s notice, each question is sent with up to six recent turns from your browser and, when you ask about an agent, that agent&rsquo;s number, so Pokter can read its public evidence. The answer comes back and nothing is stored; only the rate-limit counter above is kept, keyed by your IP address for about an hour.
+        </li>
         <li>
           <strong>Scout public request alerts:</strong> opt-in stores your Telegram chat id and records which new public requests have been sent, to avoid repeat alerts. Sent records are removed after 30 days when the store next opens. /alerts off removes your subscription and its records immediately. These alerts include a public request title, network, budget and link; they do not include private builder-directed requests.
         </li>
@@ -150,6 +156,9 @@ export default function PrivacyPage() {
           <strong>Telegram</strong> carries messages you send to Scout. After you opt into AI chat, <strong>Google Gemini</strong> receives your latest message, up to six short recent turns and the relevant public Pokter evidence to generate an answer. Pokter does not send the Telegram chat id or a wallet address as an account identifier, and asks the API not to store the interaction. Google&rsquo;s free tier may use submitted content to improve its products. Do not send passwords, seed phrases, private keys or confidential briefs to Scout.
         </li>
         <li>
+          <strong>Google Gemini</strong> also answers Scout on this website, once you accept its notice: it receives your question, up to six recent turns and the public Pokter evidence used. Pokter sends no IP address, wallet or account identifier with it, and asks the API not to store the interaction; Google&rsquo;s free tier may use submitted content to improve its products. When Scout suggests asking a person, the email is written and sent by your own mail app.
+        </li>
+        <li>
           <strong>Pokter&rsquo;s operators</strong> get an alert, with the funding wallet, when a buyer outside Pokter&rsquo;s team hires through Pokter, so they can watch the service.
         </li>
         <li>
@@ -167,7 +176,7 @@ export default function PrivacyPage() {
 
       <H>What stays in your browser</H>
       <p>
-        Your theme, the agents you saved, followed or compared, your notification inbox and its settings, drafts of a request or an agent you are building, which passkey wallet this browser uses, and a list of the jobs you hired from it. The passkey itself is held by your device or password manager, never by Pokter. Clearing your browser storage removes all of this; jobs you funded come back from Pokter&rsquo;s record of your wallet.
+        Your theme, the agents you saved, followed or compared, your notification inbox and its settings, drafts of a request or an agent you are building, your conversation with Scout and whether you accepted its notice, which passkey wallet this browser uses, and a list of the jobs you hired from it. The passkey itself is held by your device or password manager, never by Pokter. Clearing your browser storage removes all of this; jobs you funded come back from Pokter&rsquo;s record of your wallet.
       </p>
 
       <H>Asking about or removing your data</H>

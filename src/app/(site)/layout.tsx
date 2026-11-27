@@ -1,4 +1,5 @@
 import { CampaignBar } from '@/features/campaign/CampaignBar';
+import { ScoutDock } from '@/features/scout/ScoutDock';
 import { CompactFooter, SiteFooter } from '@/shell/SiteFooter';
 import { FooterForRoute } from '@/shell/FooterForRoute';
 import { SiteHeader } from '@/shell/SiteHeader';
@@ -16,6 +17,7 @@ export default function SiteLayout({ children, modal }: { children: React.ReactN
       </main>
       <FooterForRoute full={<SiteFooter />} compact={<CompactFooter />} />
       <MobileTabBar />
+      <ScoutDock />
       {modal}
     </>
   );

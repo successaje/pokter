@@ -8,7 +8,7 @@ import { marketplaceBotReply, publicPage, scoutMenu, type BotButton, type BotRep
 import { forgetChat, readChat, saveChat } from './chat-store';
 import { generateScoutAnswer } from './scout-gemini';
 import { scoutKnowledgeFor } from './scout-knowledge';
-import { isMoreAgentsFollowUp, matchingNamedAgents, namedAgentQuery, shouldSearchAgents } from './scout-routing';
+import { holdsWalletSecret, isMoreAgentsFollowUp, matchingNamedAgents, namedAgentQuery, shouldSearchAgents } from './scout-routing';
 import { requestAlertsOn, setRequestAlerts } from './request-alerts';
 
 const network = (chainId: number) => chainId === 97 ? 'BNB Testnet' : 'BNB Mainnet';
@@ -16,7 +16,7 @@ const short = (text: string, max = 135) => text.length > max ? `${text.slice(0, 
 const link = (text: string, url: string): BotButton => ({ text, url });
 const reply = (text: string, buttons: BotButton[][]): BotReply => ({ text, reply_markup: { inline_keyboard: buttons } });
 
-function agentReference(text: string): { chainId: '56' | '97'; tokenId: string } | null {
+export function agentReference(text: string): { chainId: '56' | '97'; tokenId: string } | null {
   const raw = text.trim();
   const direct = /^(?:\/check\s+)?(56|97)[/:](\d{1,12})$/i.exec(raw);
   if (direct) return { chainId: direct[1] as '56' | '97', tokenId: direct[2] };
@@ -47,7 +47,7 @@ function agentPrice(agent: AgentSummary): string {
   return `Last signed quote ${amount} (${price.quotedAt.slice(0, 10)}${expiry}); fresh quote needed for your task`;
 }
 
-async function findAgents(query: string, category?: string, responsive = false): Promise<BotReply> {
+export async function findAgents(query: string, category?: string, responsive = false): Promise<BotReply> {
   const [{ GET: agentsApi }, { agentRecord }] = await Promise.all([
     import('@/app/api/v1/agents/route'), import('@/lib/profiles/evidence'),
   ]);
@@ -161,7 +161,7 @@ async function openRequests(query: string): Promise<BotReply> {
   return reply(`Open requests on Pokter:\n\n${lines.join('\n\n')}\n\nA request is not a funded job. Read its terms before proposing.`, open.map((r) => [link(`Open request ${r.id.slice(0, 8)}`, publicPage(`/requests/${r.id}`))]));
 }
 
-function isFollowUp(text: string): boolean {
+export function isFollowUp(text: string): boolean {
   return /^(which|what about|of those|and |the (first|second|third|one)|these|those|them|their|it |compare|how many|do any|does any|are any|is any|more about|tell me more|why |who |what is its|what is their)/i.test(text)
     || /\b(previous|above|result|recommendation)\b/i.test(text);
 }
@@ -199,7 +199,7 @@ export function scoutActiveCategory(text: string, lastCategory?: string | null):
   return /\b(active|working|responsive|online|dry)\b/i.test(text) ? lastCategory ?? undefined : undefined;
 }
 
-async function marketEvidence(text: string): Promise<BotReply> {
+export async function marketEvidence(text: string): Promise<BotReply> {
   const plainQuery = (value: string) => value.replace(/\b(can|could|you|i|want|need|looking|find|show|me|available|published|for|about|please|any|are|there|a|an|the|with|to)\b/gi, ' ').replace(/[^a-z0-9\s-]/gi, ' ').trim();
   if (/\b(services?|offers?)\b/i.test(text)) {
     const query = plainQuery(text.replace(/\b(services?|offers?)\b/gi, ' '));
@@ -216,7 +216,7 @@ async function marketEvidence(text: string): Promise<BotReply> {
 }
 
 async function chatWithScout(raw: string, chatId: number): Promise<BotReply> {
-  if (/\b(seed phrase|recovery phrase|private key)\b/i.test(raw) || /\b0x[a-fA-F0-9]{64}\b/.test(raw)) {
+  if (holdsWalletSecret(raw)) {
     return reply('Please keep wallet secrets out of chat. I can help you compare public Pokter evidence instead.', [[link('Open Pokter', publicPage('/discover'))]]);
   }
   const perChat = consumeRateLimit(`scout-ai:${chatId}`, { limit: 12, windowMs: 15 * 60_000 });
