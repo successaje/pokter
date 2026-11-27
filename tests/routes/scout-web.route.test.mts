@@ -30,6 +30,16 @@ const LISTED = {
   total_feedbacks: 0, image_url: null, created_at: '2026-10-01T00:00:00Z',
   owner_address: '0x00000000000000000000000000000000000000a1', agent_wallet: '0x00000000000000000000000000000000000000a2',
 };
+const row = (chain_id: 56 | 97, token_id: string, name: string, description: string) => ({
+  id: `agent-${token_id}`, chain_id, token_id, name, description, total_feedbacks: 0, image_url: null, created_at: '2026-10-01T00:00:00Z',
+  owner_address: '0x00000000000000000000000000000000000000b1', agent_wallet: '0x00000000000000000000000000000000000000b2',
+});
+/* One agent registered on both networks under one name, as Pokter's own are, and one yield agent in the category listings. */
+const BRINK = [
+  row(97, '2618', 'Brinkwatch by Pokter', 'Watches a lending position and warns before its health factor nears liquidation.'),
+  row(56, '374107', 'Brinkwatch by Pokter', 'Watches a lending position and warns before its health factor nears liquidation.'),
+];
+const HEVO = row(56, '340532', 'Hevo Yield', 'Yield optimizer that auto-compounds vault positions on BNB Chain.');
 let modelText = 'Scout’s plain answer.';
 let calls: Array<{ host: string; body: string }> = [];
 const realFetch = globalThis.fetch;
@@ -37,12 +47,26 @@ globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) =>
   const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url);
   calls.push({ host: url.host, body: typeof init?.body === 'string' ? init.body : '' });
   if (url.host === GEMINI) return Response.json({ status: 'completed', output_text: modelText });
-  if (url.host === 'api.8004scan.io' && url.pathname.endsWith('/agents/56/500001')) return Response.json(LISTED);
+  if (url.host === 'api.8004scan.io') {
+    const agent = [LISTED, ...BRINK, HEVO].find((a) => url.pathname.endsWith(`/agents/${a.chain_id}/${a.token_id}`));
+    if (agent) return Response.json(agent);
+    if (url.pathname.endsWith('/agents')) {
+      const chain = Number(url.searchParams.get('chain_id'));
+      const items = ((url.searchParams.get('search') ?? '').toLowerCase().includes('brink') ? BRINK : [HEVO]).filter((a) => !chain || a.chain_id === chain);
+      return Response.json({ items, total: items.length, limit: 40, offset: 0 });
+    }
+  }
   return new Response('not found', { status: 404 });
 }) as typeof fetch;
 test.after(() => {
   globalThis.fetch = realFetch;
 });
+
+/** What the last question sent the model. */
+function modelInput() {
+  const sent = JSON.parse(calls.filter((call) => call.host === GEMINI).at(-1)!.body) as { input: string };
+  return JSON.parse(sent.input) as { pokter_evidence: string; links_below_answer?: string[] };
+}
 
 let visitor = 0;
 function ask(body: Record<string, unknown>, { ip = `203.0.113.${(visitor += 1)}`, type = 'application/json' } = {}) {
@@ -124,6 +148,50 @@ test('without the model or a guide to answer from, Scout offers a person', async
   const body = await (await ask({ message: 'Tell me a joke' })).json() as { answer: string; handoff: boolean };
   assert.match(body.answer, /can’t write a full answer just now/);
   assert.equal(body.handoff, true);
+});
+
+test('an agent asked about by name, the way people ask, is found on both networks', async () => {
+  calls = [];
+  modelText = 'Brinkwatch by Pokter watches a lending position for you.';
+  const body = await (await ask({ message: 'Tell me more about BrinkWatch' })).json() as { links: Array<{ label: string; href: string }> };
+  assert.deepEqual(body.links, [
+    { label: 'Open Brinkwatch by Pokter', href: '/agents/56/374107' },
+    { label: 'Open Brinkwatch by Pokter (testnet)', href: '/agents/97/2618' },
+  ]);
+  const input = modelInput();
+  assert.match(input.pokter_evidence, /^Brinkwatch by Pokter · BNB Chain mainnet · agent 56:374107/);
+  assert.match(input.pokter_evidence, /agent 97:2618/);
+  assert.deepEqual(input.links_below_answer, body.links.map((link) => link.label), 'the model is told which links the visitor will see');
+  /* The catalogue, as Discover reads it: the indexer, and the registry on chain for its cards' images. Never an agent's own address. */
+  const others = [...new Set(calls.map((call) => call.host))].filter((host) => host !== GEMINI && host !== 'api.8004scan.io' && !/rpc/.test(host));
+  assert.deepEqual(others, [], 'the agents themselves are not contacted');
+});
+
+test('asking which agents do a task searches the catalogue', async () => {
+  calls = [];
+  modelText = 'Hevo Yield is one yield agent listed on Pokter.';
+  const body = await (await ask({ message: 'What agents can I hire regarding Yield optimization' })).json() as { links: Array<{ href: string }> };
+  assert.match(modelInput().pokter_evidence, /Scout found \d+ matching agents?[\s\S]*Hevo Yield/);
+  assert.ok(body.links.some((link) => link.href === '/agents/56/340532'));
+});
+
+test('a name Pokter does not list is said so, with a search to try', async () => {
+  calls = [];
+  modelText = 'I could not find an agent called Nonesuch on Pokter.';
+  const body = await (await ask({ message: 'Tell me about Nonesuch' })).json() as { links: Array<{ href: string }> };
+  assert.match(modelInput().pokter_evidence, /no agent named “Nonesuch”/);
+  assert.deepEqual(body.links.map((link) => link.href), ['/discover?q=Nonesuch']);
+});
+
+test('small talk looks nothing up, and no link is shown or offered', async () => {
+  calls = [];
+  modelText = 'Doing well, thanks for asking.';
+  const body = await (await ask({ message: 'How are you doing today?' })).json() as { links: unknown[] };
+  assert.deepEqual(body.links, []);
+  assert.deepEqual(calls.map((call) => call.host), [GEMINI]);
+  const input = modelInput();
+  assert.equal(input.pokter_evidence, '', 'nothing for the model to read back as a phrase');
+  assert.deepEqual(input.links_below_answer, []);
 });
 
 test('one visitor gets twelve questions in fifteen minutes', async () => {
