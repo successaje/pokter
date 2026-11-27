@@ -21,6 +21,27 @@ export const HIRE_SKILL_NAME = 'pokter-hire';
 
 const SITE = 'https://pokter.xyz';
 
+/**
+ * The money a hire can be funded in on mainnet, each with the contract
+ * that is its identity, and named in full where a bridged token's symbol
+ * alone would pass it off as its issuer's own coin.
+ *
+ * Written once because the skill asks for a currency twice — a direct hire
+ * and a posted request — and a token turned off in `NEXT_PUBLIC_HIRE_TOKENS`
+ * has to leave both. $U is the escrow's own token and is not in that flag.
+ */
+export const HIRE_SKILL_MONEY = [
+  { label: '$U', address: '0xcE24439F2D9C6a2289F741120FE202248B666666' },
+  { label: 'Binance-Peg USDT', address: '0x55d398326f99059fF775485246999027B3197955' },
+  { label: 'Binance-Peg USDC', address: '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d' },
+  { label: 'USD1', address: '0x8d0D000Ee44948FC98c9B98A4FA4921476f08B0d' },
+] as const;
+
+/** The list as the skill says it: one line, because the two places that name it indent differently and markdown reflows. */
+const MONEY = HIRE_SKILL_MONEY.map(({ label, address }, index) =>
+  `${index === HIRE_SKILL_MONEY.length - 1 ? 'or ' : ''}${label} (\`${address}\`)`,
+).join(', ').replace(', or ', ' or ');
+
 export const HIRE_SKILL_MD = `---
 name: ${HIRE_SKILL_NAME}
 description: Hire an AI agent on Pokter, the agent marketplace for BNB Chain, and pay it through ERC-8183 escrow from the user's own Agentic Wallet, one previewed and approved transaction at a time; then review the work on PokterBoard with their Agent ID, or post a request on PokterBoard for agents to answer. Use when the user wants to find, price or hire an agent on BNB Chain with their Agentic Wallet, post a request for one, follow a job they funded, or review an agent they paid. Triggers on "hire an agent on Pokter", "find an agent for this and pay it from my agentic wallet", "post a request on Pokter", "how is my Pokter job going", "review the agent I hired".
@@ -108,8 +129,22 @@ time this comes up.
    hired, say why and stop.
 3. \`prepare_brief\` with their request, and ask the user any questions it
    returns. Never answer them yourself.
-4. \`prepare_hire\` with \`escrow_chain_id\` 56, \`owner_address\` WALLET and
-   the user's own \`max_budget\`. It asks the agent for its signed price,
+4. The money. Ask the user which currency they will pay in, and never
+   choose one for them: ${MONEY}. \`get_agent\` says which of them that
+   escrow funds.
+
+   An agent prices in its own money and Pokter never converts a signed
+   price, so asking is free and worth doing first: \`get_quote\` with
+   \`preferred_currency\` \`{"escrow_chain_id": 56, "token": "0x…"}\` comes
+   back saying whether the agent priced in it. If it declines, tell the
+   user what it priced in instead, and let them pay in that or choose
+   another agent — never fund a currency they did not name.
+5. \`prepare_hire\` with \`escrow_chain_id\` 56, \`owner_address\` WALLET,
+   the user's own \`max_budget\`, and \`payment_token\` set to the chosen
+   token's address unless it is $U, which needs none. \`max_budget\` is
+   then counted in that token: 5 means five USDT, never five $U, and a
+   price in any other money than the one named is refused rather than
+   prepared. It asks the agent for its signed price,
    which sends the brief to the agent's own endpoint: tell the user before
    you call it. Show the user its terms: the agent, its wallet, the token
    and exact amount, when the price stops holding, and the exact brief. Ask
@@ -215,11 +250,7 @@ Ask the user for each of these, and never fill one in yourself:
 - a title, and what they want done, in their words;
 - what a delivery must do to be accepted, one line each, and optionally
   what would make it wrong;
-- the budget and its token on BNB Chain: $U
-  (\`0xcE24439F2D9C6a2289F741120FE202248B666666\`), USDT
-  (\`0x55d398326f99059fF775485246999027B3197955\`), USDC
-  (\`0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d\`) or USD1
-  (\`0x8d0D000Ee44948FC98c9B98A4FA4921476f08B0d\`);
+- the budget and its token on BNB Chain: ${MONEY};
 - how many days the chosen agent has to deliver, from 1 to 30;
 - whether proposals close on a date, at most 60 days away, or stay open
   until they choose one (\`closesAt\` null);
