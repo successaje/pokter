@@ -11,7 +11,7 @@ import { buttonClass } from '@/ui/Button';
 export const LazyHeaderWallet = dynamic(() => import('./HeaderWallet'), {
   ssr: false,
   loading: () => (
-    <span aria-hidden className={buttonClass('secondary', 's', 'w-[84px] text-ink-3')}>
+    <span aria-hidden className={buttonClass('secondary', 's', 'h-10 w-[84px] text-ink-3')}>
       Connect
     </span>
   ),

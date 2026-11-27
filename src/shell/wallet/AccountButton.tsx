@@ -37,6 +37,9 @@ function amount(value: number | null, digits = 2) {
  * connected it is the address with a status dot, and opens a menu that leads
  * with what people open it for: how much they can spend.
  */
+/** In the header, as tall as the pills beside it; the small size's padding and type are kept, so it is no wider. */
+export const HEADER_HEIGHT = 'h-10';
+
 export function AccountButton({ compact }: { compact?: boolean }) {
   const w = useWalletState();
   const { openConnect } = useConnect();
@@ -48,7 +51,7 @@ export function AccountButton({ compact }: { compact?: boolean }) {
   const layer = useDismissibleLayer<HTMLDivElement>({ open, onDismiss: close });
 
   if (!w.hydrated) {
-    return <span className={cn(buttonClass('secondary', 's'), 'w-24 opacity-0')} aria-hidden />;
+    return <span className={cn(buttonClass('secondary', 's'), 'w-24 opacity-0', compact && HEADER_HEIGHT)} aria-hidden />;
   }
 
   if (!w.address) {
@@ -56,7 +59,7 @@ export function AccountButton({ compact }: { compact?: boolean }) {
       <button
         type="button"
         onClick={() => openConnect()}
-        className={cn(buttonClass(w.wrongChain ? 'secondary' : 'secondary', 's'), w.wrongChain && 'border-watch text-watch')}
+        className={cn(buttonClass(w.wrongChain ? 'secondary' : 'secondary', 's'), compact && HEADER_HEIGHT, w.wrongChain && 'border-watch text-watch')}
       >
         {w.wrongChain ? 'Wrong network' : compact ? 'Connect' : 'Connect wallet'}
       </button>
@@ -99,7 +102,7 @@ export function AccountButton({ compact }: { compact?: boolean }) {
         aria-haspopup="dialog"
         /* The address may be shortened or hidden on a phone; the name always carries it. */
         aria-label={`Wallet ${shortAddress(w.address)}`}
-        className={cn(buttonClass('secondary', 's'), 'gap-2 pl-2.5')}
+        className={cn(buttonClass('secondary', 's'), compact && HEADER_HEIGHT, 'gap-2 pl-2.5')}
       >
         <span aria-hidden className={cn('size-1.5 rounded-full', w.mode === 'passkey' || w.mode === 'external' ? 'bg-ok' : 'bg-watch')} />
         {/*

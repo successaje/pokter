@@ -78,8 +78,8 @@ export function SiteHeader() {
             </span>
           )}
 
-          {/* The long pill: it runs from the mark to the controls, its labels spaced along it. */}
-          <HeaderMenus className={cn(PILL, 'h-10 flex-1 justify-evenly px-2')} />
+          {/* The navigation pill hugs its labels and sits centred between the mark and the controls. */}
+          <HeaderMenus className={cn(PILL, 'mx-auto h-10 px-1.5')} />
 
           <div className="ml-auto flex items-center gap-2 lg:ml-0">
             <div className={cn(PILL, 'flex h-10 items-center gap-0.5 px-1 [&_button]:rounded-full')}>
@@ -96,7 +96,7 @@ export function SiteHeader() {
                 <Icon.Menu size={19} />
               </button>
             </div>
-            {/* The account control keeps its square corners: it is the one thing in the row that acts. */}
+            {/* The account control keeps its square corners, at the pills' height: it is the one thing in the row that acts. */}
             <LazyHeaderWallet />
           </div>
         </div>
