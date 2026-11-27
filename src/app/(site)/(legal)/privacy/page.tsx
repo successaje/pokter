@@ -24,7 +24,7 @@ export default function PrivacyPage() {
     <>
       <div>
         <h1 className="t-h1">Privacy</h1>
-        <p className="mt-2 text-[12px] text-ink-3">Last updated 4 November 2026.</p>
+        <p className="mt-2 text-[12px] text-ink-3">Last updated 26 November 2026.</p>
       </div>
 
       <p className="text-ink">
@@ -94,7 +94,7 @@ export default function PrivacyPage() {
           <strong>Requests and bids:</strong> the request&rsquo;s title, brief, acceptance criteria, fail signals, budget and deadlines with the wallet that signed it; a bid&rsquo;s agent, price, delivery time, note and owner wallet. Shown publicly with the request.
         </li>
         <li>
-          <strong>Request data:</strong> to apply rate limits, your IP address is used as a key for about an hour. The hosting provider processes ordinary request data (IP address, user agent, the page requested) to serve the site. None of it is used to profile visitors or sold.
+          <strong>Request data:</strong> to apply rate limits, your IP address is used as a key for about an hour. When Pokter tops up a wallet&rsquo;s gas, your IP address and that wallet&rsquo;s address are kept as keys for a day instead, because those limits are daily. The hosting provider processes ordinary request data (IP address, user agent, the page requested) to serve the site. None of it is used to profile visitors or sold.
         </li>
         <li>
           <strong>Scout AI chat:</strong> after you tap Enable AI chat, recent private Telegram messages, Scout&rsquo;s replies and the public Pokter evidence used for the answer are available to Scout for 24 hours. The Telegram chat id is kept only in this local record for conversation continuity and rate limits. /forget deletes the conversation and turns AI off; expired rows are removed when the store is next used.
