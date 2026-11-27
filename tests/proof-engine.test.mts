@@ -38,6 +38,7 @@ function attestation(over: Partial<Attestation> = {}): Attestation {
     method: { probes: PROVEN_MIN_PROBES, windowDays: PROVEN_MIN_WINDOW_DAYS },
     createdAt: '2026-01-01T00:00:00.000Z',
     verified: true,
+    missing: [],
     ...over,
   };
 }
