@@ -123,6 +123,8 @@ export async function verifyReferenceDelivery(input: ReferenceDeliveryInput): Pr
       providerSignature: String(providerSig),
       expectedProvider: input.job.provider,
       contractSignature: input.contractSignature,
+      /* The chain this job settles on, which is the chain a typed-data quote must be bound to; the domain check below holds the seller's own domain to the same one. */
+      typedDataChainId: input.escrow.chainId,
     });
   } catch (error) {
     return refuse('signature', (error as Error).message);

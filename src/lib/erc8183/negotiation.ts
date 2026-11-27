@@ -1,8 +1,10 @@
 import {
   getAddress,
   hashMessage,
+  hashTypedData,
   keccak256,
   recoverMessageAddress,
+  recoverTypedDataAddress,
   toBytes,
   type Address,
   type Hex,
@@ -24,13 +26,42 @@ export const PROVIDER_SIGNATURE = /^0x(?:[0-9a-fA-F]{2}){65,1024}$/;
  */
 export type ContractSignatureCheck = (input: { wallet: Address; digests: Hex[]; signature: Hex }) => Promise<boolean>;
 
+
 /**
- * Verify an agent's EIP-191 quote signature.
+ * The typed-data form of a quote signature, for a wallet that cannot sign a
+ * plain message.
+ *
+ * A Binance Agentic Wallet signs EIP-712 and refuses EIP-191 (tested: the
+ * service answers 351817 for a plain message, and signs arbitrary typed data
+ * without asking its owner). Its Agent ID holder could therefore hire, post a
+ * request and record a review, but never sell, because a quote is signed with
+ * `personal_sign`.
+ *
+ * The struct carries the negotiation hash and nothing else, so it commits to
+ * exactly what the EIP-191 form commits to — the caller still checks that the
+ * hash is the hash of these terms, so no term escapes the signature. The
+ * domain binds the chain, which stops a quote signed for one chain being
+ * replayed on another, the same rule `quoteUsableForEscrow` applies to the
+ * seller's own domain. There is no verifying contract because nothing on
+ * chain verifies this: naming one would be decoration.
+ */
+export function quoteTypedData(negotiationHash: Hex, chainId: number) {
+  return {
+    domain: { name: 'Pokter Quote', version: '1', chainId },
+    types: { Quote: [{ name: 'negotiationHash', type: 'bytes32' }] },
+    primaryType: 'Quote',
+    message: { negotiationHash },
+  } as const;
+}
+
+/**
+ * Verify an agent's quote signature.
  *
  * BNB's agent SDK signs the negotiation hash as its printable 0x-prefixed
  * text, and its own verifier recovers only that form. Some sellers sign the
- * 32 raw bytes instead, so both EIP-191 encodings are accepted; neither
- * weakens identity because the recovered address must still equal the
+ * 32 raw bytes instead, so both EIP-191 encodings are accepted, and a wallet
+ * that signs only typed data may use `quoteTypedData` instead. None of the
+ * three weakens identity: the recovered address must still equal the
  * ERC-8004 agent wallet selected by the buyer.
  */
 export async function verifyNegotiationSignature(input: {
@@ -45,6 +76,12 @@ export async function verifyNegotiationSignature(input: {
    * key signatures are checked, as before.
    */
   contractSignature?: ContractSignatureCheck;
+  /**
+   * The chain the typed-data domain binds to, normally the chain the quote
+   * names. Absent, the typed-data form is not accepted, because a signature
+   * with no chain in its domain is replayable across chains.
+   */
+  typedDataChainId?: number;
 }): Promise<Address> {
   if (!/^0x[0-9a-fA-F]{64}$/.test(input.negotiationHash))
     throw new Error('Agent returned an invalid negotiation hash.');
@@ -68,12 +105,26 @@ export async function verifyNegotiationSignature(input: {
     .map((result) => getAddress(result.value))
     .find((address) => address === expected);
   /*
+   * Typed data next: it is recovered locally like the two above, so it costs
+   * nothing to try, and it is the only form a wallet that refuses plain
+   * messages can produce.
+   */
+  if (!signer && input.typedDataChainId !== undefined && EOA_SIGNATURE.test(signature)) {
+    const recoveredTyped = await recoverTypedDataAddress({
+      ...quoteTypedData(hash, input.typedDataChainId),
+      signature,
+    }).catch(() => null);
+    if (recoveredTyped && getAddress(recoveredTyped) === expected) signer = expected;
+  }
+  /*
    * The same two EIP-191 encodings, asked of the wallet itself. Only the
    * registered wallet is asked, and only its magic value counts: a
    * contract cannot vouch for any address but its own.
    */
   if (!signer && input.contractSignature) {
-    const vouched = await input.contractSignature({ wallet: expected, digests: [hashMessage({ raw: hash }), hashMessage(hash)], signature });
+    const digests: Hex[] = [hashMessage({ raw: hash }), hashMessage(hash)];
+    if (input.typedDataChainId !== undefined) digests.push(hashTypedData(quoteTypedData(hash, input.typedDataChainId)));
+    const vouched = await input.contractSignature({ wallet: expected, digests, signature });
     if (vouched) signer = expected;
   }
   if (!signer) {

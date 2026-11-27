@@ -267,12 +267,14 @@ export async function requestQuote(
      * a claim by whoever answered the socket — exactly the kind of number
      * this product exists not to repeat.
      */
+    /* The chain the quote names, else the agent's own: it picks the chain a smart account is asked on, and the chain a typed-data domain must bind. */
+    const quoteChainId = data.chain_id === 56 || data.chain_id === 97 ? data.chain_id : agent.chain_id;
     const signer = await verifyNegotiationSignature({
       negotiationHash: data.negotiation_hash,
       providerSignature: data.provider_sig,
       expectedProvider: agentWallet,
-      /* A smart-account wallet, asked on the chain the quote names (else the agent's own). */
-      contractSignature: contractSignatureCheck(data.chain_id === 56 || data.chain_id === 97 ? data.chain_id : agent.chain_id, data.verifying_contract),
+      contractSignature: contractSignatureCheck(quoteChainId, data.verifying_contract),
+      typedDataChainId: quoteChainId,
     }).catch((error: unknown) => {
       throw new Error(`signature check failed: ${error instanceof Error ? error.message : String(error)}`);
     });
